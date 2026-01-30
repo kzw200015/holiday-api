@@ -1,0 +1,10 @@
+server:
+  port: 8000
+
+spring:
+  application:
+    name: java-api
+  datasource:
+    url: jdbc:postgresql://localhost:5432/java-api
+    username: postgres
+    password: REDACTED
