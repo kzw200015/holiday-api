@@ -35,7 +35,7 @@ public class GlobalExceptionHandler {
         HttpMessageNotReadableException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception ex) {
-        String msg = resolveBadRequestMessage(ex);
+        final String msg = resolveBadRequestMessage(ex);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiResponse<>(HttpStatus.BAD_REQUEST.value(), null, msg));
     }
 
@@ -44,8 +44,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ErrorResponseException.class)
     public ResponseEntity<ApiResponse<Void>> handleErrorResponseException(ErrorResponseException ex) {
-        HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
-        String msg = ex.getMessage();
+        final HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
+        final String msg = ex.getMessage();
         return ResponseEntity.status(status).body(new ApiResponse<>(status.value(), null, msg));
     }
 
@@ -55,7 +55,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleInternalServerError(Exception ex) {
         log.error("未处理异常", ex);
-        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
+        final HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
         return ResponseEntity.status(status).body(new ApiResponse<>(status.value(), null, "服务器内部错误"));
     }
 

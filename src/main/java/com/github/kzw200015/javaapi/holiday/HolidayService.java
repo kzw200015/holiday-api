@@ -29,10 +29,10 @@ public class HolidayService {
      */
     public void refreshHolidayData() {
         try {
-            LocalDate today = LocalDate.now();
-            int currentYear = today.getYear();
-            int nextYear = currentYear + 1;
-            List<Holiday> holidays = new ArrayList<>();
+            final LocalDate today = LocalDate.now();
+            final int currentYear = today.getYear();
+            final int nextYear = currentYear + 1;
+            final List<Holiday> holidays = new ArrayList<>();
             holidays.addAll(holidayFetcher.fetchYear(currentYear));
             holidays.addAll(holidayFetcher.fetchYear(nextYear));
             if (holidays.isEmpty()) {
@@ -53,9 +53,9 @@ public class HolidayService {
      * 判断指定日期是否为休息日。
      */
     public boolean isHoliday(LocalDate date) {
-        String dateText = date.format(DATE_FORMATTER);
-        boolean isWeekend = date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY;
-        Holiday holiday = HolidayStore.findByDate(dateText);
+        final String dateText = date.format(DATE_FORMATTER);
+        final boolean isWeekend = date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY;
+        final Holiday holiday = HolidayStore.findByDate(dateText);
         if (holiday == null) {
             return isWeekend;
         }

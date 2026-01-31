@@ -29,10 +29,10 @@ public class HolidayController {
      */
     @GetMapping("/is-holiday")
     public ApiResponse<Boolean> isHoliday(@RequestParam(value = "date", required = false) String dateParam) {
-        LocalDate date = dateParam == null || dateParam.isBlank()
+        final LocalDate date = dateParam == null || dateParam.isBlank()
             ? LocalDate.now()
             : LocalDate.parse(dateParam, DATE_FORMATTER);
-        boolean isHoliday = holidayService.isHoliday(date);
+        final boolean isHoliday = holidayService.isHoliday(date);
         return ApiResponse.success(isHoliday);
     }
 }

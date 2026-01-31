@@ -19,7 +19,7 @@ public final class HolidayStore {
      * 用新列表替换全部数据。
      */
     public static void replaceAll(List<Holiday> holidays) {
-        Map<String, Holiday> byDate = new HashMap<>(holidays.size());
+        final Map<String, Holiday> byDate = new HashMap<>(holidays.size());
         for (Holiday holiday : holidays) {
             byDate.put(holiday.date(), holiday);
         }
