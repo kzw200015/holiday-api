@@ -8,3 +8,16 @@ spring:
     url: jdbc:postgresql://localhost:5432/java-api
     username: postgres
     password: REDACTED
+
+codex:
+  oauth:
+    issuer: https://auth.openai.com
+    client-id: app_EMoamEEZ73f0CkXaXp7hrann
+    redirect-uri: ${CODEX_OAUTH_REDIRECT_URI:http://localhost:1455/auth/callback}
+    scope: "openid profile email offline_access"
+    originator: opencode
+    pending-ttl-seconds: 300
+
+mybatis-plus:
+  global-config:
+    banner: false

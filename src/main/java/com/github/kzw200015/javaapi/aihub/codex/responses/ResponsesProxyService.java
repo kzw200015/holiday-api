@@ -1,4 +1,4 @@
-package com.github.kzw200015.javaapi.responses;
+package com.github.kzw200015.javaapi.aihub.codex.responses;
 
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
