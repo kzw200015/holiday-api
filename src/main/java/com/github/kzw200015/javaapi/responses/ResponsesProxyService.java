@@ -44,17 +44,18 @@ public class ResponsesProxyService {
             HEADER_ORIGINATOR
     );
 
-    private final OkHttpClient okHttpClient;
+    private final OkHttpClient httpClient;
     private final JsonMapper jsonMapper;
 
-    public ResponsesProxyService(OkHttpClient okHttpClient, JsonMapper jsonMapper) {
-        this.okHttpClient = okHttpClient;
+    public ResponsesProxyService(OkHttpClient httpClient, JsonMapper jsonMapper) {
+        this.httpClient = httpClient;
         this.jsonMapper = jsonMapper;
     }
 
     public Map<String, Object> proxyJson(HttpHeaders headers, Map<String, Object> body) {
+        body.put("stream", false);
         final Request upstreamRequest = buildUpstreamRequest(headers, body);
-        try (final Response upstreamResponse = okHttpClient.newCall(upstreamRequest).execute()) {
+        try (final Response upstreamResponse = httpClient.newCall(upstreamRequest).execute()) {
             if (!upstreamResponse.isSuccessful()) {
                 throw new IllegalStateException("代理请求失败：status=" + upstreamResponse.code());
             }
@@ -68,11 +69,10 @@ public class ResponsesProxyService {
     }
 
     public SseEmitter proxySse(HttpHeaders headers, Map<String, Object> body) {
-        final OkHttpClient client = okHttpClient.newBuilder().readTimeout(STREAM_READ_TIMEOUT).build();
+        final OkHttpClient client = httpClient.newBuilder().readTimeout(STREAM_READ_TIMEOUT).build();
+        body.put("stream", true);
         final Request upstreamRequest = buildSseUpstreamRequest(headers, body);
-
         final SseEmitter emitter = new SseEmitter(60_000L);
-
         final EventSourceListener listener = new EventSourceListener() {
 
             @Override
