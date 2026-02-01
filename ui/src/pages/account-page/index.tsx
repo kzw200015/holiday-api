@@ -5,11 +5,9 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { type AccountListItem, deleteAccount, listAccounts } from "@/lib/api/account"
+import { type AccountListItem, listAccounts } from "@/lib/api/account"
 
 import { AccountCreateDialog } from "./account-create-dialog"
-import { AccountEditDialog } from "./account-edit-dialog"
-import { AccountRemoveDialog } from "./account-remove-dialog"
 import { AccountTable } from "./account-table"
 
 export function AccountPage() {
@@ -17,12 +15,6 @@ export function AccountPage() {
     const [items, setItems] = useState<AccountListItem[]>([])
 
     const [createDialogOpen, setCreateDialogOpen] = useState(false)
-    const [editDialogOpen, setEditDialogOpen] = useState(false)
-    const [editDialogAccountId, setEditDialogAccountId] = useState<string>()
-
-    const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
-    const [removeDialogItem, setRemoveDialogItem] = useState<AccountListItem>()
-    const [removeLoading, setRemoveLoading] = useState(false)
 
     const total = items.length
 
@@ -42,33 +34,8 @@ export function AccountPage() {
         void refresh()
     }, [])
 
-    function requestRemove(item: AccountListItem) {
-        setRemoveDialogItem(item)
-        setRemoveDialogOpen(true)
-    }
-
-    async function confirmRemove(id: string) {
-        setRemoveLoading(true)
-        try {
-            await deleteAccount(id)
-            toast("账号已删除")
-            setRemoveDialogOpen(false)
-            setRemoveDialogItem(undefined)
-            await refresh()
-        } catch (e) {
-            toast(e instanceof Error ? e.message : String(e))
-        } finally {
-            setRemoveLoading(false)
-        }
-    }
-
     function openCreateDialog() {
         setCreateDialogOpen(true)
-    }
-
-    function openDetailDialog(id: string) {
-        setEditDialogAccountId(id)
-        setEditDialogOpen(true)
     }
 
     return (
@@ -101,32 +68,11 @@ export function AccountPage() {
                     <CardDescription>共 {total} 条</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <AccountTable loading={loading} items={items} onOpenDetail={openDetailDialog} onRemove={requestRemove}/>
+                    <AccountTable loading={loading} items={items} onChanged={refresh}/>
                 </CardContent>
             </Card>
 
             <AccountCreateDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} onChanged={refresh}/>
-
-            <AccountEditDialog
-                open={editDialogOpen}
-                onOpenChange={setEditDialogOpen}
-                accountId={editDialogAccountId}
-                onChanged={refresh}
-            />
-
-            <AccountRemoveDialog
-                open={removeDialogOpen}
-                onOpenChange={(open) => {
-                    setRemoveDialogOpen(open)
-                    if (!open) {
-                        setRemoveDialogItem(undefined)
-                        setRemoveLoading(false)
-                    }
-                }}
-                item={removeDialogItem}
-                onConfirm={confirmRemove}
-                loading={removeLoading}
-            />
         </div>
     )
 }

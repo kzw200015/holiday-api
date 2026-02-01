@@ -6,7 +6,6 @@ import lombok.RequiredArgsConstructor;
 import okhttp3.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.net.URI;
@@ -39,10 +38,6 @@ public class CodexOAuthService {
     public record AuthorizeUrlResult(String authorizeUrl, String state, String redirectUri, Instant expiresAt) {
     }
 
-    public record CompleteResult(String accessToken, String refreshToken, String idToken, Long expiresInSeconds,
-                                 String accountId) {
-    }
-
     public AuthorizeUrlResult createAuthorizeUrl() {
         final PkceUtil.PkceCodes pkce = PkceUtil.generatePkce();
         final String state = PkceUtil.generateState();
@@ -53,7 +48,7 @@ public class CodexOAuthService {
         return new AuthorizeUrlResult(authorizeUrl, state, properties.redirectUri(), expiresAt);
     }
 
-    public CompleteResult completeFromCallbackUrl(String callbackUrl, String name) {
+    public void completeFromCallbackUrl(String callbackUrl, String name) {
         if (!StringUtils.hasText(callbackUrl)) {
             throw new IllegalArgumentException("callbackUrl 不能为空");
         }
@@ -87,14 +82,12 @@ public class CodexOAuthService {
         }
 
         final CodexOAuthPendingStore.PendingAuth pending = pendingStore.consume(state);
-        final TokenResponse tokens = exchangeCodeForTokens(code, properties.redirectUri(), properties.clientId(), pending.codeVerifier());
+        final CodexOAuthToken tokens = exchangeCodeForTokens(code, properties.redirectUri(), properties.clientId(), pending.codeVerifier());
         final String accountId = JwtClaimsUtil.extractAccountId(jsonMapper, tokens.idToken(), tokens.accessToken());
         if (!StringUtils.hasText(accountId)) {
             throw new IllegalStateException("无法从 token 提取 accountId");
         }
-        final CompleteResult result = new CompleteResult(tokens.accessToken(), tokens.refreshToken(), tokens.idToken(), tokens.expiresInSeconds(), accountId);
-        accountService.createOauthAccount(name, tokens.oauthJson());
-        return result;
+        accountService.createOauthAccount(name, tokens);
     }
 
     private String buildAuthorizeUrl(String redirectUri, PkceUtil.PkceCodes pkce, String state) {
@@ -114,11 +107,7 @@ public class CodexOAuthService {
                 .toString();
     }
 
-    private record TokenResponse(String idToken, String accessToken, String refreshToken, Long expiresInSeconds,
-                                 Map<String, Object> oauthJson) {
-    }
-
-    private TokenResponse exchangeCodeForTokens(String code, String redirectUri, String clientId, String codeVerifier) {
+    private CodexOAuthToken exchangeCodeForTokens(String code, String redirectUri, String clientId, String codeVerifier) {
         final HttpUrl url = HttpUrl.get(properties.issuer() + "/oauth/token");
         final FormBody body = new FormBody.Builder()
                 .add("grant_type", "authorization_code")
@@ -138,17 +127,8 @@ public class CodexOAuthService {
                 throw new IllegalStateException("Token exchange failed: status=" + response.code());
             }
             final ResponseBody responseBody = response.body();
-            if (responseBody == null) {
-                throw new IllegalStateException("Token exchange failed: empty body");
-            }
             final byte[] bytes = responseBody.bytes();
-            final Map<String, Object> map = jsonMapper.readValue(bytes, new TypeReference<>() {
-            });
-            final String idToken = asString(map.get("id_token"));
-            final String accessToken = asString(map.get("access_token"));
-            final String refreshToken = asString(map.get("refresh_token"));
-            final Long expiresIn = asLong(map.get("expires_in"));
-            return new TokenResponse(idToken, accessToken, refreshToken, expiresIn, map);
+            return jsonMapper.readValue(bytes, CodexOAuthToken.class);
         } catch (Exception ex) {
             throw new IllegalStateException("Token exchange failed", ex);
         }
@@ -176,21 +156,4 @@ public class CodexOAuthService {
         return URLDecoder.decode(s, StandardCharsets.UTF_8);
     }
 
-    private static String asString(Object v) {
-        return v == null ? null : String.valueOf(v);
-    }
-
-    private static Long asLong(Object v) {
-        if (v instanceof Number n) {
-            return n.longValue();
-        }
-        if (v == null) {
-            return null;
-        }
-        try {
-            return Long.parseLong(String.valueOf(v));
-        } catch (Exception ex) {
-            return null;
-        }
-    }
 }

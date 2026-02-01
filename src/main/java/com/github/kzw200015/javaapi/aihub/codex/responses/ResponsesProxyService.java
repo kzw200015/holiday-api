@@ -1,5 +1,7 @@
 package com.github.kzw200015.javaapi.aihub.codex.responses;
 
+import com.github.kzw200015.javaapi.aihub.codex.oauth2.CodexAccountCache;
+import com.github.kzw200015.javaapi.aihub.codex.oauth2.CodexOAuthProperties;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import okhttp3.sse.EventSource;
@@ -16,6 +18,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +29,7 @@ import java.util.Map;
 @Slf4j
 public class ResponsesProxyService {
 
-    private static final HttpUrl UPSTREAM_URL = HttpUrl.get("https://sub2api.home.jktu.cc/responses");
+    private static final HttpUrl UPSTREAM_URL = HttpUrl.get("https://chatgpt.com/backend-api/codex/responses");
 
     private static final Duration STREAM_READ_TIMEOUT = Duration.ZERO;
 
@@ -34,27 +37,33 @@ public class ResponsesProxyService {
     private static final String HEADER_X_OAI_WEB_SEARCH_ELIGIBLE = "x-oai-web-search-eligible";
     private static final String HEADER_SESSION_ID = "session_id";
     private static final String HEADER_ORIGINATOR = "originator";
+    private static final String HEADER_CHATGPT_ACCOUNT_ID = "ChatGPT-Account-Id";
 
     private static final List<String> WHITELIST_HEADERS = List.of(
             HEADER_X_CODEX_BETA_FEATURES,
             HEADER_X_OAI_WEB_SEARCH_ELIGIBLE,
             HEADER_SESSION_ID,
-            HttpHeaders.AUTHORIZATION,
             HttpHeaders.USER_AGENT,
             HEADER_ORIGINATOR
     );
 
     private final OkHttpClient httpClient;
     private final JsonMapper jsonMapper;
+    private final CodexOAuthProperties codexOAuthProperties;
+    private final CodexAccountCache accountCache;
 
-    public ResponsesProxyService(OkHttpClient httpClient, JsonMapper jsonMapper) {
+    public ResponsesProxyService(OkHttpClient httpClient, JsonMapper jsonMapper,
+                                 CodexOAuthProperties codexOAuthProperties, CodexAccountCache accountCache) {
         this.httpClient = httpClient;
         this.jsonMapper = jsonMapper;
+        this.codexOAuthProperties = codexOAuthProperties;
+        this.accountCache = accountCache;
     }
 
     public Map<String, Object> proxyJson(HttpHeaders headers, Map<String, Object> body) {
-        body.put("stream", false);
-        final Request upstreamRequest = buildUpstreamRequest(headers, body);
+        final Map<String, Object> payload = body != null ? body : new HashMap<>();
+        payload.put("stream", false);
+        final Request upstreamRequest = buildUpstreamRequest(headers, payload);
         try (final Response upstreamResponse = httpClient.newCall(upstreamRequest).execute()) {
             if (!upstreamResponse.isSuccessful()) {
                 throw new IllegalStateException("代理请求失败：status=" + upstreamResponse.code());
@@ -70,8 +79,9 @@ public class ResponsesProxyService {
 
     public SseEmitter proxySse(HttpHeaders headers, Map<String, Object> body) {
         final OkHttpClient client = httpClient.newBuilder().readTimeout(STREAM_READ_TIMEOUT).build();
-        body.put("stream", true);
-        final Request upstreamRequest = buildSseUpstreamRequest(headers, body);
+        final Map<String, Object> payload = body != null ? body : new HashMap<>();
+        payload.put("stream", true);
+        final Request upstreamRequest = buildSseUpstreamRequest(headers, payload);
         final SseEmitter emitter = new SseEmitter(60_000L);
         final EventSourceListener listener = new EventSourceListener() {
 
@@ -120,20 +130,38 @@ public class ResponsesProxyService {
     }
 
     private Request buildUpstreamRequest(HttpHeaders headers, Map<String, Object> body) {
+        final CodexAccountCache.CachedAccount auth = resolveAuth();
         final RequestBody requestBody = RequestBody.create(jsonMapper.writeValueAsBytes(body));
         final Request.Builder builder = new Request.Builder().url(UPSTREAM_URL).post(requestBody);
         builder.header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
         copyWhitelistedHeaders(builder, headers);
+        applyAuthHeaders(builder, headers, auth);
         return builder.build();
     }
 
     private Request buildSseUpstreamRequest(HttpHeaders headers, Map<String, Object> body) {
+        final CodexAccountCache.CachedAccount auth = resolveAuth();
         final RequestBody requestBody = RequestBody.create(jsonMapper.writeValueAsBytes(body));
         final Request.Builder builder = new Request.Builder().url(UPSTREAM_URL).post(requestBody);
         builder.header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
         builder.header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE);
         copyWhitelistedHeaders(builder, headers);
+        applyAuthHeaders(builder, headers, auth);
         return builder.build();
+    }
+
+    private void applyAuthHeaders(Request.Builder builder, HttpHeaders headers, CodexAccountCache.CachedAccount auth) {
+        builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + auth.accessToken());
+        if (StringUtils.hasText(auth.chatgptAccountId())) {
+            builder.header(HEADER_CHATGPT_ACCOUNT_ID, auth.chatgptAccountId());
+        }
+        if (!StringUtils.hasText(headers.getFirst(HEADER_ORIGINATOR)) && StringUtils.hasText(codexOAuthProperties.originator())) {
+            builder.header(HEADER_ORIGINATOR, codexOAuthProperties.originator());
+        }
+    }
+
+    private CodexAccountCache.CachedAccount resolveAuth() {
+        return accountCache.next();
     }
 
     private static void copyWhitelistedHeaders(Request.Builder builder, HttpHeaders headers) {

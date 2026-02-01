@@ -30,7 +30,8 @@ public class CodexOAuthController {
     }
 
     @PostMapping("/complete")
-    public ApiResponse<CodexOAuthService.CompleteResult> complete(@RequestBody CompleteRequest request) {
-        return ApiResponse.success(service.completeFromCallbackUrl(request.callbackUrl(), request.name()));
+    public ApiResponse<Void> complete(@RequestBody CompleteRequest request) {
+        service.completeFromCallbackUrl(request.callbackUrl(), request.name());
+        return ApiResponse.success(null);
     }
 }

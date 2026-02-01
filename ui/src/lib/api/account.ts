@@ -89,6 +89,19 @@ export async function deleteAccount(id: string) {
     }
 }
 
+/**
+ * 主动刷新账号 token。
+ *
+ * POST /api/account/{id}/refresh-token
+ */
+export async function refreshAccountToken(id: string) {
+    try {
+        await http.post<ApiResponse<null>>(`/account/${id}/refresh-token`)
+    } catch (error) {
+        throw new Error(resolveApiErrorMessage(error))
+    }
+}
+
 export type CodexAuthorizeUrlResult = {
     authorizeUrl: string
     state: string

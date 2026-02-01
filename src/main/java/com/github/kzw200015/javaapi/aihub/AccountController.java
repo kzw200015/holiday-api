@@ -1,18 +1,13 @@
 package com.github.kzw200015.javaapi.aihub;
 
+import com.github.kzw200015.javaapi.aihub.codex.oauth2.CodexOAuthToken;
+import com.github.kzw200015.javaapi.aihub.codex.oauth2.CodexTokenRefreshScheduler;
 import com.github.kzw200015.javaapi.common.ApiResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Codex 账号管理接口。
@@ -23,12 +18,13 @@ import java.util.Map;
 public class AccountController {
 
     private final AccountService accountService;
+    private final CodexTokenRefreshScheduler tokenRefreshScheduler;
 
     public record AccountListItem(String id, String name, String authType, OffsetDateTime createTime) {
     }
 
     public record AccountDetail(String id, String name, String authType, OffsetDateTime createTime,
-                                Map<String, Object> oauthJson) {
+                                CodexOAuthToken oauthJson) {
     }
 
     @GetMapping("/list")
@@ -44,7 +40,7 @@ public class AccountController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<AccountDetail> get(@PathVariable("id") String id) {
+    public ApiResponse<AccountDetail> get(@PathVariable String id) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("id 不能为空");
         }
@@ -60,7 +56,7 @@ public class AccountController {
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<Void> updateName(@PathVariable("id") String id, @RequestBody UpdateNameRequest request) {
+    public ApiResponse<Void> updateName(@PathVariable String id, @RequestBody UpdateNameRequest request) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("id 不能为空");
         }
@@ -78,7 +74,7 @@ public class AccountController {
     }
 
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable("id") String id) {
+    public ApiResponse<Void> delete(@PathVariable String id) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("id 不能为空");
         }
@@ -86,6 +82,12 @@ public class AccountController {
         if (!removed) {
             throw new IllegalArgumentException("账号不存在");
         }
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/{id}/refresh-token")
+    public ApiResponse<Void> refreshToken(@PathVariable String id) {
+        tokenRefreshScheduler.refreshAccountToken(id);
         return ApiResponse.success(null);
     }
 }
