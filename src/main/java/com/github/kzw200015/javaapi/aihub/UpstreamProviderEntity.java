@@ -9,7 +9,6 @@ import lombok.Data;
 
 import java.time.OffsetDateTime;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Codex 凭证表。
@@ -18,8 +17,8 @@ import java.util.UUID;
 @TableName(value = "upstream_provider", autoResultMap = true)
 public class UpstreamProviderEntity {
 
-    @TableId(value = "id", type = IdType.INPUT)
-    private UUID id;
+    @TableId(value = "id", type = IdType.ASSIGN_UUID)
+    private String id;
 
     @TableField("auth_type")
     private String authType;

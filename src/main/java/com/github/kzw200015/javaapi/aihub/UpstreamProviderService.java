@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Codex 凭证存储服务。
@@ -22,7 +21,6 @@ public class UpstreamProviderService extends ServiceImpl<UpstreamProviderMapper,
             throw new IllegalArgumentException("oauthJson 不能为空");
         }
         final UpstreamProviderEntity entity = new UpstreamProviderEntity();
-        entity.setId(UUID.randomUUID());
         entity.setAuthType(UpstreamProviderAuthType.OAUTH.dbValue());
         entity.setOauthJson(oauthJson);
         entity.setCreateTime(OffsetDateTime.now(ZoneOffset.UTC));

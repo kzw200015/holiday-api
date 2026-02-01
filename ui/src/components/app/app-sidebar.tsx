@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { FolderKanban, Gauge, Settings } from 'lucide-react'
+import { CalendarDays, FolderKanban, Gauge, Settings } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { to: '/', label: '概览', Icon: Gauge, end: true },
   { to: '/projects', label: '项目', Icon: FolderKanban },
+  { to: '/holiday', label: '节假日', Icon: CalendarDays },
   { to: '/settings', label: '设置', Icon: Settings },
 ]
 

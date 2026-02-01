@@ -1,18 +1,19 @@
 package com.github.kzw200015.javaapi.common.mybatis;
 
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.baomidou.mybatisplus.extension.handlers.Jackson3TypeHandler;
+import org.apache.ibatis.type.JdbcType;
+import org.postgresql.util.PGobject;
+
 import java.lang.reflect.Field;
 import java.sql.CallableStatement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import org.apache.ibatis.type.JdbcType;
-import org.postgresql.util.PGobject;
 
 /**
  * PostgreSQL jsonb 字段 TypeHandler。
  */
-public class JsonbTypeHandler extends JacksonTypeHandler {
+public class JsonbTypeHandler extends Jackson3TypeHandler {
 
     public JsonbTypeHandler(Class<?> type) {
         super(type);
