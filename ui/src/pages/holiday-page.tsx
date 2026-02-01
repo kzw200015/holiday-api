@@ -1,17 +1,12 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { CalendarDays, CircleCheck, CircleX, Hourglass } from "lucide-react"
+import { toast } from "sonner"
 
+import { AppDatePicker, formatDateForInput } from "@/components/app/date-picker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { queryIsHoliday } from "@/lib/api/holiday"
-
-function formatDateForInput(date: Date) {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, "0")
-    const day = String(date.getDate()).padStart(2, "0")
-    return `${year}-${month}-${day}`
-}
 
 function addDays(dateText: string, days: number) {
     const parts = dateText.split("-")
@@ -29,18 +24,11 @@ export function HolidayPage() {
     const [isHoliday, setIsHoliday] = useState<boolean>()
     const [nextOffDayDate, setNextOffDayDate] = useState<string>()
     const [daysToNextOffDay, setDaysToNextOffDay] = useState<number>()
-    const [error, setError] = useState<string>()
 
-    const title = useMemo(() => {
-        if (isHoliday === undefined) {
-            return "未查询"
-        }
-        return isHoliday ? "休息日" : "工作日"
-    }, [isHoliday])
+    const title = isHoliday === undefined ? "未查询" : isHoliday ? "休息日" : "工作日"
 
     async function refresh() {
         setLoading(true)
-        setError(undefined)
         setNextOffDayDate(undefined)
         setDaysToNextOffDay(undefined)
         try {
@@ -69,7 +57,7 @@ export function HolidayPage() {
             setIsHoliday(undefined)
             setNextOffDayDate(undefined)
             setDaysToNextOffDay(undefined)
-            setError(e instanceof Error ? e.message : String(e))
+            toast(e instanceof Error ? e.message : String(e))
         } finally {
             setLoading(false)
         }
@@ -106,25 +94,15 @@ export function HolidayPage() {
                             <label className="text-sm text-muted-foreground" htmlFor="holiday-date">
                                 日期
                             </label>
-                            <input
-                                id="holiday-date"
-                                className="h-9 w-50 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                type="date"
-                                value={date}
-                                onChange={(e) => setDate(e.target.value)}
-                            />
+                            <AppDatePicker id="holiday-date" value={date} onValueChange={setDate} disabled={loading}/>
                             <Button onClick={refresh} disabled={loading}>
                                 {loading ? "查询中…" : "查询"}
                             </Button>
                         </div>
 
-                        {error ? (
-                            <div className="text-sm text-destructive">{error}</div>
-                        ) : (
-                            <div className="text-sm text-muted-foreground">
-                                支持留空（后端默认使用当天日期）。
-                            </div>
-                        )}
+                        <div className="text-sm text-muted-foreground">
+                            支持留空（后端默认使用当天日期）。
+                        </div>
                     </CardContent>
                 </Card>
 
