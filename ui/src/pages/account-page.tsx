@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import dayjs from "dayjs"
 import { Key, Pencil, RefreshCcw, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -29,11 +30,11 @@ import {
 } from "@/lib/api/account"
 
 function formatTime(timeText: string) {
-    const d = new Date(timeText)
-    if (Number.isNaN(d.getTime())) {
+    const d = dayjs(timeText)
+    if (!d.isValid()) {
         return timeText
     }
-    return d.toLocaleString()
+    return d.format("YYYY-MM-DD HH:mm:ss")
 }
 
 type AccountDetailDialogProps = {
@@ -103,7 +104,7 @@ function AccountDetailDialog({ open, onOpenChange, accountId, onChanged }: Accou
         try {
             const result = await getCodexAuthorizeUrl()
             setAuthorizeUrl(result.authorizeUrl)
-            setAuthorizeMeta(`redirectUri=${result.redirectUri} · expiresAt=${result.expiresAt}`)
+            setAuthorizeMeta(`redirectUri=${result.redirectUri} · expiresAt=${formatTime(result.expiresAt)}`)
         } catch (e) {
             toast(e instanceof Error ? e.message : String(e))
         } finally {
