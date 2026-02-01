@@ -160,7 +160,7 @@ public class CodexOAuthService {
             if (pair.isEmpty()) {
                 continue;
             }
-            final int idx = pair.indexOf('=');
+            final int idx = pair.indexOf("=");
             final String k = idx >= 0 ? pair.substring(0, idx) : pair;
             final String v = idx >= 0 ? pair.substring(idx + 1) : "";
             map.put(urlDecode(k), urlDecode(v));

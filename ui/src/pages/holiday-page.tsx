@@ -1,20 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, CircleCheck, CircleX, Hourglass } from 'lucide-react'
+import { useEffect, useMemo, useState } from "react"
+import { CalendarDays, CircleCheck, CircleX, Hourglass } from "lucide-react"
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { queryIsHoliday } from '@/lib/api/holiday'
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { queryIsHoliday } from "@/lib/api/holiday"
 
 function formatDateForInput(date: Date) {
     const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const day = String(date.getDate()).padStart(2, "0")
     return `${year}-${month}-${day}`
 }
 
 function addDays(dateText: string, days: number) {
-    const parts = dateText.split('-')
+    const parts = dateText.split("-")
     const year = Number(parts[0])
     const month = Number(parts[1])
     const day = Number(parts[2])
@@ -33,9 +33,9 @@ export function HolidayPage() {
 
     const title = useMemo(() => {
         if (isHoliday === undefined) {
-            return '未查询'
+            return "未查询"
         }
-        return isHoliday ? '休息日' : '工作日'
+        return isHoliday ? "休息日" : "工作日"
     }, [isHoliday])
 
     async function refresh() {
@@ -64,7 +64,7 @@ export function HolidayPage() {
                 }
             }
 
-            throw new Error('未找到下一个休息日（查询范围：60天）')
+            throw new Error("未找到下一个休息日（查询范围：60天）")
         } catch (e) {
             setIsHoliday(undefined)
             setNextOffDayDate(undefined)
@@ -115,7 +115,7 @@ export function HolidayPage() {
                                 onChange={(e) => setDate(e.target.value)}
                             />
                             <Button onClick={refresh} disabled={loading}>
-                                {loading ? '查询中…' : '查询'}
+                                {loading ? "查询中…" : "查询"}
                             </Button>
                         </div>
 
@@ -144,7 +144,7 @@ export function HolidayPage() {
                     <CardContent className="space-y-2">
                         <div className="text-3xl font-semibold tracking-tight">{title}</div>
                         <div className="text-sm text-muted-foreground">
-                            {date && date.trim().length > 0 ? `日期：${date}` : '日期：今天'}
+                            {date && date.trim().length > 0 ? `日期：${date}` : "日期：今天"}
                         </div>
                     </CardContent>
                 </Card>
@@ -160,13 +160,13 @@ export function HolidayPage() {
                     <CardContent className="space-y-2">
                         <div className="text-3xl font-semibold tracking-tight">
                             {loading
-                                ? '计算中…'
+                                ? "计算中…"
                                 : daysToNextOffDay === undefined
-                                    ? '-'
+                                    ? "-"
                                     : `${daysToNextOffDay} 天`}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                            {loading ? '日期：计算中…' : nextOffDayDate ? `日期：${nextOffDayDate}` : '日期：-'}
+                            {loading ? "日期：计算中…" : nextOffDayDate ? `日期：${nextOffDayDate}` : "日期：-"}
                         </div>
                     </CardContent>
                 </Card>

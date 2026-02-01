@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios from "axios"
 
 /**
  * Axios 实例。
@@ -7,8 +7,9 @@ import axios from 'axios'
  * - 生产环境：由同源部署/反向代理提供 /api
  */
 export const http = axios.create({
-  headers: {
-    Accept: 'application/json',
-  },
+    headers: {
+        Accept: "application/json",
+    },
+    baseURL: "/api",
 })
 

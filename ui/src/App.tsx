@@ -1,9 +1,9 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes } from "react-router-dom"
 
-import { AppLayout } from '@/components/app/app-layout.tsx'
-import { DashboardPage } from '@/pages/dashboard-page'
-import { HolidayPage } from '@/pages/holiday-page'
-import { NotFoundPage } from '@/pages/not-found-page'
+import { AppLayout } from "@/components/app/app-layout.tsx"
+import { DashboardPage } from "@/pages/dashboard-page"
+import { HolidayPage } from "@/pages/holiday-page"
+import { NotFoundPage } from "@/pages/not-found-page"
 
 export default function App() {
     return (

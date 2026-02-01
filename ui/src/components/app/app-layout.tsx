@@ -1,8 +1,8 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet } from "react-router-dom"
 
-import { AppSidebar } from '@/components/app/app-sidebar.tsx'
-import { ThemeToggle } from '@/components/app/theme-toggle.tsx'
-import { Separator } from '@/components/ui/separator.tsx'
+import { AppSidebar } from "@/components/app/app-sidebar.tsx"
+import { ThemeToggle } from "@/components/app/theme-toggle.tsx"
+import { Separator } from "@/components/ui/separator.tsx"
 
 export function AppLayout() {
     return (
