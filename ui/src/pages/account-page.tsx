@@ -382,7 +382,7 @@ function AccountTable({
                                     </TableCell>
                                     <TableCell className="px-3">
                                         <div className="flex flex-wrap gap-2">
-                                            <Button size="sm" variant="outline" onClick={() => onOpenDetail(it.id)}>
+                                            <Button size="sm" variant="secondary" onClick={() => onOpenDetail(it.id)}>
                                                 <Pencil className="h-4 w-4" aria-hidden="true"/>
                                                 修改
                                             </Button>
