@@ -4,7 +4,6 @@ import { CalendarDays, CircleCheck, CircleX, Hourglass } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 import { queryIsHoliday } from '@/lib/api/holiday'
 
 function formatDateForInput(date: Date) {
@@ -93,8 +92,6 @@ export function HolidayPage() {
                     </p>
                 </div>
             </div>
-
-            <Separator/>
 
             <div className="grid gap-4 md:grid-cols-3">
                 <Card>

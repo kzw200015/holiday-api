@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { CalendarDays, FolderKanban, Gauge, Settings } from 'lucide-react'
+import { CalendarDays, Gauge } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
@@ -13,9 +13,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { to: '/', label: '概览', Icon: Gauge, end: true },
-  { to: '/projects', label: '项目', Icon: FolderKanban },
   { to: '/holiday', label: '节假日', Icon: CalendarDays },
-  { to: '/settings', label: '设置', Icon: Settings },
 ]
 
 function getNavItemClassName(isActive: boolean) {
@@ -42,9 +40,6 @@ export function AppSidebar() {
             >
               <item.Icon className="h-4 w-4 opacity-90" aria-hidden="true" />
               <span className="truncate">{item.label}</span>
-              <span className="ml-auto text-[10px] tracking-wider text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100">
-                ROUTE
-              </span>
             </NavLink>
           ))}
         </nav>

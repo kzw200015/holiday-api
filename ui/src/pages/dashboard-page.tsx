@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 
 export function DashboardPage() {
   return (
@@ -21,14 +20,12 @@ export function DashboardPage() {
         </div>
 
         <Button asChild>
-          <Link to="/projects">
-            进入项目
+          <Link to="/holiday">
+            查看节假日
             <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </Button>
       </div>
-
-      <Separator />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -40,7 +37,7 @@ export function DashboardPage() {
             <CardDescription>shadcn/ui + Radix 的基础组件</CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Button / Card / ScrollArea / Separator 等组件已接入，可按页面逐步扩展。
+            Button / Card / ScrollArea 等组件已接入，可按页面逐步扩展。
           </CardContent>
         </Card>
 

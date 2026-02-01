@@ -27,7 +27,7 @@ export function AppLayout() {
                 </header>
 
                 <div className="grid min-h-0 grid-cols-[280px_1fr]">
-                    <aside className="min-h-0 border-r border-border/70">
+                    <aside className="min-h-0">
                         <AppSidebar/>
                     </aside>
 
