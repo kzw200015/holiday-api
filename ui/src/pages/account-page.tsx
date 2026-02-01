@@ -274,17 +274,17 @@ function AccountEditDialog({ open, onOpenChange, accountId, onChanged }: Account
                     </Field>
                     <Field>
                         <FieldLabel>oauth_json</FieldLabel>
-                        <div className="rounded-md border bg-secondary/10">
-                            <pre
-                                className="max-h-80 overflow-auto p-3 text-xs leading-relaxed whitespace-pre-wrap wrap-break-word font-mono">
-                                {detailLoading ? "加载中…" : detailOauthJsonText}
-                            </pre>
-                        </div>
+                        <Textarea
+                            value={detailLoading ? "加载中…" : detailOauthJsonText}
+                            disabled
+                            spellCheck={false}
+                            className="h-80 font-mono"
+                        />
                     </Field>
                 </FieldGroup>
 
                 <DialogFooter>
-                    <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
                         关闭
                     </Button>
                     <Button onClick={saveName} disabled={loading || detailLoading || !accountId}>
@@ -480,12 +480,12 @@ export function AccountPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" onClick={refresh} disabled={loading}>
-                        <RefreshCcw className="h-4 w-4" aria-hidden="true"/>
+                    <Button variant="outline" onClick={refresh} disabled={loading}>
+                        <RefreshCcw aria-hidden="true"/>
                         刷新
                     </Button>
                     <Button onClick={openCreateDialog}>
-                        <Key className="h-4 w-4" aria-hidden="true"/>
+                        <Key aria-hidden="true"/>
                         通过 OAuth 新增
                     </Button>
                 </div>
