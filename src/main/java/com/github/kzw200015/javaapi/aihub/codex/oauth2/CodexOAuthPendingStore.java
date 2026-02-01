@@ -1,37 +1,60 @@
 package com.github.kzw200015.javaapi.aihub.codex.oauth2;
 
+import org.redisson.api.RMapCache;
+import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * state -> PKCE/code_verifier 的临时存储。
  */
+@Component
 public class CodexOAuthPendingStore {
 
-    private final Map<String, PendingAuth> pendingByState = new ConcurrentHashMap<>();
+    private static final String KEY_PENDING_BY_STATE = "java-api:aihub:codex:oauth:pending";
 
-    public record PendingAuth(String state, String codeVerifier, Instant expiresAt) {
+    private final RedissonClient redissonClient;
+
+    public CodexOAuthPendingStore(RedissonClient redissonClient) {
+        this.redissonClient = redissonClient;
     }
 
-    public void put(PendingAuth pending) {
-        pendingByState.put(pending.state(), pending);
+    public void put(String state, String codeVerifier, Instant expiresAt) {
+        if (!StringUtils.hasText(state)) {
+            throw new IllegalArgumentException("state 不能为空");
+        }
+        if (!StringUtils.hasText(codeVerifier)) {
+            throw new IllegalArgumentException("codeVerifier 不能为空");
+        }
+        if (expiresAt == null) {
+            throw new IllegalArgumentException("expiresAt 不能为空");
+        }
+
+        final long ttlSeconds = Duration.between(Instant.now(), expiresAt).toSeconds();
+        if (ttlSeconds <= 0) {
+            throw new IllegalArgumentException("expiresAt 无效");
+        }
+
+        pending().put(state, codeVerifier, ttlSeconds, TimeUnit.SECONDS);
     }
 
-    public PendingAuth consume(String state) {
-        cleanupExpired();
-        final PendingAuth pending = pendingByState.remove(state);
-        if (pending == null) {
+    public String consumeCodeVerifier(String state) {
+        if (!StringUtils.hasText(state)) {
+            throw new IllegalArgumentException("state 不能为空");
+        }
+        final String codeVerifier = pending().remove(state);
+        if (!StringUtils.hasText(codeVerifier)) {
             throw new IllegalArgumentException("state 无效或已过期");
         }
-        if (pending.expiresAt().isBefore(Instant.now())) {
-            throw new IllegalArgumentException("state 已过期");
-        }
-        return pending;
+        return codeVerifier;
     }
 
-    private void cleanupExpired() {
-        final Instant now = Instant.now();
-        pendingByState.entrySet().removeIf(e -> e.getValue().expiresAt().isBefore(now));
+    private RMapCache<String, String> pending() {
+        return redissonClient.getMapCache(KEY_PENDING_BY_STATE, StringCodec.INSTANCE);
     }
 }

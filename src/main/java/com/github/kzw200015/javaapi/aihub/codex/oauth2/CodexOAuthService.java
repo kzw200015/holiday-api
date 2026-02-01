@@ -8,12 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.net.URI;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Codex OAuth2 流程服务。
@@ -42,7 +37,7 @@ public class CodexOAuthService {
         final PkceUtil.PkceCodes pkce = PkceUtil.generatePkce();
         final String state = PkceUtil.generateState();
         final Instant expiresAt = Instant.now().plusSeconds(properties.pendingTtlSeconds());
-        pendingStore.put(new CodexOAuthPendingStore.PendingAuth(state, pkce.verifier(), expiresAt));
+        pendingStore.put(state, pkce.verifier(), expiresAt);
 
         final String authorizeUrl = buildAuthorizeUrl(properties.redirectUri(), pkce, state);
         return new AuthorizeUrlResult(authorizeUrl, state, properties.redirectUri(), expiresAt);
@@ -57,23 +52,22 @@ public class CodexOAuthService {
             throw new IllegalArgumentException("name 不能为空");
         }
 
-        final URI uri;
+        final HttpUrl url;
         try {
-            uri = URI.create(callbackUrl);
+            url = HttpUrl.get(callbackUrl);
         } catch (Exception ex) {
             throw new IllegalArgumentException("callbackUrl 格式错误");
         }
 
-        final Map<String, String> query = parseQuery(uri.getRawQuery());
-        final String error = query.get("error");
-        final String errorDescription = query.get("error_description");
+        final String error = url.queryParameter("error");
+        final String errorDescription = url.queryParameter("error_description");
         if (StringUtils.hasText(error)) {
             final String msg = StringUtils.hasText(errorDescription) ? errorDescription : error;
             throw new IllegalArgumentException(msg);
         }
 
-        final String code = query.get("code");
-        final String state = query.get("state");
+        final String code = url.queryParameter("code");
+        final String state = url.queryParameter("state");
         if (!StringUtils.hasText(code)) {
             throw new IllegalArgumentException("缺少授权 code");
         }
@@ -81,12 +75,8 @@ public class CodexOAuthService {
             throw new IllegalArgumentException("缺少 state");
         }
 
-        final CodexOAuthPendingStore.PendingAuth pending = pendingStore.consume(state);
-        final CodexOAuthToken tokens = exchangeCodeForTokens(code, properties.redirectUri(), properties.clientId(), pending.codeVerifier());
-        final String accountId = JwtClaimsUtil.extractAccountId(jsonMapper, tokens.idToken(), tokens.accessToken());
-        if (!StringUtils.hasText(accountId)) {
-            throw new IllegalStateException("无法从 token 提取 accountId");
-        }
+        final String codeVerifier = pendingStore.consumeCodeVerifier(state);
+        final CodexOAuthToken tokens = exchangeCodeForTokens(code, properties.redirectUri(), properties.clientId(), codeVerifier);
         accountService.createOauthAccount(name, tokens);
     }
 
@@ -124,36 +114,13 @@ public class CodexOAuthService {
 
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                throw new IllegalStateException("Token exchange failed: status=" + response.code());
+                throw new IllegalStateException("token 交换失败：status=" + response.code());
             }
-            final ResponseBody responseBody = response.body();
-            final byte[] bytes = responseBody.bytes();
+            final byte[] bytes = response.body().bytes();
             return jsonMapper.readValue(bytes, CodexOAuthToken.class);
         } catch (Exception ex) {
-            throw new IllegalStateException("Token exchange failed", ex);
+            throw new IllegalStateException("token 交换失败", ex);
         }
-    }
-
-    private static Map<String, String> parseQuery(String rawQuery) {
-        final Map<String, String> map = new HashMap<>();
-        if (!StringUtils.hasText(rawQuery)) {
-            return map;
-        }
-        final String[] pairs = rawQuery.split("&");
-        for (String pair : pairs) {
-            if (pair.isEmpty()) {
-                continue;
-            }
-            final int idx = pair.indexOf("=");
-            final String k = idx >= 0 ? pair.substring(0, idx) : pair;
-            final String v = idx >= 0 ? pair.substring(idx + 1) : "";
-            map.put(urlDecode(k), urlDecode(v));
-        }
-        return map;
-    }
-
-    private static String urlDecode(String s) {
-        return URLDecoder.decode(s, StandardCharsets.UTF_8);
     }
 
 }

@@ -3,6 +3,7 @@ package com.github.kzw200015.javaapi.aihub.codex.oauth2;
 import com.github.kzw200015.javaapi.aihub.AccountAuthType;
 import com.github.kzw200015.javaapi.aihub.AccountEntity;
 import com.github.kzw200015.javaapi.aihub.AccountService;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -12,6 +13,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Codex OAuth2 token 定时刷新。
@@ -53,7 +55,14 @@ public class CodexTokenRefreshScheduler {
         this.accountCache = accountCache;
     }
 
-    
+    /**
+     * 启动阶段初始化账号缓存；失败直接阻止应用启动。
+     */
+    @PostConstruct
+    public void initCacheOnStartup() {
+        refreshCache();
+    }
+
     @Scheduled(fixedDelay = FIXED_DELAY_MILLIS)
     private void safeRefresh() {
         try {
@@ -101,7 +110,7 @@ public class CodexTokenRefreshScheduler {
                 .le(AccountEntity::getAccessTokenExpiresAt, threshold)
                 .orderByAsc(AccountEntity::getCreateTime)
                 .list();
-        if (expiring == null || expiring.isEmpty()) {
+        if (expiring.isEmpty()) {
             return;
         }
 
@@ -139,7 +148,7 @@ public class CodexTokenRefreshScheduler {
 
         final List<CodexAccountCache.CachedAccount> cached = usable.stream()
                 .map(this::toCachedAccount)
-                .filter(it -> it != null && StringUtils.hasText(it.accessToken()))
+                .filter(Objects::nonNull)
                 .toList();
 
         accountCache.replaceAll(cached);
@@ -170,13 +179,12 @@ public class CodexTokenRefreshScheduler {
 
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                throw new IllegalStateException("Token refresh failed: status=" + response.code());
+                throw new IllegalStateException("token 刷新失败：status=" + response.code());
             }
-            final ResponseBody responseBody = response.body();
-            final byte[] bytes = responseBody.bytes();
+            final byte[] bytes = response.body().bytes();
             return jsonMapper.readValue(bytes, CodexOAuthToken.class);
         } catch (Exception ex) {
-            throw new IllegalStateException("Token refresh failed", ex);
+            throw new IllegalStateException("token 刷新失败", ex);
         }
     }
 }

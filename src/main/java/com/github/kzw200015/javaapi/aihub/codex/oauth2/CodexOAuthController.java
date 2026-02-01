@@ -31,6 +31,9 @@ public class CodexOAuthController {
 
     @PostMapping("/complete")
     public ApiResponse<Void> complete(@RequestBody CompleteRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("请求体不能为空");
+        }
         service.completeFromCallbackUrl(request.callbackUrl(), request.name());
         return ApiResponse.success(null);
     }

@@ -69,7 +69,10 @@ public class AccountController {
             throw new IllegalArgumentException("账号不存在");
         }
         entity.setName(request.name().trim());
-        accountService.updateById(entity);
+        final boolean ok = accountService.updateById(entity);
+        if (!ok) {
+            throw new IllegalStateException("更新账号失败：id=" + id);
+        }
         return ApiResponse.success(null);
     }
 

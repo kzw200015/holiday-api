@@ -97,6 +97,7 @@
 - 服务端状态错误：抛 `IllegalStateException`（未捕获会落到 500）
 - 需要携带 HTTP 状态码的场景：可用 Spring 的 `ErrorResponseException`
 - 不要吞异常：除非返回 `null` 就是明确的业务语义（例：token 解析失败）
+- OkHttp（本仓库约定）：`responseBody` 不可能为空，不写 `null` 兜底分支
 
 ### 日志
 

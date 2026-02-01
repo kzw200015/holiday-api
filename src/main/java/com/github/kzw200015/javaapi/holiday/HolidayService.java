@@ -19,9 +19,11 @@ public class HolidayService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final HolidayFetcher holidayFetcher;
+    private final HolidayStore holidayStore;
 
-    public HolidayService(HolidayFetcher holidayFetcher) {
+    public HolidayService(HolidayFetcher holidayFetcher, HolidayStore holidayStore) {
         this.holidayFetcher = holidayFetcher;
+        this.holidayStore = holidayStore;
     }
 
     /**
@@ -39,11 +41,11 @@ public class HolidayService {
                 log.warn("假期列表为空，跳过刷新");
                 return;
             }
-            HolidayStore.replaceAll(holidays);
-            log.info("假期数据刷新完成，数量：{}", HolidayStore.size());
+            holidayStore.replaceAll(holidays);
+            log.info("假期数据刷新完成，数量：{}", holidayStore.size());
         } catch (Exception ex) {
             log.error("假期数据刷新失败", ex);
-            if (HolidayStore.isEmpty()) {
+            if (holidayStore.isEmpty()) {
                 throw new IllegalStateException("假期数据初始化失败", ex);
             }
         }
@@ -55,7 +57,7 @@ public class HolidayService {
     public boolean isHoliday(LocalDate date) {
         final String dateText = date.format(DATE_FORMATTER);
         final boolean isWeekend = date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY;
-        final Holiday holiday = HolidayStore.findByDate(dateText);
+        final Holiday holiday = holidayStore.findByDate(dateText);
         if (holiday == null) {
             return isWeekend;
         }

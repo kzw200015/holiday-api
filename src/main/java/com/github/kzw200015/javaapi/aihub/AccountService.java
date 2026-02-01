@@ -71,12 +71,11 @@ public class AccountService extends ServiceImpl<AccountMapper, AccountEntity> {
         final OffsetDateTime now = OffsetDateTime.now();
         final OffsetDateTime accessTokenExpiresAt = resolveAccessTokenExpiresAt(oauthJson, now);
 
-//        final boolean ok = lambdaUpdate()
-//                .eq(AccountEntity::getId, id)
-//                .set(AccountEntity::getOauthJson, oauthJson)
-//                .set(AccountEntity::getAccessTokenExpiresAt, accessTokenExpiresAt)
-//                .update();
-        final boolean ok = updateById(new AccountEntity().setId(id).setOauthJson(oauthJson).setAccessTokenExpiresAt(accessTokenExpiresAt));
+        final AccountEntity patch = new AccountEntity()
+                .setId(id)
+                .setOauthJson(oauthJson)
+                .setAccessTokenExpiresAt(accessTokenExpiresAt);
+        final boolean ok = updateById(patch);
         if (!ok) {
             throw new IllegalStateException("更新账号凭证失败：id=" + id);
         }

@@ -48,6 +48,7 @@ public class ResponsesProxyService {
     );
 
     private final OkHttpClient httpClient;
+    private final OkHttpClient streamHttpClient;
     private final JsonMapper jsonMapper;
     private final CodexOAuthProperties codexOAuthProperties;
     private final CodexAccountCache accountCache;
@@ -55,6 +56,7 @@ public class ResponsesProxyService {
     public ResponsesProxyService(OkHttpClient httpClient, JsonMapper jsonMapper,
                                  CodexOAuthProperties codexOAuthProperties, CodexAccountCache accountCache) {
         this.httpClient = httpClient;
+        this.streamHttpClient = httpClient.newBuilder().readTimeout(STREAM_READ_TIMEOUT).build();
         this.jsonMapper = jsonMapper;
         this.codexOAuthProperties = codexOAuthProperties;
         this.accountCache = accountCache;
@@ -63,13 +65,12 @@ public class ResponsesProxyService {
     public Map<String, Object> proxyJson(HttpHeaders headers, Map<String, Object> body) {
         final Map<String, Object> payload = body != null ? body : new HashMap<>();
         payload.put("stream", false);
-        final Request upstreamRequest = buildUpstreamRequest(headers, payload);
-        try (final Response upstreamResponse = httpClient.newCall(upstreamRequest).execute()) {
+        final Request upstreamRequest = buildUpstreamRequest(headers, payload, false);
+        try (Response upstreamResponse = httpClient.newCall(upstreamRequest).execute()) {
             if (!upstreamResponse.isSuccessful()) {
                 throw new IllegalStateException("代理请求失败：status=" + upstreamResponse.code());
             }
-            final ResponseBody upstreamBody = upstreamResponse.body();
-            final byte[] responseBody = upstreamBody.bytes();
+            final byte[] responseBody = upstreamResponse.body().bytes();
             return jsonMapper.readValue(responseBody, new TypeReference<>() {
             });
         } catch (IOException ex) {
@@ -78,10 +79,9 @@ public class ResponsesProxyService {
     }
 
     public SseEmitter proxySse(HttpHeaders headers, Map<String, Object> body) {
-        final OkHttpClient client = httpClient.newBuilder().readTimeout(STREAM_READ_TIMEOUT).build();
         final Map<String, Object> payload = body != null ? body : new HashMap<>();
         payload.put("stream", true);
-        final Request upstreamRequest = buildSseUpstreamRequest(headers, payload);
+        final Request upstreamRequest = buildUpstreamRequest(headers, payload, true);
         final SseEmitter emitter = new SseEmitter(60_000L);
         final EventSourceListener listener = new EventSourceListener() {
 
@@ -118,7 +118,7 @@ public class ResponsesProxyService {
             }
         };
 
-        final EventSource eventSource = EventSources.createFactory(client).newEventSource(upstreamRequest, listener);
+        final EventSource eventSource = EventSources.createFactory(streamHttpClient).newEventSource(upstreamRequest, listener);
 
         emitter.onCompletion(eventSource::cancel);
         emitter.onTimeout(() -> {
@@ -129,22 +129,15 @@ public class ResponsesProxyService {
         return emitter;
     }
 
-    private Request buildUpstreamRequest(HttpHeaders headers, Map<String, Object> body) {
-        final CodexAccountCache.CachedAccount auth = resolveAuth();
+    private Request buildUpstreamRequest(HttpHeaders headers, Map<String, Object> body, boolean sse) {
+        final CodexAccountCache.CachedAccount auth = resolveAuth(headers);
         final RequestBody requestBody = RequestBody.create(jsonMapper.writeValueAsBytes(body));
         final Request.Builder builder = new Request.Builder().url(UPSTREAM_URL).post(requestBody);
-        builder.header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
-        copyWhitelistedHeaders(builder, headers);
-        applyAuthHeaders(builder, headers, auth);
-        return builder.build();
-    }
-
-    private Request buildSseUpstreamRequest(HttpHeaders headers, Map<String, Object> body) {
-        final CodexAccountCache.CachedAccount auth = resolveAuth();
-        final RequestBody requestBody = RequestBody.create(jsonMapper.writeValueAsBytes(body));
-        final Request.Builder builder = new Request.Builder().url(UPSTREAM_URL).post(requestBody);
-        builder.header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
-        builder.header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE);
+        if (sse) {
+            builder.header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE);
+        } else {
+            builder.header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+        }
         copyWhitelistedHeaders(builder, headers);
         applyAuthHeaders(builder, headers, auth);
         return builder.build();
@@ -160,9 +153,10 @@ public class ResponsesProxyService {
         }
     }
 
-    private CodexAccountCache.CachedAccount resolveAuth() {
-        return accountCache.next();
+    private CodexAccountCache.CachedAccount resolveAuth(HttpHeaders headers) {
+        return accountCache.selectBySessionId(headers.getFirst(HEADER_SESSION_ID));
     }
+
 
     private static void copyWhitelistedHeaders(Request.Builder builder, HttpHeaders headers) {
         for (String headerName : WHITELIST_HEADERS) {
