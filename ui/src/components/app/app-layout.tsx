@@ -1,8 +1,10 @@
 import { Outlet } from "react-router-dom"
 
 import { AppSidebar } from "@/components/app/app-sidebar.tsx"
-import { ThemeToggle } from "@/components/app/theme-toggle.tsx"
 import { Separator } from "@/components/ui/separator.tsx"
+import { useEffect, useState } from "react";
+import { Moon, Sun } from "lucide-react";
+import { Switch } from "@/components/ui/switch.tsx";
 
 export function AppLayout() {
     return (
@@ -11,7 +13,7 @@ export function AppLayout() {
 
             <div className="relative grid min-h-screen w-full grid-rows-[auto_1fr]">
                 <header
-                    className="sticky top-0 z-10 border-b border-border/70 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                    className="sticky top-0 z-10 border-b border-border/70 bg-background/90 backdrop-blur supports-backdrop-filter:bg-background/80">
                     <div className="flex items-center justify-between gap-3 px-6 py-4">
                         <div className="flex min-w-0 items-center gap-3">
                             <div className="text-sm text-muted-foreground">
@@ -36,6 +38,37 @@ export function AppLayout() {
                     </main>
                 </div>
             </div>
+        </div>
+    )
+}
+
+function ThemeToggle() {
+    const [isDark, setIsDark] = useState(false)
+
+    useEffect(() => {
+        setIsDark(document.documentElement.classList.contains("dark"))
+    }, [])
+
+    function handleCheckedChange(checked: boolean) {
+        document.documentElement.classList.toggle("dark", checked)
+        setIsDark(checked)
+    }
+
+    return (
+        <div className="flex items-center gap-2">
+            <Sun
+                aria-hidden="true"
+                className={isDark ? "text-muted-foreground/60" : "text-foreground"}
+            />
+            <Switch
+                aria-label="亮暗主题切换"
+                checked={isDark}
+                onCheckedChange={handleCheckedChange}
+            />
+            <Moon
+                aria-hidden="true"
+                className={isDark ? "text-foreground" : "text-muted-foreground/60"}
+            />
         </div>
     )
 }

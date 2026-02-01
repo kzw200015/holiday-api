@@ -22,14 +22,15 @@ public class CodexOAuthController {
         return ApiResponse.success(service.createAuthorizeUrl());
     }
 
-    public record CompleteRequest(String callbackUrl) {
-    }
-
     /**
      * 接收回调 URL，完成 code -> token 交换。
      */
+
+    public record CompleteRequest(String callbackUrl, String name) {
+    }
+
     @PostMapping("/complete")
     public ApiResponse<CodexOAuthService.CompleteResult> complete(@RequestBody CompleteRequest request) {
-        return ApiResponse.success(service.completeFromCallbackUrl(request.callbackUrl()));
+        return ApiResponse.success(service.completeFromCallbackUrl(request.callbackUrl(), request.name()));
     }
 }

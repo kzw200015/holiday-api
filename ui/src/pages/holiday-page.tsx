@@ -100,7 +100,6 @@ export function HolidayPage() {
                             <CalendarDays className="h-4 w-4 text-primary" aria-hidden="true"/>
                             查询
                         </CardTitle>
-                        <CardDescription>GET /api/holiday/is-holiday?date=yyyy-MM-dd</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                         <div className="flex flex-wrap items-center gap-3">
@@ -109,7 +108,7 @@ export function HolidayPage() {
                             </label>
                             <input
                                 id="holiday-date"
-                                className="h-9 w-[200px] rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                className="h-9 w-50 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                 type="date"
                                 value={date}
                                 onChange={(e) => setDate(e.target.value)}
@@ -139,7 +138,6 @@ export function HolidayPage() {
                             )}
                             当天结果
                         </CardTitle>
-                        <CardDescription>接口返回 ApiResponse&lt;Boolean&gt;</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2">
                         <div className="text-3xl font-semibold tracking-tight">{title}</div>

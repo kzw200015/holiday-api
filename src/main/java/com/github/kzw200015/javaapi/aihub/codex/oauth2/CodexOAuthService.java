@@ -1,6 +1,6 @@
 package com.github.kzw200015.javaapi.aihub.codex.oauth2;
 
-import com.github.kzw200015.javaapi.aihub.UpstreamProviderService;
+import com.github.kzw200015.javaapi.aihub.AccountService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import okhttp3.*;
@@ -27,7 +27,7 @@ public class CodexOAuthService {
     private final JsonMapper jsonMapper;
     private final CodexOAuthProperties properties;
     private final CodexOAuthPendingStore pendingStore;
-    private final UpstreamProviderService upstreamProviderService;
+    private final AccountService accountService;
 
     @PostConstruct
     public void validateConfig() {
@@ -53,9 +53,13 @@ public class CodexOAuthService {
         return new AuthorizeUrlResult(authorizeUrl, state, properties.redirectUri(), expiresAt);
     }
 
-    public CompleteResult completeFromCallbackUrl(String callbackUrl) {
+    public CompleteResult completeFromCallbackUrl(String callbackUrl, String name) {
         if (!StringUtils.hasText(callbackUrl)) {
             throw new IllegalArgumentException("callbackUrl 不能为空");
+        }
+
+        if (!StringUtils.hasText(name)) {
+            throw new IllegalArgumentException("name 不能为空");
         }
 
         final URI uri;
@@ -89,7 +93,7 @@ public class CodexOAuthService {
             throw new IllegalStateException("无法从 token 提取 accountId");
         }
         final CompleteResult result = new CompleteResult(tokens.accessToken(), tokens.refreshToken(), tokens.idToken(), tokens.expiresInSeconds(), accountId);
-        upstreamProviderService.saveOauthJson(tokens.oauthJson());
+        accountService.createOauthAccount(name, tokens.oauthJson());
         return result;
     }
 

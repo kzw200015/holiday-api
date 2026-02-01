@@ -11,14 +11,17 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 
 /**
- * Codex 凭证表。
+ * Codex 账号表。
  */
 @Data
-@TableName(value = "upstream_provider", autoResultMap = true)
-public class UpstreamProviderEntity {
+@TableName(value = "account", autoResultMap = true)
+public class AccountEntity {
 
     @TableId(value = "id", type = IdType.ASSIGN_UUID)
     private String id;
+
+    @TableField("name")
+    private String name;
 
     @TableField("auth_type")
     private String authType;

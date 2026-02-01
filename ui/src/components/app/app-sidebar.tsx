@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom"
-import { CalendarDays, Gauge } from "lucide-react"
+import { CalendarDays, Gauge, Key } from "lucide-react"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -13,6 +13,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
     { to: "/", label: "概览", Icon: Gauge, end: true },
+    { to: "/account", label: "账号", Icon: Key },
     { to: "/holiday", label: "节假日", Icon: CalendarDays },
 ]
 

@@ -8,23 +8,29 @@ import java.time.ZoneOffset;
 import java.util.Map;
 
 /**
- * Codex 凭证存储服务。
+ * Codex 账号存储服务。
  */
 @Service
-public class UpstreamProviderService extends ServiceImpl<UpstreamProviderMapper, UpstreamProviderEntity> {
+public class AccountService extends ServiceImpl<AccountMapper, AccountEntity> {
 
     /**
      * 保存 OAuth2 token 接口返回的原始 JSON，并将类型固定为 oauth。
      */
-    public void saveOauthJson(Map<String, Object> oauthJson) {
+    public AccountEntity createOauthAccount(String name, Map<String, Object> oauthJson) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("name 不能为空");
+        }
         if (oauthJson == null || oauthJson.isEmpty()) {
             throw new IllegalArgumentException("oauthJson 不能为空");
         }
-        final UpstreamProviderEntity entity = new UpstreamProviderEntity();
-        entity.setAuthType(UpstreamProviderAuthType.OAUTH.dbValue());
+
+        final AccountEntity entity = new AccountEntity();
+        entity.setName(name.trim());
+        entity.setAuthType(AccountAuthType.OAUTH.dbValue());
         entity.setOauthJson(oauthJson);
         entity.setCreateTime(OffsetDateTime.now(ZoneOffset.UTC));
 
         save(entity);
+        return entity;
     }
 }
