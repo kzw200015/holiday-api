@@ -37,29 +37,21 @@ function formatTime(timeText: string) {
     return d.format("YYYY-MM-DD HH:mm:ss")
 }
 
-type AccountDetailDialogProps = {
+type AccountCreateDialogProps = {
     open: boolean
     onOpenChange: (open: boolean) => void
-    accountId?: string
     onChanged: () => Promise<void> | void
 }
 
-function AccountDetailDialog({ open, onOpenChange, accountId, onChanged }: AccountDetailDialogProps) {
+function AccountCreateDialog({ open, onOpenChange, onChanged }: AccountCreateDialogProps) {
     const [loading, setLoading] = useState(false)
-
-    const [detailLoading, setDetailLoading] = useState(false)
-    const [detail, setDetail] = useState<AccountDetail>()
-    const [detailName, setDetailName] = useState("")
-    const [detailOauthJsonText, setDetailOauthJsonText] = useState("")
 
     const [oauthName, setOauthName] = useState("")
     const [oauthCallbackUrl, setOauthCallbackUrl] = useState("")
     const [authorizeUrl, setAuthorizeUrl] = useState<string>()
     const [authorizeMeta, setAuthorizeMeta] = useState<string>()
 
-    const isDetailMode = Boolean(accountId)
-
-    function resetCreate() {
+    function reset() {
         setOauthName("")
         setOauthCallbackUrl("")
         setAuthorizeUrl(undefined)
@@ -69,35 +61,9 @@ function AccountDetailDialog({ open, onOpenChange, accountId, onChanged }: Accou
     useEffect(() => {
         if (!open) {
             setLoading(false)
-            setDetailLoading(false)
-            return
+            reset()
         }
-
-        setLoading(false)
-
-        if (!accountId) {
-            setDetail(undefined)
-            setDetailName("")
-            setDetailOauthJsonText("")
-            setDetailLoading(false)
-            resetCreate()
-            return
-        }
-
-        void (async () => {
-            setDetailLoading(true)
-            try {
-                const data = await getAccountDetail(accountId)
-                setDetail(data)
-                setDetailName(data.name)
-                setDetailOauthJsonText(JSON.stringify(data.oauthJson ?? null, null, 2))
-            } catch (e) {
-                toast(e instanceof Error ? e.message : String(e))
-            } finally {
-                setDetailLoading(false)
-            }
-        })()
-    }, [accountId, open])
+    }, [open])
 
     async function loadAuthorizeUrl() {
         setLoading(true)
@@ -126,6 +92,143 @@ function AccountDetailDialog({ open, onOpenChange, accountId, onChanged }: Accou
         }
     }
 
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>新增账号</DialogTitle>
+                    <DialogDescription>
+                        {"生成授权链接 -> 浏览器完成授权 -> 复制地址栏回调 URL -> 粘贴并完成创建。"}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <FieldGroup className="gap-4">
+                    <Field>
+                        <FieldLabel htmlFor="oauth-account-name">账号名称</FieldLabel>
+                        <Input
+                            id="oauth-account-name"
+                            value={oauthName}
+                            onChange={(e) => setOauthName(e.target.value)}
+                            placeholder="例如：工作号 / 个人号"
+                        />
+                        <FieldDescription>用于在列表中区分不同账号。</FieldDescription>
+                    </Field>
+                    <Field>
+                        <FieldLabel htmlFor="oauth-callback-url">回调 URL</FieldLabel>
+                        <Textarea
+                            id="oauth-callback-url"
+                            value={oauthCallbackUrl}
+                            onChange={(e) => setOauthCallbackUrl(e.target.value)}
+                            placeholder="粘贴浏览器回调地址（含 code/state）"
+                            className="h-24 resize-none font-mono text-xs"
+                        />
+                        <FieldDescription>从浏览器地址栏复制完整回调 URL（含 query 参数）。</FieldDescription>
+                    </Field>
+                </FieldGroup>
+
+                <div className="rounded-lg border bg-secondary/20 p-4 text-sm">
+                    <div className="font-medium text-foreground">流程</div>
+                    <div className="mt-2 space-y-2 text-muted-foreground">
+                        <div>1) 获取授权链接并打开浏览器完成登录授权</div>
+                        <div>2) 授权完成后浏览器会跳转，复制地址栏完整回调 URL</div>
+                        <div>3) 把回调 URL 粘贴到上方，然后点击“完成并创建”</div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                        <Button variant="secondary" onClick={loadAuthorizeUrl} disabled={loading}>
+                            {authorizeUrl ? "重新获取授权链接" : "获取授权链接"}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            disabled={!authorizeUrl}
+                            onClick={() => {
+                                if (authorizeUrl) {
+                                    window.open(authorizeUrl, "_blank", "noopener,noreferrer")
+                                }
+                            }}
+                        >
+                            打开授权页面
+                        </Button>
+                    </div>
+
+                    {authorizeUrl ? (
+                        <div className="mt-3 break-all text-xs">
+                            <div className="text-muted-foreground">{authorizeMeta}</div>
+                            <a
+                                className="mt-2 inline-block underline-offset-4 hover:underline"
+                                href={authorizeUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                {authorizeUrl}
+                            </a>
+                        </div>
+                    ) : null}
+                </div>
+
+                <DialogFooter>
+                    <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+                        取消
+                    </Button>
+                    <Button onClick={completeOauth} disabled={loading}>
+                        {loading ? "处理中…" : "完成并创建"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+type AccountEditDialogProps = {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    accountId?: string
+    onChanged: () => Promise<void> | void
+}
+
+function AccountEditDialog({ open, onOpenChange, accountId, onChanged }: AccountEditDialogProps) {
+    const [loading, setLoading] = useState(false)
+
+    const [detailLoading, setDetailLoading] = useState(false)
+    const [detail, setDetail] = useState<AccountDetail>()
+    const [detailName, setDetailName] = useState("")
+    const [detailOauthJsonText, setDetailOauthJsonText] = useState("")
+
+    useEffect(() => {
+        if (!open) {
+            setLoading(false)
+            setDetailLoading(false)
+            setDetail(undefined)
+            setDetailName("")
+            setDetailOauthJsonText("")
+            return
+        }
+
+        setLoading(false)
+
+        if (!accountId) {
+            setDetail(undefined)
+            setDetailName("")
+            setDetailOauthJsonText("")
+            setDetailLoading(false)
+            return
+        }
+
+        void (async () => {
+            setDetailLoading(true)
+            try {
+                const data = await getAccountDetail(accountId)
+                setDetail(data)
+                setDetailName(data.name)
+                setDetailOauthJsonText(JSON.stringify(data.oauthJson ?? null, null, 2))
+            } catch (e) {
+                toast(e instanceof Error ? e.message : String(e))
+            } finally {
+                setDetailLoading(false)
+            }
+        })()
+    }, [accountId, open])
+
     async function saveName() {
         if (!accountId) {
             return
@@ -145,131 +248,89 @@ function AccountDetailDialog({ open, onOpenChange, accountId, onChanged }: Accou
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>{isDetailMode ? "账号详情" : "新增账号"}</DialogTitle>
+                    <DialogTitle>账号详情</DialogTitle>
+                    <DialogDescription>查看账号信息并修改名称。</DialogDescription>
+                </DialogHeader>
+
+                <FieldGroup className="gap-4">
+                    <Field>
+                        <FieldLabel htmlFor="account-name">账号名称</FieldLabel>
+                        <Input
+                            id="account-name"
+                            value={detailName}
+                            onChange={(e) => setDetailName(e.target.value)}
+                            placeholder="账号名称"
+                            disabled={detailLoading}
+                        />
+                        <FieldDescription>仅修改展示名称，不会影响 OAuth 信息。</FieldDescription>
+                    </Field>
+                    <Field>
+                        <FieldLabel>类型</FieldLabel>
+                        <div>
+                            <Badge variant="outline">{detail?.authType ?? "-"}</Badge>
+                        </div>
+                    </Field>
+                    <Field>
+                        <FieldLabel>oauth_json</FieldLabel>
+                        <div className="rounded-md border bg-secondary/10">
+                            <pre
+                                className="max-h-80 overflow-auto p-3 text-xs leading-relaxed whitespace-pre-wrap wrap-break-word font-mono">
+                                {detailLoading ? "加载中…" : detailOauthJsonText}
+                            </pre>
+                        </div>
+                    </Field>
+                </FieldGroup>
+
+                <DialogFooter>
+                    <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+                        关闭
+                    </Button>
+                    <Button onClick={saveName} disabled={loading || detailLoading || !accountId}>
+                        {loading ? "保存中…" : "保存修改"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+type AccountRemoveDialogProps = {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    item?: AccountListItem
+    onConfirm: (id: string) => Promise<void> | void
+    loading: boolean
+}
+
+function AccountRemoveDialog({ open, onOpenChange, item, onConfirm, loading }: AccountRemoveDialogProps) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>确认删除</DialogTitle>
                     <DialogDescription>
-                        {isDetailMode
-                            ? "查看账号信息并修改名称。"
-                            : "生成授权链接 -> 浏览器完成授权 -> 复制地址栏回调 URL -> 粘贴并完成创建。"}
+                        该操作不可恢复。请再次确认要删除账号：{item?.name ?? "-"}
                     </DialogDescription>
                 </DialogHeader>
 
-                {isDetailMode ? (
-                    <>
-                        <FieldGroup className="gap-4">
-                            <Field>
-                                <FieldLabel htmlFor="account-name">账号名称</FieldLabel>
-                                <Input
-                                    id="account-name"
-                                    value={detailName}
-                                    onChange={(e) => setDetailName(e.target.value)}
-                                    placeholder="账号名称"
-                                    disabled={detailLoading}
-                                />
-                                <FieldDescription>仅修改展示名称，不会影响 OAuth 信息。</FieldDescription>
-                            </Field>
-                            <Field>
-                                <FieldLabel>类型</FieldLabel>
-                                <div>
-                                    <Badge variant="outline">{detail?.authType ?? "-"}</Badge>
-                                </div>
-                            </Field>
-                            <Field>
-                                <FieldLabel htmlFor="oauth-json">oauth_json</FieldLabel>
-                                <Textarea
-                                    id="oauth-json"
-                                    value={detailLoading ? "加载中…" : detailOauthJsonText}
-                                    readOnly
-                                    className="min-h-55 font-mono"
-                                />
-                            </Field>
-                        </FieldGroup>
-
-                        <DialogFooter>
-                            <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
-                                关闭
-                            </Button>
-                            <Button onClick={saveName} disabled={loading || detailLoading}>
-                                {loading ? "保存中…" : "保存修改"}
-                            </Button>
-                        </DialogFooter>
-                    </>
-                ) : (
-                    <>
-                        <FieldGroup className="gap-4">
-                            <Field>
-                                <FieldLabel htmlFor="oauth-account-name">账号名称</FieldLabel>
-                                <Input
-                                    id="oauth-account-name"
-                                    value={oauthName}
-                                    onChange={(e) => setOauthName(e.target.value)}
-                                    placeholder="例如：工作号 / 个人号"
-                                />
-                                <FieldDescription>用于在列表中区分不同账号。</FieldDescription>
-                            </Field>
-                            <Field>
-                                <FieldLabel htmlFor="oauth-callback-url">回调 URL</FieldLabel>
-                                <Textarea
-                                    id="oauth-callback-url"
-                                    value={oauthCallbackUrl}
-                                    onChange={(e) => setOauthCallbackUrl(e.target.value)}
-                                    placeholder="粘贴浏览器回调地址（含 code/state）"
-                                />
-                                <FieldDescription>从浏览器地址栏复制完整回调 URL（含 query 参数）。</FieldDescription>
-                            </Field>
-                        </FieldGroup>
-
-                        <div className="rounded-lg border bg-secondary/20 p-4 text-sm">
-                            <div className="font-medium text-foreground">流程</div>
-                            <div className="mt-2 space-y-2 text-muted-foreground">
-                                <div>1) 获取授权链接并打开浏览器完成登录授权</div>
-                                <div>2) 授权完成后浏览器会跳转，复制地址栏完整回调 URL</div>
-                                <div>3) 把回调 URL 粘贴到上方，然后点击“完成并创建”</div>
-                            </div>
-
-                            <div className="mt-4 flex flex-wrap gap-2">
-                                <Button variant="secondary" onClick={loadAuthorizeUrl} disabled={loading}>
-                                    {authorizeUrl ? "重新获取授权链接" : "获取授权链接"}
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    disabled={!authorizeUrl}
-                                    onClick={() => {
-                                        if (authorizeUrl) {
-                                            window.open(authorizeUrl, "_blank", "noopener,noreferrer")
-                                        }
-                                    }}
-                                >
-                                    打开授权页面
-                                </Button>
-                            </div>
-
-                            {authorizeUrl ? (
-                                <div className="mt-3 break-all text-xs">
-                                    <div className="text-muted-foreground">{authorizeMeta}</div>
-                                    <a
-                                        className="mt-2 inline-block underline-offset-4 hover:underline"
-                                        href={authorizeUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                    >
-                                        {authorizeUrl}
-                                    </a>
-                                </div>
-                            ) : null}
-                        </div>
-
-                        <DialogFooter>
-                            <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
-                                取消
-                            </Button>
-                            <Button onClick={completeOauth} disabled={loading}>
-                                {loading ? "处理中…" : "完成并创建"}
-                            </Button>
-                        </DialogFooter>
-                    </>
-                )}
+                <DialogFooter>
+                    <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+                        取消
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        onClick={() => {
+                            if (item) {
+                                void onConfirm(item.id)
+                            }
+                        }}
+                        disabled={loading || !item}
+                    >
+                        {loading ? "删除中…" : "再次确认删除"}
+                    </Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     )
@@ -279,7 +340,7 @@ type AccountTableProps = {
     loading: boolean
     items: AccountListItem[]
     onOpenDetail: (id: string) => void
-    onRemove: (id: string) => Promise<void> | void
+    onRemove: (item: AccountListItem) => Promise<void> | void
 }
 
 function AccountTable({
@@ -329,7 +390,7 @@ function AccountTable({
                                             <Button
                                                 size="sm"
                                                 variant="destructive"
-                                                onClick={() => onRemove(it.id)}
+                                                onClick={() => onRemove(it)}
                                             >
                                                 <Trash2 className="h-4 w-4" aria-hidden="true"/>
                                                 删除
@@ -350,8 +411,13 @@ export function AccountPage() {
     const [loading, setLoading] = useState(false)
     const [items, setItems] = useState<AccountListItem[]>([])
 
-    const [dialogOpen, setDialogOpen] = useState(false)
-    const [dialogAccountId, setDialogAccountId] = useState<string>()
+    const [createDialogOpen, setCreateDialogOpen] = useState(false)
+    const [editDialogOpen, setEditDialogOpen] = useState(false)
+    const [editDialogAccountId, setEditDialogAccountId] = useState<string>()
+
+    const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
+    const [removeDialogItem, setRemoveDialogItem] = useState<AccountListItem>()
+    const [removeLoading, setRemoveLoading] = useState(false)
 
     const total = items.length
 
@@ -371,23 +437,33 @@ export function AccountPage() {
         void refresh()
     }, [])
 
-    async function remove(id: string) {
+    function requestRemove(item: AccountListItem) {
+        setRemoveDialogItem(item)
+        setRemoveDialogOpen(true)
+    }
+
+    async function confirmRemove(id: string) {
+        setRemoveLoading(true)
         try {
             await deleteAccount(id)
+            toast("账号已删除")
+            setRemoveDialogOpen(false)
+            setRemoveDialogItem(undefined)
             await refresh()
         } catch (e) {
             toast(e instanceof Error ? e.message : String(e))
+        } finally {
+            setRemoveLoading(false)
         }
     }
 
     function openCreateDialog() {
-        setDialogAccountId(undefined)
-        setDialogOpen(true)
+        setCreateDialogOpen(true)
     }
 
     function openDetailDialog(id: string) {
-        setDialogAccountId(id)
-        setDialogOpen(true)
+        setEditDialogAccountId(id)
+        setEditDialogOpen(true)
     }
 
     return (
@@ -426,16 +502,32 @@ export function AccountPage() {
                         loading={loading}
                         items={items}
                         onOpenDetail={openDetailDialog}
-                        onRemove={remove}
+                        onRemove={requestRemove}
                     />
                 </CardContent>
             </Card>
 
-            <AccountDetailDialog
-                open={dialogOpen}
-                onOpenChange={setDialogOpen}
-                accountId={dialogAccountId}
+            <AccountCreateDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} onChanged={refresh}/>
+
+            <AccountEditDialog
+                open={editDialogOpen}
+                onOpenChange={setEditDialogOpen}
+                accountId={editDialogAccountId}
                 onChanged={refresh}
+            />
+
+            <AccountRemoveDialog
+                open={removeDialogOpen}
+                onOpenChange={(open) => {
+                    setRemoveDialogOpen(open)
+                    if (!open) {
+                        setRemoveDialogItem(undefined)
+                        setRemoveLoading(false)
+                    }
+                }}
+                item={removeDialogItem}
+                onConfirm={confirmRemove}
+                loading={removeLoading}
             />
         </div>
     )
