@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router-dom'
 
-import { AppSidebar } from '@/components/app/app-sidebar'
-import { Separator } from '@/components/ui/separator'
+import { AppSidebar } from '@/components/app/app-sidebar.tsx'
+import { Separator } from '@/components/ui/separator.tsx'
 
 export function AppLayout() {
     return (

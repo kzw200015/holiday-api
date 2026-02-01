@@ -5,15 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-
-/**
- * 后端通用响应结构：ApiResponse<T>
- */
-type ApiResponse<T> = {
-    code: number
-    data: T
-    msg: string
-}
+import { queryIsHoliday } from '@/lib/api/holiday'
 
 function formatDateForInput(date: Date) {
     const year = date.getFullYear()
@@ -30,26 +22,6 @@ function addDays(dateText: string, days: number) {
     const baseDate = new Date(year, month - 1, day)
     baseDate.setDate(baseDate.getDate() + days)
     return formatDateForInput(baseDate)
-}
-
-async function queryIsHoliday(date?: string) {
-    const url = new URL('/api/holiday/is-holiday', window.location.origin)
-    if (date && date.trim().length > 0) {
-        url.searchParams.set('date', date)
-    }
-
-    const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers: {
-            Accept: 'application/json',
-        },
-    })
-
-    const json = (await response.json()) as ApiResponse<boolean>
-    if (!response.ok) {
-        throw new Error(json.msg)
-    }
-    return json.data
 }
 
 export function HolidayPage() {
@@ -140,7 +112,7 @@ export function HolidayPage() {
                             </label>
                             <input
                                 id="holiday-date"
-                                className="h-9 w-50 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                className="h-9 w-[200px] rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                 type="date"
                                 value={date}
                                 onChange={(e) => setDate(e.target.value)}
