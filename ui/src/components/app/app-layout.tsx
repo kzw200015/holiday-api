@@ -2,7 +2,6 @@ import { Outlet } from "react-router-dom"
 
 import { AppSidebar } from "@/components/app/app-sidebar.tsx"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar.tsx"
-import { Separator } from "@/components/ui/separator.tsx"
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { Switch } from "@/components/ui/switch.tsx";
@@ -19,12 +18,7 @@ export function AppLayout() {
                         <div className="flex items-center justify-between gap-3 px-6 py-4">
                             <div className="flex min-w-0 items-center gap-3">
                                 <SidebarTrigger className="-ml-1"/>
-                                <div className="text-sm text-muted-foreground">
-                                    Java API · 控制台
-                                </div>
-                                <Separator className="mx-1 hidden h-4 w-px sm:block" orientation="vertical"/>
-                                <div className="truncate text-sm text-muted-foreground">
-                                    React Router · shadcn/ui · Tailwind
+                                <div className="text-sm text-muted-foreground">控制台
                                 </div>
                             </div>
                             <ThemeToggle/>
