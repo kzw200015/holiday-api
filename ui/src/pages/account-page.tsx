@@ -248,7 +248,7 @@ function AccountDetailDialog({ open, onOpenChange, accountId, onChanged }: Accou
                                 <div className="mt-3 break-all text-xs">
                                     <div className="text-muted-foreground">{authorizeMeta}</div>
                                     <a
-                                        className="mt-2 inline-block text-primary underline-offset-4 hover:underline"
+                                        className="mt-2 inline-block underline-offset-4 hover:underline"
                                         href={authorizeUrl}
                                         target="_blank"
                                         rel="noreferrer"

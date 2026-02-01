@@ -97,7 +97,7 @@ export function HolidayPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                            <CalendarDays className="h-4 w-4 text-primary" aria-hidden="true"/>
+                            <CalendarDays className="h-4 w-4" aria-hidden="true"/>
                             查询
                         </CardTitle>
                     </CardHeader>
@@ -132,9 +132,9 @@ export function HolidayPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             {isHoliday === undefined ? (
-                                <CircleX className="h-4 w-4 text-muted-foreground" aria-hidden="true"/>
+                                <CircleX className="h-4 w-4" aria-hidden="true"/>
                             ) : (
-                                <CircleCheck className="h-4 w-4 text-accent" aria-hidden="true"/>
+                                <CircleCheck className="h-4 w-4" aria-hidden="true"/>
                             )}
                             当天结果
                         </CardTitle>
@@ -150,7 +150,7 @@ export function HolidayPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                            <Hourglass className="h-4 w-4 text-accent" aria-hidden="true"/>
+                            <Hourglass className="h-4 w-4" aria-hidden="true"/>
                             下一个休息日
                         </CardTitle>
                         <CardDescription>按所选日期向后推算</CardDescription>

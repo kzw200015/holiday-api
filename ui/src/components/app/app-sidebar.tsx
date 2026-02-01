@@ -12,7 +12,6 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-    { to: "/", label: "概览", Icon: Gauge, end: true },
     { to: "/account", label: "账号", Icon: Key },
     { to: "/holiday", label: "节假日", Icon: CalendarDays },
 ]
