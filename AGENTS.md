@@ -89,6 +89,7 @@
 - DTO/返回值：优先用 `record`（例：`ApiResponse<T>`、`CodexOAuthService.*Result`）
 - JSON 处理：仓库当前使用 `tools.jackson.databind.json.JsonMapper`；除非有明确原因，不要擅自切换到其他 mapper 或改包名
 - 常量：用 `private static final`，并给出简短中文注释（项目内已大量使用）
+- MyBatis-Plus：实体字段涉及 jsonb 等复杂类型时，优先参考 `JsonbTypeHandler` + `@TableName(autoResultMap = true)` 的用法
 
 ### 错误处理（与 HTTP 语义）
 
@@ -119,7 +120,7 @@
 
 - 类型导入使用 `import type { ... }`（项目内已有）
 - import 分组建议：第三方 → 空行 → `@/` → 相对路径
-- 是否带 `.ts/.tsx` 扩展：保持当前文件既有习惯；新增时默认不写扩展名，除非该文件已普遍使用扩展
+- 是否带 `.ts/.tsx` 扩展：本仓库两种写法都存在（示例：`ui/src/App.tsx` 与 `ui/src/components/app/app-layout.tsx`）；改动时保持“所在目录/文件”的既有习惯，避免全仓库重排
 
 ### 格式化
 
@@ -136,9 +137,14 @@
 
 - 组件库：Radix UI + Tailwind（含 shadcn 风格组件，见 `ui/components.json`）
 - className 合并：用 `cn(...)`（见 `ui/src/lib/utils.ts`）
-- 主题：通过切换 `document.documentElement` 的 `dark` class（见 `ui/src/components/app/theme-toggle.tsx`）
+- 主题：当前通过切换 `document.documentElement` 的 `dark` class（见 `ui/src/components/app/app-layout.tsx` 内的 `ThemeToggle`）
+
+### shadcn 组件（重要）
+
+- 新增组件必须通过 CLI 生成/更新：优先用 `pnpm -C ui exec shadcn add <component>`（配置见 `ui/components.json`）
+- `ui/src/components/ui/` 下组件视为“生成代码”：禁止手改，除非需求明确要求修改 shadcn 组件本身
 
 ## 工作区卫生
 
 - 不要改/提交生成目录：`target/`、`ui/node_modules/`、`ui/dist/`
-- 避免在文档/日志里传播敏感配置：`src/main/resources/application.yaml` 当前包含数据库密码等明文配置
+- 避免在文档/日志里传播敏感配置：`src/main/resources/application.yaml` 当前包含数据库密码等明文配置（同时避免在 issue/PR/commit message 里复制粘贴这些值）
