@@ -1,5 +1,6 @@
 package com.github.kzw200015.javaapi.aihub.codex.oauth2;
 
+import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RBucket;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
@@ -17,6 +18,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * Codex 可用账号缓存（Redis）。
  */
 @Component
+@Slf4j
 public class CodexAccountCache {
 
     private static final String KEY_ACCOUNTS_BY_ID = "java-api:aihub:codex:accounts:by-id";
@@ -69,7 +71,9 @@ public class CodexAccountCache {
      */
     public CachedAccount selectBySessionId(String sessionId) {
         if (!StringUtils.hasText(sessionId)) {
-            return randomAccount();
+            final CachedAccount selected = next();
+            logAccountSelection(false, false, null, selected.id());
+            return selected;
         }
 
         final RBucket<String> sticky = stickySession(sessionId);
@@ -78,12 +82,15 @@ public class CodexAccountCache {
         if (StringUtils.hasText(existingAccountId)) {
             final CachedAccount existing = findById(existingAccountId);
             if (existing != null) {
+                logAccountSelection(true, true, sessionId, existing.id());
                 return existing;
             }
         }
 
-        final CachedAccount selected = randomAccount();
+        final CachedAccount selected = next();
         sticky.set(selected.id(), Duration.ofSeconds(STICKY_TTL_SECONDS));
+
+        logAccountSelection(true, false, sessionId, selected.id());
         return selected;
     }
 
@@ -137,5 +144,10 @@ public class CodexAccountCache {
         final long now = System.currentTimeMillis();
         final int rand = ThreadLocalRandom.current().nextInt();
         return Long.toString(now, 36) + "-" + Integer.toUnsignedString(rand, 36);
+    }
+
+    private static void logAccountSelection(boolean sticky, boolean stickyHit, String sessionId, String selectedAccountId) {
+        log.info("选择 Codex 账号：sticky={}, stickyHit={}, session={}, selectedAccountId={}",
+                sticky, stickyHit, sessionId, selectedAccountId);
     }
 }
