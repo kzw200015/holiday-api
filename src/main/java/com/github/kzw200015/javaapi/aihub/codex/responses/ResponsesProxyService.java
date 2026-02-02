@@ -7,6 +7,7 @@ import okhttp3.*;
 import okhttp3.sse.EventSource;
 import okhttp3.sse.EventSourceListener;
 import okhttp3.sse.EventSources;
+import okio.BufferedSource;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -56,7 +57,42 @@ public class ResponsesProxyService {
     public ResponsesProxyService(OkHttpClient httpClient, JsonMapper jsonMapper,
                                  CodexOAuthProperties codexOAuthProperties, CodexAccountCache accountCache) {
         this.httpClient = httpClient;
-        this.streamHttpClient = httpClient.newBuilder().readTimeout(STREAM_READ_TIMEOUT).build();
+        this.streamHttpClient = httpClient.newBuilder()
+                .readTimeout(STREAM_READ_TIMEOUT)
+                .addNetworkInterceptor(chain -> {
+                    final Request request = chain.request();
+                    final String accept = request.header(HttpHeaders.ACCEPT);
+                    final Response response = chain.proceed(request);
+                    if (!StringUtils.hasText(accept) || !accept.contains(MediaType.TEXT_EVENT_STREAM_VALUE)) {
+                        return response;
+                    }
+
+                    final String contentType = response.header(HttpHeaders.CONTENT_TYPE);
+                    if (StringUtils.hasText(contentType)) {
+                        return response;
+                    }
+
+                    return response.newBuilder()
+                            .header(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_EVENT_STREAM_VALUE)
+                            .body(new ResponseBody() {
+                                @Override
+                                public okhttp3.MediaType contentType() {
+                                    return okhttp3.MediaType.get(MediaType.TEXT_EVENT_STREAM_VALUE);
+                                }
+
+                                @Override
+                                public long contentLength() {
+                                    return response.body().contentLength();
+                                }
+
+                                @Override
+                                public @NonNull BufferedSource source() {
+                                    return response.body().source();
+                                }
+                            })
+                            .build();
+                })
+                .build();
         this.jsonMapper = jsonMapper;
         this.codexOAuthProperties = codexOAuthProperties;
         this.accountCache = accountCache;
@@ -114,6 +150,7 @@ public class ResponsesProxyService {
                     emitter.complete();
                     return;
                 }
+                log.error("代理 SSE 请求失败：status={}, error={}", response.code(), t.getMessage());
                 emitter.completeWithError(t);
             }
         };
