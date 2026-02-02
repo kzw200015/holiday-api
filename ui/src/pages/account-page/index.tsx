@@ -1,43 +1,9 @@
-import { useEffect, useState } from "react"
-import { Key, RefreshCcw } from "lucide-react"
-import { toast } from "sonner"
-
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { type AccountListItem, listAccounts } from "@/lib/api/account"
 
-import { AccountCreateDialog } from "./account-create-dialog"
 import { AccountTable } from "./account-table"
+import { AccountUsageTable } from "./account-usage-table"
 
 export function AccountPage() {
-    const [loading, setLoading] = useState(false)
-    const [items, setItems] = useState<AccountListItem[]>([])
-
-    const [createDialogOpen, setCreateDialogOpen] = useState(false)
-
-    const total = items.length
-
-    async function refresh() {
-        setLoading(true)
-        try {
-            const data = await listAccounts()
-            setItems(data)
-        } catch (e) {
-            toast(e instanceof Error ? e.message : String(e))
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    useEffect(() => {
-        void refresh()
-    }, [])
-
-    function openCreateDialog() {
-        setCreateDialogOpen(true)
-    }
-
     return (
         <div className="space-y-6">
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -50,29 +16,11 @@ export function AccountPage() {
                         管理 Codex OAuth 账号：列表、改名、删除；新增通过 OAuth 流程完成。
                     </p>
                 </div>
-
-                <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" onClick={refresh} disabled={loading}>
-                        <RefreshCcw aria-hidden="true"/>
-                        刷新
-                    </Button>
-                    <Button onClick={openCreateDialog}>
-                        <Key aria-hidden="true"/>
-                        通过 OAuth 新增
-                    </Button>
-                </div>
             </div>
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">账号列表</CardTitle>
-                    <CardDescription>共 {total} 条</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <AccountTable loading={loading} items={items} onChanged={refresh}/>
-                </CardContent>
-            </Card>
 
-            <AccountCreateDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} onChanged={refresh}/>
+            <AccountTable/>
+
+            <AccountUsageTable/>
         </div>
     )
 }

@@ -14,19 +14,22 @@ import java.util.Map;
 @RequestMapping("/api")
 public class ResponsesController {
 
-    private final ResponsesProxyService responsesProxyService;
+    private final ResponsesJsonProxyService responsesJsonProxyService;
+    private final ResponsesSseProxyService responsesSseProxyService;
 
-    public ResponsesController(ResponsesProxyService responsesProxyService) {
-        this.responsesProxyService = responsesProxyService;
+    public ResponsesController(ResponsesJsonProxyService responsesJsonProxyService,
+                               ResponsesSseProxyService responsesSseProxyService) {
+        this.responsesJsonProxyService = responsesJsonProxyService;
+        this.responsesSseProxyService = responsesSseProxyService;
     }
 
     @PostMapping(value = "/responses", produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, Object> responsesJson(@RequestHeader HttpHeaders headers, @RequestBody(required = false) Map<String, Object> body) {
-        return responsesProxyService.proxyJson(headers, body);
+        return responsesJsonProxyService.proxyJson(headers, body);
     }
 
     @PostMapping(value = "/responses", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter responsesSse(@RequestHeader HttpHeaders headers, @RequestBody(required = false) Map<String, Object> body) {
-        return responsesProxyService.proxySse(headers, body);
+        return responsesSseProxyService.proxySse(headers, body);
     }
 }

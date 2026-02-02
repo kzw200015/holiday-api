@@ -35,6 +35,19 @@ export type AccountDetail = AccountListItem & {
     oauthJson: unknown
 }
 
+export type AccountUsageItem = {
+    id: string
+    accountId: string
+    accountName: string | null
+    stream: boolean
+    upstreamStatus: number | null
+    inputTokens: number | null
+    cachedInputTokens: number | null
+    outputTokens: number | null
+    costMs: number
+    createTime: string
+}
+
 /**
  * 获取账号列表。
  *
@@ -97,6 +110,22 @@ export async function deleteAccount(id: string) {
 export async function refreshAccountToken(id: string) {
     try {
         await http.post<ApiResponse<null>>(`/account/${id}/refresh-token`)
+    } catch (error) {
+        throw new Error(resolveApiErrorMessage(error))
+    }
+}
+
+/**
+ * 获取最近的账号用量。
+ *
+ * GET /api/account/usage/list
+ */
+export async function listAccountUsage(limit = 200) {
+    try {
+        const response = await http.get<ApiResponse<AccountUsageItem[]>>("/account/usage/list", {
+            params: { limit },
+        })
+        return response.data.data
     } catch (error) {
         throw new Error(resolveApiErrorMessage(error))
     }
