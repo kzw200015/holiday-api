@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom"
+import { HashRouter, Route, Routes } from "react-router-dom"
 
 import { AppLayout } from "@/components/app/app-layout.tsx"
 import { Toaster } from "@/components/ui/sonner"
@@ -8,7 +8,7 @@ import { NotFoundPage } from "@/pages/not-found-page"
 
 export default function App() {
     return (
-        <BrowserRouter>
+        <HashRouter>
             <Routes>
                 <Route element={<AppLayout/>}>
                     <Route path="account" element={<AccountPage/>}/>
@@ -17,6 +17,6 @@ export default function App() {
                 </Route>
             </Routes>
             <Toaster position="top-center"/>
-        </BrowserRouter>
+        </HashRouter>
     )
 }

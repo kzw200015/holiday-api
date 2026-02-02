@@ -4,11 +4,14 @@ import com.github.kzw200015.javaapi.aihub.codex.oauth2.CodexAccountCache;
 import com.github.kzw200015.javaapi.aihub.codex.oauth2.CodexOAuthProperties;
 import okhttp3.HttpUrl;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,10 +35,13 @@ abstract class AbstractResponsesProxy {
 
     protected final CodexOAuthProperties codexOAuthProperties;
     protected final CodexAccountCache codexAccountCache;
+    protected final JsonMapper jsonMapper;
 
-    protected AbstractResponsesProxy(CodexOAuthProperties codexOAuthProperties, CodexAccountCache codexAccountCache) {
+    protected AbstractResponsesProxy(CodexOAuthProperties codexOAuthProperties, CodexAccountCache codexAccountCache,
+                                     JsonMapper jsonMapper) {
         this.codexOAuthProperties = codexOAuthProperties;
         this.codexAccountCache = codexAccountCache;
+        this.jsonMapper = jsonMapper;
     }
 
     protected void applyAuthHeaders(Request.Builder builder, HttpHeaders headers, CodexAccountCache.CachedAccount auth) {
@@ -50,6 +56,24 @@ abstract class AbstractResponsesProxy {
 
     protected CodexAccountCache.CachedAccount resolveAuth(HttpHeaders headers) {
         return codexAccountCache.selectBySessionId(headers.getFirst(HEADER_SESSION_ID));
+    }
+
+    protected Map<String, Object> preparePayload(HttpHeaders headers, Map<String, Object> body, OpencodeCodexHeaderProvider provider) {
+        final Map<String, Object> payload = body != null ? body : new HashMap<>();
+        payload.remove("max_output_tokens");
+        applyOpencodeInstructions(headers, payload, provider);
+        return payload;
+    }
+
+    protected Request buildUpstreamRequest(HttpHeaders headers, Map<String, Object> body,
+                                           CodexAccountCache.CachedAccount auth, String accept) {
+        final RequestBody requestBody = RequestBody.create(jsonMapper.writeValueAsBytes(body));
+        final Request.Builder builder = new Request.Builder().url(UPSTREAM_URL).post(requestBody);
+        builder.header(HttpHeaders.ACCEPT, accept);
+        builder.header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+        copyWhitelistedHeaders(builder, headers);
+        applyAuthHeaders(builder, headers, auth);
+        return builder.build();
     }
 
     protected record TokenUsage(Integer inputTokens, Integer cachedInputTokens, Integer outputTokens) {
@@ -96,6 +120,35 @@ abstract class AbstractResponsesProxy {
         for (String headerName : WHITELIST_HEADERS) {
             copyHeader(builder, headers, headerName);
         }
+    }
+
+    /**
+     * 仅对 opencode 请求注入 Codex 指令。
+     */
+    protected static void applyOpencodeInstructions(HttpHeaders headers, Map<String, Object> body, OpencodeCodexHeaderProvider provider) {
+        if (!isOpencodeRequest(headers)) {
+            return;
+        }
+        if (body == null) {
+            return;
+        }
+        final String instructions = provider.getInstructions();
+        if (!StringUtils.hasText(instructions)) {
+            return;
+        }
+        final Object existing = body.get("instructions");
+        if (existing instanceof String text && StringUtils.hasText(text)) {
+            return;
+        }
+        body.put("instructions", instructions);
+    }
+
+    private static boolean isOpencodeRequest(HttpHeaders headers) {
+        final String userAgent = headers.getFirst(HttpHeaders.USER_AGENT);
+        if (!StringUtils.hasText(userAgent)) {
+            return false;
+        }
+        return userAgent.contains("opencode/");
     }
 
     private static void copyHeader(Request.Builder builder, HttpHeaders headers, String headerName) {

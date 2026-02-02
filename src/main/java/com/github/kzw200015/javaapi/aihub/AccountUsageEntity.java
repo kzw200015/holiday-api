@@ -24,7 +24,7 @@ public class AccountUsageEntity {
     private String accountId;
 
     @TableField("stream")
-    private Boolean stream;
+    private String stream;
 
     @TableField("upstream_status")
     private Integer upstreamStatus;

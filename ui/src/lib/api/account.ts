@@ -35,17 +35,26 @@ export type AccountDetail = AccountListItem & {
     oauthJson: unknown
 }
 
+export type AccountUsageStreamType = "stream" | "non_stream"
+
 export type AccountUsageItem = {
     id: string
     accountId: string
     accountName: string | null
-    stream: boolean
+    stream: AccountUsageStreamType
     upstreamStatus: number | null
     inputTokens: number | null
     cachedInputTokens: number | null
     outputTokens: number | null
     costMs: number
     createTime: string
+}
+
+export type PageResult<T> = {
+    current: number
+    size: number
+    total: number
+    records: T[]
 }
 
 /**
@@ -120,10 +129,10 @@ export async function refreshAccountToken(id: string) {
  *
  * GET /api/account/usage/list
  */
-export async function listAccountUsage(limit = 200) {
+export async function listAccountUsage(current = 1, size = 10) {
     try {
-        const response = await http.get<ApiResponse<AccountUsageItem[]>>("/account/usage/list", {
-            params: { limit },
+        const response = await http.get<ApiResponse<PageResult<AccountUsageItem>>>("/account/usage/list", {
+            params: { current, size },
         })
         return response.data.data
     } catch (error) {

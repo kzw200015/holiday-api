@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.github.kzw200015.javaapi.aihub.AccountUsageMapper">
+    <resultMap id="AccountUsageListItemMap" type="com.github.kzw200015.javaapi.aihub.AccountUsageListItem">
+        <id column="id" property="id"/>
+        <result column="account_id" property="accountId"/>
+        <result column="account_name" property="accountName"/>
+        <result column="stream" property="stream"/>
+        <result column="upstream_status" property="upstreamStatus"/>
+        <result column="input_tokens" property="inputTokens"/>
+        <result column="cached_input_tokens" property="cachedInputTokens"/>
+        <result column="output_tokens" property="outputTokens"/>
+        <result column="cost_ms" property="costMs"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <select id="selectUsagePage" resultMap="AccountUsageListItemMap">
+        SELECT
+            au.id,
+            au.account_id,
+            a.name AS account_name,
+            au.stream,
+            au.upstream_status,
+            au.input_tokens,
+            au.cached_input_tokens,
+            au.output_tokens,
+            au.cost_ms,
+            au.create_time
+        FROM account_usage au
+        LEFT JOIN account a ON a.id = au.account_id
+        ORDER BY au.create_time DESC
+    </select>
+</mapper>

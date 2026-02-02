@@ -15,7 +15,7 @@ import { formatTime } from "./format-time"
 
 export function AccountTable() {
     const [loading, setLoading] = useState(false)
-    const [items, setItems] = useState<AccountListItem[]>([])
+    const [records, setRecords] = useState<AccountListItem[]>([])
 
     const [createDialogOpen, setCreateDialogOpen] = useState(false)
 
@@ -30,13 +30,13 @@ export function AccountTable() {
 
     const actionBusy = loading || removeLoading || refreshTokenLoadingId != null
 
-    const total = items.length
+    const total = records.length
 
     async function refresh() {
         setLoading(true)
         try {
             const data = await listAccounts()
-            setItems(data)
+            setRecords(data)
         } catch (e) {
             toast(e instanceof Error ? e.message : String(e))
         } finally {
@@ -124,14 +124,14 @@ export function AccountTable() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {items.length === 0 ? (
+                                {records.length === 0 ? (
                                     <TableRow>
                                         <TableCell className="px-3 py-6 text-center text-muted-foreground" colSpan={4}>
                                             {loading ? "加载中…" : "暂无账号。可以点右上角“通过 OAuth 新增”。"}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    items.map((it) => {
+                                    records.map((it) => {
                                         const refreshTokenLoading = refreshTokenLoadingId === it.id
                                         return (
                                             <TableRow key={it.id}>

@@ -1,6 +1,8 @@
 package com.github.kzw200015.javaapi.aihub;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.github.kzw200015.javaapi.common.PageResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -13,7 +15,7 @@ import java.time.OffsetDateTime;
 @Slf4j
 public class AccountUsageService extends ServiceImpl<AccountUsageMapper, AccountUsageEntity> {
 
-    public void saveUsage(String accountId, boolean stream, Integer upstreamStatus,
+    public void saveUsage(String accountId, AccountUsageStreamType stream, Integer upstreamStatus,
                           Integer inputTokens, Integer cachedInputTokens, Integer outputTokens, long costMs) {
         if (accountId == null || accountId.isBlank()) {
             return;
@@ -21,7 +23,7 @@ public class AccountUsageService extends ServiceImpl<AccountUsageMapper, Account
 
         final AccountUsageEntity entity = new AccountUsageEntity();
         entity.setAccountId(accountId);
-        entity.setStream(stream);
+        entity.setStream(stream.dbValue());
         entity.setUpstreamStatus(upstreamStatus);
         entity.setInputTokens(inputTokens);
         entity.setCachedInputTokens(cachedInputTokens);
@@ -34,5 +36,16 @@ public class AccountUsageService extends ServiceImpl<AccountUsageMapper, Account
         } catch (Exception ex) {
             log.error("写入账号用量失败：accountId={}", accountId, ex);
         }
+    }
+
+    public PageResult<AccountUsageListItem> listPage(int current, int size) {
+        final Page<AccountUsageListItem> page = Page.of(current, size);
+        final Page<AccountUsageListItem> result = baseMapper.selectUsagePage(page);
+        return new PageResult<>(
+                Math.toIntExact(result.getCurrent()),
+                Math.toIntExact(result.getSize()),
+                result.getTotal(),
+                result.getRecords()
+        );
     }
 }

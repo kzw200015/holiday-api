@@ -1,5 +1,17 @@
 # syntax=docker/dockerfile:1.4
 
+FROM node:20-alpine AS ui-builder
+
+WORKDIR /ui
+
+COPY ui/package.json ui/pnpm-lock.yaml ./
+
+RUN corepack enable && pnpm install --frozen-lockfile
+
+COPY ui ./
+
+RUN pnpm build
+
 FROM eclipse-temurin:21-jdk AS builder
 
 WORKDIR /workspace
@@ -14,6 +26,8 @@ RUN --mount=type=cache,id=maven-repo,target=/root/.m2 \
     ./mvnw -DskipTests dependency:go-offline
 
 COPY src src
+
+COPY --from=ui-builder /ui/dist ui/dist
 
 RUN --mount=type=cache,id=maven-repo,target=/root/.m2 \
     ./mvnw -DskipTests package && \

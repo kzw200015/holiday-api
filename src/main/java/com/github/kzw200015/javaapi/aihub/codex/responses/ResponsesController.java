@@ -1,9 +1,7 @@
 package com.github.kzw200015.javaapi.aihub.codex.responses;
 
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Map;
 
@@ -23,13 +21,11 @@ public class ResponsesController {
         this.responsesSseProxyService = responsesSseProxyService;
     }
 
-    @PostMapping(value = "/responses", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, Object> responsesJson(@RequestHeader HttpHeaders headers, @RequestBody(required = false) Map<String, Object> body) {
+    @PostMapping(value = "/responses")
+    public Object responses(@RequestHeader HttpHeaders headers, @RequestBody(required = false) Map<String, Object> body) {
+        if (Boolean.TRUE.equals(body.get("stream"))) {
+            return responsesSseProxyService.proxySse(headers, body);
+        }
         return responsesJsonProxyService.proxyJson(headers, body);
-    }
-
-    @PostMapping(value = "/responses", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter responsesSse(@RequestHeader HttpHeaders headers, @RequestBody(required = false) Map<String, Object> body) {
-        return responsesSseProxyService.proxySse(headers, body);
     }
 }

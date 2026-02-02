@@ -1,10 +1,14 @@
 package com.github.kzw200015.javaapi.aihub.codex.responses;
 
 import com.github.kzw200015.javaapi.aihub.AccountUsageService;
+import com.github.kzw200015.javaapi.aihub.AccountUsageStreamType;
 import com.github.kzw200015.javaapi.aihub.codex.oauth2.CodexAccountCache;
 import com.github.kzw200015.javaapi.aihub.codex.oauth2.CodexOAuthProperties;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.*;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 import okhttp3.sse.EventSource;
 import okhttp3.sse.EventSourceListener;
 import okhttp3.sse.EventSources;
@@ -18,7 +22,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,16 +33,17 @@ public class ResponsesSseProxyService extends AbstractResponsesProxy {
 
     private static final Duration STREAM_READ_TIMEOUT = Duration.ZERO;
 
-    private final JsonMapper jsonMapper;
     private final AccountUsageService accountUsageService;
     private final OkHttpClient streamHttpClient;
+    private final OpencodeCodexHeaderProvider opencodeCodexHeaderProvider;
 
     public ResponsesSseProxyService(OkHttpClient httpClient, JsonMapper jsonMapper,
                                     CodexOAuthProperties codexOAuthProperties, CodexAccountCache codexAccountCache,
-                                    AccountUsageService accountUsageService) {
-        super(codexOAuthProperties, codexAccountCache);
-        this.jsonMapper = jsonMapper;
+                                    AccountUsageService accountUsageService,
+                                    OpencodeCodexHeaderProvider opencodeCodexHeaderProvider) {
+        super(codexOAuthProperties, codexAccountCache, jsonMapper);
         this.accountUsageService = accountUsageService;
+        this.opencodeCodexHeaderProvider = opencodeCodexHeaderProvider;
         this.streamHttpClient = httpClient.newBuilder()
                 .readTimeout(STREAM_READ_TIMEOUT)
                 .addNetworkInterceptor(chain -> {
@@ -79,10 +83,9 @@ public class ResponsesSseProxyService extends AbstractResponsesProxy {
     }
 
     public SseEmitter proxySse(HttpHeaders headers, Map<String, Object> body) {
-        final Map<String, Object> payload = body != null ? body : new HashMap<>();
-        payload.put("stream", true);
+        final Map<String, Object> payload = preparePayload(headers, body, opencodeCodexHeaderProvider);
         final CodexAccountCache.CachedAccount auth = resolveAuth(headers);
-        final Request upstreamRequest = buildUpstreamRequest(headers, payload, auth);
+        final Request upstreamRequest = buildUpstreamRequest(headers, payload, auth, MediaType.TEXT_EVENT_STREAM_VALUE);
         final SseEmitter emitter = new SseEmitter(60_000L);
 
         final UsageSseListener listener = new UsageSseListener(emitter, jsonMapper, accountUsageService, auth.id());
@@ -100,15 +103,6 @@ public class ResponsesSseProxyService extends AbstractResponsesProxy {
         });
 
         return emitter;
-    }
-
-    private Request buildUpstreamRequest(HttpHeaders headers, Map<String, Object> body, CodexAccountCache.CachedAccount auth) {
-        final RequestBody requestBody = RequestBody.create(jsonMapper.writeValueAsBytes(body));
-        final Request.Builder builder = new Request.Builder().url(UPSTREAM_URL).post(requestBody);
-        builder.header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE);
-        copyWhitelistedHeaders(builder, headers);
-        applyAuthHeaders(builder, headers, auth);
-        return builder.build();
     }
 
     private static final class UsageSseListener extends EventSourceListener {
@@ -185,7 +179,7 @@ public class ResponsesSseProxyService extends AbstractResponsesProxy {
             }
             final long costMs = Duration.ofNanos(System.nanoTime() - startedNanos).toMillis();
             final TokenUsage usage = tokenUsage.get();
-            usageService.saveUsage(accountId, true,
+            usageService.saveUsage(accountId, AccountUsageStreamType.STREAM,
                     upstreamStatus.get() > 0 ? upstreamStatus.get() : null,
                     usage != null ? usage.inputTokens() : null,
                     usage != null ? usage.cachedInputTokens() : null,
