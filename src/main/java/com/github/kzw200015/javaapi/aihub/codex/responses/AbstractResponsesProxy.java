@@ -22,6 +22,7 @@ abstract class AbstractResponsesProxy {
     protected static final String HEADER_X_CODEX_BETA_FEATURES = "x-codex-beta-features";
     protected static final String HEADER_X_OAI_WEB_SEARCH_ELIGIBLE = "x-oai-web-search-eligible";
     protected static final String HEADER_SESSION_ID = "session_id";
+    protected static final String HEADER_CONVERSATION_ID = "conversation_id";
     protected static final String HEADER_ORIGINATOR = "originator";
     protected static final String HEADER_CHATGPT_ACCOUNT_ID = "ChatGPT-Account-Id";
 
@@ -29,6 +30,7 @@ abstract class AbstractResponsesProxy {
             HEADER_X_CODEX_BETA_FEATURES,
             HEADER_X_OAI_WEB_SEARCH_ELIGIBLE,
             HEADER_SESSION_ID,
+            HEADER_CONVERSATION_ID,
             HttpHeaders.USER_AGENT,
             HEADER_ORIGINATOR
     );
@@ -54,8 +56,9 @@ abstract class AbstractResponsesProxy {
         }
     }
 
-    protected CodexAccountCache.CachedAccount resolveAuth(HttpHeaders headers) {
-        return codexAccountCache.selectBySessionId(headers.getFirst(HEADER_SESSION_ID));
+    protected CodexAccountCache.CachedAccount resolveAuth(HttpHeaders headers, Map<String, Object> body) {
+        final String sessionId = resolveSessionId(headers, body);
+        return codexAccountCache.selectBySessionId(sessionId);
     }
 
     protected Map<String, Object> preparePayload(HttpHeaders headers, Map<String, Object> body, OpencodeCodexHeaderProvider provider) {
@@ -149,6 +152,23 @@ abstract class AbstractResponsesProxy {
             return false;
         }
         return userAgent.contains("opencode/");
+    }
+
+    /**
+     * 选择粘性会话 key：session_id > conversation_id > prompt_cache_key。
+     */
+    private static String resolveSessionId(HttpHeaders headers, Map<String, Object> body) {
+        String sessionId = headers.getFirst(HEADER_SESSION_ID);
+        if (!StringUtils.hasText(sessionId)) {
+            sessionId = headers.getFirst(HEADER_CONVERSATION_ID);
+        }
+        if (!StringUtils.hasText(sessionId) && body != null) {
+            final Object promptCacheKey = body.get("prompt_cache_key");
+            if (promptCacheKey instanceof String text && StringUtils.hasText(text)) {
+                sessionId = text;
+            }
+        }
+        return sessionId;
     }
 
     private static void copyHeader(Request.Builder builder, HttpHeaders headers, String headerName) {

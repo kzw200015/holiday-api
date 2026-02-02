@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ResponsesSseProxyService extends AbstractResponsesProxy {
 
     private static final Duration STREAM_READ_TIMEOUT = Duration.ZERO;
+    private static final long SSE_EMITTER_TIMEOUT = 0L;
 
     private final AccountUsageService accountUsageService;
     private final OkHttpClient streamHttpClient;
@@ -84,9 +85,9 @@ public class ResponsesSseProxyService extends AbstractResponsesProxy {
 
     public SseEmitter proxySse(HttpHeaders headers, Map<String, Object> body) {
         final Map<String, Object> payload = preparePayload(headers, body, opencodeCodexHeaderProvider);
-        final CodexAccountCache.CachedAccount auth = resolveAuth(headers);
+        final CodexAccountCache.CachedAccount auth = resolveAuth(headers, payload);
         final Request upstreamRequest = buildUpstreamRequest(headers, payload, auth, MediaType.TEXT_EVENT_STREAM_VALUE);
-        final SseEmitter emitter = new SseEmitter(60_000L);
+        final SseEmitter emitter = new SseEmitter(SSE_EMITTER_TIMEOUT);
 
         final UsageSseListener listener = new UsageSseListener(emitter, jsonMapper, accountUsageService, auth.id());
 

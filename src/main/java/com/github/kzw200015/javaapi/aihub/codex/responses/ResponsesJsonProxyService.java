@@ -37,7 +37,7 @@ public class ResponsesJsonProxyService extends AbstractResponsesProxy {
     public Map<String, Object> proxyJson(HttpHeaders headers, Map<String, Object> body) {
         final long startedNanos = System.nanoTime();
         final Map<String, Object> payload = preparePayload(headers, body, opencodeCodexHeaderProvider);
-        final CodexAccountCache.CachedAccount auth = resolveAuth(headers);
+        final CodexAccountCache.CachedAccount auth = resolveAuth(headers, payload);
         final Request upstreamRequest = buildUpstreamRequest(headers, payload, auth, MediaType.APPLICATION_JSON_VALUE);
 
         Integer upstreamStatus = null;
