@@ -15,7 +15,7 @@ import java.util.concurrent.ThreadLocalRandom;
 @Component
 public class HolidayStore {
 
-    private static final String KEY_HOLIDAYS_BY_DATE = "java-api:holiday:by-date";
+    private static final String KEY_HOLIDAYS_BY_DATE = "myapi:holiday:by-date";
 
     private final RedissonClient redissonClient;
     private final JsonMapper jsonMapper;

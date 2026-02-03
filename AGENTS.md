@@ -5,7 +5,8 @@
 ## 代码库结构
 
 - 后端：Spring Boot 4.x（`pom.xml`，Java 21），端口默认 `8000`（见 `src/main/resources/application.yaml`）
-- 前端：Vite + React 19 + TypeScript（目录 `ui/`），dev server 通过代理把 `/api` 转发到 `http://localhost:8000`（见 `ui/vite.config.ts`）
+- 前端：Vite + React 19 + TypeScript（目录 `ui/`），dev server 通过代理把 `/api` 转发到 `http://localhost:8000`（见
+  `ui/vite.config.ts`）
 - 数据库：PostgreSQL（见 `application.yaml` 的 datasource 配置）；ORM 为 MyBatis-Plus
 
 ## 常用命令（后端 / Maven）
@@ -18,20 +19,20 @@
 - 更接近 CI 的校验（如有插件会在此阶段执行）：`./mvnw verify`
 - 清理构建产物：`./mvnw clean`
 - 本地运行：`./mvnw spring-boot:run`
-- 运行打包后的 jar：`java -jar target/java-api-0.0.1-SNAPSHOT.jar`
+- 运行打包后的 jar：`java -jar target/myapi-0.0.1-SNAPSHOT.jar`
 
 ### 只跑单个测试（最重要）
 
 测试框架：JUnit 5（见 `src/test/java/...`）。
 
 - 跑单个测试类：
-  - `./mvnw -Dtest=JavaApiApplicationTests test`
+    - `./mvnw -Dtest=JavaApiApplicationTests test`
 - 跑单个测试方法：
-  - `./mvnw -Dtest=JavaApiApplicationTests#contextLoads test`
+    - `./mvnw -Dtest=JavaApiApplicationTests#contextLoads test`
 - 跑多个类（逗号分隔）：
-  - `./mvnw -Dtest=FooTest,BarTest test`
+    - `./mvnw -Dtest=FooTest,BarTest test`
 - 按通配符匹配（Surefire 语义）：
-  - `./mvnw -Dtest=*Holiday* test`
+    - `./mvnw -Dtest=*Holiday* test`
 
 备注：当前 `pom.xml` 未集成 Checkstyle/Spotless 等“格式化/静态检查”插件；在后端侧，`mvn test/verify` 主要覆盖编译与测试。
 
@@ -52,9 +53,9 @@
 
 ## Docker
 
-- 构建镜像：`docker build -t java-api .`
+- 构建镜像：`docker build -t myapi .`
 - 运行容器（注意：应用实际端口取决于 `server.port`，当前为 8000）：
-  - `docker run --rm -p 8000:8000 java-api`
+    - `docker run --rm -p 8000:8000 myapi`
 
 备注：`Dockerfile` 的 `EXPOSE 8080` 只是元数据，不会自动改应用端口；以 `application.yaml` 为准。
 
@@ -121,7 +122,8 @@
 
 - 类型导入使用 `import type { ... }`（项目内已有）
 - import 分组建议：第三方 → 空行 → `@/` → 相对路径
-- 是否带 `.ts/.tsx` 扩展：本仓库两种写法都存在（示例：`ui/src/App.tsx` 与 `ui/src/components/app/app-layout.tsx`）；改动时保持“所在目录/文件”的既有习惯，避免全仓库重排
+- 是否带 `.ts/.tsx` 扩展：本仓库两种写法都存在（示例：`ui/src/App.tsx` 与 `ui/src/components/app/app-layout.tsx`
+  ）；改动时保持“所在目录/文件”的既有习惯，避免全仓库重排
 
 ### 格式化
 
@@ -138,7 +140,8 @@
 
 - 组件库：Radix UI + Tailwind（含 shadcn 风格组件，见 `ui/components.json`）
 - className 合并：用 `cn(...)`（见 `ui/src/lib/utils.ts`）
-- 主题：当前通过切换 `document.documentElement` 的 `dark` class（见 `ui/src/components/app/app-layout.tsx` 内的 `ThemeToggle`）
+- 主题：当前通过切换 `document.documentElement` 的 `dark` class（见 `ui/src/components/app/app-layout.tsx` 内的
+  `ThemeToggle`）
 
 ### shadcn 组件（重要）
 
@@ -148,4 +151,5 @@
 ## 工作区卫生
 
 - 不要改/提交生成目录：`target/`、`ui/node_modules/`、`ui/dist/`
-- 避免在文档/日志里传播敏感配置：`src/main/resources/application.yaml` 当前包含数据库密码等明文配置（同时避免在 issue/PR/commit message 里复制粘贴这些值）
+- 避免在文档/日志里传播敏感配置：`src/main/resources/application.yaml` 当前包含数据库密码等明文配置（同时避免在
+  issue/PR/commit message 里复制粘贴这些值）

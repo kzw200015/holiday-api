@@ -3,9 +3,9 @@ server:
 
 spring:
   application:
-    name: java-api
+    name: myapi
   datasource:
-    url: jdbc:postgresql://localhost:5432/java-api
+    url: jdbc:postgresql://localhost:5432/myapi
     username: postgres
     password: REDACTED
   data:
@@ -14,15 +14,6 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:8e69fbab9baabf194c8a49dda3132afc}
       database: ${REDIS_DB:1}
-
-codex:
-  oauth:
-    issuer: https://auth.openai.com
-    client-id: app_EMoamEEZ73f0CkXaXp7hrann
-    redirect-uri: ${CODEX_OAUTH_REDIRECT_URI:http://localhost:1455/auth/callback}
-    scope: "openid profile email offline_access"
-    originator: opencode
-    pending-ttl-seconds: 300
 
 mybatis-plus:
   global-config:

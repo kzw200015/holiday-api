@@ -1,5 +1,5 @@
 import { matchPath, NavLink, useLocation } from "react-router-dom"
-import { CalendarDays, Gauge, Key } from "lucide-react"
+import { CalendarDays, Gauge } from "lucide-react"
 import {
     Sidebar,
     SidebarContent,
@@ -19,7 +19,6 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-    { to: "/account", label: "账号", Icon: Key },
     { to: "/holiday", label: "节假日", Icon: CalendarDays },
 ]
 
@@ -32,7 +31,7 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton asChild size="lg" tooltip="控制台">
-                            <NavLink to="/account" end>
+                            <NavLink to="/holiday" end>
                                 <div
                                     className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg text-xs font-semibold"
                                     aria-hidden="true"
