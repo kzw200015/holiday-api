@@ -1,157 +1,19 @@
-:root {
-    color: #1f2937;
-    background-color: #f5f7fa;
-    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-* {
-    box-sizing: border-box;
-}
+@layer base {
+    * {
+        @apply box-border;
+    }
 
-html,
-body,
-#app {
-    margin: 0;
-    min-width: 320px;
-    min-height: 100vh;
-}
+    html,
+    body,
+    #app {
+        @apply m-0 min-h-screen min-w-[320px];
+    }
 
-body {
-    background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
-}
-
-.dark body {
-    background: linear-gradient(180deg, #1f1f1f 0%, #141414 100%);
-}
-
-.app-shell {
-    min-height: 100vh;
-}
-
-.app-shell__aside {
-    border-right: 1px solid var(--el-border-color-light);
-    background: var(--el-bg-color-overlay);
-    transition: width 0.2s ease;
-}
-
-.app-shell__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--el-border-color-light);
-    background: var(--el-bg-color-overlay);
-}
-
-.app-shell__header-left,
-.app-shell__header-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.app-shell__main {
-    padding: 20px;
-}
-
-.app-sidebar {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-}
-
-.app-sidebar__brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 12px;
-    cursor: pointer;
-}
-
-.app-sidebar__logo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    font-size: 12px;
-    font-weight: 600;
-    color: #ffffff;
-    background: var(--el-color-primary);
-}
-
-.app-sidebar__brand-text {
-    display: grid;
-    gap: 2px;
-}
-
-.app-sidebar__title {
-    font-weight: 600;
-}
-
-.app-sidebar__subtitle {
-    color: var(--el-text-color-secondary);
-    font-size: 12px;
-}
-
-.app-sidebar__menu {
-    border-right: 0;
-}
-
-.holiday-page {
-    display: grid;
-    gap: 16px;
-}
-
-.holiday-page__head {
-    display: grid;
-    gap: 8px;
-}
-
-.holiday-page__title-wrap {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.holiday-page__title {
-    margin: 0;
-    font-size: 24px;
-}
-
-.holiday-page__desc {
-    color: var(--el-text-color-secondary);
-}
-
-.holiday-card {
-    height: 100%;
-}
-
-.holiday-card__header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 600;
-}
-
-.holiday-query {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.holiday-query .el-date-editor {
-    width: 220px;
-}
-
-.holiday-query__tip {
-    color: var(--el-text-color-secondary);
-}
-
-.not-found-page {
-    display: flex;
-    justify-content: center;
-    padding-top: 80px;
+    body {
+        @apply font-sans;
+    }
 }

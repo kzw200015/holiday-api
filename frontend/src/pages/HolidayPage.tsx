@@ -124,25 +124,25 @@ export default defineComponent({
         })
 
         return () => (
-            <section class="holiday-page">
-                <div class="holiday-page__head">
-                    <div class="holiday-page__title-wrap">
-                        <h1 class="holiday-page__title">节假日</h1>
+            <section class="grid gap-4">
+                <div class="grid gap-2">
+                    <div class="flex items-center gap-2">
+                        <h1 class="m-0 text-2xl font-semibold tracking-tight">节假日</h1>
                         <ElTag type="info">后端接口</ElTag>
                     </div>
-                    <ElText class="holiday-page__desc">
+                    <ElText class="text-[var(--el-text-color-secondary)]">
                         通过后端接口判断某一天是否为休息日（包含法定节假日与调休）。
                     </ElText>
                 </div>
 
-                <ElRow gutter={16}>
+                <ElRow gutter={16} class="gap-y-4">
                     <ElCol xs={24} md={8}>
                         <ElCard
-                            class="holiday-card"
+                            class="h-full rounded-xl"
                             shadow="never"
                             v-slots={{
                                 header: () => (
-                                    <div class="holiday-card__header">
+                                    <div class="flex items-center gap-1.5 font-semibold">
                                         <ElIcon>
                                             <Calendar />
                                         </ElIcon>
@@ -151,8 +151,9 @@ export default defineComponent({
                                 ),
                             }}
                         >
-                            <div class="holiday-query">
+                            <div class="mb-2.5 flex flex-wrap items-center gap-3">
                                 <ElDatePicker
+                                    class="w-[220px]"
                                     modelValue={date.value}
                                     type="date"
                                     valueFormat="YYYY-MM-DD"
@@ -169,17 +170,17 @@ export default defineComponent({
                                 </ElButton>
                             </div>
 
-                            <ElText class="holiday-query__tip">支持留空（后端默认使用当天日期）。</ElText>
+                            <ElText class="text-[var(--el-text-color-secondary)]">支持留空（后端默认使用当天日期）。</ElText>
                         </ElCard>
                     </ElCol>
 
                     <ElCol xs={24} md={8}>
                         <ElCard
-                            class="holiday-card"
+                            class="h-full rounded-xl"
                             shadow="never"
                             v-slots={{
                                 header: () => (
-                                    <div class="holiday-card__header">
+                                    <div class="flex items-center gap-1.5 font-semibold">
                                         <ElIcon>
                                             <ResultIcon.value />
                                         </ElIcon>
@@ -197,11 +198,11 @@ export default defineComponent({
 
                     <ElCol xs={24} md={8}>
                         <ElCard
-                            class="holiday-card"
+                            class="h-full rounded-xl"
                             shadow="never"
                             v-slots={{
                                 header: () => (
-                                    <div class="holiday-card__header">
+                                    <div class="flex items-center gap-1.5 font-semibold">
                                         <ElIcon>
                                             <Clock />
                                         </ElIcon>

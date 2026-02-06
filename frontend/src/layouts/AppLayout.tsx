@@ -19,14 +19,17 @@ export default defineComponent({
         const CollapseIcon = computed(() => (appStore.sidebarCollapsed ? Expand : Fold))
 
         return () => (
-            <ElContainer class="app-shell">
-                <ElAside class="app-shell__aside" width={asideWidth.value}>
+            <ElContainer class="min-h-screen bg-gradient-to-b from-slate-50 to-slate-200 text-slate-800 dark:from-zinc-900 dark:to-zinc-950 dark:text-slate-100">
+                <ElAside
+                    class="border-r border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)] transition-[width] duration-200"
+                    width={asideWidth.value}
+                >
                     <AppSidebar collapsed={appStore.sidebarCollapsed} />
                 </ElAside>
 
                 <ElContainer>
-                    <ElHeader class="app-shell__header">
-                        <div class="app-shell__header-left">
+                    <ElHeader class="flex items-center justify-between border-b border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)] px-4">
+                        <div class="flex items-center gap-2.5">
                             <ElButton circle text onClick={appStore.toggleSidebarCollapsed}>
                                 <ElIcon>
                                     <CollapseIcon.value />
@@ -34,7 +37,7 @@ export default defineComponent({
                             </ElButton>
                             <ElText>控制台</ElText>
                         </div>
-                        <div class="app-shell__header-right">
+                        <div class="flex items-center gap-2.5">
                             <ElText>{appStore.isDark ? "深色主题" : "浅色主题"}</ElText>
                             <ElSwitch
                                 modelValue={appStore.isDark}
@@ -46,7 +49,7 @@ export default defineComponent({
                         </div>
                     </ElHeader>
 
-                    <ElMain class="app-shell__main">
+                    <ElMain class="p-5">
                         <RouterView />
                     </ElMain>
                 </ElContainer>
