@@ -1,10 +1,10 @@
+import { Moon, Sun } from "lucide-react"
+import { useState } from "react"
 import { Outlet } from "react-router-dom"
 
-import { AppSidebar } from "@/components/app/app-sidebar.tsx"
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar.tsx"
-import { useEffect, useState } from "react";
-import { Moon, Sun } from "lucide-react";
-import { Switch } from "@/components/ui/switch.tsx";
+import { AppSidebar } from "@/components/app/app-sidebar"
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { Switch } from "@/components/ui/switch"
 
 export function AppLayout() {
     return (
@@ -35,13 +35,9 @@ export function AppLayout() {
 }
 
 function ThemeToggle() {
-    const [isDark, setIsDark] = useState(false)
+    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains("dark"))
 
-    useEffect(() => {
-        setIsDark(document.documentElement.classList.contains("dark"))
-    }, [])
-
-    function handleCheckedChange(checked: boolean) {
+    const handleCheckedChange = (checked: boolean) => {
         document.documentElement.classList.toggle("dark", checked)
         setIsDark(checked)
     }

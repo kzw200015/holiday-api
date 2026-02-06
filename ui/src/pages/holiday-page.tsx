@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { CalendarDays, CircleCheck, CircleX, Hourglass } from "lucide-react"
 import { toast } from "sonner"
 
@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { queryIsHoliday } from "@/lib/api/holiday"
+
+const NEXT_OFF_DAY_SEARCH_RANGE = 60
 
 function addDays(dateText: string, days: number) {
     const parts = dateText.split("-")
@@ -18,54 +20,69 @@ function addDays(dateText: string, days: number) {
     return formatDateForInput(baseDate)
 }
 
+type HolidayQueryResult = {
+    isHoliday?: boolean
+    nextOffDayDate?: string
+    daysToNextOffDay?: number
+}
+
+async function queryNextOffDay(baseDateText: string): Promise<Pick<HolidayQueryResult, "nextOffDayDate" | "daysToNextOffDay">> {
+    for (let i = 1; i <= NEXT_OFF_DAY_SEARCH_RANGE; i += 1) {
+        const candidateDate = addDays(baseDateText, i)
+        const candidateResult = await queryIsHoliday(candidateDate)
+        if (candidateResult) {
+            return {
+                nextOffDayDate: candidateDate,
+                daysToNextOffDay: i,
+            }
+        }
+    }
+
+    throw new Error(`未找到下一个休息日（查询范围：${NEXT_OFF_DAY_SEARCH_RANGE}天）`)
+}
+
 export function HolidayPage() {
     const [date, setDate] = useState(() => formatDateForInput(new Date()))
     const [loading, setLoading] = useState(false)
-    const [isHoliday, setIsHoliday] = useState<boolean>()
-    const [nextOffDayDate, setNextOffDayDate] = useState<string>()
-    const [daysToNextOffDay, setDaysToNextOffDay] = useState<number>()
+    const [result, setResult] = useState<HolidayQueryResult>({})
 
-    const title = isHoliday === undefined ? "未查询" : isHoliday ? "休息日" : "工作日"
-
-    async function refresh() {
+    const refresh = useCallback(async () => {
         setLoading(true)
-        setNextOffDayDate(undefined)
-        setDaysToNextOffDay(undefined)
         try {
-            const baseDateText = date && date.trim().length > 0 ? date : formatDateForInput(new Date())
-            const result = await queryIsHoliday(date)
-            setIsHoliday(result)
+            const baseDateText = date || formatDateForInput(new Date())
+            const currentIsHoliday = await queryIsHoliday(date || undefined)
 
-            if (result) {
-                setNextOffDayDate(baseDateText)
-                setDaysToNextOffDay(0)
+            if (currentIsHoliday) {
+                setResult({
+                    isHoliday: true,
+                    nextOffDayDate: baseDateText,
+                    daysToNextOffDay: 0,
+                })
                 return
             }
 
-            for (let i = 1; i <= 60; i += 1) {
-                const candidateDate = addDays(baseDateText, i)
-                const candidateResult = await queryIsHoliday(candidateDate)
-                if (candidateResult) {
-                    setNextOffDayDate(candidateDate)
-                    setDaysToNextOffDay(i)
-                    return
-                }
-            }
-
-            throw new Error("未找到下一个休息日（查询范围：60天）")
+            const nextOffDay = await queryNextOffDay(baseDateText)
+            setResult({
+                isHoliday: false,
+                ...nextOffDay,
+            })
         } catch (e) {
-            setIsHoliday(undefined)
-            setNextOffDayDate(undefined)
-            setDaysToNextOffDay(undefined)
+            setResult({})
             toast(e instanceof Error ? e.message : String(e))
         } finally {
             setLoading(false)
         }
-    }
+    }, [date])
 
     useEffect(() => {
         void refresh()
-    }, [])
+    }, [refresh])
+
+    const title = result.isHoliday === undefined ? "未查询" : result.isHoliday ? "休息日" : "工作日"
+    const currentDateText = date ? `日期：${date}` : "日期：今天"
+    const nextOffDayText = loading ? "计算中…" : result.daysToNextOffDay === undefined ? "-" : `${result.daysToNextOffDay} 天`
+    const nextOffDayDateText = loading ? "日期：计算中…" : result.nextOffDayDate ? `日期：${result.nextOffDayDate}` : "日期：-"
+    const ResultIcon = result.isHoliday === undefined ? CircleX : CircleCheck
 
     return (
         <div className="space-y-6">
@@ -109,19 +126,13 @@ export function HolidayPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                            {isHoliday === undefined ? (
-                                <CircleX className="h-4 w-4" aria-hidden="true"/>
-                            ) : (
-                                <CircleCheck className="h-4 w-4" aria-hidden="true"/>
-                            )}
+                            <ResultIcon className="h-4 w-4" aria-hidden="true"/>
                             当天结果
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
                         <div className="text-3xl font-semibold tracking-tight">{title}</div>
-                        <div className="text-sm text-muted-foreground">
-                            {date && date.trim().length > 0 ? `日期：${date}` : "日期：今天"}
-                        </div>
+                        <div className="text-sm text-muted-foreground">{currentDateText}</div>
                     </CardContent>
                 </Card>
 
@@ -134,16 +145,8 @@ export function HolidayPage() {
                         <CardDescription>按所选日期向后推算</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                        <div className="text-3xl font-semibold tracking-tight">
-                            {loading
-                                ? "计算中…"
-                                : daysToNextOffDay === undefined
-                                    ? "-"
-                                    : `${daysToNextOffDay} 天`}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                            {loading ? "日期：计算中…" : nextOffDayDate ? `日期：${nextOffDayDate}` : "日期：-"}
-                        </div>
+                        <div className="text-3xl font-semibold tracking-tight">{nextOffDayText}</div>
+                        <div className="text-sm text-muted-foreground">{nextOffDayDateText}</div>
                     </CardContent>
                 </Card>
             </div>

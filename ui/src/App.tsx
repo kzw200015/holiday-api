@@ -1,6 +1,6 @@
 import { HashRouter, Route, Routes } from "react-router-dom"
 
-import { AppLayout } from "@/components/app/app-layout.tsx"
+import { AppLayout } from "@/components/app/app-layout"
 import { Toaster } from "@/components/ui/sonner"
 import { HolidayPage } from "@/pages/holiday-page"
 import { NotFoundPage } from "@/pages/not-found-page"

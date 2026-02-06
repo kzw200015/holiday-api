@@ -15,11 +15,10 @@ export function formatDateForInput(date: Date) {
 }
 
 function parseDateFromInput(dateText: string) {
-    const normalized = dateText.trim()
-    if (!normalized) {
+    if (!dateText) {
         return undefined
     }
-    const parts = normalized.split("-")
+    const parts = dateText.split("-")
     const year = Number(parts[0])
     const month = Number(parts[1])
     const day = Number(parts[2])
@@ -36,15 +35,20 @@ type AppDatePickerProps = {
 }
 
 export function AppDatePicker({
-                                  id,
-                                  value,
-                                  onValueChange,
-                                  disabled,
-                                  placeholder = "选择日期",
-                                  className,
-                              }: AppDatePickerProps) {
+    id,
+    value,
+    onValueChange,
+    disabled,
+    placeholder = "选择日期",
+    className,
+}: AppDatePickerProps) {
     const [open, setOpen] = useState(false)
+    const hasValue = value.length > 0
     const selectedDate = parseDateFromInput(value)
+    const applyValue = (nextValue: string) => {
+        onValueChange(nextValue)
+        setOpen(false)
+    }
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -57,7 +61,7 @@ export function AppDatePicker({
                     disabled={disabled}
                 >
                     <CalendarDays className="mr-2 h-4 w-4" aria-hidden="true"/>
-                    {value && value.trim().length > 0 ? value : placeholder}
+                    {hasValue ? value : placeholder}
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-auto p-0 gap-0">
@@ -66,11 +70,8 @@ export function AppDatePicker({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                            onValueChange("")
-                            setOpen(false)
-                        }}
-                        disabled={disabled || !value || value.trim().length === 0}
+                        onClick={() => applyValue("")}
+                        disabled={disabled || !hasValue}
                     >
                         清除
                     </Button>
@@ -78,10 +79,7 @@ export function AppDatePicker({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                            onValueChange(formatDateForInput(new Date()))
-                            setOpen(false)
-                        }}
+                        onClick={() => applyValue(formatDateForInput(new Date()))}
                         disabled={disabled}
                     >
                         今天
@@ -92,12 +90,7 @@ export function AppDatePicker({
                     locale={zhCN}
                     selected={selectedDate}
                     onSelect={(next) => {
-                        if (next) {
-                            onValueChange(formatDateForInput(next))
-                        } else {
-                            onValueChange("")
-                        }
-                        setOpen(false)
+                        applyValue(next ? formatDateForInput(next) : "")
                     }}
                     autoFocus
                 />

@@ -31,11 +31,10 @@ function resolveApiErrorMessage(error: unknown) {
  */
 export async function queryIsHoliday(date?: string) {
     try {
-        const params = date && date.trim().length > 0 ? { date } : undefined
+        const params = date ? { date } : undefined
         const response = await http.get<ApiResponse<boolean>>("/holiday/is-holiday", { params })
         return response.data.data
     } catch (error) {
         throw new Error(resolveApiErrorMessage(error))
     }
 }
-
