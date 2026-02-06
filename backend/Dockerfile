@@ -1,10 +1,10 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
-WORKDIR /app/backend
-COPY backend/go.mod backend/go.sum ./
+WORKDIR /app
+COPY go.mod go.sum ./
 RUN go mod download
 
-COPY backend/ ./
+COPY . ./
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/myapi-backend .
 
 FROM alpine:3.20
