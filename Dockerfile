@@ -1,47 +1,19 @@
-# syntax=docker/dockerfile:1.4
+FROM golang:1.22-alpine AS builder
 
-FROM node:20-alpine AS ui-builder
+WORKDIR /app/backend
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
 
-WORKDIR /ui
+COPY backend/ ./
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/myapi-backend .
 
-COPY ui/package.json ui/pnpm-lock.yaml ./
+FROM alpine:3.20
 
-RUN corepack enable && pnpm install --frozen-lockfile
-
-COPY ui ./
-
-RUN pnpm build
-
-FROM eclipse-temurin:21-jdk AS builder
-
-WORKDIR /workspace
-
-COPY mvnw mvnw
-COPY .mvn .mvn
-COPY pom.xml pom.xml
-
-RUN chmod +x mvnw
-
-RUN --mount=type=cache,id=maven-repo,target=/root/.m2 \
-    ./mvnw -DskipTests dependency:go-offline
-
-COPY src src
-
-COPY --from=ui-builder /ui/dist ui/dist
-
-RUN --mount=type=cache,id=maven-repo,target=/root/.m2 \
-    ./mvnw -DskipTests package && \
-    JAR_FILE="$(ls -1 target/*.jar | grep -v '\\.original$' | head -n 1)" && \
-    cp "$JAR_FILE" /workspace/app.jar
-
-FROM eclipse-temurin:21-jre
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
+COPY --from=builder /out/myapi-backend ./myapi-backend
 
-ENV JAVA_TOOL_OPTIONS="-XX:+UseShenandoahGC -XX:ShenandoahGCHeuristics=compact"
+EXPOSE 8000
 
-COPY --from=builder /workspace/app.jar app.jar
-
-EXPOSE 8080
-
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["/app/myapi-backend"]
