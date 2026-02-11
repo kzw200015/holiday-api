@@ -31,7 +31,8 @@ export default defineComponent({
         return () => (
             <aside class="flex h-full flex-col">
                 <div class="flex h-16 cursor-pointer items-center px-3" onClick={() => void router.push("/holiday")}>
-                    <div class="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[var(--el-color-primary)] text-xs font-semibold text-white">
+                    <div
+                        class="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[var(--el-color-primary)] text-xs font-semibold text-white">
                         API
                     </div>
                     <div
@@ -57,7 +58,7 @@ export default defineComponent({
                     {navItems.map((item) => (
                         <ElMenuItem index={item.path}>
                             <ElIcon>
-                                <item.icon />
+                                <item.icon/>
                             </ElIcon>
                             <span>{item.label}</span>
                         </ElMenuItem>
