@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router"
 
 import AppLayout from "@/layouts/AppLayout"
-import HolidayPage from "@/pages/HolidayPage"
-import NotFoundPage from "@/pages/NotFoundPage"
+import HolidayPage from "@/views/HolidayPage"
+import NotFoundPage from "@/views/NotFoundPage"
 
 const routes: RouteRecordRaw[] = [
     {

@@ -8,13 +8,12 @@ import {
     ElDescriptions,
     ElDescriptionsItem,
     ElIcon,
-    ElMessage,
     ElRow,
     ElTag,
     ElText,
 } from "element-plus"
 
-import { queryIsHoliday } from "@/api/HolidayApi"
+import { isHoliday } from "@/api/HolidayApi"
 import { addDays, formatDateForInput } from "@/utils/DateUtils"
 
 const NEXT_OFF_DAY_SEARCH_RANGE = 60
@@ -28,7 +27,7 @@ type HolidayQueryResult = {
 async function queryNextOffDay(baseDateText: string): Promise<Pick<HolidayQueryResult, "nextOffDayDate" | "daysToNextOffDay">> {
     for (let i = 1; i <= NEXT_OFF_DAY_SEARCH_RANGE; i += 1) {
         const candidateDate = addDays(baseDateText, i)
-        const candidateResult = await queryIsHoliday(candidateDate)
+        const candidateResult = await isHoliday(candidateDate)
 
         if (candidateResult) {
             return {
@@ -53,7 +52,7 @@ export default defineComponent({
 
             try {
                 const baseDateText = date.value || formatDateForInput(new Date())
-                const currentIsHoliday = await queryIsHoliday(date.value || undefined)
+                const currentIsHoliday = await isHoliday(date.value || undefined)
 
                 if (currentIsHoliday) {
                     result.value = {
@@ -69,9 +68,8 @@ export default defineComponent({
                     isHoliday: false,
                     ...nextOffDay,
                 }
-            } catch (error) {
+            } catch {
                 result.value = {}
-                ElMessage.error(error instanceof Error ? error.message : String(error))
             } finally {
                 loading.value = false
             }
