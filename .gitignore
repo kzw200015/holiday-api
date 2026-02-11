@@ -9,3 +9,4 @@ backend/bin/
 
 ui/node_modules/
 ui/dist/
+.ace-tool/

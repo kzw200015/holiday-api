@@ -16,6 +16,7 @@ func main() {
 
 	router := gin.Default()
 	httpapi.NewHolidayHandler(service).Register(router)
+	httpapi.RegisterFrontend(router)
 
 	if err = router.Run(":8000"); err != nil {
 		panic(err)
