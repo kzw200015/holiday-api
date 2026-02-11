@@ -144,7 +144,7 @@ export default defineComponent({
                                 header: () => (
                                     <div class="flex items-center gap-1.5 font-semibold">
                                         <ElIcon>
-                                            <Calendar />
+                                            <Calendar/>
                                         </ElIcon>
                                         <span>查询</span>
                                     </div>
@@ -170,7 +170,8 @@ export default defineComponent({
                                 </ElButton>
                             </div>
 
-                            <ElText class="text-[var(--el-text-color-secondary)]">支持留空（后端默认使用当天日期）。</ElText>
+                            <ElText
+                                class="text-[var(--el-text-color-secondary)]">支持留空（后端默认使用当天日期）。</ElText>
                         </ElCard>
                     </ElCol>
 
@@ -182,7 +183,7 @@ export default defineComponent({
                                 header: () => (
                                     <div class="flex items-center gap-1.5 font-semibold">
                                         <ElIcon>
-                                            <ResultIcon.value />
+                                            <ResultIcon.value/>
                                         </ElIcon>
                                         <span>当天结果</span>
                                     </div>
@@ -204,7 +205,7 @@ export default defineComponent({
                                 header: () => (
                                     <div class="flex items-center gap-1.5 font-semibold">
                                         <ElIcon>
-                                            <Clock />
+                                            <Clock/>
                                         </ElIcon>
                                         <span>下一个休息日</span>
                                     </div>
