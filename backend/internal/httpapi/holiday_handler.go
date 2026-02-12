@@ -32,21 +32,19 @@ func (h *HolidayHandler) handleIsHoliday(c *gin.Context) {
 	} else {
 		parsed, parseErr := time.ParseInLocation(holiday.DateLayout, dateParam, time.Local)
 		if parseErr != nil {
-			c.JSON(http.StatusBadRequest, ApiResponse[any]{
-				Code: http.StatusBadRequest,
-				Data: nil,
-				Msg:  "date 参数格式错误，应为 yyyy-MM-dd",
-			})
+			c.JSON(http.StatusBadRequest, BadRequest("date 参数格式错误，应为 yyyy-MM-dd"))
 			return
 		}
 		date = parsed
 	}
 
-	c.JSON(http.StatusOK, ApiResponse[bool]{
-		Code: http.StatusOK,
-		Data: h.service.IsHoliday(date),
-		Msg:  http.StatusText(http.StatusOK),
-	})
+	isHoliday, err := h.service.IsHoliday(c.Request.Context(), date)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, InternalServerError("查询节假日失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, Ok(isHoliday))
 }
 
 func (h *HolidayHandler) handleNextOffDay(c *gin.Context) {
@@ -58,19 +56,17 @@ func (h *HolidayHandler) handleNextOffDay(c *gin.Context) {
 	} else {
 		parsed, parseErr := time.ParseInLocation(holiday.DateLayout, dateParam, time.Local)
 		if parseErr != nil {
-			c.JSON(http.StatusBadRequest, ApiResponse[any]{
-				Code: http.StatusBadRequest,
-				Data: nil,
-				Msg:  "date 参数格式错误，应为 yyyy-MM-dd",
-			})
+			c.JSON(http.StatusBadRequest, BadRequest("date 参数格式错误，应为 yyyy-MM-dd"))
 			return
 		}
 		date = parsed
 	}
 
-	c.JSON(http.StatusOK, ApiResponse[holiday.NextOffDayResult]{
-		Code: http.StatusOK,
-		Data: h.service.QueryNextOffDay(date),
-		Msg:  http.StatusText(http.StatusOK),
-	})
+	nextOffDay, err := h.service.QueryNextOffDay(c.Request.Context(), date)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, InternalServerError("查询节假日失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, Ok(nextOffDay))
 }

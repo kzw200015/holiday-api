@@ -33,10 +33,7 @@ func RegisterFrontend(router *gin.Engine) {
 	router.NoRoute(func(c *gin.Context) {
 		requestPath := c.Request.URL.Path
 		if requestPath == "/api" || strings.HasPrefix(requestPath, "/api/") {
-			c.JSON(http.StatusNotFound, ApiResponse[any]{
-				Code: http.StatusNotFound,
-				Msg:  http.StatusText(http.StatusNotFound),
-			})
+			c.JSON(http.StatusNotFound, NotFound())
 			return
 		}
 

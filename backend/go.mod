@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	entgo.io/ent v0.14.5
 	github.com/gin-gonic/gin v1.11.0
+	github.com/lib/pq v1.10.9
 )
 
 require (
