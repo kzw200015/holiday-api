@@ -7,11 +7,23 @@ export type CodexOAuthSession = {
 }
 
 export type CodexAccount = {
+    name: string
     accountId: string
     token: string
     expiresAt: string
     createdAt: string
     updatedAt: string
+}
+
+export type CodexAccountsPage = {
+    items: CodexAccount[]
+    total: number
+    page: number
+    pageSize: number
+}
+
+export type UpdateCodexAccountRequest = {
+    name: string
 }
 
 export async function createCodexOAuthSession() {
@@ -21,17 +33,31 @@ export async function createCodexOAuthSession() {
     return data
 }
 
-export async function completeCodexOAuth(redirectUrl: string) {
+export async function completeCodexOAuth(name: string, redirectUrl: string) {
     const { data } = await HttpClient.post<ApiResponse<CodexAccount>, ApiResponse<CodexAccount>>(
         "/codex/oauth/complete",
-        { redirectUrl },
+        { name, redirectUrl },
     )
     return data
 }
 
-export async function listCodexAccounts() {
-    const { data } = await HttpClient.get<ApiResponse<CodexAccount[]>, ApiResponse<CodexAccount[]>>(
+export async function listCodexAccounts(page: number, pageSize: number) {
+    const { data } = await HttpClient.get<ApiResponse<CodexAccountsPage>, ApiResponse<CodexAccountsPage>>(
         "/codex/accounts",
+        {
+            params: {
+                page,
+                pageSize,
+            },
+        },
+    )
+    return data
+}
+
+export async function updateCodexAccount(accountId: string, req: UpdateCodexAccountRequest) {
+    const { data } = await HttpClient.put<ApiResponse<CodexAccount>, ApiResponse<CodexAccount>>(
+        `/codex/accounts/${accountId}`,
+        req,
     )
     return data
 }

@@ -2,8 +2,10 @@ package httpapi
 
 import (
 	"net/http"
+	"strconv"
 
 	"myapi/internal/codex"
+	"myapi/internal/ent"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,10 +23,12 @@ func (h *CodexHandler) Register(router *gin.Engine) {
 	router.POST("/api/codex/oauth/session", h.handleCreateOAuthSession)
 	router.POST("/api/codex/oauth/complete", h.handleCompleteOAuth)
 	router.GET("/api/codex/accounts", h.handleListAccounts)
+	router.PUT("/api/codex/accounts/:accountId", h.handleUpdateAccount)
 }
 
 type completeOAuthRequest struct {
-	RedirectURL string `json:"redirectUrl"`
+	Name        string `json:"name" binding:"required"`
+	RedirectURL string `json:"redirectUrl" binding:"required"`
 }
 
 func (h *CodexHandler) handleCreateOAuthSession(c *gin.Context) {
@@ -43,7 +47,7 @@ func (h *CodexHandler) handleCompleteOAuth(c *gin.Context) {
 		return
 	}
 
-	account, err := h.service.CompleteOAuth(c.Request.Context(), req.RedirectURL)
+	account, err := h.service.CompleteOAuth(c.Request.Context(), req.Name, req.RedirectURL)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, BadRequest(err.Error()))
 		return
@@ -52,10 +56,51 @@ func (h *CodexHandler) handleCompleteOAuth(c *gin.Context) {
 }
 
 func (h *CodexHandler) handleListAccounts(c *gin.Context) {
-	accounts, err := h.service.ListAccounts(c.Request.Context())
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page <= 0 {
+		c.JSON(http.StatusBadRequest, BadRequest("page 参数非法"))
+		return
+	}
+
+	pageSize, err := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+	if err != nil || pageSize <= 0 {
+		c.JSON(http.StatusBadRequest, BadRequest("pageSize 参数非法"))
+		return
+	}
+	if pageSize > 200 {
+		c.JSON(http.StatusBadRequest, BadRequest("pageSize 不能超过 200"))
+		return
+	}
+
+	accounts, err := h.service.ListAccountsPage(c.Request.Context(), page, pageSize)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, InternalServerError("查询账户失败"))
 		return
 	}
 	c.JSON(http.StatusOK, Ok(accounts))
+}
+
+type updateAccountRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+func (h *CodexHandler) handleUpdateAccount(c *gin.Context) {
+	accountID := c.Param("accountId")
+
+	var req updateAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, BadRequest("请求体格式错误"))
+		return
+	}
+
+	updated, err := h.service.UpdateAccount(c.Request.Context(), accountID, codex.UpdateAccountRequest{Name: req.Name})
+	if err != nil {
+		if ent.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, NotFound())
+			return
+		}
+		c.JSON(http.StatusInternalServerError, InternalServerError("更新账户失败"))
+		return
+	}
+	c.JSON(http.StatusOK, Ok(updated))
 }

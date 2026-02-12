@@ -21,6 +21,12 @@ type CodexAccountCreate struct {
 	hooks    []Hook
 }
 
+// SetName sets the "name" field.
+func (_c *CodexAccountCreate) SetName(v string) *CodexAccountCreate {
+	_c.mutation.SetName(v)
+	return _c
+}
+
 // SetAccountID sets the "account_id" field.
 func (_c *CodexAccountCreate) SetAccountID(v string) *CodexAccountCreate {
 	_c.mutation.SetAccountID(v)
@@ -120,6 +126,14 @@ func (_c *CodexAccountCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_c *CodexAccountCreate) check() error {
+	if _, ok := _c.mutation.Name(); !ok {
+		return &ValidationError{Name: "name", err: errors.New(`ent: missing required field "CodexAccount.name"`)}
+	}
+	if v, ok := _c.mutation.Name(); ok {
+		if err := codexaccount.NameValidator(v); err != nil {
+			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "CodexAccount.name": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.AccountID(); !ok {
 		return &ValidationError{Name: "account_id", err: errors.New(`ent: missing required field "CodexAccount.account_id"`)}
 	}
@@ -164,6 +178,10 @@ func (_c *CodexAccountCreate) createSpec() (*CodexAccount, *sqlgraph.CreateSpec)
 		_node = &CodexAccount{config: _c.config}
 		_spec = sqlgraph.NewCreateSpec(codexaccount.Table, sqlgraph.NewFieldSpec(codexaccount.FieldID, field.TypeInt))
 	)
+	if value, ok := _c.mutation.Name(); ok {
+		_spec.SetField(codexaccount.FieldName, field.TypeString, value)
+		_node.Name = value
+	}
 	if value, ok := _c.mutation.AccountID(); ok {
 		_spec.SetField(codexaccount.FieldAccountID, field.TypeString, value)
 		_node.AccountID = value

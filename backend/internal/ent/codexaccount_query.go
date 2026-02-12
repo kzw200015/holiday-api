@@ -262,12 +262,12 @@ func (_q *CodexAccountQuery) Clone() *CodexAccountQuery {
 // Example:
 //
 //	var v []struct {
-//		AccountID string `json:"account_id,omitempty"`
+//		Name string `json:"name,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.CodexAccount.Query().
-//		GroupBy(codexaccount.FieldAccountID).
+//		GroupBy(codexaccount.FieldName).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
 func (_q *CodexAccountQuery) GroupBy(field string, fields ...string) *CodexAccountGroupBy {
@@ -285,11 +285,11 @@ func (_q *CodexAccountQuery) GroupBy(field string, fields ...string) *CodexAccou
 // Example:
 //
 //	var v []struct {
-//		AccountID string `json:"account_id,omitempty"`
+//		Name string `json:"name,omitempty"`
 //	}
 //
 //	client.CodexAccount.Query().
-//		Select(codexaccount.FieldAccountID).
+//		Select(codexaccount.FieldName).
 //		Scan(ctx, &v)
 func (_q *CodexAccountQuery) Select(fields ...string) *CodexAccountSelect {
 	_q.ctx.Fields = append(_q.ctx.Fields, fields...)

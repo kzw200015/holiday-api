@@ -11,6 +11,7 @@ var (
 	// CodexAccountsColumns holds the columns for the "codex_accounts" table.
 	CodexAccountsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString},
 		{Name: "account_id", Type: field.TypeString, Unique: true},
 		{Name: "token", Type: field.TypeString},
 		{Name: "expires_at", Type: field.TypeTime},

@@ -25,11 +25,25 @@ type OAuthSessionInfo struct {
 
 // Account 是 Codex OAuth 账户返回结构。
 type Account struct {
+	Name      string    `json:"name"`
 	AccountID string    `json:"accountId"`
 	Token     string    `json:"token"`
 	ExpiresAt time.Time `json:"expiresAt"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// AccountsPage 是账户分页结果。
+type AccountsPage struct {
+	Items    []Account `json:"items"`
+	Total    int       `json:"total"`
+	Page     int       `json:"page"`
+	PageSize int       `json:"pageSize"`
+}
+
+// UpdateAccountRequest 是更新账户信息的请求结构，后续可按需扩展更多字段。
+type UpdateAccountRequest struct {
+	Name string `json:"name"`
 }
 
 // Service 负责 Codex OAuth 流程与账户存储。
@@ -71,7 +85,7 @@ func (s *Service) CreateOAuthSession(ctx context.Context) (OAuthSessionInfo, err
 	return OAuthSessionInfo{State: state, URL: url, ExpiresAt: expiresAt}, nil
 }
 
-func (s *Service) CompleteOAuth(ctx context.Context, redirectURL string) (Account, error) {
+func (s *Service) CompleteOAuth(ctx context.Context, name string, redirectURL string) (Account, error) {
 	cb, err := ParseOAuthCallback(redirectURL)
 	if err != nil {
 		return Account{}, err
@@ -128,6 +142,7 @@ func (s *Service) CompleteOAuth(ctx context.Context, redirectURL string) (Accoun
 
 	payload := json.RawMessage(raw)
 	created, err := s.client.CodexAccount.Create().
+		SetName(name).
 		SetAccountID(accountID).
 		SetToken(tok.AccessToken).
 		SetExpiresAt(expiresAt).
@@ -140,6 +155,7 @@ func (s *Service) CompleteOAuth(ctx context.Context, redirectURL string) (Accoun
 
 		if _, errUpdate := s.client.CodexAccount.Update().
 			Where(codexaccount.AccountIDEQ(accountID)).
+			SetName(name).
 			SetToken(tok.AccessToken).
 			SetExpiresAt(expiresAt).
 			SetOauthPayload(payload).
@@ -156,6 +172,7 @@ func (s *Service) CompleteOAuth(ctx context.Context, redirectURL string) (Accoun
 	_ = s.client.CodexOAuthSession.DeleteOneID(session.ID).Exec(ctx)
 
 	return Account{
+		Name:      created.Name,
 		AccountID: created.AccountID,
 		Token:     created.Token,
 		ExpiresAt: created.ExpiresAt,
@@ -164,15 +181,25 @@ func (s *Service) CompleteOAuth(ctx context.Context, redirectURL string) (Accoun
 	}, nil
 }
 
-func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
-	accounts, err := s.client.CodexAccount.Query().Order(ent.Desc(codexaccount.FieldCreatedAt)).All(ctx)
+func (s *Service) ListAccountsPage(ctx context.Context, page int, pageSize int) (AccountsPage, error) {
+	total, err := s.client.CodexAccount.Query().Count(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("查询账户失败: %w", err)
+		return AccountsPage{}, fmt.Errorf("查询账户失败: %w", err)
+	}
+
+	accounts, err := s.client.CodexAccount.Query().
+		Order(ent.Desc(codexaccount.FieldCreatedAt)).
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		All(ctx)
+	if err != nil {
+		return AccountsPage{}, fmt.Errorf("查询账户失败: %w", err)
 	}
 
 	out := make([]Account, 0, len(accounts))
 	for _, a := range accounts {
 		out = append(out, Account{
+			Name:      a.Name,
 			AccountID: a.AccountID,
 			Token:     a.Token,
 			ExpiresAt: a.ExpiresAt,
@@ -180,5 +207,29 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 			UpdatedAt: a.UpdatedAt,
 		})
 	}
-	return out, nil
+	return AccountsPage{Items: out, Total: total, Page: page, PageSize: pageSize}, nil
+}
+
+// UpdateAccount 更新账户信息。
+func (s *Service) UpdateAccount(ctx context.Context, accountID string, req UpdateAccountRequest) (Account, error) {
+	account, err := s.client.CodexAccount.Query().Where(codexaccount.AccountIDEQ(accountID)).Only(ctx)
+	if err != nil {
+		return Account{}, err
+	}
+
+	updated, err := s.client.CodexAccount.UpdateOneID(account.ID).
+		SetName(req.Name).
+		Save(ctx)
+	if err != nil {
+		return Account{}, fmt.Errorf("更新账户失败: %w", err)
+	}
+
+	return Account{
+		Name:      updated.Name,
+		AccountID: updated.AccountID,
+		Token:     updated.Token,
+		ExpiresAt: updated.ExpiresAt,
+		CreatedAt: updated.CreatedAt,
+		UpdatedAt: updated.UpdatedAt,
+	}, nil
 }

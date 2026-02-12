@@ -18,6 +18,8 @@ type CodexAccount struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID int `json:"id,omitempty"`
+	// Name holds the value of the "name" field.
+	Name string `json:"name,omitempty"`
 	// AccountID holds the value of the "account_id" field.
 	AccountID string `json:"account_id,omitempty"`
 	// Token holds the value of the "token" field.
@@ -42,7 +44,7 @@ func (*CodexAccount) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case codexaccount.FieldID:
 			values[i] = new(sql.NullInt64)
-		case codexaccount.FieldAccountID, codexaccount.FieldToken:
+		case codexaccount.FieldName, codexaccount.FieldAccountID, codexaccount.FieldToken:
 			values[i] = new(sql.NullString)
 		case codexaccount.FieldExpiresAt, codexaccount.FieldCreatedAt, codexaccount.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -67,6 +69,12 @@ func (_m *CodexAccount) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
 			_m.ID = int(value.Int64)
+		case codexaccount.FieldName:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field name", values[i])
+			} else if value.Valid {
+				_m.Name = value.String
+			}
 		case codexaccount.FieldAccountID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field account_id", values[i])
@@ -141,6 +149,9 @@ func (_m *CodexAccount) String() string {
 	var builder strings.Builder
 	builder.WriteString("CodexAccount(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	builder.WriteString("name=")
+	builder.WriteString(_m.Name)
+	builder.WriteString(", ")
 	builder.WriteString("account_id=")
 	builder.WriteString(_m.AccountID)
 	builder.WriteString(", ")

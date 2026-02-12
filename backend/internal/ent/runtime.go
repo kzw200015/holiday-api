@@ -15,12 +15,16 @@ import (
 func init() {
 	codexaccountFields := schema.CodexAccount{}.Fields()
 	_ = codexaccountFields
+	// codexaccountDescName is the schema descriptor for name field.
+	codexaccountDescName := codexaccountFields[0].Descriptor()
+	// codexaccount.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	codexaccount.NameValidator = codexaccountDescName.Validators[0].(func(string) error)
 	// codexaccountDescCreatedAt is the schema descriptor for created_at field.
-	codexaccountDescCreatedAt := codexaccountFields[4].Descriptor()
+	codexaccountDescCreatedAt := codexaccountFields[5].Descriptor()
 	// codexaccount.DefaultCreatedAt holds the default value on creation for the created_at field.
 	codexaccount.DefaultCreatedAt = codexaccountDescCreatedAt.Default.(func() time.Time)
 	// codexaccountDescUpdatedAt is the schema descriptor for updated_at field.
-	codexaccountDescUpdatedAt := codexaccountFields[5].Descriptor()
+	codexaccountDescUpdatedAt := codexaccountFields[6].Descriptor()
 	// codexaccount.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	codexaccount.DefaultUpdatedAt = codexaccountDescUpdatedAt.Default.(func() time.Time)
 	// codexaccount.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

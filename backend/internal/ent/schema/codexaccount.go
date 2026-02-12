@@ -16,6 +16,7 @@ type CodexAccount struct {
 
 func (CodexAccount) Fields() []ent.Field {
 	return []ent.Field{
+		field.String("name").NotEmpty(),
 		field.String("account_id").Unique(),
 		field.String("token"),
 		field.Time("expires_at"),

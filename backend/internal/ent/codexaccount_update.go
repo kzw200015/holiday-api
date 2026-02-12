@@ -30,6 +30,20 @@ func (_u *CodexAccountUpdate) Where(ps ...predicate.CodexAccount) *CodexAccountU
 	return _u
 }
 
+// SetName sets the "name" field.
+func (_u *CodexAccountUpdate) SetName(v string) *CodexAccountUpdate {
+	_u.mutation.SetName(v)
+	return _u
+}
+
+// SetNillableName sets the "name" field if the given value is not nil.
+func (_u *CodexAccountUpdate) SetNillableName(v *string) *CodexAccountUpdate {
+	if v != nil {
+		_u.SetName(*v)
+	}
+	return _u
+}
+
 // SetAccountID sets the "account_id" field.
 func (_u *CodexAccountUpdate) SetAccountID(v string) *CodexAccountUpdate {
 	_u.mutation.SetAccountID(v)
@@ -131,7 +145,20 @@ func (_u *CodexAccountUpdate) defaults() {
 	}
 }
 
+// check runs all checks and user-defined validators on the builder.
+func (_u *CodexAccountUpdate) check() error {
+	if v, ok := _u.mutation.Name(); ok {
+		if err := codexaccount.NameValidator(v); err != nil {
+			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "CodexAccount.name": %w`, err)}
+		}
+	}
+	return nil
+}
+
 func (_u *CodexAccountUpdate) sqlSave(ctx context.Context) (_node int, err error) {
+	if err := _u.check(); err != nil {
+		return _node, err
+	}
 	_spec := sqlgraph.NewUpdateSpec(codexaccount.Table, codexaccount.Columns, sqlgraph.NewFieldSpec(codexaccount.FieldID, field.TypeInt))
 	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
@@ -139,6 +166,9 @@ func (_u *CodexAccountUpdate) sqlSave(ctx context.Context) (_node int, err error
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.Name(); ok {
+		_spec.SetField(codexaccount.FieldName, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.AccountID(); ok {
 		_spec.SetField(codexaccount.FieldAccountID, field.TypeString, value)
@@ -178,6 +208,20 @@ type CodexAccountUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *CodexAccountMutation
+}
+
+// SetName sets the "name" field.
+func (_u *CodexAccountUpdateOne) SetName(v string) *CodexAccountUpdateOne {
+	_u.mutation.SetName(v)
+	return _u
+}
+
+// SetNillableName sets the "name" field if the given value is not nil.
+func (_u *CodexAccountUpdateOne) SetNillableName(v *string) *CodexAccountUpdateOne {
+	if v != nil {
+		_u.SetName(*v)
+	}
+	return _u
 }
 
 // SetAccountID sets the "account_id" field.
@@ -294,7 +338,20 @@ func (_u *CodexAccountUpdateOne) defaults() {
 	}
 }
 
+// check runs all checks and user-defined validators on the builder.
+func (_u *CodexAccountUpdateOne) check() error {
+	if v, ok := _u.mutation.Name(); ok {
+		if err := codexaccount.NameValidator(v); err != nil {
+			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "CodexAccount.name": %w`, err)}
+		}
+	}
+	return nil
+}
+
 func (_u *CodexAccountUpdateOne) sqlSave(ctx context.Context) (_node *CodexAccount, err error) {
+	if err := _u.check(); err != nil {
+		return _node, err
+	}
 	_spec := sqlgraph.NewUpdateSpec(codexaccount.Table, codexaccount.Columns, sqlgraph.NewFieldSpec(codexaccount.FieldID, field.TypeInt))
 	id, ok := _u.mutation.ID()
 	if !ok {
@@ -319,6 +376,9 @@ func (_u *CodexAccountUpdateOne) sqlSave(ctx context.Context) (_node *CodexAccou
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.Name(); ok {
+		_spec.SetField(codexaccount.FieldName, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.AccountID(); ok {
 		_spec.SetField(codexaccount.FieldAccountID, field.TypeString, value)
