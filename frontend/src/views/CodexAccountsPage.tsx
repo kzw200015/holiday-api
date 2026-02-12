@@ -1,4 +1,4 @@
-import { computed, defineComponent, onMounted, ref } from "vue"
+import { computed, defineComponent, onMounted, reactive, ref } from "vue"
 import dayjs from "dayjs"
 import { DocumentCopy, Link, RefreshRight } from "@element-plus/icons-vue"
 import {
@@ -6,6 +6,8 @@ import {
   ElCard,
   ElCol,
   ElDialog,
+  ElForm,
+  ElFormItem,
   ElIcon,
   ElInput,
   ElMessage,
@@ -15,6 +17,8 @@ import {
   ElTableColumn,
   ElTag,
   ElText,
+  type FormInstance,
+  type FormRules,
 } from "element-plus"
 
 import {
@@ -75,9 +79,16 @@ export default defineComponent({
     const completeLoading = ref(false)
 
     const editDialogVisible = ref(false)
+    const editFormRef = ref<FormInstance>()
     const editingAccountId = ref("")
-    const editingName = ref("")
+    const editForm = reactive({
+      name: "",
+    })
     const editLoading = ref(false)
+
+    const editRules: FormRules = {
+      name: [{ required: true, message: "请输入账户名称", trigger: "blur" }],
+    }
 
     const refreshAccounts = async () => {
       loading.value = true
@@ -126,24 +137,29 @@ export default defineComponent({
       return formatDateTime(session.value.expiresAt)
     })
     const canCompleteOAuth = computed(() => accountName.value.trim() !== "" && callbackUrl.value.trim() !== "")
-    const canSaveEdit = computed(() => editingAccountId.value !== "" && editingName.value.trim() !== "")
 
     const openEditDialog = (account: CodexAccount) => {
       editingAccountId.value = account.accountId
-      editingName.value = account.name
+      editForm.name = account.name
       editDialogVisible.value = true
     }
 
     const closeEditDialog = () => {
       editDialogVisible.value = false
       editingAccountId.value = ""
-      editingName.value = ""
+      editForm.name = ""
     }
 
     const saveEdit = async () => {
+      try {
+        await (editFormRef.value as FormInstance).validate()
+      } catch {
+        return
+      }
+
       editLoading.value = true
       try {
-        await updateCodexAccount(editingAccountId.value, { name: editingName.value })
+        await updateCodexAccount(editingAccountId.value, { name: editForm.name })
         await refreshAccounts()
         ElMessage.success("已更新名称")
         closeEditDialog()
@@ -375,7 +391,7 @@ export default defineComponent({
         </ElRow>
 
         <ElDialog
-          title="编辑账户名称"
+          title="编辑账户"
           modelValue={editDialogVisible.value}
           onUpdate:modelValue={(value: boolean) => {
             if (!value) {
@@ -385,18 +401,21 @@ export default defineComponent({
             editDialogVisible.value = value
           }}
           width="420px"
+          destroyOnClose
         >
           {{
             default: () => (
-              <div class="grid gap-2">
-                <ElInput
-                  placeholder="请输入账户名称（必填）"
-                  modelValue={editingName.value}
-                  onUpdate:modelValue={(value: string) => {
-                    editingName.value = value
-                  }}
-                />
-              </div>
+              <ElForm ref={editFormRef} model={editForm} rules={editRules} labelPosition="top">
+                <ElFormItem label="账户名称" prop="name">
+                  <ElInput
+                    placeholder="请输入账户名称"
+                    modelValue={editForm.name}
+                    onUpdate:modelValue={(value: string) => {
+                      editForm.name = value
+                    }}
+                  />
+                </ElFormItem>
+              </ElForm>
             ),
             footer: () => (
               <div class="flex items-center justify-end gap-2">
@@ -406,7 +425,6 @@ export default defineComponent({
                 <ElButton
                   type="primary"
                   loading={editLoading.value}
-                  disabled={!canSaveEdit.value}
                   onClick={() => void saveEdit()}
                 >
                   保存
