@@ -6,5 +6,11 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// CodexAccount is the predicate function for codexaccount builders.
+type CodexAccount func(*sql.Selector)
+
+// CodexOAuthSession is the predicate function for codexoauthsession builders.
+type CodexOAuthSession func(*sql.Selector)
+
 // HolidayDay is the predicate function for holidayday builders.
 type HolidayDay func(*sql.Selector)

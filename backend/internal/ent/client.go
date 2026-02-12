@@ -11,6 +11,8 @@ import (
 
 	"myapi/internal/ent/migrate"
 
+	"myapi/internal/ent/codexaccount"
+	"myapi/internal/ent/codexoauthsession"
 	"myapi/internal/ent/holidayday"
 
 	"entgo.io/ent"
@@ -23,6 +25,10 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// CodexAccount is the client for interacting with the CodexAccount builders.
+	CodexAccount *CodexAccountClient
+	// CodexOAuthSession is the client for interacting with the CodexOAuthSession builders.
+	CodexOAuthSession *CodexOAuthSessionClient
 	// HolidayDay is the client for interacting with the HolidayDay builders.
 	HolidayDay *HolidayDayClient
 }
@@ -36,6 +42,8 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.CodexAccount = NewCodexAccountClient(c.config)
+	c.CodexOAuthSession = NewCodexOAuthSessionClient(c.config)
 	c.HolidayDay = NewHolidayDayClient(c.config)
 }
 
@@ -127,9 +135,11 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:        ctx,
-		config:     cfg,
-		HolidayDay: NewHolidayDayClient(cfg),
+		ctx:               ctx,
+		config:            cfg,
+		CodexAccount:      NewCodexAccountClient(cfg),
+		CodexOAuthSession: NewCodexOAuthSessionClient(cfg),
+		HolidayDay:        NewHolidayDayClient(cfg),
 	}, nil
 }
 
@@ -147,16 +157,18 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:        ctx,
-		config:     cfg,
-		HolidayDay: NewHolidayDayClient(cfg),
+		ctx:               ctx,
+		config:            cfg,
+		CodexAccount:      NewCodexAccountClient(cfg),
+		CodexOAuthSession: NewCodexOAuthSessionClient(cfg),
+		HolidayDay:        NewHolidayDayClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		HolidayDay.
+//		CodexAccount.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -178,22 +190,296 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.CodexAccount.Use(hooks...)
+	c.CodexOAuthSession.Use(hooks...)
 	c.HolidayDay.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.CodexAccount.Intercept(interceptors...)
+	c.CodexOAuthSession.Intercept(interceptors...)
 	c.HolidayDay.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *CodexAccountMutation:
+		return c.CodexAccount.mutate(ctx, m)
+	case *CodexOAuthSessionMutation:
+		return c.CodexOAuthSession.mutate(ctx, m)
 	case *HolidayDayMutation:
 		return c.HolidayDay.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// CodexAccountClient is a client for the CodexAccount schema.
+type CodexAccountClient struct {
+	config
+}
+
+// NewCodexAccountClient returns a client for the CodexAccount from the given config.
+func NewCodexAccountClient(c config) *CodexAccountClient {
+	return &CodexAccountClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `codexaccount.Hooks(f(g(h())))`.
+func (c *CodexAccountClient) Use(hooks ...Hook) {
+	c.hooks.CodexAccount = append(c.hooks.CodexAccount, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `codexaccount.Intercept(f(g(h())))`.
+func (c *CodexAccountClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CodexAccount = append(c.inters.CodexAccount, interceptors...)
+}
+
+// Create returns a builder for creating a CodexAccount entity.
+func (c *CodexAccountClient) Create() *CodexAccountCreate {
+	mutation := newCodexAccountMutation(c.config, OpCreate)
+	return &CodexAccountCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CodexAccount entities.
+func (c *CodexAccountClient) CreateBulk(builders ...*CodexAccountCreate) *CodexAccountCreateBulk {
+	return &CodexAccountCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CodexAccountClient) MapCreateBulk(slice any, setFunc func(*CodexAccountCreate, int)) *CodexAccountCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CodexAccountCreateBulk{err: fmt.Errorf("calling to CodexAccountClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CodexAccountCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CodexAccountCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CodexAccount.
+func (c *CodexAccountClient) Update() *CodexAccountUpdate {
+	mutation := newCodexAccountMutation(c.config, OpUpdate)
+	return &CodexAccountUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CodexAccountClient) UpdateOne(_m *CodexAccount) *CodexAccountUpdateOne {
+	mutation := newCodexAccountMutation(c.config, OpUpdateOne, withCodexAccount(_m))
+	return &CodexAccountUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CodexAccountClient) UpdateOneID(id int) *CodexAccountUpdateOne {
+	mutation := newCodexAccountMutation(c.config, OpUpdateOne, withCodexAccountID(id))
+	return &CodexAccountUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CodexAccount.
+func (c *CodexAccountClient) Delete() *CodexAccountDelete {
+	mutation := newCodexAccountMutation(c.config, OpDelete)
+	return &CodexAccountDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CodexAccountClient) DeleteOne(_m *CodexAccount) *CodexAccountDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CodexAccountClient) DeleteOneID(id int) *CodexAccountDeleteOne {
+	builder := c.Delete().Where(codexaccount.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CodexAccountDeleteOne{builder}
+}
+
+// Query returns a query builder for CodexAccount.
+func (c *CodexAccountClient) Query() *CodexAccountQuery {
+	return &CodexAccountQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCodexAccount},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CodexAccount entity by its id.
+func (c *CodexAccountClient) Get(ctx context.Context, id int) (*CodexAccount, error) {
+	return c.Query().Where(codexaccount.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CodexAccountClient) GetX(ctx context.Context, id int) *CodexAccount {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CodexAccountClient) Hooks() []Hook {
+	return c.hooks.CodexAccount
+}
+
+// Interceptors returns the client interceptors.
+func (c *CodexAccountClient) Interceptors() []Interceptor {
+	return c.inters.CodexAccount
+}
+
+func (c *CodexAccountClient) mutate(ctx context.Context, m *CodexAccountMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CodexAccountCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CodexAccountUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CodexAccountUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CodexAccountDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CodexAccount mutation op: %q", m.Op())
+	}
+}
+
+// CodexOAuthSessionClient is a client for the CodexOAuthSession schema.
+type CodexOAuthSessionClient struct {
+	config
+}
+
+// NewCodexOAuthSessionClient returns a client for the CodexOAuthSession from the given config.
+func NewCodexOAuthSessionClient(c config) *CodexOAuthSessionClient {
+	return &CodexOAuthSessionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `codexoauthsession.Hooks(f(g(h())))`.
+func (c *CodexOAuthSessionClient) Use(hooks ...Hook) {
+	c.hooks.CodexOAuthSession = append(c.hooks.CodexOAuthSession, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `codexoauthsession.Intercept(f(g(h())))`.
+func (c *CodexOAuthSessionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CodexOAuthSession = append(c.inters.CodexOAuthSession, interceptors...)
+}
+
+// Create returns a builder for creating a CodexOAuthSession entity.
+func (c *CodexOAuthSessionClient) Create() *CodexOAuthSessionCreate {
+	mutation := newCodexOAuthSessionMutation(c.config, OpCreate)
+	return &CodexOAuthSessionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CodexOAuthSession entities.
+func (c *CodexOAuthSessionClient) CreateBulk(builders ...*CodexOAuthSessionCreate) *CodexOAuthSessionCreateBulk {
+	return &CodexOAuthSessionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CodexOAuthSessionClient) MapCreateBulk(slice any, setFunc func(*CodexOAuthSessionCreate, int)) *CodexOAuthSessionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CodexOAuthSessionCreateBulk{err: fmt.Errorf("calling to CodexOAuthSessionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CodexOAuthSessionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CodexOAuthSessionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CodexOAuthSession.
+func (c *CodexOAuthSessionClient) Update() *CodexOAuthSessionUpdate {
+	mutation := newCodexOAuthSessionMutation(c.config, OpUpdate)
+	return &CodexOAuthSessionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CodexOAuthSessionClient) UpdateOne(_m *CodexOAuthSession) *CodexOAuthSessionUpdateOne {
+	mutation := newCodexOAuthSessionMutation(c.config, OpUpdateOne, withCodexOAuthSession(_m))
+	return &CodexOAuthSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CodexOAuthSessionClient) UpdateOneID(id int) *CodexOAuthSessionUpdateOne {
+	mutation := newCodexOAuthSessionMutation(c.config, OpUpdateOne, withCodexOAuthSessionID(id))
+	return &CodexOAuthSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CodexOAuthSession.
+func (c *CodexOAuthSessionClient) Delete() *CodexOAuthSessionDelete {
+	mutation := newCodexOAuthSessionMutation(c.config, OpDelete)
+	return &CodexOAuthSessionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CodexOAuthSessionClient) DeleteOne(_m *CodexOAuthSession) *CodexOAuthSessionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CodexOAuthSessionClient) DeleteOneID(id int) *CodexOAuthSessionDeleteOne {
+	builder := c.Delete().Where(codexoauthsession.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CodexOAuthSessionDeleteOne{builder}
+}
+
+// Query returns a query builder for CodexOAuthSession.
+func (c *CodexOAuthSessionClient) Query() *CodexOAuthSessionQuery {
+	return &CodexOAuthSessionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCodexOAuthSession},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CodexOAuthSession entity by its id.
+func (c *CodexOAuthSessionClient) Get(ctx context.Context, id int) (*CodexOAuthSession, error) {
+	return c.Query().Where(codexoauthsession.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CodexOAuthSessionClient) GetX(ctx context.Context, id int) *CodexOAuthSession {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CodexOAuthSessionClient) Hooks() []Hook {
+	return c.hooks.CodexOAuthSession
+}
+
+// Interceptors returns the client interceptors.
+func (c *CodexOAuthSessionClient) Interceptors() []Interceptor {
+	return c.inters.CodexOAuthSession
+}
+
+func (c *CodexOAuthSessionClient) mutate(ctx context.Context, m *CodexOAuthSessionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CodexOAuthSessionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CodexOAuthSessionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CodexOAuthSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CodexOAuthSessionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CodexOAuthSession mutation op: %q", m.Op())
 	}
 }
 
@@ -333,9 +619,9 @@ func (c *HolidayDayClient) mutate(ctx context.Context, m *HolidayDayMutation) (V
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		HolidayDay []ent.Hook
+		CodexAccount, CodexOAuthSession, HolidayDay []ent.Hook
 	}
 	inters struct {
-		HolidayDay []ent.Interceptor
+		CodexAccount, CodexOAuthSession, HolidayDay []ent.Interceptor
 	}
 )

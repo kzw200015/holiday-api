@@ -4,11 +4,15 @@ package ent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"myapi/internal/ent/codexaccount"
+	"myapi/internal/ent/codexoauthsession"
 	"myapi/internal/ent/holidayday"
 	"myapi/internal/ent/predicate"
 	"sync"
+	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
@@ -23,8 +27,1164 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeHolidayDay = "HolidayDay"
+	TypeCodexAccount      = "CodexAccount"
+	TypeCodexOAuthSession = "CodexOAuthSession"
+	TypeHolidayDay        = "HolidayDay"
 )
+
+// CodexAccountMutation represents an operation that mutates the CodexAccount nodes in the graph.
+type CodexAccountMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *int
+	account_id          *string
+	token               *string
+	expires_at          *time.Time
+	oauth_payload       *json.RawMessage
+	appendoauth_payload json.RawMessage
+	created_at          *time.Time
+	updated_at          *time.Time
+	clearedFields       map[string]struct{}
+	done                bool
+	oldValue            func(context.Context) (*CodexAccount, error)
+	predicates          []predicate.CodexAccount
+}
+
+var _ ent.Mutation = (*CodexAccountMutation)(nil)
+
+// codexaccountOption allows management of the mutation configuration using functional options.
+type codexaccountOption func(*CodexAccountMutation)
+
+// newCodexAccountMutation creates new mutation for the CodexAccount entity.
+func newCodexAccountMutation(c config, op Op, opts ...codexaccountOption) *CodexAccountMutation {
+	m := &CodexAccountMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCodexAccount,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCodexAccountID sets the ID field of the mutation.
+func withCodexAccountID(id int) codexaccountOption {
+	return func(m *CodexAccountMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CodexAccount
+		)
+		m.oldValue = func(ctx context.Context) (*CodexAccount, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CodexAccount.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCodexAccount sets the old CodexAccount of the mutation.
+func withCodexAccount(node *CodexAccount) codexaccountOption {
+	return func(m *CodexAccountMutation) {
+		m.oldValue = func(context.Context) (*CodexAccount, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CodexAccountMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CodexAccountMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CodexAccountMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CodexAccountMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CodexAccount.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetAccountID sets the "account_id" field.
+func (m *CodexAccountMutation) SetAccountID(s string) {
+	m.account_id = &s
+}
+
+// AccountID returns the value of the "account_id" field in the mutation.
+func (m *CodexAccountMutation) AccountID() (r string, exists bool) {
+	v := m.account_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountID returns the old "account_id" field's value of the CodexAccount entity.
+// If the CodexAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexAccountMutation) OldAccountID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountID: %w", err)
+	}
+	return oldValue.AccountID, nil
+}
+
+// ResetAccountID resets all changes to the "account_id" field.
+func (m *CodexAccountMutation) ResetAccountID() {
+	m.account_id = nil
+}
+
+// SetToken sets the "token" field.
+func (m *CodexAccountMutation) SetToken(s string) {
+	m.token = &s
+}
+
+// Token returns the value of the "token" field in the mutation.
+func (m *CodexAccountMutation) Token() (r string, exists bool) {
+	v := m.token
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldToken returns the old "token" field's value of the CodexAccount entity.
+// If the CodexAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexAccountMutation) OldToken(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldToken is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldToken requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldToken: %w", err)
+	}
+	return oldValue.Token, nil
+}
+
+// ResetToken resets all changes to the "token" field.
+func (m *CodexAccountMutation) ResetToken() {
+	m.token = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *CodexAccountMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *CodexAccountMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the CodexAccount entity.
+// If the CodexAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexAccountMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *CodexAccountMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// SetOauthPayload sets the "oauth_payload" field.
+func (m *CodexAccountMutation) SetOauthPayload(jm json.RawMessage) {
+	m.oauth_payload = &jm
+	m.appendoauth_payload = nil
+}
+
+// OauthPayload returns the value of the "oauth_payload" field in the mutation.
+func (m *CodexAccountMutation) OauthPayload() (r json.RawMessage, exists bool) {
+	v := m.oauth_payload
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOauthPayload returns the old "oauth_payload" field's value of the CodexAccount entity.
+// If the CodexAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexAccountMutation) OldOauthPayload(ctx context.Context) (v json.RawMessage, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOauthPayload is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOauthPayload requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOauthPayload: %w", err)
+	}
+	return oldValue.OauthPayload, nil
+}
+
+// AppendOauthPayload adds jm to the "oauth_payload" field.
+func (m *CodexAccountMutation) AppendOauthPayload(jm json.RawMessage) {
+	m.appendoauth_payload = append(m.appendoauth_payload, jm...)
+}
+
+// AppendedOauthPayload returns the list of values that were appended to the "oauth_payload" field in this mutation.
+func (m *CodexAccountMutation) AppendedOauthPayload() (json.RawMessage, bool) {
+	if len(m.appendoauth_payload) == 0 {
+		return nil, false
+	}
+	return m.appendoauth_payload, true
+}
+
+// ResetOauthPayload resets all changes to the "oauth_payload" field.
+func (m *CodexAccountMutation) ResetOauthPayload() {
+	m.oauth_payload = nil
+	m.appendoauth_payload = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CodexAccountMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CodexAccountMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CodexAccount entity.
+// If the CodexAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexAccountMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CodexAccountMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *CodexAccountMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *CodexAccountMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the CodexAccount entity.
+// If the CodexAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexAccountMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *CodexAccountMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the CodexAccountMutation builder.
+func (m *CodexAccountMutation) Where(ps ...predicate.CodexAccount) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CodexAccountMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CodexAccountMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CodexAccount, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CodexAccountMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CodexAccountMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CodexAccount).
+func (m *CodexAccountMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CodexAccountMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.account_id != nil {
+		fields = append(fields, codexaccount.FieldAccountID)
+	}
+	if m.token != nil {
+		fields = append(fields, codexaccount.FieldToken)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, codexaccount.FieldExpiresAt)
+	}
+	if m.oauth_payload != nil {
+		fields = append(fields, codexaccount.FieldOauthPayload)
+	}
+	if m.created_at != nil {
+		fields = append(fields, codexaccount.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, codexaccount.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CodexAccountMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case codexaccount.FieldAccountID:
+		return m.AccountID()
+	case codexaccount.FieldToken:
+		return m.Token()
+	case codexaccount.FieldExpiresAt:
+		return m.ExpiresAt()
+	case codexaccount.FieldOauthPayload:
+		return m.OauthPayload()
+	case codexaccount.FieldCreatedAt:
+		return m.CreatedAt()
+	case codexaccount.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CodexAccountMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case codexaccount.FieldAccountID:
+		return m.OldAccountID(ctx)
+	case codexaccount.FieldToken:
+		return m.OldToken(ctx)
+	case codexaccount.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	case codexaccount.FieldOauthPayload:
+		return m.OldOauthPayload(ctx)
+	case codexaccount.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case codexaccount.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown CodexAccount field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CodexAccountMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case codexaccount.FieldAccountID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountID(v)
+		return nil
+	case codexaccount.FieldToken:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetToken(v)
+		return nil
+	case codexaccount.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	case codexaccount.FieldOauthPayload:
+		v, ok := value.(json.RawMessage)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOauthPayload(v)
+		return nil
+	case codexaccount.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case codexaccount.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CodexAccount field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CodexAccountMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CodexAccountMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CodexAccountMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown CodexAccount numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CodexAccountMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CodexAccountMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CodexAccountMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown CodexAccount nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CodexAccountMutation) ResetField(name string) error {
+	switch name {
+	case codexaccount.FieldAccountID:
+		m.ResetAccountID()
+		return nil
+	case codexaccount.FieldToken:
+		m.ResetToken()
+		return nil
+	case codexaccount.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	case codexaccount.FieldOauthPayload:
+		m.ResetOauthPayload()
+		return nil
+	case codexaccount.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case codexaccount.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown CodexAccount field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CodexAccountMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CodexAccountMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CodexAccountMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CodexAccountMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CodexAccountMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CodexAccountMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CodexAccountMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown CodexAccount unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CodexAccountMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown CodexAccount edge %s", name)
+}
+
+// CodexOAuthSessionMutation represents an operation that mutates the CodexOAuthSession nodes in the graph.
+type CodexOAuthSessionMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int
+	state          *string
+	code_verifier  *string
+	code_challenge *string
+	expires_at     *time.Time
+	created_at     *time.Time
+	clearedFields  map[string]struct{}
+	done           bool
+	oldValue       func(context.Context) (*CodexOAuthSession, error)
+	predicates     []predicate.CodexOAuthSession
+}
+
+var _ ent.Mutation = (*CodexOAuthSessionMutation)(nil)
+
+// codexoauthsessionOption allows management of the mutation configuration using functional options.
+type codexoauthsessionOption func(*CodexOAuthSessionMutation)
+
+// newCodexOAuthSessionMutation creates new mutation for the CodexOAuthSession entity.
+func newCodexOAuthSessionMutation(c config, op Op, opts ...codexoauthsessionOption) *CodexOAuthSessionMutation {
+	m := &CodexOAuthSessionMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCodexOAuthSession,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCodexOAuthSessionID sets the ID field of the mutation.
+func withCodexOAuthSessionID(id int) codexoauthsessionOption {
+	return func(m *CodexOAuthSessionMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CodexOAuthSession
+		)
+		m.oldValue = func(ctx context.Context) (*CodexOAuthSession, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CodexOAuthSession.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCodexOAuthSession sets the old CodexOAuthSession of the mutation.
+func withCodexOAuthSession(node *CodexOAuthSession) codexoauthsessionOption {
+	return func(m *CodexOAuthSessionMutation) {
+		m.oldValue = func(context.Context) (*CodexOAuthSession, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CodexOAuthSessionMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CodexOAuthSessionMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CodexOAuthSessionMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CodexOAuthSessionMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CodexOAuthSession.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetState sets the "state" field.
+func (m *CodexOAuthSessionMutation) SetState(s string) {
+	m.state = &s
+}
+
+// State returns the value of the "state" field in the mutation.
+func (m *CodexOAuthSessionMutation) State() (r string, exists bool) {
+	v := m.state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldState returns the old "state" field's value of the CodexOAuthSession entity.
+// If the CodexOAuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexOAuthSessionMutation) OldState(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldState: %w", err)
+	}
+	return oldValue.State, nil
+}
+
+// ResetState resets all changes to the "state" field.
+func (m *CodexOAuthSessionMutation) ResetState() {
+	m.state = nil
+}
+
+// SetCodeVerifier sets the "code_verifier" field.
+func (m *CodexOAuthSessionMutation) SetCodeVerifier(s string) {
+	m.code_verifier = &s
+}
+
+// CodeVerifier returns the value of the "code_verifier" field in the mutation.
+func (m *CodexOAuthSessionMutation) CodeVerifier() (r string, exists bool) {
+	v := m.code_verifier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCodeVerifier returns the old "code_verifier" field's value of the CodexOAuthSession entity.
+// If the CodexOAuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexOAuthSessionMutation) OldCodeVerifier(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCodeVerifier is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCodeVerifier requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCodeVerifier: %w", err)
+	}
+	return oldValue.CodeVerifier, nil
+}
+
+// ResetCodeVerifier resets all changes to the "code_verifier" field.
+func (m *CodexOAuthSessionMutation) ResetCodeVerifier() {
+	m.code_verifier = nil
+}
+
+// SetCodeChallenge sets the "code_challenge" field.
+func (m *CodexOAuthSessionMutation) SetCodeChallenge(s string) {
+	m.code_challenge = &s
+}
+
+// CodeChallenge returns the value of the "code_challenge" field in the mutation.
+func (m *CodexOAuthSessionMutation) CodeChallenge() (r string, exists bool) {
+	v := m.code_challenge
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCodeChallenge returns the old "code_challenge" field's value of the CodexOAuthSession entity.
+// If the CodexOAuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexOAuthSessionMutation) OldCodeChallenge(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCodeChallenge is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCodeChallenge requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCodeChallenge: %w", err)
+	}
+	return oldValue.CodeChallenge, nil
+}
+
+// ResetCodeChallenge resets all changes to the "code_challenge" field.
+func (m *CodexOAuthSessionMutation) ResetCodeChallenge() {
+	m.code_challenge = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *CodexOAuthSessionMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *CodexOAuthSessionMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the CodexOAuthSession entity.
+// If the CodexOAuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexOAuthSessionMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *CodexOAuthSessionMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CodexOAuthSessionMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CodexOAuthSessionMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CodexOAuthSession entity.
+// If the CodexOAuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexOAuthSessionMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CodexOAuthSessionMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the CodexOAuthSessionMutation builder.
+func (m *CodexOAuthSessionMutation) Where(ps ...predicate.CodexOAuthSession) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CodexOAuthSessionMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CodexOAuthSessionMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CodexOAuthSession, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CodexOAuthSessionMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CodexOAuthSessionMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CodexOAuthSession).
+func (m *CodexOAuthSessionMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CodexOAuthSessionMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.state != nil {
+		fields = append(fields, codexoauthsession.FieldState)
+	}
+	if m.code_verifier != nil {
+		fields = append(fields, codexoauthsession.FieldCodeVerifier)
+	}
+	if m.code_challenge != nil {
+		fields = append(fields, codexoauthsession.FieldCodeChallenge)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, codexoauthsession.FieldExpiresAt)
+	}
+	if m.created_at != nil {
+		fields = append(fields, codexoauthsession.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CodexOAuthSessionMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case codexoauthsession.FieldState:
+		return m.State()
+	case codexoauthsession.FieldCodeVerifier:
+		return m.CodeVerifier()
+	case codexoauthsession.FieldCodeChallenge:
+		return m.CodeChallenge()
+	case codexoauthsession.FieldExpiresAt:
+		return m.ExpiresAt()
+	case codexoauthsession.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CodexOAuthSessionMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case codexoauthsession.FieldState:
+		return m.OldState(ctx)
+	case codexoauthsession.FieldCodeVerifier:
+		return m.OldCodeVerifier(ctx)
+	case codexoauthsession.FieldCodeChallenge:
+		return m.OldCodeChallenge(ctx)
+	case codexoauthsession.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	case codexoauthsession.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown CodexOAuthSession field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CodexOAuthSessionMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case codexoauthsession.FieldState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetState(v)
+		return nil
+	case codexoauthsession.FieldCodeVerifier:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCodeVerifier(v)
+		return nil
+	case codexoauthsession.FieldCodeChallenge:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCodeChallenge(v)
+		return nil
+	case codexoauthsession.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	case codexoauthsession.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CodexOAuthSession field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CodexOAuthSessionMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CodexOAuthSessionMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CodexOAuthSessionMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown CodexOAuthSession numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CodexOAuthSessionMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CodexOAuthSessionMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CodexOAuthSessionMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown CodexOAuthSession nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CodexOAuthSessionMutation) ResetField(name string) error {
+	switch name {
+	case codexoauthsession.FieldState:
+		m.ResetState()
+		return nil
+	case codexoauthsession.FieldCodeVerifier:
+		m.ResetCodeVerifier()
+		return nil
+	case codexoauthsession.FieldCodeChallenge:
+		m.ResetCodeChallenge()
+		return nil
+	case codexoauthsession.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	case codexoauthsession.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown CodexOAuthSession field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CodexOAuthSessionMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CodexOAuthSessionMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CodexOAuthSessionMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CodexOAuthSessionMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CodexOAuthSessionMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CodexOAuthSessionMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CodexOAuthSessionMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown CodexOAuthSession unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CodexOAuthSessionMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown CodexOAuthSession edge %s", name)
+}
 
 // HolidayDayMutation represents an operation that mutates the HolidayDay nodes in the graph.
 type HolidayDayMutation struct {

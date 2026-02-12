@@ -8,6 +8,37 @@ import (
 )
 
 var (
+	// CodexAccountsColumns holds the columns for the "codex_accounts" table.
+	CodexAccountsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "account_id", Type: field.TypeString, Unique: true},
+		{Name: "token", Type: field.TypeString},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "oauth_payload", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// CodexAccountsTable holds the schema information for the "codex_accounts" table.
+	CodexAccountsTable = &schema.Table{
+		Name:       "codex_accounts",
+		Columns:    CodexAccountsColumns,
+		PrimaryKey: []*schema.Column{CodexAccountsColumns[0]},
+	}
+	// CodexOauthSessionsColumns holds the columns for the "codex_oauth_sessions" table.
+	CodexOauthSessionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "state", Type: field.TypeString, Unique: true},
+		{Name: "code_verifier", Type: field.TypeString},
+		{Name: "code_challenge", Type: field.TypeString},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// CodexOauthSessionsTable holds the schema information for the "codex_oauth_sessions" table.
+	CodexOauthSessionsTable = &schema.Table{
+		Name:       "codex_oauth_sessions",
+		Columns:    CodexOauthSessionsColumns,
+		PrimaryKey: []*schema.Column{CodexOauthSessionsColumns[0]},
+	}
 	// HolidayDaysColumns holds the columns for the "holiday_days" table.
 	HolidayDaysColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -23,6 +54,8 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		CodexAccountsTable,
+		CodexOauthSessionsTable,
 		HolidayDaysTable,
 	}
 )

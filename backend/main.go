@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"myapi/internal/codex"
 	"myapi/internal/ent"
 	"myapi/internal/holiday"
 	"myapi/internal/httpapi"
@@ -43,8 +44,11 @@ func main() {
 		panic(err)
 	}
 
+	codexService := codex.NewService(client)
+
 	router := gin.Default()
 	httpapi.NewHolidayHandler(service).Register(router)
+	httpapi.NewCodexHandler(codexService).Register(router)
 	httpapi.RegisterFrontend(router)
 
 	if err = router.Run(":8000"); err != nil {

@@ -8,6 +8,30 @@ import (
 	"myapi/internal/ent"
 )
 
+// The CodexAccountFunc type is an adapter to allow the use of ordinary
+// function as CodexAccount mutator.
+type CodexAccountFunc func(context.Context, *ent.CodexAccountMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CodexAccountFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CodexAccountMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CodexAccountMutation", m)
+}
+
+// The CodexOAuthSessionFunc type is an adapter to allow the use of ordinary
+// function as CodexOAuthSession mutator.
+type CodexOAuthSessionFunc func(context.Context, *ent.CodexOAuthSessionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CodexOAuthSessionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CodexOAuthSessionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CodexOAuthSessionMutation", m)
+}
+
 // The HolidayDayFunc type is an adapter to allow the use of ordinary
 // function as HolidayDay mutator.
 type HolidayDayFunc func(context.Context, *ent.HolidayDayMutation) (ent.Value, error)

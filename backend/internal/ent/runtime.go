@@ -2,8 +2,33 @@
 
 package ent
 
+import (
+	"myapi/internal/ent/codexaccount"
+	"myapi/internal/ent/codexoauthsession"
+	"myapi/internal/ent/schema"
+	"time"
+)
+
 // The init function reads all schema descriptors with runtime code
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	codexaccountFields := schema.CodexAccount{}.Fields()
+	_ = codexaccountFields
+	// codexaccountDescCreatedAt is the schema descriptor for created_at field.
+	codexaccountDescCreatedAt := codexaccountFields[4].Descriptor()
+	// codexaccount.DefaultCreatedAt holds the default value on creation for the created_at field.
+	codexaccount.DefaultCreatedAt = codexaccountDescCreatedAt.Default.(func() time.Time)
+	// codexaccountDescUpdatedAt is the schema descriptor for updated_at field.
+	codexaccountDescUpdatedAt := codexaccountFields[5].Descriptor()
+	// codexaccount.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	codexaccount.DefaultUpdatedAt = codexaccountDescUpdatedAt.Default.(func() time.Time)
+	// codexaccount.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	codexaccount.UpdateDefaultUpdatedAt = codexaccountDescUpdatedAt.UpdateDefault.(func() time.Time)
+	codexoauthsessionFields := schema.CodexOAuthSession{}.Fields()
+	_ = codexoauthsessionFields
+	// codexoauthsessionDescCreatedAt is the schema descriptor for created_at field.
+	codexoauthsessionDescCreatedAt := codexoauthsessionFields[4].Descriptor()
+	// codexoauthsession.DefaultCreatedAt holds the default value on creation for the created_at field.
+	codexoauthsession.DefaultCreatedAt = codexoauthsessionDescCreatedAt.Default.(func() time.Time)
 }

@@ -12,6 +12,10 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// CodexAccount is the client for interacting with the CodexAccount builders.
+	CodexAccount *CodexAccountClient
+	// CodexOAuthSession is the client for interacting with the CodexOAuthSession builders.
+	CodexOAuthSession *CodexOAuthSessionClient
 	// HolidayDay is the client for interacting with the HolidayDay builders.
 	HolidayDay *HolidayDayClient
 
@@ -145,6 +149,8 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.CodexAccount = NewCodexAccountClient(tx.config)
+	tx.CodexOAuthSession = NewCodexOAuthSessionClient(tx.config)
 	tx.HolidayDay = NewHolidayDayClient(tx.config)
 }
 
@@ -155,7 +161,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: HolidayDay.QueryXXX(), the query will be executed
+// applies a query, for example: CodexAccount.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

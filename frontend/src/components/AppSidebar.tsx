@@ -1,6 +1,6 @@
 import { computed, defineComponent } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { Calendar } from "@element-plus/icons-vue"
+import { Calendar, Key } from "@element-plus/icons-vue"
 import { ElIcon, ElMenu, ElMenuItem, ElText } from "element-plus"
 
 const navItems = [
@@ -8,6 +8,11 @@ const navItems = [
         path: "/holiday",
         label: "节假日",
         icon: Calendar,
+    },
+    {
+        path: "/codex",
+        label: "Codex 账户",
+        icon: Key,
     },
 ]
 
