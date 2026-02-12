@@ -9,6 +9,7 @@ import {
     ElDescriptionsItem,
     ElIcon,
     ElRow,
+    ElSpace,
     ElTag,
     ElText,
 } from "element-plus"
@@ -97,32 +98,33 @@ export default defineComponent({
         })
 
         return () => (
-            <section class="grid gap-4">
-                <div class="grid gap-2">
-                    <div class="flex items-center gap-2">
-                        <h1 class="m-0 text-2xl font-semibold tracking-tight">节假日</h1>
-                        <ElTag type="info">后端接口</ElTag>
-                    </div>
-                    <ElText class="text-[var(--el-text-color-secondary)]">
-                        通过后端接口判断某一天是否为休息日（包含法定节假日与调休）。
-                    </ElText>
-                </div>
+            <section>
+                <ElSpace direction="vertical" size={16} fill>
+                    <ElSpace direction="vertical" size={8} fill>
+                        <ElSpace alignment="center" size={8}>
+                            <h1 class="m-0 text-2xl font-semibold tracking-tight">节假日</h1>
+                            <ElTag type="info">后端接口</ElTag>
+                        </ElSpace>
+                        <ElText class="text-[var(--el-text-color-secondary)]">
+                            通过后端接口判断某一天是否为休息日（包含法定节假日与调休）。
+                        </ElText>
+                    </ElSpace>
 
-                <ElRow gutter={16} class="gap-y-4">
+                    <ElRow gutter={16} class="gap-y-4">
                     <ElCol xs={24} md={8}>
                         <ElCard class="h-full rounded-xl" shadow="never">
                             {{
                                 header: () => (
-                                    <div class="flex items-center gap-1.5 font-semibold">
+                                    <ElSpace alignment="center" size={6}>
                                         <ElIcon>
                                             <Calendar/>
                                         </ElIcon>
-                                        <span>查询</span>
-                                    </div>
+                                        <span class="font-semibold">查询</span>
+                                    </ElSpace>
                                 ),
                                 default: () => (
                                     <>
-                                        <div class="mb-2.5 flex flex-wrap items-center gap-3">
+                                        <ElSpace wrap alignment="center" size={12} class="mb-2.5">
                                             <ElDatePicker
                                                 class="w-[220px]"
                                                 modelValue={date.value}
@@ -139,10 +141,13 @@ export default defineComponent({
                                             <ElButton type="primary" loading={loading.value} onClick={() => void refresh()}>
                                                 {loading.value ? "查询中..." : "查询"}
                                             </ElButton>
-                                        </div>
+                                        </ElSpace>
 
                                         <ElText
-                                            class="text-[var(--el-text-color-secondary)]">支持留空（后端默认使用当天日期）。</ElText>
+                                            class="text-xs text-[var(--el-text-color-secondary)]"
+                                        >
+                                            支持留空（后端默认使用当天日期）。
+                                        </ElText>
                                     </>
                                 ),
                             }}
@@ -153,12 +158,12 @@ export default defineComponent({
                         <ElCard class="h-full rounded-xl" shadow="never">
                             {{
                                 header: () => (
-                                    <div class="flex items-center gap-1.5 font-semibold">
+                                    <ElSpace alignment="center" size={6}>
                                         <ElIcon>
                                             <ResultIcon.value/>
                                         </ElIcon>
-                                        <span>当天结果</span>
-                                    </div>
+                                        <span class="font-semibold">当天结果</span>
+                                    </ElSpace>
                                 ),
                                 default: () => (
                                     <ElDescriptions column={1} border>
@@ -174,12 +179,12 @@ export default defineComponent({
                         <ElCard class="h-full rounded-xl" shadow="never">
                             {{
                                 header: () => (
-                                    <div class="flex items-center gap-1.5 font-semibold">
+                                    <ElSpace alignment="center" size={6}>
                                         <ElIcon>
                                             <Clock/>
                                         </ElIcon>
-                                        <span>下一个休息日</span>
-                                    </div>
+                                        <span class="font-semibold">下一个休息日</span>
+                                    </ElSpace>
                                 ),
                                 default: () => (
                                     <ElDescriptions column={1} border>
@@ -191,6 +196,7 @@ export default defineComponent({
                         </ElCard>
                     </ElCol>
                 </ElRow>
+                </ElSpace>
             </section>
         )
     },

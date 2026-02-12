@@ -1,7 +1,7 @@
 import { computed, defineComponent, onMounted } from "vue"
 import { RouterView } from "vue-router"
 import { Expand, Fold } from "@element-plus/icons-vue"
-import { ElAside, ElButton, ElContainer, ElHeader, ElIcon, ElMain, ElSwitch, ElText } from "element-plus"
+import { ElAside, ElButton, ElContainer, ElHeader, ElIcon, ElMain, ElSpace, ElSwitch, ElText } from "element-plus"
 
 import AppSidebar from "@/components/AppSidebar"
 import { useAppStore } from "@/stores/AppStore"
@@ -31,15 +31,15 @@ export default defineComponent({
                 <ElContainer>
                     <ElHeader
                         class="flex items-center justify-between border-b border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)] px-4">
-                        <div class="flex items-center gap-2.5">
+                        <ElSpace alignment="center" size={10}>
                             <ElButton circle text onClick={appStore.toggleSidebarCollapsed}>
                                 <ElIcon>
                                     <CollapseIcon.value/>
                                 </ElIcon>
                             </ElButton>
                             <ElText>控制台</ElText>
-                        </div>
-                        <div class="flex items-center gap-2.5">
+                        </ElSpace>
+                        <ElSpace alignment="center" size={10}>
                             <ElText>{appStore.isDark ? "深色主题" : "浅色主题"}</ElText>
                             <ElSwitch
                                 modelValue={appStore.isDark}
@@ -48,7 +48,7 @@ export default defineComponent({
                                 inactiveText="亮"
                                 onUpdate:modelValue={(value) => appStore.setDark(value as boolean)}
                             />
-                        </div>
+                        </ElSpace>
                     </ElHeader>
 
                     <ElMain class="p-5">
