@@ -15,9 +15,10 @@ type Service struct {
 }
 
 // NewService 初始化当年与下一年的节假日数据。
-func NewService(now time.Time, client *ent.Client) (*Service, error) {
+func NewService(client *ent.Client) (*Service, error) {
 	ctx := context.Background()
 	service := &Service{client: client}
+	now := time.Now()
 	currentYear := now.Year()
 	nextYear := currentYear + 1
 

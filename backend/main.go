@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
-	"time"
 
 	"myapi/internal/ent"
 	"myapi/internal/holiday"
@@ -13,23 +13,32 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func main() {
+func openDatabaseClient(ctx context.Context) (*ent.Client, error) {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		panic("DATABASE_URL 未设置")
+		return nil, fmt.Errorf("DATABASE_URL 未设置")
 	}
 
 	client, err := ent.Open("postgres", databaseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = client.Schema.Create(ctx); err != nil {
+		client.Close()
+		return nil, err
+	}
+	return client, nil
+}
+
+func main() {
+	client, err := openDatabaseClient(context.Background())
 	if err != nil {
 		panic(err)
 	}
 	defer client.Close()
 
-	if err = client.Schema.Create(context.Background()); err != nil {
-		panic(err)
-	}
-
-	service, err := holiday.NewService(time.Now(), client)
+	service, err := holiday.NewService(client)
 	if err != nil {
 		panic(err)
 	}
