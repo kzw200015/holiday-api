@@ -14,6 +14,12 @@ type Day struct {
 	IsOffDay bool   `json:"isOffDay"`
 }
 
+// NextOffDayResult 是下一个休息日查询结果。
+type NextOffDayResult struct {
+	NextOffDayDate   string `json:"nextOffDayDate"`
+	DaysToNextOffDay int    `json:"daysToNextOffDay"`
+}
+
 type holidayJSON struct {
 	Days []Day `json:"days"`
 }

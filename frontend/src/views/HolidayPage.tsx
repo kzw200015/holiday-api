@@ -13,31 +13,13 @@ import {
     ElText,
 } from "element-plus"
 
-import { isHoliday } from "@/api/HolidayApi"
-import { addDays, formatDateForInput } from "@/utils/DateUtils"
-
-const NEXT_OFF_DAY_SEARCH_RANGE = 60
+import { isHoliday, queryNextOffDay } from "@/api/HolidayApi"
+import { formatDateForInput } from "@/utils/DateUtils"
 
 type HolidayQueryResult = {
-    isHoliday?: boolean
-    nextOffDayDate?: string
-    daysToNextOffDay?: number
-}
-
-async function queryNextOffDay(baseDateText: string): Promise<Pick<HolidayQueryResult, "nextOffDayDate" | "daysToNextOffDay">> {
-    for (let i = 1; i <= NEXT_OFF_DAY_SEARCH_RANGE; i += 1) {
-        const candidateDate = addDays(baseDateText, i)
-        const candidateResult = await isHoliday(candidateDate)
-
-        if (candidateResult) {
-            return {
-                nextOffDayDate: candidateDate,
-                daysToNextOffDay: i,
-            }
-        }
-    }
-
-    throw new Error(`未找到下一个休息日（查询范围：${NEXT_OFF_DAY_SEARCH_RANGE}天）`)
+    isHoliday: boolean
+    nextOffDayDate: string
+    daysToNextOffDay: number
 }
 
 export default defineComponent({
@@ -45,31 +27,24 @@ export default defineComponent({
     setup() {
         const date = ref(formatDateForInput(new Date()))
         const loading = ref(false)
-        const result = ref<HolidayQueryResult>({})
+        const result = ref<HolidayQueryResult | null>(null)
 
         const refresh = async () => {
             loading.value = true
 
             try {
-                const baseDateText = date.value || formatDateForInput(new Date())
-                const currentIsHoliday = await isHoliday(date.value || undefined)
+                const [holiday, nextOffDay] = await Promise.all([
+                    isHoliday(date.value || undefined),
+                    queryNextOffDay(date.value || undefined),
+                ])
 
-                if (currentIsHoliday) {
-                    result.value = {
-                        isHoliday: true,
-                        nextOffDayDate: baseDateText,
-                        daysToNextOffDay: 0,
-                    }
-                    return
-                }
-
-                const nextOffDay = await queryNextOffDay(baseDateText)
                 result.value = {
-                    isHoliday: false,
-                    ...nextOffDay,
+                    isHoliday: holiday,
+                    nextOffDayDate: nextOffDay.nextOffDayDate,
+                    daysToNextOffDay: nextOffDay.daysToNextOffDay,
                 }
             } catch {
-                result.value = {}
+                result.value = null
             } finally {
                 loading.value = false
             }
@@ -80,7 +55,7 @@ export default defineComponent({
         })
 
         const title = computed(() => {
-            if (result.value.isHoliday === undefined) {
+            if (!result.value) {
                 return "未查询"
             }
 
@@ -94,7 +69,7 @@ export default defineComponent({
                 return "计算中..."
             }
 
-            if (result.value.daysToNextOffDay === undefined) {
+            if (!result.value) {
                 return "-"
             }
 
@@ -106,7 +81,7 @@ export default defineComponent({
                 return "日期：计算中..."
             }
 
-            if (result.value.nextOffDayDate) {
+            if (result.value) {
                 return `日期：${result.value.nextOffDayDate}`
             }
 
@@ -114,7 +89,7 @@ export default defineComponent({
         })
 
         const ResultIcon = computed(() => {
-            if (result.value.isHoliday === undefined) {
+            if (!result.value) {
                 return CircleCloseFilled
             }
 
@@ -135,10 +110,8 @@ export default defineComponent({
 
                 <ElRow gutter={16} class="gap-y-4">
                     <ElCol xs={24} md={8}>
-                        <ElCard
-                            class="h-full rounded-xl"
-                            shadow="never"
-                            v-slots={{
+                        <ElCard class="h-full rounded-xl" shadow="never">
+                            {{
                                 header: () => (
                                     <div class="flex items-center gap-1.5 font-semibold">
                                         <ElIcon>
@@ -147,37 +120,38 @@ export default defineComponent({
                                         <span>查询</span>
                                     </div>
                                 ),
-                            }}
-                        >
-                            <div class="mb-2.5 flex flex-wrap items-center gap-3">
-                                <ElDatePicker
-                                    class="w-[220px]"
-                                    modelValue={date.value}
-                                    type="date"
-                                    valueFormat="YYYY-MM-DD"
-                                    format="YYYY-MM-DD"
-                                    placeholder="选择日期"
-                                    clearable
-                                    disabled={loading.value}
-                                    onUpdate:modelValue={(value) => {
-                                        date.value = value ? String(value) : ""
-                                    }}
-                                />
-                                <ElButton type="primary" loading={loading.value} onClick={() => void refresh()}>
-                                    {loading.value ? "查询中..." : "查询"}
-                                </ElButton>
-                            </div>
+                                default: () => (
+                                    <>
+                                        <div class="mb-2.5 flex flex-wrap items-center gap-3">
+                                            <ElDatePicker
+                                                class="w-[220px]"
+                                                modelValue={date.value}
+                                                type="date"
+                                                valueFormat="YYYY-MM-DD"
+                                                format="YYYY-MM-DD"
+                                                placeholder="选择日期"
+                                                clearable
+                                                disabled={loading.value}
+                                                onUpdate:modelValue={(value) => {
+                                                    date.value = value ? String(value) : ""
+                                                }}
+                                            />
+                                            <ElButton type="primary" loading={loading.value} onClick={() => void refresh()}>
+                                                {loading.value ? "查询中..." : "查询"}
+                                            </ElButton>
+                                        </div>
 
-                            <ElText
-                                class="text-[var(--el-text-color-secondary)]">支持留空（后端默认使用当天日期）。</ElText>
+                                        <ElText
+                                            class="text-[var(--el-text-color-secondary)]">支持留空（后端默认使用当天日期）。</ElText>
+                                    </>
+                                ),
+                            }}
                         </ElCard>
                     </ElCol>
 
                     <ElCol xs={24} md={8}>
-                        <ElCard
-                            class="h-full rounded-xl"
-                            shadow="never"
-                            v-slots={{
+                        <ElCard class="h-full rounded-xl" shadow="never">
+                            {{
                                 header: () => (
                                     <div class="flex items-center gap-1.5 font-semibold">
                                         <ElIcon>
@@ -186,20 +160,19 @@ export default defineComponent({
                                         <span>当天结果</span>
                                     </div>
                                 ),
+                                default: () => (
+                                    <ElDescriptions column={1} border>
+                                        <ElDescriptionsItem label="状态">{title.value}</ElDescriptionsItem>
+                                        <ElDescriptionsItem label="日期">{currentDateText.value}</ElDescriptionsItem>
+                                    </ElDescriptions>
+                                ),
                             }}
-                        >
-                            <ElDescriptions column={1} border>
-                                <ElDescriptionsItem label="状态">{title.value}</ElDescriptionsItem>
-                                <ElDescriptionsItem label="日期">{currentDateText.value}</ElDescriptionsItem>
-                            </ElDescriptions>
                         </ElCard>
                     </ElCol>
 
                     <ElCol xs={24} md={8}>
-                        <ElCard
-                            class="h-full rounded-xl"
-                            shadow="never"
-                            v-slots={{
+                        <ElCard class="h-full rounded-xl" shadow="never">
+                            {{
                                 header: () => (
                                     <div class="flex items-center gap-1.5 font-semibold">
                                         <ElIcon>
@@ -208,12 +181,13 @@ export default defineComponent({
                                         <span>下一个休息日</span>
                                     </div>
                                 ),
+                                default: () => (
+                                    <ElDescriptions column={1} border>
+                                        <ElDescriptionsItem label="剩余时间">{nextOffDayText.value}</ElDescriptionsItem>
+                                        <ElDescriptionsItem label="目标日期">{nextOffDayDateText.value}</ElDescriptionsItem>
+                                    </ElDescriptions>
+                                ),
                             }}
-                        >
-                            <ElDescriptions column={1} border>
-                                <ElDescriptionsItem label="剩余时间">{nextOffDayText.value}</ElDescriptionsItem>
-                                <ElDescriptionsItem label="目标日期">{nextOffDayDateText.value}</ElDescriptionsItem>
-                            </ElDescriptions>
                         </ElCard>
                     </ElCol>
                 </ElRow>

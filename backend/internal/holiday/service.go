@@ -34,3 +34,16 @@ func (s *Service) IsHoliday(date time.Time) bool {
 	weekDay := date.Weekday()
 	return weekDay == time.Saturday || weekDay == time.Sunday
 }
+
+// QueryNextOffDay 查询下一个休息日信息。
+func (s *Service) QueryNextOffDay(date time.Time) NextOffDayResult {
+	for days := 0; ; days++ {
+		candidate := date.AddDate(0, 0, days)
+		if s.IsHoliday(candidate) {
+			return NextOffDayResult{
+				NextOffDayDate:   candidate.Format(DateLayout),
+				DaysToNextOffDay: days,
+			}
+		}
+	}
+}

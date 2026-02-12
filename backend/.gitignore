@@ -1,1 +1,2 @@
-/internal/httpapi/webdist/
+/internal/httpapi/webdist/*
+!/internal/httpapi/webdist/.gitkeep

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"embed"
+	"errors"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -23,9 +24,11 @@ func RegisterFrontend(router *gin.Engine) {
 
 	indexHTML, err := fs.ReadFile(distFS, "index.html")
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return
+		}
 		panic(err)
 	}
-
 	fileServer := http.FileServerFS(distFS)
 	router.NoRoute(func(c *gin.Context) {
 		requestPath := c.Request.URL.Path
