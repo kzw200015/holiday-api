@@ -3,9 +3,10 @@ package main
 import (
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"myapi/internal/holiday"
 	"myapi/internal/httpapi"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
