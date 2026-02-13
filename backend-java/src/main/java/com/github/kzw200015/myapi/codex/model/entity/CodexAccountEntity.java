@@ -31,6 +31,9 @@ public class CodexAccountEntity {
     @TableField("token")
     private String token;
 
+    @TableField("enabled")
+    private boolean enabled;
+
     @TableField("expires_at")
     private OffsetDateTime expiresAt;
 

@@ -11,6 +11,7 @@ import {
   ElInput,
   ElMessage,
   ElPagination,
+  ElSwitch,
   ElTable,
   ElTableColumn,
   ElTag,
@@ -115,8 +116,10 @@ export default defineComponent({
     const editDialogVisible = ref(false)
     const editFormRef = ref<FormInstance>()
     const editingAccountId = ref<number | null>(null)
+    const togglingAccountId = ref<number | null>(null)
     const editForm = reactive({
       name: "",
+      enabled: true,
     })
     const editLoading = ref(false)
 
@@ -197,6 +200,7 @@ export default defineComponent({
     const openEditDialog = (account: Account) => {
       editingAccountId.value = account.id
       editForm.name = account.name
+      editForm.enabled = account.enabled
       editDialogVisible.value = true
     }
 
@@ -204,6 +208,7 @@ export default defineComponent({
       editDialogVisible.value = false
       editingAccountId.value = null
       editForm.name = ""
+      editForm.enabled = true
     }
 
     const saveEdit = async () => {
@@ -218,12 +223,35 @@ export default defineComponent({
         if (editingAccountId.value === null) {
           return
         }
-        await updateCodexAccount(editingAccountId.value, { name: editForm.name })
+        await updateCodexAccount(editingAccountId.value, {
+          name: editForm.name,
+          enabled: editForm.enabled,
+        })
         await refreshAccounts()
         ElMessage.success("已更新名称")
         closeEditDialog()
       } finally {
         editLoading.value = false
+      }
+    }
+
+    const toggleAccountEnabled = async (account: Account, enabled: boolean) => {
+      if (account.enabled === enabled) {
+        return
+      }
+      const previousEnabled = account.enabled
+      account.enabled = enabled
+      togglingAccountId.value = account.id
+      try {
+        await updateCodexAccount(account.id, {
+          name: account.name,
+          enabled,
+        })
+        ElMessage.success(enabled ? "已启用账户" : "已禁用账户")
+      } catch {
+        account.enabled = previousEnabled
+      } finally {
+        togglingAccountId.value = null
       }
     }
 
@@ -503,6 +531,17 @@ export default defineComponent({
                             default: (scope: { row: Account }) => (
                               <ElText
                                 class="text-sm">{formatDateTime(scope.row.updatedAt)}</ElText>
+                            ),
+                          }}
+                        </ElTableColumn>
+                        <ElTableColumn label="启用" width={110} align="center">
+                          {{
+                            default: (scope: { row: Account }) => (
+                              <ElSwitch
+                                modelValue={scope.row.enabled}
+                                loading={togglingAccountId.value === scope.row.id}
+                                onChange={(value: string | number | boolean) => void toggleAccountEnabled(scope.row, Boolean(value))}
+                              />
                             ),
                           }}
                         </ElTableColumn>

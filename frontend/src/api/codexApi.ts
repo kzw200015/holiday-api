@@ -11,6 +11,7 @@ export type Account = {
   id: number
   name: string
   token: string
+  enabled: boolean
   expiresAt: string
   createdAt: string
   updatedAt: string
@@ -38,6 +39,7 @@ export type TodayTokenUsage = {
 
 export type UpdateAccountRequest = {
   name: string
+  enabled: boolean
 }
 
 export async function createCodexOAuthSession() {

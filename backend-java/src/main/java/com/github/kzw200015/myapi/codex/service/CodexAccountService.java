@@ -1,15 +1,9 @@
 package com.github.kzw200015.myapi.codex.service;
 
-import static com.github.kzw200015.myapi.common.util.ValidationUtils.requireNonBlank;
-
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.github.kzw200015.myapi.codex.exception.AccountNotFoundException;
-import com.github.kzw200015.myapi.codex.model.Account;
-import com.github.kzw200015.myapi.codex.model.OAuthCallback;
-import com.github.kzw200015.myapi.codex.model.OAuthSessionInfo;
-import com.github.kzw200015.myapi.codex.model.TokenResponse;
-import com.github.kzw200015.myapi.codex.model.UpdateAccountRequest;
+import com.github.kzw200015.myapi.codex.model.*;
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import com.github.kzw200015.myapi.codex.model.entity.CodexOAuthSessionEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
@@ -34,6 +28,8 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
 import java.util.List;
+
+import static com.github.kzw200015.myapi.common.util.ValidationUtils.requireNonBlank;
 
 /**
  * Codex OAuth 流程与账户存储。
@@ -116,6 +112,7 @@ public class CodexAccountService {
         if (!exists) {
             entity = new CodexAccountEntity();
             entity.setAccountId(accountId);
+            entity.setEnabled(true);
             entity.setCreatedAt(now);
         }
         entity.setName(name);
@@ -152,6 +149,7 @@ public class CodexAccountService {
             throw new AccountNotFoundException();
         }
         entity.setName(req.name());
+        entity.setEnabled(req.enabled());
         entity.setUpdatedAt(OffsetDateTime.now());
         codexAccountMapper.updateById(entity);
         return Account.from(entity);
@@ -211,7 +209,7 @@ public class CodexAccountService {
 
     private void refreshAccountToken(CodexAccountEntity account) {
         String refreshToken = requireNonBlank(
-                account.getOauthPayload().path("refresh_token").asText(),
+                account.getOauthPayload().path("refresh_token").asString(),
                 "账号缺少 refresh_token"
         );
         TokenExchangeResult refreshResult = refreshTokens(refreshToken);

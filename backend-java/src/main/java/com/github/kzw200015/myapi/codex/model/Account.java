@@ -11,6 +11,7 @@ public record Account(
     int id,
     String name,
     String token,
+    boolean enabled,
     OffsetDateTime expiresAt,
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt
@@ -20,6 +21,7 @@ public record Account(
             entity.getId(),
             entity.getName(),
             entity.getToken(),
+            entity.isEnabled(),
             entity.getExpiresAt(),
             entity.getCreatedAt(),
             entity.getUpdatedAt()

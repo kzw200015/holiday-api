@@ -169,6 +169,7 @@ public class CodexProxyService {
     private CodexAccountEntity selectAccount(String stickyKey) {
         List<CodexAccountEntity> accounts = codexAccountMapper.selectList(
                 Wrappers.<CodexAccountEntity>lambdaQuery()
+                        .eq(CodexAccountEntity::isEnabled, true)
                         .gt(CodexAccountEntity::getExpiresAt, OffsetDateTime.now())
                         .orderByAsc(CodexAccountEntity::getCreatedAt)
         );
@@ -190,7 +191,7 @@ public class CodexProxyService {
         }
 
         long counter = roundRobinCounter.getAndIncrement();
-        int index = (int) Math.floorMod(counter, accounts.size());
+        int index = Math.floorMod(counter, accounts.size());
         CodexAccountEntity selected = accounts.get(index);
         if (hasSticky) {
             stickySessionService.setBinding(stickyKey, selected.getAccountId());

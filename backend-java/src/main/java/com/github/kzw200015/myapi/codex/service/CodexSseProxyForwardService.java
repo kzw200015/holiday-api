@@ -2,6 +2,7 @@ package com.github.kzw200015.myapi.codex.service;
 
 import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
 import jakarta.annotation.PreDestroy;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -27,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * 处理 SSE 转发，并从事件流中提取 token usage。
  */
+@Slf4j
 @Service
 public class CodexSseProxyForwardService extends AbstractCodexProxyForwardService {
     private static final AtomicInteger THREAD_COUNTER = new AtomicInteger(1);
@@ -90,6 +92,9 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
 
             flushEvent(dataLines, eventName, usageHolder, emitter);
 
+            emitter.complete();
+        } catch (IOException ex) {
+            log.warn("SSE 流写入失败: {}", ex.getMessage());
             emitter.complete();
         } catch (Exception ex) {
             emitter.completeWithError(ex);
