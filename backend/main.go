@@ -48,11 +48,12 @@ func main() {
 	}
 
 	codexService := codex.NewService(client)
-	codexProxyService := codexproxy.NewService(client)
+	codexProxyService := codexproxy.NewProxyService(client)
+	codexLogService := codexproxy.NewLogService(client)
 
 	router := gin.Default()
 	httpapi.NewHolidayHandler(service).Register(router)
-	httpapi.NewCodexHandler(codexService, codexProxyService).Register(router)
+	httpapi.NewCodexHandler(codexService, codexProxyService, codexLogService).Register(router)
 	httpapi.RegisterFrontend(router)
 
 	if err = router.Run(":8000"); err != nil {

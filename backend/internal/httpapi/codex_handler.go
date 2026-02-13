@@ -15,15 +15,17 @@ import (
 
 // CodexHandler 提供 Codex OAuth 相关接口。
 type CodexHandler struct {
-	service        *codex.Service
-	responsesProxy *codexproxy.Service
+	service         *codex.Service
+	responsesProxy  *codexproxy.ProxyService
+	responseLogRepo *codexproxy.LogService
 }
 
 // NewCodexHandler 创建 Codex 接口处理器。
-func NewCodexHandler(service *codex.Service, responsesProxy *codexproxy.Service) *CodexHandler {
+func NewCodexHandler(service *codex.Service, responsesProxy *codexproxy.ProxyService, responseLogRepo *codexproxy.LogService) *CodexHandler {
 	return &CodexHandler{
-		service:        service,
-		responsesProxy: responsesProxy,
+		service:         service,
+		responsesProxy:  responsesProxy,
+		responseLogRepo: responseLogRepo,
 	}
 }
 
@@ -143,7 +145,7 @@ func (h *CodexHandler) handleResponses(c *gin.Context) {
 		return
 	}
 
-	if err = h.responsesProxy.WriteCallLog(c.Request.Context(), callLog); err != nil {
+	if err = h.responseLogRepo.WriteCallLog(c.Request.Context(), callLog); err != nil {
 		log.Printf("写入 /api/responses 调用日志失败: %v", err)
 	}
 }
@@ -156,7 +158,7 @@ func (h *CodexHandler) handleListResponseLogs(c *gin.Context) {
 		return
 	}
 
-	logsPage, err := h.responsesProxy.ListResponseLogsPage(c.Request.Context(), query.Page, query.PageSize)
+	logsPage, err := h.responseLogRepo.ListResponseLogsPage(c.Request.Context(), query.Page, query.PageSize)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, InternalServerError("查询调用日志失败"))
 		return

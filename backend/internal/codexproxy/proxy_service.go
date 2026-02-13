@@ -13,8 +13,6 @@ import (
 
 	"myapi/internal/ent"
 	"myapi/internal/ent/codexaccount"
-	"myapi/internal/ent/codexresponselog"
-	"myapi/internal/pagination"
 
 	"github.com/gin-gonic/gin"
 	resty "resty.dev/v3"
@@ -50,33 +48,19 @@ type CallLog struct {
 	IsSSE             bool
 }
 
-type ResponseLogItem struct {
-	UserAgent         string    `json:"userAgent"`
-	ClientIP          string    `json:"clientIp"`
-	InputTokens       int       `json:"inputTokens"`
-	CachedInputTokens int       `json:"cachedInputTokens"`
-	OutputTokens      int       `json:"outputTokens"`
-	CacheRate         float64   `json:"cacheRate"`
-	DurationMs        int       `json:"durationMs"`
-	AccountID         string    `json:"accountId"`
-	AccountName       string    `json:"accountName"`
-	IsSSE             bool      `json:"isSse"`
-	CreatedAt         time.Time `json:"createdAt"`
-}
-
-type Service struct {
+type ProxyService struct {
 	client               *ent.Client
 	httpClient           *resty.Client
 	rrCounter            atomic.Uint64
 	stickySessionService *StickySessionService
 }
 
-// NewService 创建 Codex responses 代理服务。
-func NewService(client *ent.Client) *Service {
+// NewProxyService 创建 Codex responses 反向代理服务。
+func NewProxyService(client *ent.Client) *ProxyService {
 	httpClient := resty.New()
 	httpClient.SetTimeout(0)
 
-	return &Service{
+	return &ProxyService{
 		client:               client,
 		httpClient:           httpClient,
 		stickySessionService: NewStickySessionService(defaultStickyTTL),
@@ -84,7 +68,7 @@ func NewService(client *ent.Client) *Service {
 }
 
 // ProxyResponses 将请求转发到上游并回传响应内容。
-func (s *Service) ProxyResponses(c *gin.Context, body []byte) (CallLog, error) {
+func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, error) {
 	startAt := time.Now()
 	clientIP := c.ClientIP()
 	userAgent := strings.TrimSpace(c.GetHeader("User-Agent"))
@@ -158,66 +142,8 @@ func (s *Service) ProxyResponses(c *gin.Context, body []byte) (CallLog, error) {
 	}, nil
 }
 
-// WriteCallLog 持久化一次代理调用日志。
-func (s *Service) WriteCallLog(ctx context.Context, callLog CallLog) error {
-	_, err := s.client.CodexResponseLog.Create().
-		SetUserAgent(callLog.UserAgent).
-		SetClientIP(callLog.ClientIP).
-		SetInputTokens(callLog.InputTokens).
-		SetCachedInputTokens(callLog.CachedInputTokens).
-		SetOutputTokens(callLog.OutputTokens).
-		SetCacheRate(callLog.CacheRate).
-		SetDurationMs(callLog.DurationMs).
-		SetAccountID(callLog.AccountID).
-		SetAccountName(callLog.AccountName).
-		SetIsSse(callLog.IsSSE).
-		Save(ctx)
-	return err
-}
-
-// ListResponseLogsPage 分页查询调用日志。
-func (s *Service) ListResponseLogsPage(ctx context.Context, page int, pageSize int) (pagination.PaginatedResult[ResponseLogItem], error) {
-	total, err := s.client.CodexResponseLog.Query().Count(ctx)
-	if err != nil {
-		return pagination.PaginatedResult[ResponseLogItem]{}, err
-	}
-
-	logs, err := s.client.CodexResponseLog.Query().
-		Order(ent.Desc(codexresponselog.FieldCreatedAt), ent.Desc(codexresponselog.FieldID)).
-		Offset((page - 1) * pageSize).
-		Limit(pageSize).
-		All(ctx)
-	if err != nil {
-		return pagination.PaginatedResult[ResponseLogItem]{}, err
-	}
-
-	items := make([]ResponseLogItem, 0, len(logs))
-	for _, item := range logs {
-		items = append(items, ResponseLogItem{
-			UserAgent:         item.UserAgent,
-			ClientIP:          item.ClientIP,
-			InputTokens:       item.InputTokens,
-			CachedInputTokens: item.CachedInputTokens,
-			OutputTokens:      item.OutputTokens,
-			CacheRate:         item.CacheRate,
-			DurationMs:        item.DurationMs,
-			AccountID:         item.AccountID,
-			AccountName:       item.AccountName,
-			IsSSE:             item.IsSse,
-			CreatedAt:         item.CreatedAt,
-		})
-	}
-
-	return pagination.PaginatedResult[ResponseLogItem]{
-		Items:    items,
-		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
-	}, nil
-}
-
 // forwardHTTP 透传普通 HTTP 响应并提取 token 使用量。
-func (s *Service) forwardHTTP(c *gin.Context, body []byte, headers http.Header) (tokenUsage, error) {
+func (s *ProxyService) forwardHTTP(c *gin.Context, body []byte, headers http.Header) (tokenUsage, error) {
 	usage := tokenUsage{}
 	req := s.httpClient.R().
 		SetContext(c.Request.Context()).
@@ -258,7 +184,7 @@ func buildUpstreamHeaders(incomingHeaders http.Header, account *ent.CodexAccount
 }
 
 // selectAccount 依据粘滞策略与轮询选择可用账户。
-func (s *Service) selectAccount(ctx context.Context, stickyKey string) (*ent.CodexAccount, error) {
+func (s *ProxyService) selectAccount(ctx context.Context, stickyKey string) (*ent.CodexAccount, error) {
 	accounts, err := s.client.CodexAccount.Query().
 		Where(codexaccount.ExpiresAtGT(time.Now())).
 		Order(ent.Asc(codexaccount.FieldCreatedAt)).
@@ -291,7 +217,7 @@ func (s *Service) selectAccount(ctx context.Context, stickyKey string) (*ent.Cod
 }
 
 // forwardSSEWithEventSource 使用 Resty v3 EventSource 透传 SSE 并持续更新 token 使用量。
-func (s *Service) forwardSSEWithEventSource(c *gin.Context, body []byte, headers http.Header) (tokenUsage, error) {
+func (s *ProxyService) forwardSSEWithEventSource(c *gin.Context, body []byte, headers http.Header) (tokenUsage, error) {
 	type sseMessage struct {
 		name string
 		data string
