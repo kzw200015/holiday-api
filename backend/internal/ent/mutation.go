@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"myapi/internal/ent/codexaccount"
 	"myapi/internal/ent/codexoauthsession"
+	"myapi/internal/ent/codexresponselog"
 	"myapi/internal/ent/holidayday"
 	"myapi/internal/ent/predicate"
 	"sync"
@@ -29,6 +30,7 @@ const (
 	// Node types.
 	TypeCodexAccount      = "CodexAccount"
 	TypeCodexOAuthSession = "CodexOAuthSession"
+	TypeCodexResponseLog  = "CodexResponseLog"
 	TypeHolidayDay        = "HolidayDay"
 )
 
@@ -1238,6 +1240,1040 @@ func (m *CodexOAuthSessionMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *CodexOAuthSessionMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown CodexOAuthSession edge %s", name)
+}
+
+// CodexResponseLogMutation represents an operation that mutates the CodexResponseLog nodes in the graph.
+type CodexResponseLogMutation struct {
+	config
+	op                     Op
+	typ                    string
+	id                     *int
+	user_agent             *string
+	client_ip              *string
+	input_tokens           *int
+	addinput_tokens        *int
+	cached_input_tokens    *int
+	addcached_input_tokens *int
+	output_tokens          *int
+	addoutput_tokens       *int
+	cache_rate             *float64
+	addcache_rate          *float64
+	duration_ms            *int
+	addduration_ms         *int
+	account_id             *string
+	account_name           *string
+	is_sse                 *bool
+	created_at             *time.Time
+	clearedFields          map[string]struct{}
+	done                   bool
+	oldValue               func(context.Context) (*CodexResponseLog, error)
+	predicates             []predicate.CodexResponseLog
+}
+
+var _ ent.Mutation = (*CodexResponseLogMutation)(nil)
+
+// codexresponselogOption allows management of the mutation configuration using functional options.
+type codexresponselogOption func(*CodexResponseLogMutation)
+
+// newCodexResponseLogMutation creates new mutation for the CodexResponseLog entity.
+func newCodexResponseLogMutation(c config, op Op, opts ...codexresponselogOption) *CodexResponseLogMutation {
+	m := &CodexResponseLogMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCodexResponseLog,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCodexResponseLogID sets the ID field of the mutation.
+func withCodexResponseLogID(id int) codexresponselogOption {
+	return func(m *CodexResponseLogMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CodexResponseLog
+		)
+		m.oldValue = func(ctx context.Context) (*CodexResponseLog, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CodexResponseLog.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCodexResponseLog sets the old CodexResponseLog of the mutation.
+func withCodexResponseLog(node *CodexResponseLog) codexresponselogOption {
+	return func(m *CodexResponseLogMutation) {
+		m.oldValue = func(context.Context) (*CodexResponseLog, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CodexResponseLogMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CodexResponseLogMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CodexResponseLogMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CodexResponseLogMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CodexResponseLog.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserAgent sets the "user_agent" field.
+func (m *CodexResponseLogMutation) SetUserAgent(s string) {
+	m.user_agent = &s
+}
+
+// UserAgent returns the value of the "user_agent" field in the mutation.
+func (m *CodexResponseLogMutation) UserAgent() (r string, exists bool) {
+	v := m.user_agent
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserAgent returns the old "user_agent" field's value of the CodexResponseLog entity.
+// If the CodexResponseLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexResponseLogMutation) OldUserAgent(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserAgent is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserAgent requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserAgent: %w", err)
+	}
+	return oldValue.UserAgent, nil
+}
+
+// ResetUserAgent resets all changes to the "user_agent" field.
+func (m *CodexResponseLogMutation) ResetUserAgent() {
+	m.user_agent = nil
+}
+
+// SetClientIP sets the "client_ip" field.
+func (m *CodexResponseLogMutation) SetClientIP(s string) {
+	m.client_ip = &s
+}
+
+// ClientIP returns the value of the "client_ip" field in the mutation.
+func (m *CodexResponseLogMutation) ClientIP() (r string, exists bool) {
+	v := m.client_ip
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClientIP returns the old "client_ip" field's value of the CodexResponseLog entity.
+// If the CodexResponseLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexResponseLogMutation) OldClientIP(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClientIP is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClientIP requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClientIP: %w", err)
+	}
+	return oldValue.ClientIP, nil
+}
+
+// ResetClientIP resets all changes to the "client_ip" field.
+func (m *CodexResponseLogMutation) ResetClientIP() {
+	m.client_ip = nil
+}
+
+// SetInputTokens sets the "input_tokens" field.
+func (m *CodexResponseLogMutation) SetInputTokens(i int) {
+	m.input_tokens = &i
+	m.addinput_tokens = nil
+}
+
+// InputTokens returns the value of the "input_tokens" field in the mutation.
+func (m *CodexResponseLogMutation) InputTokens() (r int, exists bool) {
+	v := m.input_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInputTokens returns the old "input_tokens" field's value of the CodexResponseLog entity.
+// If the CodexResponseLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexResponseLogMutation) OldInputTokens(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInputTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInputTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInputTokens: %w", err)
+	}
+	return oldValue.InputTokens, nil
+}
+
+// AddInputTokens adds i to the "input_tokens" field.
+func (m *CodexResponseLogMutation) AddInputTokens(i int) {
+	if m.addinput_tokens != nil {
+		*m.addinput_tokens += i
+	} else {
+		m.addinput_tokens = &i
+	}
+}
+
+// AddedInputTokens returns the value that was added to the "input_tokens" field in this mutation.
+func (m *CodexResponseLogMutation) AddedInputTokens() (r int, exists bool) {
+	v := m.addinput_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetInputTokens resets all changes to the "input_tokens" field.
+func (m *CodexResponseLogMutation) ResetInputTokens() {
+	m.input_tokens = nil
+	m.addinput_tokens = nil
+}
+
+// SetCachedInputTokens sets the "cached_input_tokens" field.
+func (m *CodexResponseLogMutation) SetCachedInputTokens(i int) {
+	m.cached_input_tokens = &i
+	m.addcached_input_tokens = nil
+}
+
+// CachedInputTokens returns the value of the "cached_input_tokens" field in the mutation.
+func (m *CodexResponseLogMutation) CachedInputTokens() (r int, exists bool) {
+	v := m.cached_input_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCachedInputTokens returns the old "cached_input_tokens" field's value of the CodexResponseLog entity.
+// If the CodexResponseLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexResponseLogMutation) OldCachedInputTokens(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCachedInputTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCachedInputTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCachedInputTokens: %w", err)
+	}
+	return oldValue.CachedInputTokens, nil
+}
+
+// AddCachedInputTokens adds i to the "cached_input_tokens" field.
+func (m *CodexResponseLogMutation) AddCachedInputTokens(i int) {
+	if m.addcached_input_tokens != nil {
+		*m.addcached_input_tokens += i
+	} else {
+		m.addcached_input_tokens = &i
+	}
+}
+
+// AddedCachedInputTokens returns the value that was added to the "cached_input_tokens" field in this mutation.
+func (m *CodexResponseLogMutation) AddedCachedInputTokens() (r int, exists bool) {
+	v := m.addcached_input_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCachedInputTokens resets all changes to the "cached_input_tokens" field.
+func (m *CodexResponseLogMutation) ResetCachedInputTokens() {
+	m.cached_input_tokens = nil
+	m.addcached_input_tokens = nil
+}
+
+// SetOutputTokens sets the "output_tokens" field.
+func (m *CodexResponseLogMutation) SetOutputTokens(i int) {
+	m.output_tokens = &i
+	m.addoutput_tokens = nil
+}
+
+// OutputTokens returns the value of the "output_tokens" field in the mutation.
+func (m *CodexResponseLogMutation) OutputTokens() (r int, exists bool) {
+	v := m.output_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOutputTokens returns the old "output_tokens" field's value of the CodexResponseLog entity.
+// If the CodexResponseLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexResponseLogMutation) OldOutputTokens(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOutputTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOutputTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOutputTokens: %w", err)
+	}
+	return oldValue.OutputTokens, nil
+}
+
+// AddOutputTokens adds i to the "output_tokens" field.
+func (m *CodexResponseLogMutation) AddOutputTokens(i int) {
+	if m.addoutput_tokens != nil {
+		*m.addoutput_tokens += i
+	} else {
+		m.addoutput_tokens = &i
+	}
+}
+
+// AddedOutputTokens returns the value that was added to the "output_tokens" field in this mutation.
+func (m *CodexResponseLogMutation) AddedOutputTokens() (r int, exists bool) {
+	v := m.addoutput_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetOutputTokens resets all changes to the "output_tokens" field.
+func (m *CodexResponseLogMutation) ResetOutputTokens() {
+	m.output_tokens = nil
+	m.addoutput_tokens = nil
+}
+
+// SetCacheRate sets the "cache_rate" field.
+func (m *CodexResponseLogMutation) SetCacheRate(f float64) {
+	m.cache_rate = &f
+	m.addcache_rate = nil
+}
+
+// CacheRate returns the value of the "cache_rate" field in the mutation.
+func (m *CodexResponseLogMutation) CacheRate() (r float64, exists bool) {
+	v := m.cache_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCacheRate returns the old "cache_rate" field's value of the CodexResponseLog entity.
+// If the CodexResponseLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexResponseLogMutation) OldCacheRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCacheRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCacheRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCacheRate: %w", err)
+	}
+	return oldValue.CacheRate, nil
+}
+
+// AddCacheRate adds f to the "cache_rate" field.
+func (m *CodexResponseLogMutation) AddCacheRate(f float64) {
+	if m.addcache_rate != nil {
+		*m.addcache_rate += f
+	} else {
+		m.addcache_rate = &f
+	}
+}
+
+// AddedCacheRate returns the value that was added to the "cache_rate" field in this mutation.
+func (m *CodexResponseLogMutation) AddedCacheRate() (r float64, exists bool) {
+	v := m.addcache_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCacheRate resets all changes to the "cache_rate" field.
+func (m *CodexResponseLogMutation) ResetCacheRate() {
+	m.cache_rate = nil
+	m.addcache_rate = nil
+}
+
+// SetDurationMs sets the "duration_ms" field.
+func (m *CodexResponseLogMutation) SetDurationMs(i int) {
+	m.duration_ms = &i
+	m.addduration_ms = nil
+}
+
+// DurationMs returns the value of the "duration_ms" field in the mutation.
+func (m *CodexResponseLogMutation) DurationMs() (r int, exists bool) {
+	v := m.duration_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDurationMs returns the old "duration_ms" field's value of the CodexResponseLog entity.
+// If the CodexResponseLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexResponseLogMutation) OldDurationMs(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDurationMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDurationMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDurationMs: %w", err)
+	}
+	return oldValue.DurationMs, nil
+}
+
+// AddDurationMs adds i to the "duration_ms" field.
+func (m *CodexResponseLogMutation) AddDurationMs(i int) {
+	if m.addduration_ms != nil {
+		*m.addduration_ms += i
+	} else {
+		m.addduration_ms = &i
+	}
+}
+
+// AddedDurationMs returns the value that was added to the "duration_ms" field in this mutation.
+func (m *CodexResponseLogMutation) AddedDurationMs() (r int, exists bool) {
+	v := m.addduration_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDurationMs resets all changes to the "duration_ms" field.
+func (m *CodexResponseLogMutation) ResetDurationMs() {
+	m.duration_ms = nil
+	m.addduration_ms = nil
+}
+
+// SetAccountID sets the "account_id" field.
+func (m *CodexResponseLogMutation) SetAccountID(s string) {
+	m.account_id = &s
+}
+
+// AccountID returns the value of the "account_id" field in the mutation.
+func (m *CodexResponseLogMutation) AccountID() (r string, exists bool) {
+	v := m.account_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountID returns the old "account_id" field's value of the CodexResponseLog entity.
+// If the CodexResponseLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexResponseLogMutation) OldAccountID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountID: %w", err)
+	}
+	return oldValue.AccountID, nil
+}
+
+// ResetAccountID resets all changes to the "account_id" field.
+func (m *CodexResponseLogMutation) ResetAccountID() {
+	m.account_id = nil
+}
+
+// SetAccountName sets the "account_name" field.
+func (m *CodexResponseLogMutation) SetAccountName(s string) {
+	m.account_name = &s
+}
+
+// AccountName returns the value of the "account_name" field in the mutation.
+func (m *CodexResponseLogMutation) AccountName() (r string, exists bool) {
+	v := m.account_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountName returns the old "account_name" field's value of the CodexResponseLog entity.
+// If the CodexResponseLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexResponseLogMutation) OldAccountName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountName: %w", err)
+	}
+	return oldValue.AccountName, nil
+}
+
+// ResetAccountName resets all changes to the "account_name" field.
+func (m *CodexResponseLogMutation) ResetAccountName() {
+	m.account_name = nil
+}
+
+// SetIsSse sets the "is_sse" field.
+func (m *CodexResponseLogMutation) SetIsSse(b bool) {
+	m.is_sse = &b
+}
+
+// IsSse returns the value of the "is_sse" field in the mutation.
+func (m *CodexResponseLogMutation) IsSse() (r bool, exists bool) {
+	v := m.is_sse
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIsSse returns the old "is_sse" field's value of the CodexResponseLog entity.
+// If the CodexResponseLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexResponseLogMutation) OldIsSse(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIsSse is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIsSse requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIsSse: %w", err)
+	}
+	return oldValue.IsSse, nil
+}
+
+// ResetIsSse resets all changes to the "is_sse" field.
+func (m *CodexResponseLogMutation) ResetIsSse() {
+	m.is_sse = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CodexResponseLogMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CodexResponseLogMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CodexResponseLog entity.
+// If the CodexResponseLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CodexResponseLogMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CodexResponseLogMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the CodexResponseLogMutation builder.
+func (m *CodexResponseLogMutation) Where(ps ...predicate.CodexResponseLog) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CodexResponseLogMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CodexResponseLogMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CodexResponseLog, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CodexResponseLogMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CodexResponseLogMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CodexResponseLog).
+func (m *CodexResponseLogMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CodexResponseLogMutation) Fields() []string {
+	fields := make([]string, 0, 11)
+	if m.user_agent != nil {
+		fields = append(fields, codexresponselog.FieldUserAgent)
+	}
+	if m.client_ip != nil {
+		fields = append(fields, codexresponselog.FieldClientIP)
+	}
+	if m.input_tokens != nil {
+		fields = append(fields, codexresponselog.FieldInputTokens)
+	}
+	if m.cached_input_tokens != nil {
+		fields = append(fields, codexresponselog.FieldCachedInputTokens)
+	}
+	if m.output_tokens != nil {
+		fields = append(fields, codexresponselog.FieldOutputTokens)
+	}
+	if m.cache_rate != nil {
+		fields = append(fields, codexresponselog.FieldCacheRate)
+	}
+	if m.duration_ms != nil {
+		fields = append(fields, codexresponselog.FieldDurationMs)
+	}
+	if m.account_id != nil {
+		fields = append(fields, codexresponselog.FieldAccountID)
+	}
+	if m.account_name != nil {
+		fields = append(fields, codexresponselog.FieldAccountName)
+	}
+	if m.is_sse != nil {
+		fields = append(fields, codexresponselog.FieldIsSse)
+	}
+	if m.created_at != nil {
+		fields = append(fields, codexresponselog.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CodexResponseLogMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case codexresponselog.FieldUserAgent:
+		return m.UserAgent()
+	case codexresponselog.FieldClientIP:
+		return m.ClientIP()
+	case codexresponselog.FieldInputTokens:
+		return m.InputTokens()
+	case codexresponselog.FieldCachedInputTokens:
+		return m.CachedInputTokens()
+	case codexresponselog.FieldOutputTokens:
+		return m.OutputTokens()
+	case codexresponselog.FieldCacheRate:
+		return m.CacheRate()
+	case codexresponselog.FieldDurationMs:
+		return m.DurationMs()
+	case codexresponselog.FieldAccountID:
+		return m.AccountID()
+	case codexresponselog.FieldAccountName:
+		return m.AccountName()
+	case codexresponselog.FieldIsSse:
+		return m.IsSse()
+	case codexresponselog.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CodexResponseLogMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case codexresponselog.FieldUserAgent:
+		return m.OldUserAgent(ctx)
+	case codexresponselog.FieldClientIP:
+		return m.OldClientIP(ctx)
+	case codexresponselog.FieldInputTokens:
+		return m.OldInputTokens(ctx)
+	case codexresponselog.FieldCachedInputTokens:
+		return m.OldCachedInputTokens(ctx)
+	case codexresponselog.FieldOutputTokens:
+		return m.OldOutputTokens(ctx)
+	case codexresponselog.FieldCacheRate:
+		return m.OldCacheRate(ctx)
+	case codexresponselog.FieldDurationMs:
+		return m.OldDurationMs(ctx)
+	case codexresponselog.FieldAccountID:
+		return m.OldAccountID(ctx)
+	case codexresponselog.FieldAccountName:
+		return m.OldAccountName(ctx)
+	case codexresponselog.FieldIsSse:
+		return m.OldIsSse(ctx)
+	case codexresponselog.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown CodexResponseLog field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CodexResponseLogMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case codexresponselog.FieldUserAgent:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserAgent(v)
+		return nil
+	case codexresponselog.FieldClientIP:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClientIP(v)
+		return nil
+	case codexresponselog.FieldInputTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInputTokens(v)
+		return nil
+	case codexresponselog.FieldCachedInputTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCachedInputTokens(v)
+		return nil
+	case codexresponselog.FieldOutputTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOutputTokens(v)
+		return nil
+	case codexresponselog.FieldCacheRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCacheRate(v)
+		return nil
+	case codexresponselog.FieldDurationMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDurationMs(v)
+		return nil
+	case codexresponselog.FieldAccountID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountID(v)
+		return nil
+	case codexresponselog.FieldAccountName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountName(v)
+		return nil
+	case codexresponselog.FieldIsSse:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIsSse(v)
+		return nil
+	case codexresponselog.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CodexResponseLog field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CodexResponseLogMutation) AddedFields() []string {
+	var fields []string
+	if m.addinput_tokens != nil {
+		fields = append(fields, codexresponselog.FieldInputTokens)
+	}
+	if m.addcached_input_tokens != nil {
+		fields = append(fields, codexresponselog.FieldCachedInputTokens)
+	}
+	if m.addoutput_tokens != nil {
+		fields = append(fields, codexresponselog.FieldOutputTokens)
+	}
+	if m.addcache_rate != nil {
+		fields = append(fields, codexresponselog.FieldCacheRate)
+	}
+	if m.addduration_ms != nil {
+		fields = append(fields, codexresponselog.FieldDurationMs)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CodexResponseLogMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case codexresponselog.FieldInputTokens:
+		return m.AddedInputTokens()
+	case codexresponselog.FieldCachedInputTokens:
+		return m.AddedCachedInputTokens()
+	case codexresponselog.FieldOutputTokens:
+		return m.AddedOutputTokens()
+	case codexresponselog.FieldCacheRate:
+		return m.AddedCacheRate()
+	case codexresponselog.FieldDurationMs:
+		return m.AddedDurationMs()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CodexResponseLogMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case codexresponselog.FieldInputTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddInputTokens(v)
+		return nil
+	case codexresponselog.FieldCachedInputTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCachedInputTokens(v)
+		return nil
+	case codexresponselog.FieldOutputTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddOutputTokens(v)
+		return nil
+	case codexresponselog.FieldCacheRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCacheRate(v)
+		return nil
+	case codexresponselog.FieldDurationMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDurationMs(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CodexResponseLog numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CodexResponseLogMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CodexResponseLogMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CodexResponseLogMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown CodexResponseLog nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CodexResponseLogMutation) ResetField(name string) error {
+	switch name {
+	case codexresponselog.FieldUserAgent:
+		m.ResetUserAgent()
+		return nil
+	case codexresponselog.FieldClientIP:
+		m.ResetClientIP()
+		return nil
+	case codexresponselog.FieldInputTokens:
+		m.ResetInputTokens()
+		return nil
+	case codexresponselog.FieldCachedInputTokens:
+		m.ResetCachedInputTokens()
+		return nil
+	case codexresponselog.FieldOutputTokens:
+		m.ResetOutputTokens()
+		return nil
+	case codexresponselog.FieldCacheRate:
+		m.ResetCacheRate()
+		return nil
+	case codexresponselog.FieldDurationMs:
+		m.ResetDurationMs()
+		return nil
+	case codexresponselog.FieldAccountID:
+		m.ResetAccountID()
+		return nil
+	case codexresponselog.FieldAccountName:
+		m.ResetAccountName()
+		return nil
+	case codexresponselog.FieldIsSse:
+		m.ResetIsSse()
+		return nil
+	case codexresponselog.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown CodexResponseLog field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CodexResponseLogMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CodexResponseLogMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CodexResponseLogMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CodexResponseLogMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CodexResponseLogMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CodexResponseLogMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CodexResponseLogMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown CodexResponseLog unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CodexResponseLogMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown CodexResponseLog edge %s", name)
 }
 
 // HolidayDayMutation represents an operation that mutates the HolidayDay nodes in the graph.

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"myapi/internal/ent/codexaccount"
 	"myapi/internal/ent/codexoauthsession"
+	"myapi/internal/ent/codexresponselog"
 	"myapi/internal/ent/holidayday"
 	"reflect"
 	"sync"
@@ -77,6 +78,7 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			codexaccount.Table:      codexaccount.ValidColumn,
 			codexoauthsession.Table: codexoauthsession.ValidColumn,
+			codexresponselog.Table:  codexresponselog.ValidColumn,
 			holidayday.Table:        holidayday.ValidColumn,
 		})
 	})

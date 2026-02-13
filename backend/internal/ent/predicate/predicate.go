@@ -12,5 +12,8 @@ type CodexAccount func(*sql.Selector)
 // CodexOAuthSession is the predicate function for codexoauthsession builders.
 type CodexOAuthSession func(*sql.Selector)
 
+// CodexResponseLog is the predicate function for codexresponselog builders.
+type CodexResponseLog func(*sql.Selector)
+
 // HolidayDay is the predicate function for holidayday builders.
 type HolidayDay func(*sql.Selector)

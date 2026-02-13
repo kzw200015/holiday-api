@@ -5,6 +5,7 @@ package ent
 import (
 	"myapi/internal/ent/codexaccount"
 	"myapi/internal/ent/codexoauthsession"
+	"myapi/internal/ent/codexresponselog"
 	"myapi/internal/ent/schema"
 	"time"
 )
@@ -35,4 +36,10 @@ func init() {
 	codexoauthsessionDescCreatedAt := codexoauthsessionFields[4].Descriptor()
 	// codexoauthsession.DefaultCreatedAt holds the default value on creation for the created_at field.
 	codexoauthsession.DefaultCreatedAt = codexoauthsessionDescCreatedAt.Default.(func() time.Time)
+	codexresponselogFields := schema.CodexResponseLog{}.Fields()
+	_ = codexresponselogFields
+	// codexresponselogDescCreatedAt is the schema descriptor for created_at field.
+	codexresponselogDescCreatedAt := codexresponselogFields[10].Descriptor()
+	// codexresponselog.DefaultCreatedAt holds the default value on creation for the created_at field.
+	codexresponselog.DefaultCreatedAt = codexresponselogDescCreatedAt.Default.(func() time.Time)
 }

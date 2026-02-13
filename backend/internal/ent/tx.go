@@ -16,6 +16,8 @@ type Tx struct {
 	CodexAccount *CodexAccountClient
 	// CodexOAuthSession is the client for interacting with the CodexOAuthSession builders.
 	CodexOAuthSession *CodexOAuthSessionClient
+	// CodexResponseLog is the client for interacting with the CodexResponseLog builders.
+	CodexResponseLog *CodexResponseLogClient
 	// HolidayDay is the client for interacting with the HolidayDay builders.
 	HolidayDay *HolidayDayClient
 
@@ -151,6 +153,7 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.CodexAccount = NewCodexAccountClient(tx.config)
 	tx.CodexOAuthSession = NewCodexOAuthSessionClient(tx.config)
+	tx.CodexResponseLog = NewCodexResponseLogClient(tx.config)
 	tx.HolidayDay = NewHolidayDayClient(tx.config)
 }
 

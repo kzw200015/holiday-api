@@ -40,6 +40,27 @@ var (
 		Columns:    CodexOauthSessionsColumns,
 		PrimaryKey: []*schema.Column{CodexOauthSessionsColumns[0]},
 	}
+	// CodexResponseLogsColumns holds the columns for the "codex_response_logs" table.
+	CodexResponseLogsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_agent", Type: field.TypeString},
+		{Name: "client_ip", Type: field.TypeString},
+		{Name: "input_tokens", Type: field.TypeInt},
+		{Name: "cached_input_tokens", Type: field.TypeInt},
+		{Name: "output_tokens", Type: field.TypeInt},
+		{Name: "cache_rate", Type: field.TypeFloat64},
+		{Name: "duration_ms", Type: field.TypeInt},
+		{Name: "account_id", Type: field.TypeString},
+		{Name: "account_name", Type: field.TypeString},
+		{Name: "is_sse", Type: field.TypeBool},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// CodexResponseLogsTable holds the schema information for the "codex_response_logs" table.
+	CodexResponseLogsTable = &schema.Table{
+		Name:       "codex_response_logs",
+		Columns:    CodexResponseLogsColumns,
+		PrimaryKey: []*schema.Column{CodexResponseLogsColumns[0]},
+	}
 	// HolidayDaysColumns holds the columns for the "holiday_days" table.
 	HolidayDaysColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -57,6 +78,7 @@ var (
 	Tables = []*schema.Table{
 		CodexAccountsTable,
 		CodexOauthSessionsTable,
+		CodexResponseLogsTable,
 		HolidayDaysTable,
 	}
 )

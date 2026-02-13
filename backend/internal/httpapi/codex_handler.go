@@ -1,10 +1,14 @@
 package httpapi
 
 import (
+	"errors"
+	"io"
+	"log"
 	"net/http"
 	"strconv"
 
 	"myapi/internal/codex"
+	"myapi/internal/codexproxy"
 	"myapi/internal/ent"
 
 	"github.com/gin-gonic/gin"
@@ -12,11 +16,15 @@ import (
 
 // CodexHandler 提供 Codex OAuth 相关接口。
 type CodexHandler struct {
-	service *codex.Service
+	service        *codex.Service
+	responsesProxy *codexproxy.Service
 }
 
-func NewCodexHandler(service *codex.Service) *CodexHandler {
-	return &CodexHandler{service: service}
+func NewCodexHandler(service *codex.Service, responsesProxy *codexproxy.Service) *CodexHandler {
+	return &CodexHandler{
+		service:        service,
+		responsesProxy: responsesProxy,
+	}
 }
 
 func (h *CodexHandler) Register(router *gin.Engine) {
@@ -24,6 +32,7 @@ func (h *CodexHandler) Register(router *gin.Engine) {
 	router.POST("/api/codex/oauth/complete", h.handleCompleteOAuth)
 	router.GET("/api/codex/accounts", h.handleListAccounts)
 	router.PUT("/api/codex/accounts/:accountId", h.handleUpdateAccount)
+	router.POST("/api/responses", h.handleResponses)
 }
 
 type completeOAuthRequest struct {
@@ -103,4 +112,35 @@ func (h *CodexHandler) handleUpdateAccount(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, Ok(updated))
+}
+
+func (h *CodexHandler) handleResponses(c *gin.Context) {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取请求体失败"})
+		return
+	}
+
+	payload, err := codexproxy.ParseRequestPayload(body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误"})
+		return
+	}
+
+	callLog, err := h.responsesProxy.ProxyResponses(c, body, payload)
+	if err != nil {
+		switch {
+		case errors.Is(err, codexproxy.ErrNoAvailableAccount):
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "无可用 Codex 账户"})
+		case errors.Is(err, codexproxy.ErrUpstreamRequestFail):
+			c.JSON(http.StatusBadGateway, gin.H{"error": "调用上游 Codex 失败"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "代理请求失败"})
+		}
+		return
+	}
+
+	if err = h.responsesProxy.WriteCallLog(c.Request.Context(), callLog); err != nil {
+		log.Printf("写入 /api/responses 调用日志失败: %v", err)
+	}
 }

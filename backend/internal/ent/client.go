@@ -13,6 +13,7 @@ import (
 
 	"myapi/internal/ent/codexaccount"
 	"myapi/internal/ent/codexoauthsession"
+	"myapi/internal/ent/codexresponselog"
 	"myapi/internal/ent/holidayday"
 
 	"entgo.io/ent"
@@ -29,6 +30,8 @@ type Client struct {
 	CodexAccount *CodexAccountClient
 	// CodexOAuthSession is the client for interacting with the CodexOAuthSession builders.
 	CodexOAuthSession *CodexOAuthSessionClient
+	// CodexResponseLog is the client for interacting with the CodexResponseLog builders.
+	CodexResponseLog *CodexResponseLogClient
 	// HolidayDay is the client for interacting with the HolidayDay builders.
 	HolidayDay *HolidayDayClient
 }
@@ -44,6 +47,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.CodexAccount = NewCodexAccountClient(c.config)
 	c.CodexOAuthSession = NewCodexOAuthSessionClient(c.config)
+	c.CodexResponseLog = NewCodexResponseLogClient(c.config)
 	c.HolidayDay = NewHolidayDayClient(c.config)
 }
 
@@ -139,6 +143,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:            cfg,
 		CodexAccount:      NewCodexAccountClient(cfg),
 		CodexOAuthSession: NewCodexOAuthSessionClient(cfg),
+		CodexResponseLog:  NewCodexResponseLogClient(cfg),
 		HolidayDay:        NewHolidayDayClient(cfg),
 	}, nil
 }
@@ -161,6 +166,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:            cfg,
 		CodexAccount:      NewCodexAccountClient(cfg),
 		CodexOAuthSession: NewCodexOAuthSessionClient(cfg),
+		CodexResponseLog:  NewCodexResponseLogClient(cfg),
 		HolidayDay:        NewHolidayDayClient(cfg),
 	}, nil
 }
@@ -192,6 +198,7 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	c.CodexAccount.Use(hooks...)
 	c.CodexOAuthSession.Use(hooks...)
+	c.CodexResponseLog.Use(hooks...)
 	c.HolidayDay.Use(hooks...)
 }
 
@@ -200,6 +207,7 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.CodexAccount.Intercept(interceptors...)
 	c.CodexOAuthSession.Intercept(interceptors...)
+	c.CodexResponseLog.Intercept(interceptors...)
 	c.HolidayDay.Intercept(interceptors...)
 }
 
@@ -210,6 +218,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.CodexAccount.mutate(ctx, m)
 	case *CodexOAuthSessionMutation:
 		return c.CodexOAuthSession.mutate(ctx, m)
+	case *CodexResponseLogMutation:
+		return c.CodexResponseLog.mutate(ctx, m)
 	case *HolidayDayMutation:
 		return c.HolidayDay.mutate(ctx, m)
 	default:
@@ -483,6 +493,139 @@ func (c *CodexOAuthSessionClient) mutate(ctx context.Context, m *CodexOAuthSessi
 	}
 }
 
+// CodexResponseLogClient is a client for the CodexResponseLog schema.
+type CodexResponseLogClient struct {
+	config
+}
+
+// NewCodexResponseLogClient returns a client for the CodexResponseLog from the given config.
+func NewCodexResponseLogClient(c config) *CodexResponseLogClient {
+	return &CodexResponseLogClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `codexresponselog.Hooks(f(g(h())))`.
+func (c *CodexResponseLogClient) Use(hooks ...Hook) {
+	c.hooks.CodexResponseLog = append(c.hooks.CodexResponseLog, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `codexresponselog.Intercept(f(g(h())))`.
+func (c *CodexResponseLogClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CodexResponseLog = append(c.inters.CodexResponseLog, interceptors...)
+}
+
+// Create returns a builder for creating a CodexResponseLog entity.
+func (c *CodexResponseLogClient) Create() *CodexResponseLogCreate {
+	mutation := newCodexResponseLogMutation(c.config, OpCreate)
+	return &CodexResponseLogCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CodexResponseLog entities.
+func (c *CodexResponseLogClient) CreateBulk(builders ...*CodexResponseLogCreate) *CodexResponseLogCreateBulk {
+	return &CodexResponseLogCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CodexResponseLogClient) MapCreateBulk(slice any, setFunc func(*CodexResponseLogCreate, int)) *CodexResponseLogCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CodexResponseLogCreateBulk{err: fmt.Errorf("calling to CodexResponseLogClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CodexResponseLogCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CodexResponseLogCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CodexResponseLog.
+func (c *CodexResponseLogClient) Update() *CodexResponseLogUpdate {
+	mutation := newCodexResponseLogMutation(c.config, OpUpdate)
+	return &CodexResponseLogUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CodexResponseLogClient) UpdateOne(_m *CodexResponseLog) *CodexResponseLogUpdateOne {
+	mutation := newCodexResponseLogMutation(c.config, OpUpdateOne, withCodexResponseLog(_m))
+	return &CodexResponseLogUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CodexResponseLogClient) UpdateOneID(id int) *CodexResponseLogUpdateOne {
+	mutation := newCodexResponseLogMutation(c.config, OpUpdateOne, withCodexResponseLogID(id))
+	return &CodexResponseLogUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CodexResponseLog.
+func (c *CodexResponseLogClient) Delete() *CodexResponseLogDelete {
+	mutation := newCodexResponseLogMutation(c.config, OpDelete)
+	return &CodexResponseLogDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CodexResponseLogClient) DeleteOne(_m *CodexResponseLog) *CodexResponseLogDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CodexResponseLogClient) DeleteOneID(id int) *CodexResponseLogDeleteOne {
+	builder := c.Delete().Where(codexresponselog.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CodexResponseLogDeleteOne{builder}
+}
+
+// Query returns a query builder for CodexResponseLog.
+func (c *CodexResponseLogClient) Query() *CodexResponseLogQuery {
+	return &CodexResponseLogQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCodexResponseLog},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CodexResponseLog entity by its id.
+func (c *CodexResponseLogClient) Get(ctx context.Context, id int) (*CodexResponseLog, error) {
+	return c.Query().Where(codexresponselog.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CodexResponseLogClient) GetX(ctx context.Context, id int) *CodexResponseLog {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CodexResponseLogClient) Hooks() []Hook {
+	return c.hooks.CodexResponseLog
+}
+
+// Interceptors returns the client interceptors.
+func (c *CodexResponseLogClient) Interceptors() []Interceptor {
+	return c.inters.CodexResponseLog
+}
+
+func (c *CodexResponseLogClient) mutate(ctx context.Context, m *CodexResponseLogMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CodexResponseLogCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CodexResponseLogUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CodexResponseLogUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CodexResponseLogDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CodexResponseLog mutation op: %q", m.Op())
+	}
+}
+
 // HolidayDayClient is a client for the HolidayDay schema.
 type HolidayDayClient struct {
 	config
@@ -619,9 +762,9 @@ func (c *HolidayDayClient) mutate(ctx context.Context, m *HolidayDayMutation) (V
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		CodexAccount, CodexOAuthSession, HolidayDay []ent.Hook
+		CodexAccount, CodexOAuthSession, CodexResponseLog, HolidayDay []ent.Hook
 	}
 	inters struct {
-		CodexAccount, CodexOAuthSession, HolidayDay []ent.Interceptor
+		CodexAccount, CodexOAuthSession, CodexResponseLog, HolidayDay []ent.Interceptor
 	}
 )
