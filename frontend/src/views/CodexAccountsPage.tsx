@@ -211,9 +211,9 @@ export default defineComponent({
                     </div>
                   ),
                   default: () => (
-                    <div class="flex w-full flex-col items-start gap-3 text-left">
-                      <div class="flex w-full flex-col items-start gap-2 text-left">
-                        <p class="self-start text-left text-xs text-[var(--el-text-color-secondary)]">
+                    <div class="flex w-full flex-col items-start gap-3">
+                      <div class="flex w-full flex-col items-start gap-2">
+                        <p class="text-xs text-[var(--el-text-color-secondary)]">
                           授权链接
                         </p>
                         <div class="w-full">
@@ -249,11 +249,11 @@ export default defineComponent({
                         </div>
                       </div>
 
-                      <div class="flex flex-col items-start gap-1 text-left">
-                        <p class="self-start text-left text-xs text-[var(--el-text-color-secondary)]">
+                      <div class="flex flex-col items-start gap-1">
+                        <p class="text-xs text-[var(--el-text-color-secondary)]">
                           state：{sessionStateText.value}
                         </p>
-                        <p class="self-start text-left text-xs text-[var(--el-text-color-secondary)]">
+                        <p class="text-xs text-[var(--el-text-color-secondary)]">
                           过期时间：{sessionExpiresAtText.value}
                         </p>
                       </div>
@@ -280,7 +280,7 @@ export default defineComponent({
                     </div>
                   ),
                   default: () => (
-                    <div class="flex w-full flex-col items-start gap-2 text-left">
+                    <div class="flex w-full flex-col items-start gap-2">
                       <div class="w-full">
                         <ElInput
                           placeholder="请输入账户名称（必填）"
@@ -297,7 +297,7 @@ export default defineComponent({
                           class="w-full"
                         />
                       </div>
-                      <p class="self-start text-left text-xs text-[var(--el-text-color-secondary)]">
+                      <p class="text-xs text-[var(--el-text-color-secondary)]">
                         提示：回调地址通常打不开是正常的，复制地址栏即可。
                       </p>
                     </div>
@@ -418,7 +418,7 @@ export default defineComponent({
                 </ElForm>
               ),
               footer: () => (
-                <div class="flex items-center justify-end">
+                <div class="flex justify-end">
                   <div class="flex items-center gap-2">
                     <ElButton disabled={editLoading.value} onClick={() => closeEditDialog()}>
                       取消

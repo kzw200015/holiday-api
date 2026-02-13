@@ -3,14 +3,10 @@
 @tailwind utilities;
 
 @layer base {
-    * {
-        @apply box-border;
-    }
-
     html,
     body,
     #app {
-        @apply m-0 min-h-screen min-w-[320px];
+        @apply min-h-screen min-w-[320px];
     }
 
     body {
