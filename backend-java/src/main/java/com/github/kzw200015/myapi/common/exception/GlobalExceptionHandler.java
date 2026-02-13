@@ -1,18 +1,19 @@
 package com.github.kzw200015.myapi.common.exception;
 
+import com.github.kzw200015.myapi.codex.exception.AccountNotFoundException;
+import com.github.kzw200015.myapi.codex.exception.NoAvailableAccountException;
+import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
+import com.github.kzw200015.myapi.common.model.ApiResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.github.kzw200015.myapi.common.model.ApiResponse;
-import com.github.kzw200015.myapi.codex.exception.AccountNotFoundException;
-import com.github.kzw200015.myapi.codex.exception.NoAvailableAccountException;
-import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
-
 /**
  * 全局异常处理：统一将异常转换为 {code, data, msg}。
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     @ExceptionHandler(AccountNotFoundException.class)
@@ -32,6 +33,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleException(Exception ex) {
+        log.error("全局异常处理：{}", ex.getMessage(), ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
     }
 

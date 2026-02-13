@@ -1,12 +1,12 @@
 package com.github.kzw200015.myapi.codex.service;
 
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
-
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 
 /**
  * 处理普通 HTTP（非 SSE）转发。
@@ -17,7 +17,7 @@ public class CodexHttpProxyForwardService extends AbstractCodexProxyForwardServi
         super(jsonMapper);
     }
 
-    public HttpForwardResult forward(byte[] body, HttpHeaders headers) throws Exception {
+    public HttpForwardResult forward(JsonNode body, HttpHeaders headers) {
         HttpRequest request = buildUpstreamRequest(body, headers).build();
         HttpResponse<byte[]> upstream = sendUpstream(request, HttpResponse.BodyHandlers.ofByteArray());
 

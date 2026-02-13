@@ -10,6 +10,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import jakarta.annotation.PreDestroy;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -17,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -24,11 +30,24 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Service
 public class CodexSseProxyForwardService extends AbstractCodexProxyForwardService {
+    private static final AtomicInteger THREAD_COUNTER = new AtomicInteger(1);
+    private final ExecutorService sseForwardExecutor = Executors.newCachedThreadPool(runnable -> {
+        Thread thread = new Thread(runnable);
+        thread.setName("codex-sse-forward-" + THREAD_COUNTER.getAndIncrement());
+        thread.setDaemon(true);
+        return thread;
+    });
+
     public CodexSseProxyForwardService(JsonMapper jsonMapper) {
         super(jsonMapper);
     }
 
-    public SseForwardResult forward(byte[] body, HttpHeaders headers) throws Exception {
+    @PreDestroy
+    private void shutdownExecutor() {
+        sseForwardExecutor.shutdown();
+    }
+
+    public SseForwardResult forward(JsonNode body, HttpHeaders headers) throws Exception {
         HttpRequest request = buildUpstreamRequest(body, headers)
             .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
             .build();
@@ -39,7 +58,10 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
         }
 
         SseEmitter emitter = new SseEmitter(0L);
-        CompletableFuture<TokenUsage> usageFuture = CompletableFuture.supplyAsync(() -> streamToEmitter(upstream.body(), emitter));
+        CompletableFuture<TokenUsage> usageFuture = CompletableFuture.supplyAsync(
+            () -> streamToEmitter(upstream.body(), emitter),
+            sseForwardExecutor
+        );
         return new SseForwardResult(emitter, usageFuture);
     }
 
@@ -47,8 +69,12 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
         TokenUsageHolder usageHolder = new TokenUsageHolder();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(upstreamBody, StandardCharsets.UTF_8))) {
             List<String> dataLines = new ArrayList<>();
+            String eventName = "";
             String line;
             while ((line = reader.readLine()) != null) {
+                if (line.startsWith("event:")) {
+                    eventName = line.substring("event:".length()).trim();
+                }
                 if (line.startsWith("data:")) {
                     dataLines.add(line.substring("data:".length()).trim());
                 }
@@ -57,19 +83,29 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
                 }
 
                 if (dataLines.isEmpty()) {
+                    eventName = "";
                     continue;
                 }
 
                 String data = String.join("\n", dataLines);
                 updateUsageFromSseEventData(data, usageHolder);
-                emitter.send(SseEmitter.event().data(data));
+                SseEmitter.SseEventBuilder event = SseEmitter.event().data(data);
+                if (!eventName.isBlank()) {
+                    event.name(eventName);
+                }
+                emitter.send(event);
                 dataLines.clear();
+                eventName = "";
             }
 
             if (!dataLines.isEmpty()) {
                 String data = String.join("\n", dataLines);
                 updateUsageFromSseEventData(data, usageHolder);
-                emitter.send(SseEmitter.event().data(data));
+                SseEmitter.SseEventBuilder event = SseEmitter.event().data(data);
+                if (!eventName.isBlank()) {
+                    event.name(eventName);
+                }
+                emitter.send(event);
             }
 
             emitter.complete();

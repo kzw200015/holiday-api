@@ -1,30 +1,27 @@
 package com.github.kzw200015.myapi.codex.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.github.kzw200015.myapi.codex.exception.NoAvailableAccountException;
+import com.github.kzw200015.myapi.codex.model.CallLog;
+import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
+import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
+import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
-
-import jakarta.servlet.http.HttpServletRequest;
-
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
-
-import com.github.kzw200015.myapi.codex.model.CallLog;
-import com.github.kzw200015.myapi.codex.exception.NoAvailableAccountException;
-import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
-import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.node.ObjectNode;
 
 /**
  * /api/responses 反向代理：按粘性会话 + 轮询选择账号，转发到上游 Codex responses。
@@ -34,7 +31,7 @@ import tools.jackson.databind.node.ObjectNode;
 @RequiredArgsConstructor
 public class CodexProxyService {
     private static final String CODEX_HEADER_INSTRUCTIONS_TEXT_URL =
-        "https://raw.githubusercontent.com/anomalyco/opencode/refs/heads/dev/packages/opencode/src/session/prompt/codex_header.txt";
+            "https://raw.githubusercontent.com/anomalyco/opencode/refs/heads/dev/packages/opencode/src/session/prompt/codex_header.txt";
 
     private static final Duration DEFAULT_STICKY_TTL = Duration.ofHours(1);
 
@@ -48,70 +45,79 @@ public class CodexProxyService {
     private static final String HEADER_AUTHORIZATION = "Authorization";
 
     private static final List<String> UPSTREAM_HEADER_WHITELIST = List.of(
-        HEADER_X_CODEX_BETA_FEATURES,
-        HEADER_X_OAI_WEB_SEARCH_ELIGIBLE,
-        HEADER_SESSION_ID,
-        HEADER_CONVERSATION_ID,
-        HEADER_USER_AGENT,
-        HEADER_ORIGINATOR
+            HEADER_X_CODEX_BETA_FEATURES,
+            HEADER_X_OAI_WEB_SEARCH_ELIGIBLE,
+            HEADER_SESSION_ID,
+            HEADER_CONVERSATION_ID,
+            HEADER_USER_AGENT,
+            HEADER_ORIGINATOR
     );
 
     private final CodexAccountMapper codexAccountMapper;
-    private final JsonMapper jsonMapper;
     private final CodexHttpProxyForwardService codexHttpProxyForwardService;
     private final CodexSseProxyForwardService codexSseProxyForwardService;
     private final ResponseLogService responseLogService;
     private final StickySessionService stickySessionService = new StickySessionService(DEFAULT_STICKY_TTL);
     private final AtomicLong rrCounter = new AtomicLong(0);
-    private final String defaultInstructions = fetchText(CODEX_HEADER_INSTRUCTIONS_TEXT_URL);
+    private String defaultInstructions = "";
 
-    public Object proxyResponses(HttpServletRequest request, byte[] rawBody) throws Exception {
+    @PostConstruct
+    private void initializeDefaultInstructions() {
+        try {
+            RestClient restClient = RestClient.create();
+            defaultInstructions = restClient.get().uri(CODEX_HEADER_INSTRUCTIONS_TEXT_URL).retrieve().body(String.class);
+        } catch (Exception ex) {
+            log.warn("初始化 instructions 失败: {}", ex.getMessage());
+        }
+    }
+
+    public Object proxyResponses(HttpServletRequest request, JsonNode bodyJson) throws Exception {
         long startAt = System.currentTimeMillis();
 
         String clientIp = request.getRemoteAddr() == null ? "" : request.getRemoteAddr();
         String userAgent = trim(request.getHeader(HEADER_USER_AGENT));
 
-        JsonNode bodyJson = jsonMapper.readTree(rawBody);
+        JsonNode streamNode = bodyJson.get("stream");
+        boolean stream = streamNode != null && streamNode.asBoolean(false);
+        JsonNode promptCacheKeyNode = bodyJson.get("prompt_cache_key");
+        String promptCacheKey = promptCacheKeyNode == null ? "" : promptCacheKeyNode.asString();
 
-        boolean stream = readBoolean(bodyJson, "stream");
-        String promptCacheKey = readText(bodyJson, "prompt_cache_key");
-
-        ObjectNode updated = (ObjectNode) bodyJson.deepCopy();
-        if (readText(updated, "instructions").isBlank()) {
+        ObjectNode updated = (ObjectNode) bodyJson;
+        JsonNode instructionsNode = updated.get("instructions");
+        if (instructionsNode == null || instructionsNode.asString().isBlank()) {
             updated.put("instructions", defaultInstructions);
         }
         updated.remove("max_output_tokens");
-        byte[] bodyBytes = jsonMapper.writeValueAsBytes(updated);
 
         String stickyKey = stickySessionService.extractKey(request, promptCacheKey);
         CodexAccountEntity account = selectAccount(stickyKey);
 
         HttpHeaders upstreamHeaders = buildUpstreamHeaders(request, account);
         if (stream) {
-            SseForwardResult forwardResult = codexSseProxyForwardService.forward(bodyBytes, upstreamHeaders);
+            SseForwardResult forwardResult = codexSseProxyForwardService.forward(updated, upstreamHeaders);
             CompletableFuture<CallLog> callLogFuture = forwardResult.usageFuture().thenApply(usage ->
-                buildCallLog(usage, stream, startAt, userAgent, clientIp, account)
+                    buildCallLog(usage, true, startAt, userAgent, clientIp, account)
             );
             writeCallLogAsync(callLogFuture);
             return forwardResult.emitter();
         }
 
-        HttpForwardResult forwardResult = codexHttpProxyForwardService.forward(bodyBytes, upstreamHeaders);
-        CallLog callLog = buildCallLog(forwardResult.usage(), stream, startAt, userAgent, clientIp, account);
+        HttpForwardResult forwardResult = codexHttpProxyForwardService.forward(updated, upstreamHeaders);
+        CallLog callLog = buildCallLog(forwardResult.usage(), false, startAt, userAgent, clientIp, account);
         ResponseEntity<byte[]> response = ResponseEntity
-            .status(forwardResult.statusCode())
-            .body(forwardResult.responseBody());
+                .status(forwardResult.statusCode())
+                .body(forwardResult.responseBody());
         writeCallLogAsync(CompletableFuture.completedFuture(callLog));
         return response;
     }
 
     private CallLog buildCallLog(
-        TokenUsage usage,
-        boolean stream,
-        long startAt,
-        String userAgent,
-        String clientIp,
-        CodexAccountEntity account
+            TokenUsage usage,
+            boolean stream,
+            long startAt,
+            String userAgent,
+            String clientIp,
+            CodexAccountEntity account
     ) {
         double cacheRate = 0.0;
         if (usage.inputTokens() > 0) {
@@ -119,28 +125,17 @@ public class CodexProxyService {
         }
 
         return new CallLog(
-            userAgent,
-            clientIp,
-            usage.inputTokens(),
-            usage.cachedInputTokens(),
-            usage.outputTokens(),
-            cacheRate,
-            (int) (System.currentTimeMillis() - startAt),
-            account.getAccountId(),
-            account.getName(),
-            stream
+                userAgent,
+                clientIp,
+                usage.inputTokens(),
+                usage.cachedInputTokens(),
+                usage.outputTokens(),
+                cacheRate,
+                (int) (System.currentTimeMillis() - startAt),
+                account.getAccountId(),
+                account.getName(),
+                stream
         );
-    }
-
-    private String fetchText(String url) {
-        try {
-            RestClient restClient = RestClient.create();
-            return restClient.get().uri(url).retrieve().body(String.class);
-        } catch (RestClientResponseException ex) {
-            throw new IllegalStateException("initialize proxy service failed", ex);
-        } catch (Exception ex) {
-            throw new IllegalStateException("initialize proxy service failed", ex);
-        }
     }
 
     private HttpHeaders buildUpstreamHeaders(HttpServletRequest request, CodexAccountEntity account) {
@@ -161,9 +156,9 @@ public class CodexProxyService {
 
     private CodexAccountEntity selectAccount(String stickyKey) {
         List<CodexAccountEntity> accounts = codexAccountMapper.selectList(
-            new QueryWrapper<CodexAccountEntity>()
-                .gt("expires_at", OffsetDateTime.now())
-                .orderByAsc("created_at")
+                new QueryWrapper<CodexAccountEntity>()
+                        .gt("expires_at", OffsetDateTime.now())
+                        .orderByAsc("created_at")
         );
         if (accounts.isEmpty()) {
             throw new NoAvailableAccountException();
@@ -191,22 +186,6 @@ public class CodexProxyService {
 
     private static String trim(String raw) {
         return raw == null ? "" : raw.trim();
-    }
-
-    private boolean readBoolean(JsonNode node, String fieldName) {
-        JsonNode fieldNode = node.get(fieldName);
-        if (fieldNode == null) {
-            return false;
-        }
-        return fieldNode.asBoolean(false);
-    }
-
-    private String readText(JsonNode node, String fieldName) {
-        JsonNode fieldNode = node.get(fieldName);
-        if (fieldNode == null) {
-            return "";
-        }
-        return fieldNode.asString();
     }
 
     private void writeCallLogAsync(CompletableFuture<CallLog> callLogFuture) {

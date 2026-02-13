@@ -1,16 +1,15 @@
 package com.github.kzw200015.myapi.codex.service;
 
+import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
+import org.springframework.http.HttpHeaders;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-
-import org.springframework.http.HttpHeaders;
-
-import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Codex 上游转发的公共父类，封装请求构建与 token usage 解析逻辑。
@@ -24,11 +23,10 @@ public abstract class AbstractCodexProxyForwardService {
         this.jsonMapper = jsonMapper;
     }
 
-    protected HttpRequest.Builder buildUpstreamRequest(byte[] body, HttpHeaders headers) {
+    protected HttpRequest.Builder buildUpstreamRequest(JsonNode body, HttpHeaders headers) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
-            .uri(URI.create(CODEX_RESPONSES_URL))
-            .timeout(Duration.ZERO)
-            .POST(HttpRequest.BodyPublishers.ofByteArray(body));
+                .uri(URI.create(CODEX_RESPONSES_URL))
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString()));
         headers.forEach((key, values) -> values.forEach(value -> builder.header(key, value)));
         return builder;
     }
@@ -72,9 +70,9 @@ public abstract class AbstractCodexProxyForwardService {
 
     private TokenUsage toTokenUsage(JsonNode usageNode) {
         return new TokenUsage(
-            usageNode.path("input_tokens").asInt(0),
-            usageNode.path("input_tokens_details").path("cached_tokens").asInt(0),
-            usageNode.path("output_tokens").asInt(0)
+                usageNode.path("input_tokens").asInt(0),
+                usageNode.path("input_tokens_details").path("cached_tokens").asInt(0),
+                usageNode.path("output_tokens").asInt(0)
         );
     }
 }
