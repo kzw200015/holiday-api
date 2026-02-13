@@ -20,7 +20,7 @@ import com.github.kzw200015.myapi.common.model.PaginatedResult;
 import com.github.kzw200015.myapi.codex.model.Account;
 import com.github.kzw200015.myapi.codex.model.CodexResponseLogItem;
 import com.github.kzw200015.myapi.codex.model.OAuthSessionInfo;
-import com.github.kzw200015.myapi.codex.service.CodexService;
+import com.github.kzw200015.myapi.codex.service.CodexAccountService;
 import com.github.kzw200015.myapi.codex.model.UpdateAccountRequest;
 import com.github.kzw200015.myapi.codex.service.ResponseLogService;
 import lombok.RequiredArgsConstructor;
@@ -30,37 +30,37 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Validated
 public class CodexController {
-    private final CodexService codexService;
+    private final CodexAccountService codexAccountService;
     private final ResponseLogService responseLogService;
 
     @PostMapping("/oauth/session")
-    public ApiResponse<OAuthSessionInfo> createOAuthSession() {
-        return ApiResponse.ok(codexService.createOAuthSession());
+    public ApiResponse<OAuthSessionInfo> createCodexOAuthSession() {
+        return ApiResponse.ok(codexAccountService.createOAuthSession());
     }
 
     @PostMapping("/oauth/complete")
-    public ApiResponse<Account> completeOAuth(@RequestBody @NotNull @Valid CompleteOAuthRequest request) {
-        return ApiResponse.ok(codexService.completeOAuth(request.name(), request.redirectUrl()));
+    public ApiResponse<Account> completeCodexOAuth(@RequestBody @NotNull @Valid CompleteOAuthRequest request) {
+        return ApiResponse.ok(codexAccountService.completeOAuth(request.name(), request.redirectUrl()));
     }
 
     @GetMapping("/accounts")
-    public ApiResponse<PaginatedResult<Account>> listAccounts(
+    public ApiResponse<PaginatedResult<Account>> listCodexAccounts(
         @RequestParam(defaultValue = "1") @Min(1) int page,
         @RequestParam(defaultValue = "10") @Min(1) @Max(200) int pageSize
     ) {
-        return ApiResponse.ok(codexService.listAccountsPage(page, pageSize));
+        return ApiResponse.ok(codexAccountService.listAccountsPage(page, pageSize));
     }
 
     @PutMapping("/accounts/{accountId}")
-    public ApiResponse<Account> updateAccount(
+    public ApiResponse<Account> updateCodexAccount(
         @PathVariable("accountId") @NotBlank String accountId,
         @RequestBody @NotNull @Valid UpdateAccountRequest request
     ) {
-        return ApiResponse.ok(codexService.updateAccount(accountId, request));
+        return ApiResponse.ok(codexAccountService.updateAccount(accountId, request));
     }
 
     @GetMapping("/response-logs")
-    public ApiResponse<PaginatedResult<CodexResponseLogItem>> listResponseLogs(
+    public ApiResponse<PaginatedResult<CodexResponseLogItem>> listCodexResponseLogs(
         @RequestParam(defaultValue = "1") @Min(1) int page,
         @RequestParam(defaultValue = "20") @Min(1) @Max(200) int pageSize
     ) {

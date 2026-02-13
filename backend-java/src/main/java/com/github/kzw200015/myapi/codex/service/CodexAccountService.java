@@ -39,7 +39,7 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
-public class CodexService {
+public class CodexAccountService {
     private static final Duration OAUTH_SESSION_TTL = Duration.ofMinutes(10);
 
     private static final String OPENAI_AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize";
