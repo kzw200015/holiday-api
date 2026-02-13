@@ -95,7 +95,10 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
             emitter.complete();
         } catch (IOException ex) {
             log.warn("SSE 流写入失败: {}", ex.getMessage());
-            emitter.complete();
+            try {
+                emitter.complete();
+            } catch (Throwable ignored) {
+            }
         } catch (Exception ex) {
             emitter.completeWithError(ex);
         }
