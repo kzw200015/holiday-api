@@ -215,16 +215,19 @@ export default defineComponent({
                     </ElRow>
                   ),
                   default: () => (
-                    <ElSpace direction="vertical" size={12} fill>
-                      <ElSpace direction="vertical" size={8} fill>
+                    <ElSpace direction="vertical" size={12} fill class="w-full">
+                      <ElSpace direction="vertical" size={8} fill class="w-full">
                         <ElText size="small" class="text-[var(--el-text-color-secondary)]">
                           授权链接
                         </ElText>
-                        <ElInput
-                          modelValue={sessionLinkText.value}
-                          readonly
-                          placeholder="点击右上角获取链接"
-                        />
+                        <div class="w-full">
+                          <ElInput
+                            modelValue={sessionLinkText.value}
+                            readonly
+                            placeholder="点击右上角获取链接"
+                            class="w-full"
+                          />
+                        </div>
                         <ElSpace wrap alignment="center" size={8}>
                           <ElButton
                             icon={DocumentCopy}
@@ -281,17 +284,23 @@ export default defineComponent({
                     </ElRow>
                   ),
                   default: () => (
-                    <ElSpace direction="vertical" size={8} fill>
-                      <ElInput
-                        placeholder="请输入账户名称（必填）"
-                        v-model={accountName.value}
-                      />
-                      <ElInput
-                        type="textarea"
-                        autosize={{ minRows: 3, maxRows: 6 }}
-                        placeholder="粘贴 http://localhost:1455/auth/callback?..."
-                        v-model={callbackUrl.value}
-                      />
+                    <ElSpace direction="vertical" size={8} fill class="w-full">
+                      <div class="w-full">
+                        <ElInput
+                          placeholder="请输入账户名称（必填）"
+                          v-model={accountName.value}
+                          class="w-full"
+                        />
+                      </div>
+                      <div class="w-full">
+                        <ElInput
+                          type="textarea"
+                          autosize={{ minRows: 3, maxRows: 6 }}
+                          placeholder="粘贴 http://localhost:1455/auth/callback?..."
+                          v-model={callbackUrl.value}
+                          class="w-full"
+                        />
+                      </div>
                       <ElText size="small" class="text-[var(--el-text-color-secondary)]">
                         提示：回调地址通常打不开是正常的，复制地址栏即可。
                       </ElText>
