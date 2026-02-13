@@ -10,6 +10,7 @@ import (
 	"myapi/internal/ent"
 	"myapi/internal/holiday"
 	"myapi/internal/httpapi"
+	"myapi/internal/logging"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
@@ -36,6 +37,8 @@ func openDatabaseClient(ctx context.Context) (*ent.Client, error) {
 
 // main 负责组装服务依赖并启动 HTTP 服务。
 func main() {
+	logging.InitSlog()
+
 	client, err := openDatabaseClient(context.Background())
 	if err != nil {
 		panic(err)
@@ -54,7 +57,8 @@ func main() {
 	}
 	codexLogService := codexproxy.NewLogService(client)
 
-	router := gin.Default()
+	router := gin.New()
+	router.Use(logging.GinLogger(), gin.Recovery())
 	httpapi.NewHolidayHandler(service).Register(router)
 	httpapi.NewCodexHandler(codexService, codexProxyService, codexLogService).Register(router)
 	httpapi.RegisterFrontend(router)
