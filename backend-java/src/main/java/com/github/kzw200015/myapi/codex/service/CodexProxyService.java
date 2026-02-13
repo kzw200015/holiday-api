@@ -1,26 +1,15 @@
 package com.github.kzw200015.myapi.codex.service;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -30,7 +19,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.kzw200015.myapi.codex.model.CallLog;
 import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.NoAvailableAccountException;
-import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.UpstreamRequestFailedException;
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -42,7 +30,6 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class CodexProxyService {
-    private static final String CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses";
     private static final String CODEX_HEADER_INSTRUCTIONS_TEXT_URL =
         "https://raw.githubusercontent.com/anomalyco/opencode/refs/heads/dev/packages/opencode/src/session/prompt/codex_header.txt";
 
@@ -68,9 +55,10 @@ public class CodexProxyService {
 
     private final CodexAccountMapper codexAccountMapper;
     private final ObjectMapper objectMapper;
+    private final CodexHttpProxyForwardService codexHttpProxyForwardService;
+    private final CodexSseProxyForwardService codexSseProxyForwardService;
     private final StickySessionService stickySessionService = new StickySessionService(DEFAULT_STICKY_TTL);
     private final AtomicLong rrCounter = new AtomicLong(0);
-    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final String defaultInstructions = fetchText(CODEX_HEADER_INSTRUCTIONS_TEXT_URL);
 
     public CallLog proxyResponses(HttpServletRequest request, HttpServletResponse response, byte[] rawBody) throws Exception {
@@ -99,12 +87,12 @@ public class CodexProxyService {
         String stickyKey = stickySessionService.extractKey(request, promptCacheKey);
         CodexAccountEntity account = selectAccount(stickyKey);
 
-        TokenUsage usage;
+        AbstractCodexProxyForwardService.TokenUsage usage;
         HttpHeaders upstreamHeaders = buildUpstreamHeaders(request, account);
         if (stream) {
-            usage = forwardSse(response, bodyBytes, upstreamHeaders);
+            usage = codexSseProxyForwardService.forward(response, bodyBytes, upstreamHeaders);
         } else {
-            usage = forwardHttp(response, bodyBytes, upstreamHeaders);
+            usage = codexHttpProxyForwardService.forward(response, bodyBytes, upstreamHeaders);
         }
 
         double cacheRate = 0.0;
@@ -183,142 +171,7 @@ public class CodexProxyService {
         return selected;
     }
 
-    private TokenUsage forwardHttp(HttpServletResponse response, byte[] body, HttpHeaders headers) throws Exception {
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-            .uri(URI.create(CODEX_RESPONSES_URL))
-            .timeout(Duration.ZERO)
-            .POST(HttpRequest.BodyPublishers.ofByteArray(body));
-        headers.forEach((k, v) -> v.forEach(val -> builder.header(k, val)));
-
-        HttpResponse<byte[]> upstream;
-        try {
-            upstream = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
-        } catch (Exception ex) {
-            throw new UpstreamRequestFailedException(ex);
-        }
-
-        byte[] responseBody = upstream.body();
-        TokenUsage usage = parseUsageFromResponseBody(responseBody);
-
-        response.setStatus(upstream.statusCode());
-        response.getOutputStream().write(responseBody);
-        return usage;
-    }
-
-    private TokenUsage forwardSse(HttpServletResponse response, byte[] body, HttpHeaders headers) throws Exception {
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-            .uri(URI.create(CODEX_RESPONSES_URL))
-            .timeout(Duration.ZERO)
-            .POST(HttpRequest.BodyPublishers.ofByteArray(body))
-            .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE);
-        headers.forEach((k, v) -> v.forEach(val -> builder.header(k, val)));
-
-        HttpResponse<InputStream> upstream;
-        try {
-            upstream = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
-        } catch (Exception ex) {
-            throw new UpstreamRequestFailedException(ex);
-        }
-
-        if (upstream.statusCode() != 200) {
-            throw new UpstreamRequestFailedException("upstream request failed: status=" + upstream.statusCode(), null);
-        }
-
-        response.setStatus(200);
-        response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
-
-        TokenUsage usage = new TokenUsage(0, 0, 0);
-        TokenUsageHolder usageHolder = new TokenUsageHolder();
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(upstream.body(), StandardCharsets.UTF_8))) {
-            ServletOutputStream out = response.getOutputStream();
-            List<String> dataLines = new ArrayList<>();
-
-            String line;
-            while ((line = reader.readLine()) != null) {
-                out.print(line);
-                out.print("\n");
-
-                if (line.startsWith("data:")) {
-                    dataLines.add(line.substring("data:".length()).trim());
-                }
-                if (line.isBlank()) {
-                    if (!dataLines.isEmpty()) {
-                        String data = String.join("\n", dataLines);
-                        updateUsageFromSseEventData(data, usageHolder);
-                        dataLines.clear();
-                    }
-                    out.flush();
-                }
-            }
-            out.flush();
-        }
-
-        return usageHolder.toUsage();
-    }
-
-    private TokenUsage parseUsageFromResponseBody(byte[] bodyBytes) {
-        try {
-            JsonNode node = objectMapper.readTree(bodyBytes);
-            return new TokenUsage(
-                node.path("usage").path("input_tokens").asInt(0),
-                node.path("usage").path("input_tokens_details").path("cached_tokens").asInt(0),
-                node.path("usage").path("output_tokens").asInt(0)
-            );
-        } catch (Exception ex) {
-            return new TokenUsage(0, 0, 0);
-        }
-    }
-
-    private void updateUsageFromSseEventData(String rawJson, TokenUsageHolder holder) {
-        if (rawJson == null || rawJson.isBlank()) {
-            return;
-        }
-        try {
-            JsonNode node = objectMapper.readTree(rawJson);
-            int responseInputTokens = node.path("response").path("usage").path("input_tokens").asInt(0);
-            int responseOutputTokens = node.path("response").path("usage").path("output_tokens").asInt(0);
-            if (responseInputTokens > 0 || responseOutputTokens > 0) {
-                holder.set(
-                    responseInputTokens,
-                    node.path("response").path("usage").path("input_tokens_details").path("cached_tokens").asInt(0),
-                    responseOutputTokens
-                );
-                return;
-            }
-
-            int inputTokens = node.path("usage").path("input_tokens").asInt(0);
-            int outputTokens = node.path("usage").path("output_tokens").asInt(0);
-            if (inputTokens > 0 || outputTokens > 0) {
-                holder.set(
-                    inputTokens,
-                    node.path("usage").path("input_tokens_details").path("cached_tokens").asInt(0),
-                    outputTokens
-                );
-            }
-        } catch (Exception ignored) {
-        }
-    }
-
     private static String trim(String raw) {
         return raw == null ? "" : raw.trim();
-    }
-
-    private record TokenUsage(int inputTokens, int cachedInputTokens, int outputTokens) {}
-
-    private static class TokenUsageHolder {
-        private int inputTokens;
-        private int cachedInputTokens;
-        private int outputTokens;
-
-        void set(int inputTokens, int cachedInputTokens, int outputTokens) {
-            this.inputTokens = inputTokens;
-            this.cachedInputTokens = cachedInputTokens;
-            this.outputTokens = outputTokens;
-        }
-
-        TokenUsage toUsage() {
-            return new TokenUsage(inputTokens, cachedInputTokens, outputTokens);
-        }
     }
 }
