@@ -1,5 +1,7 @@
 package com.github.kzw200015.myapi.codex.model;
 
+import org.jspecify.annotations.NonNull;
+
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -11,21 +13,7 @@ import java.util.Map;
  */
 public record OAuthCallback(String code, String state, String error, String errorDescription) {
     public static OAuthCallback parse(String input) {
-        String trimmed = input == null ? "" : input.trim();
-        if (trimmed.isBlank()) {
-            throw new IllegalArgumentException("回调地址不能为空");
-        }
-
-        String candidate = trimmed;
-        if (!candidate.contains("://")) {
-            if (candidate.startsWith("?")) {
-                candidate = "http://localhost" + candidate;
-            } else if (candidate.contains("=")) {
-                candidate = "http://localhost/?" + candidate;
-            } else {
-                throw new IllegalArgumentException("回调地址格式错误");
-            }
-        }
+        final String candidate = getCandidate(input);
 
         URI uri = URI.create(candidate);
 
@@ -61,6 +49,25 @@ public record OAuthCallback(String code, String state, String error, String erro
         }
 
         return new OAuthCallback(code, state, err, errDesc);
+    }
+
+    private static @NonNull String getCandidate(String input) {
+        String trimmed = input == null ? "" : input.trim();
+        if (trimmed.isBlank()) {
+            throw new IllegalArgumentException("回调地址不能为空");
+        }
+
+        String candidate = trimmed;
+        if (!candidate.contains("://")) {
+            if (candidate.startsWith("?")) {
+                candidate = "http://localhost" + candidate;
+            } else if (candidate.contains("=")) {
+                candidate = "http://localhost/?" + candidate;
+            } else {
+                throw new IllegalArgumentException("回调地址格式错误");
+            }
+        }
+        return candidate;
     }
 
     private static Map<String, String> parseQuery(String raw) {

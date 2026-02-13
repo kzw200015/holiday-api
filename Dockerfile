@@ -8,7 +8,7 @@ RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
 RUN pnpm build
 
-FROM golang:1.24-alpine AS backend-builder
+FROM eclipse-temurin:21-jdk-alpine AS backend-builder
 
 WORKDIR /workspace/backend
 COPY backend-java/gradlew backend-java/settings.gradle backend-java/build.gradle ./
@@ -17,7 +17,7 @@ COPY backend-java/gradle ./gradle
 COPY backend-java/src ./src
 COPY --from=frontend-builder /workspace/frontend/dist ./src/main/resources/static
 
-RUN ./gradlew bootJar --no-daemon
+RUN --mount=type=cache,id=gradle-repo,target=/root/.gradle ./gradlew bootJar --no-daemon
 
 FROM eclipse-temurin:21-jre
 
