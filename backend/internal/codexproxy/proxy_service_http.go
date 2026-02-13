@@ -38,13 +38,12 @@ func (s *ProxyService) forwardHTTP(c *gin.Context, body []byte, headers http.Hea
 	parsedUsage := parseUsageFromResponseBody(responseBody)
 	usage = parsedUsage
 
-	writeHTTPResponse(c, upstreamResp.StatusCode, upstreamResp.Header, responseBody)
+	writeHTTPResponse(c, upstreamResp.StatusCode, responseBody)
 	return usage, nil
 }
 
-// writeHTTPResponse 按上游响应状态与头部写回下游。
-func writeHTTPResponse(c *gin.Context, statusCode int, headers http.Header, body []byte) {
-	copyResponseHeaders(c.Writer.Header(), headers)
+// writeHTTPResponse 按上游响应状态写回下游。
+func writeHTTPResponse(c *gin.Context, statusCode int, body []byte) {
 	c.Status(statusCode)
 	_, _ = c.Writer.Write(body)
 }

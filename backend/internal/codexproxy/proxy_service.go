@@ -24,11 +24,27 @@ const (
 	codexResponsesURL              = "https://chatgpt.com/backend-api/codex/responses"
 	codexHeaderInstructionsTextURL = "https://raw.githubusercontent.com/anomalyco/opencode/refs/heads/dev/packages/opencode/src/session/prompt/codex_header.txt"
 	defaultStickyTTL               = time.Hour
+	headerXCodexBetaFeatures       = "x-codex-beta-features"
+	headerXOAIWebSearchEligible    = "x-oai-web-search-eligible"
+	headerSessionID                = "session_id"
+	headerConversationID           = "conversation_id"
+	headerOriginator               = "originator"
+	headerChatGPTAccountID         = "ChatGPT-Account-Id"
+	headerUserAgent                = "User-Agent"
+	headerAuthorization            = "Authorization"
 )
 
 var (
-	ErrNoAvailableAccount  = errors.New("no available codex account")
-	ErrUpstreamRequestFail = errors.New("upstream request failed")
+	ErrNoAvailableAccount   = errors.New("no available codex account")
+	ErrUpstreamRequestFail  = errors.New("upstream request failed")
+	upstreamHeaderWhitelist = []string{
+		headerXCodexBetaFeatures,
+		headerXOAIWebSearchEligible,
+		headerSessionID,
+		headerConversationID,
+		headerUserAgent,
+		headerOriginator,
+	}
 )
 
 type tokenUsage struct {
@@ -176,27 +192,16 @@ func fetchText(url string) (string, error) {
 
 // buildUpstreamHeaders 构建转发到上游 Codex 的请求头。
 func buildUpstreamHeaders(incomingHeaders http.Header, account *ent.CodexAccount) http.Header {
-	headers := incomingHeaders.Clone()
-	if headers == nil {
-		headers = make(http.Header)
-	}
-	headers.Set("authorization", "Bearer "+account.Token)
-	headers.Set("chatgpt-account-id", account.AccountID)
-	return headers
-}
-
-// copyResponseHeaders 将上游响应头复制到下游并过滤冲突字段。
-func copyResponseHeaders(dst http.Header, src http.Header) {
-	for key, values := range src {
-		lowerKey := strings.ToLower(key)
-		if lowerKey == "transfer-encoding" {
-			continue
-		}
-		dst.Del(key)
+	headers := make(http.Header, len(upstreamHeaderWhitelist)+2)
+	for _, headerKey := range upstreamHeaderWhitelist {
+		values := incomingHeaders.Values(headerKey)
 		for _, value := range values {
-			dst.Add(key, value)
+			headers.Add(headerKey, value)
 		}
 	}
+	headers.Set(headerAuthorization, "Bearer "+account.Token)
+	headers.Set(headerChatGPTAccountID, account.AccountID)
+	return headers
 }
 
 // selectAccount 依据粘滞策略与轮询选择可用账户。

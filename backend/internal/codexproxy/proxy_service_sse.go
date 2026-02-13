@@ -23,19 +23,19 @@ func (s *ProxyService) forwardSSE(c *gin.Context, body []byte, headers http.Head
 		SetURL(codexResponsesURL).
 		SetMethod(resty.MethodPost).
 		SetBody(bytes.NewReader(body)).
-		SetMaxBufSize(1024 * 1024)
+		SetMaxBufSize(1024 * 1024).SetRetryCount(3)
 	for key, values := range headers {
 		for _, value := range values {
 			es.AddHeader(key, value)
 		}
 	}
 
-	headerChan := make(chan http.Header, 1)
+	headerChan := make(chan struct{}, 1)
 	messageChan := make(chan sseMessage, 16)
 	usage := tokenUsage{}
 
-	es.OnOpen(func(_ string, responseHeaders http.Header) {
-		headerChan <- responseHeaders.Clone()
+	es.OnOpen(func(_ string, _ http.Header) {
+		headerChan <- struct{}{}
 	})
 
 	es.OnMessage(func(eventAny any) {
@@ -67,8 +67,7 @@ func (s *ProxyService) forwardSSE(c *gin.Context, body []byte, headers http.Head
 	}()
 
 	select {
-	case responseHeaders := <-headerChan:
-		copyResponseHeaders(c.Writer.Header(), responseHeaders)
+	case <-headerChan:
 		c.Status(http.StatusOK)
 		for msg := range messageChan {
 			updateUsageFromSSEEventData(msg.data, &usage)
