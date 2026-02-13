@@ -16,7 +16,6 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Enumeration;
 import java.util.List;
@@ -32,8 +31,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class CodexProxyService {
     private static final String CODEX_HEADER_INSTRUCTIONS_TEXT_URL =
             "https://raw.githubusercontent.com/anomalyco/opencode/refs/heads/dev/packages/opencode/src/session/prompt/codex_header.txt";
-
-    private static final Duration DEFAULT_STICKY_TTL = Duration.ofHours(1);
 
     private static final String HEADER_X_CODEX_BETA_FEATURES = "x-codex-beta-features";
     private static final String HEADER_X_OAI_WEB_SEARCH_ELIGIBLE = "x-oai-web-search-eligible";
@@ -56,7 +53,7 @@ public class CodexProxyService {
     private final CodexSseProxyForwardService codexSseProxyForwardService;
     private final ResponseLogService responseLogService;
     private final RestClient restClient;
-    private final StickySessionService stickySessionService = new StickySessionService(DEFAULT_STICKY_TTL);
+    private final StickySessionService stickySessionService;
     private final AtomicLong roundRobinCounter = new AtomicLong(0);
     private String defaultInstructions = "";
 
