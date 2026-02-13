@@ -96,7 +96,7 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 	usage := tokenUsage{}
 	upstreamHeaders := buildUpstreamHeaders(c.Request.Header, account)
 	if payload.Stream {
-		sseUsage, err := s.forwardSSEWithEventSource(c, body, upstreamHeaders)
+		sseUsage, err := s.forwardSSE(c, body, upstreamHeaders)
 		if err != nil {
 			return CallLog{
 				UserAgent:   userAgent,

@@ -3,11 +3,8 @@ package codexproxy
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 	resty "resty.dev/v3"
@@ -18,8 +15,8 @@ type sseMessage struct {
 	data string
 }
 
-// forwardSSEWithEventSource 使用 Resty v3 EventSource 透传 SSE 并持续更新 token 使用量。
-func (s *ProxyService) forwardSSEWithEventSource(c *gin.Context, body []byte, headers http.Header) (tokenUsage, error) {
+// forwardSSE 使用 Resty v3 EventSource 透传 SSE 并持续更新 token 使用量。
+func (s *ProxyService) forwardSSE(c *gin.Context, body []byte, headers http.Header) (tokenUsage, error) {
 	es := resty.NewEventSource().
 		SetURL(codexResponsesURL).
 		SetMethod(resty.MethodPost).
@@ -35,11 +32,8 @@ func (s *ProxyService) forwardSSEWithEventSource(c *gin.Context, body []byte, he
 	messageChan := make(chan sseMessage, 16)
 	usage := tokenUsage{}
 
-	var openOnce sync.Once
 	es.OnOpen(func(_ string, responseHeaders http.Header) {
-		openOnce.Do(func() {
-			headerChan <- responseHeaders.Clone()
-		})
+		headerChan <- responseHeaders.Clone()
 	})
 
 	es.OnMessage(func(eventAny any) {
@@ -55,48 +49,32 @@ func (s *ProxyService) forwardSSEWithEventSource(c *gin.Context, body []byte, he
 		es.Close()
 	}()
 
-	done := make(chan error, 1)
+	esErrChan := make(chan error, 1)
 	go func() {
 		defer close(messageChan)
-		defer close(headerChan)
-		done <- es.Get()
-		close(done)
+		esErrChan <- es.Get()
 	}()
 
-	opened := false
-	gotUpstreamErr := false
-	var upstreamErr error
 	select {
-	case responseHeaders, ok := <-headerChan:
-		if ok {
-			copyResponseHeaders(c.Writer.Header(), responseHeaders)
-			c.Status(http.StatusOK)
-			opened = true
-		}
-	case upstreamErr = <-done:
-		gotUpstreamErr = true
-	}
-
-	if opened {
-		c.Stream(func(w io.Writer) bool {
-			msg, ok := <-messageChan
-			if !ok {
-				return false
-			}
+	case responseHeaders := <-headerChan:
+		copyResponseHeaders(c.Writer.Header(), responseHeaders)
+		c.Status(http.StatusOK)
+		for msg := range messageChan {
 			updateUsageFromSSEEventData(msg.data, &usage)
 			c.SSEvent(msg.name, msg.data)
-			return true
-		})
+			c.Writer.Flush()
+		}
+		upstreamErr := <-esErrChan
+		if upstreamErr != nil {
+			return usage, ErrUpstreamRequestFail
+		}
+		return usage, nil
+	case upstreamErr := <-esErrChan:
+		if upstreamErr != nil {
+			return usage, ErrUpstreamRequestFail
+		}
+		return usage, nil
 	}
-
-	if !gotUpstreamErr {
-		upstreamErr = <-done
-	}
-
-	if upstreamErr != nil && !errors.Is(upstreamErr, io.EOF) && c.Request.Context().Err() == nil {
-		return usage, ErrUpstreamRequestFail
-	}
-	return usage, nil
 }
 
 // updateUsageFromSSEDataLine 从 SSE data 行里提取并更新 usage。
