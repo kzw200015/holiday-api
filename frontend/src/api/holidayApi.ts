@@ -1,4 +1,4 @@
-import { type ApiResponse, HttpClient } from "@/api/HttpClient"
+import { type ApiResponse, HttpClient } from "@/api/httpClient.ts"
 
 export type NextOffDayResult = {
     nextOffDayDate: string

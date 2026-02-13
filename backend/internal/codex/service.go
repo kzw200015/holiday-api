@@ -10,6 +10,7 @@ import (
 	"myapi/internal/ent"
 	"myapi/internal/ent/codexaccount"
 	"myapi/internal/ent/codexoauthsession"
+	"myapi/internal/pagination"
 )
 
 const (
@@ -31,14 +32,6 @@ type Account struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
-}
-
-// AccountsPage 是账户分页结果。
-type AccountsPage struct {
-	Items    []Account `json:"items"`
-	Total    int       `json:"total"`
-	Page     int       `json:"page"`
-	PageSize int       `json:"pageSize"`
 }
 
 // UpdateAccountRequest 是更新账户信息的请求结构，后续可按需扩展更多字段。
@@ -181,10 +174,10 @@ func (s *Service) CompleteOAuth(ctx context.Context, name string, redirectURL st
 	}, nil
 }
 
-func (s *Service) ListAccountsPage(ctx context.Context, page int, pageSize int) (AccountsPage, error) {
+func (s *Service) ListAccountsPage(ctx context.Context, page int, pageSize int) (pagination.PaginatedResult[Account], error) {
 	total, err := s.client.CodexAccount.Query().Count(ctx)
 	if err != nil {
-		return AccountsPage{}, fmt.Errorf("查询账户失败: %w", err)
+		return pagination.PaginatedResult[Account]{}, fmt.Errorf("查询账户失败: %w", err)
 	}
 
 	accounts, err := s.client.CodexAccount.Query().
@@ -193,7 +186,7 @@ func (s *Service) ListAccountsPage(ctx context.Context, page int, pageSize int) 
 		Limit(pageSize).
 		All(ctx)
 	if err != nil {
-		return AccountsPage{}, fmt.Errorf("查询账户失败: %w", err)
+		return pagination.PaginatedResult[Account]{}, fmt.Errorf("查询账户失败: %w", err)
 	}
 
 	out := make([]Account, 0, len(accounts))
@@ -207,7 +200,12 @@ func (s *Service) ListAccountsPage(ctx context.Context, page int, pageSize int) 
 			UpdatedAt: a.UpdatedAt,
 		})
 	}
-	return AccountsPage{Items: out, Total: total, Page: page, PageSize: pageSize}, nil
+	return pagination.PaginatedResult[Account]{
+		Items:    out,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
 }
 
 // UpdateAccount 更新账户信息。

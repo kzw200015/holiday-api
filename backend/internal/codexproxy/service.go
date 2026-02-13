@@ -16,6 +16,8 @@ import (
 
 	"myapi/internal/ent"
 	"myapi/internal/ent/codexaccount"
+	"myapi/internal/ent/codexresponselog"
+	"myapi/internal/pagination"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
@@ -62,6 +64,20 @@ type CallLog struct {
 	AccountID         string
 	AccountName       string
 	IsSSE             bool
+}
+
+type ResponseLogItem struct {
+	UserAgent         string    `json:"userAgent"`
+	ClientIP          string    `json:"clientIp"`
+	InputTokens       int       `json:"inputTokens"`
+	CachedInputTokens int       `json:"cachedInputTokens"`
+	OutputTokens      int       `json:"outputTokens"`
+	CacheRate         float64   `json:"cacheRate"`
+	DurationMs        int       `json:"durationMs"`
+	AccountID         string    `json:"accountId"`
+	AccountName       string    `json:"accountName"`
+	IsSSE             bool      `json:"isSse"`
+	CreatedAt         time.Time `json:"createdAt"`
 }
 
 type stickyBinding struct {
@@ -168,6 +184,46 @@ func (s *Service) WriteCallLog(ctx context.Context, callLog CallLog) error {
 		SetIsSse(callLog.IsSSE).
 		Save(ctx)
 	return err
+}
+
+func (s *Service) ListResponseLogsPage(ctx context.Context, page int, pageSize int) (pagination.PaginatedResult[ResponseLogItem], error) {
+	total, err := s.client.CodexResponseLog.Query().Count(ctx)
+	if err != nil {
+		return pagination.PaginatedResult[ResponseLogItem]{}, err
+	}
+
+	logs, err := s.client.CodexResponseLog.Query().
+		Order(ent.Desc(codexresponselog.FieldCreatedAt), ent.Desc(codexresponselog.FieldID)).
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		All(ctx)
+	if err != nil {
+		return pagination.PaginatedResult[ResponseLogItem]{}, err
+	}
+
+	items := make([]ResponseLogItem, 0, len(logs))
+	for _, item := range logs {
+		items = append(items, ResponseLogItem{
+			UserAgent:         item.UserAgent,
+			ClientIP:          item.ClientIP,
+			InputTokens:       item.InputTokens,
+			CachedInputTokens: item.CachedInputTokens,
+			OutputTokens:      item.OutputTokens,
+			CacheRate:         item.CacheRate,
+			DurationMs:        item.DurationMs,
+			AccountID:         item.AccountID,
+			AccountName:       item.AccountName,
+			IsSSE:             item.IsSse,
+			CreatedAt:         item.CreatedAt,
+		})
+	}
+
+	return pagination.PaginatedResult[ResponseLogItem]{
+		Items:    items,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
 }
 
 func (s *Service) sendUpstreamRequest(c *gin.Context, body []byte, payload RequestPayload, account *ent.CodexAccount) (*resty.Response, error) {

@@ -1,16 +1,8 @@
 import { computed, defineComponent, onMounted, ref } from "vue"
 import { Calendar, CircleCheckFilled, CircleCloseFilled, Clock } from "@element-plus/icons-vue"
-import {
-    ElButton,
-    ElCard,
-    ElDatePicker,
-    ElDescriptions,
-    ElDescriptionsItem,
-    ElIcon,
-    ElTag,
-} from "element-plus"
+import { ElButton, ElCard, ElDatePicker, ElDescriptions, ElDescriptionsItem, ElIcon, ElTag, } from "element-plus"
 
-import { isHoliday, queryNextOffDay } from "@/api/HolidayApi"
+import { isHoliday, queryNextOffDay } from "@/api/holidayApi.ts"
 import { formatDateForInput } from "@/utils/DateUtils"
 
 type HolidayQueryResult = {
@@ -134,7 +126,8 @@ export default defineComponent({
                                                         date.value = value ? String(value) : ""
                                                     }}
                                                 />
-                                                <ElButton type="primary" loading={loading.value} onClick={() => void refresh()}>
+                                                <ElButton type="primary" loading={loading.value}
+                                                          onClick={() => void refresh()}>
                                                     {loading.value ? "查询中..." : "查询"}
                                                 </ElButton>
                                             </div>
@@ -162,7 +155,8 @@ export default defineComponent({
                                     default: () => (
                                         <ElDescriptions column={1} border>
                                             <ElDescriptionsItem label="状态">{title.value}</ElDescriptionsItem>
-                                            <ElDescriptionsItem label="日期">{currentDateText.value}</ElDescriptionsItem>
+                                            <ElDescriptionsItem
+                                                label="日期">{currentDateText.value}</ElDescriptionsItem>
                                         </ElDescriptions>
                                     ),
                                 }}
@@ -182,8 +176,10 @@ export default defineComponent({
                                     ),
                                     default: () => (
                                         <ElDescriptions column={1} border>
-                                            <ElDescriptionsItem label="剩余时间">{nextOffDayText.value}</ElDescriptionsItem>
-                                            <ElDescriptionsItem label="目标日期">{nextOffDayDateText.value}</ElDescriptionsItem>
+                                            <ElDescriptionsItem
+                                                label="剩余时间">{nextOffDayText.value}</ElDescriptionsItem>
+                                            <ElDescriptionsItem
+                                                label="目标日期">{nextOffDayDateText.value}</ElDescriptionsItem>
                                         </ElDescriptions>
                                     ),
                                 }}
