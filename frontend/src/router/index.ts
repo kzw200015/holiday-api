@@ -6,34 +6,34 @@ import CodexAccountsPage from "@/views/CodexAccountsPage"
 import NotFoundPage from "@/views/NotFoundPage"
 
 const routes: RouteRecordRaw[] = [
-    {
-        path: "/",
-        component: AppLayout,
-        children: [
-            {
-                path: "",
-                redirect: "/holiday",
-            },
-            {
-                path: "holiday",
-                name: "HolidayPage",
-                component: HolidayPage,
-            },
-            {
-                path: "codex",
-                name: "CodexAccountsPage",
-                component: CodexAccountsPage,
-            },
-            {
-                path: ":pathMatch(.*)*",
-                name: "NotFoundPage",
-                component: NotFoundPage,
-            },
-        ],
-    },
+  {
+    path: "/",
+    component: AppLayout,
+    children: [
+      {
+        path: "",
+        redirect: "/holiday",
+      },
+      {
+        path: "holiday",
+        name: "HolidayPage",
+        component: HolidayPage,
+      },
+      {
+        path: "codex",
+        name: "CodexAccountsPage",
+        component: CodexAccountsPage,
+      },
+      {
+        path: ":pathMatch(.*)*",
+        name: "NotFoundPage",
+        component: NotFoundPage,
+      },
+    ],
+  },
 ]
 
 export const AppRouter = createRouter({
-    history: createWebHistory(),
-    routes,
+  history: createWebHistory(),
+  routes,
 })

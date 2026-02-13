@@ -1,67 +1,67 @@
 import { computed, defineComponent } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { Calendar, Key } from "@element-plus/icons-vue"
-import { ElIcon, ElMenu, ElMenuItem } from "element-plus"
+import { ElIcon, ElMenu, ElMenuItem, ElText } from "element-plus"
 
 const navItems = [
-    {
-        path: "/holiday",
-        label: "节假日",
-        icon: Calendar,
-    },
-    {
-        path: "/codex",
-        label: "Codex 账户",
-        icon: Key,
-    },
+  {
+    path: "/holiday",
+    label: "节假日",
+    icon: Calendar,
+  },
+  {
+    path: "/codex",
+    label: "Codex 账户",
+    icon: Key,
+  },
 ]
 
 export default defineComponent({
-    name: "AppSidebar",
-    setup() {
-        const route = useRoute()
-        const router = useRouter()
-        const activePath = computed(() => route.path)
+  name: "AppSidebar",
+  setup() {
+    const route = useRoute()
+    const router = useRouter()
+    const activePath = computed(() => route.path)
 
-        const handleSelect = async (index: string) => {
-            await router.push(index)
-        }
+    const handleSelect = async (index: string) => {
+      await router.push(index)
+    }
 
-        return () => (
-            <aside class="flex h-full flex-col">
-                <div class="flex h-16 cursor-pointer items-center px-3"
-                     onClick={() => void router.push("/holiday")}>
-                    <div
-                        class="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[var(--el-color-primary)] text-xs font-semibold text-white">
-                        API
-                    </div>
-                    <div
-                        class="ml-2.5 grid min-w-0 max-w-32 whitespace-nowrap"
-                    >
-                        <div class="font-semibold">
-                            控制台
-                        </div>
-                        <div class="text-xs text-[var(--el-text-color-secondary)]">
-                            API
-                        </div>
-                    </div>
-                </div>
+    return () => (
+      <aside class="flex h-full flex-col">
+        <div class="flex h-16 cursor-pointer items-center px-3"
+             onClick={() => void router.push("/holiday")}>
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[var(--el-color-primary)] text-xs font-semibold text-white">
+            API
+          </div>
+          <div
+            class="ml-2.5 grid min-w-0 max-w-32 whitespace-nowrap"
+          >
+            <ElText class="font-semibold">
+              控制台
+            </ElText>
+            <ElText class="text-xs text-[var(--el-text-color-secondary)]">
+              API
+            </ElText>
+          </div>
+        </div>
 
-                <ElMenu
-                    class="border-r-0 bg-transparent"
-                    defaultActive={activePath.value}
-                    onSelect={handleSelect}
-                >
-                    {navItems.map((item) => (
-                        <ElMenuItem index={item.path}>
-                            <ElIcon>
-                                <item.icon/>
-                            </ElIcon>
-                            <span>{item.label}</span>
-                        </ElMenuItem>
-                    ))}
-                </ElMenu>
-            </aside>
-        )
-    },
+        <ElMenu
+          class="border-r-0 bg-transparent"
+          defaultActive={activePath.value}
+          onSelect={handleSelect}
+        >
+          {navItems.map((item) => (
+            <ElMenuItem index={item.path}>
+              <ElIcon>
+                <item.icon/>
+              </ElIcon>
+              <ElText>{item.label}</ElText>
+            </ElMenuItem>
+          ))}
+        </ElMenu>
+      </aside>
+    )
+  },
 })

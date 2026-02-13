@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 @layer base {
-    html,
-    body,
-    #app {
-        @apply h-full min-w-[320px];
-    }
+  html,
+  body,
+  #app {
+    @apply h-full min-w-[320px];
+  }
 
-    body {
-        @apply font-sans;
-    }
+  body {
+    @apply font-sans;
+  }
 }
