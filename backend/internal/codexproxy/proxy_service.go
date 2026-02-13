@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -64,6 +65,7 @@ func NewProxyService(client *ent.Client) (*ProxyService, error) {
 
 	defaultInstructions, err := fetchText(codexHeaderInstructionsTextURL)
 	if err != nil {
+		slog.Error("initialize proxy service failed", "err", err)
 		return nil, err
 	}
 
@@ -82,6 +84,7 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 	userAgent := strings.TrimSpace(c.GetHeader("User-Agent"))
 
 	if !gjson.ValidBytes(body) {
+		slog.ErrorContext(c.Request.Context(), "proxy responses invalid JSON body", "client_ip", clientIP, "user_agent", userAgent)
 		return CallLog{}, fmt.Errorf("invalid JSON body")
 	}
 
@@ -91,7 +94,7 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 	if instructions == "" {
 		updatedBody, err := sjson.SetBytes(body, "instructions", s.defaultInstructions)
 		if err != nil {
-			return CallLog{}, err
+			slog.ErrorContext(c.Request.Context(), "set default instructions failed", "err", err)
 		}
 		body = updatedBody
 	}
@@ -101,6 +104,7 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 
 	account, err := s.selectAccount(c.Request.Context(), stickyKey)
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "select codex account failed", "err", err, "sticky_key", stickyKey, "is_sse", stream)
 		return CallLog{
 			UserAgent: userAgent,
 			ClientIP:  clientIP,
@@ -113,12 +117,14 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 	if stream {
 		sseUsage, err := s.forwardSSE(c, body, upstreamHeaders)
 		if err != nil {
+			slog.ErrorContext(c.Request.Context(), "forward SSE request failed", "err", err, "account_id", account.AccountID, "account_name", account.Name)
 			return CallLog{}, err
 		}
 		usage = sseUsage
 	} else {
 		httpUsage, err := s.forwardHTTP(c, body, upstreamHeaders)
 		if err != nil {
+			slog.ErrorContext(c.Request.Context(), "forward HTTP request failed", "err", err, "account_id", account.AccountID, "account_name", account.Name)
 			return CallLog{
 				UserAgent:   userAgent,
 				ClientIP:    clientIP,
@@ -153,6 +159,7 @@ func fetchText(url string) (string, error) {
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 	resp, err := httpClient.Get(url)
 	if err != nil {
+		slog.Error("fetch text failed", "url", url, "err", err)
 		return "", err
 	}
 	defer func() {
@@ -161,6 +168,7 @@ func fetchText(url string) (string, error) {
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
+		slog.Error("read fetched text failed", "url", url, "err", err)
 		return "", err
 	}
 	return string(data), nil
@@ -198,9 +206,11 @@ func (s *ProxyService) selectAccount(ctx context.Context, stickyKey string) (*en
 		Order(ent.Asc(codexaccount.FieldCreatedAt)).
 		All(ctx)
 	if err != nil {
+		slog.ErrorContext(ctx, "query codex accounts failed", "err", err, "sticky_key", stickyKey)
 		return nil, err
 	}
 	if len(accounts) == 0 {
+		slog.WarnContext(ctx, "no available codex account", "sticky_key", stickyKey)
 		return nil, ErrNoAvailableAccount
 	}
 

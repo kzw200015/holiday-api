@@ -3,6 +3,7 @@ package codexproxy
 import (
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -21,6 +22,7 @@ func (s *ProxyService) forwardHTTP(c *gin.Context, body []byte, headers http.Hea
 
 	resp, err := req.Post(codexResponsesURL)
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "forward HTTP request to upstream failed", "err", err)
 		return usage, errors.Join(ErrUpstreamRequestFail, err)
 	}
 	defer func() {
@@ -29,6 +31,7 @@ func (s *ProxyService) forwardHTTP(c *gin.Context, body []byte, headers http.Hea
 	upstreamResp := resp.RawResponse
 	responseBody, readErr := io.ReadAll(upstreamResp.Body)
 	if readErr != nil {
+		slog.ErrorContext(c.Request.Context(), "read upstream HTTP response body failed", "err", readErr)
 		c.Status(http.StatusBadGateway)
 		return usage, nil
 	}

@@ -2,6 +2,7 @@ package codexproxy
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"myapi/internal/ent"
@@ -46,13 +47,18 @@ func (s *LogService) WriteCallLog(ctx context.Context, callLog CallLog) error {
 		SetAccountName(callLog.AccountName).
 		SetIsSse(callLog.IsSSE).
 		Save(ctx)
-	return err
+	if err != nil {
+		slog.ErrorContext(ctx, "write codex response log failed", "err", err)
+		return err
+	}
+	return nil
 }
 
 // ListResponseLogsPage 分页查询调用日志。
 func (s *LogService) ListResponseLogsPage(ctx context.Context, page int, pageSize int) (pagination.PaginatedResult[ResponseLogItem], error) {
 	total, err := s.client.CodexResponseLog.Query().Count(ctx)
 	if err != nil {
+		slog.ErrorContext(ctx, "count codex response logs failed", "err", err)
 		return pagination.PaginatedResult[ResponseLogItem]{}, err
 	}
 
@@ -62,6 +68,7 @@ func (s *LogService) ListResponseLogsPage(ctx context.Context, page int, pageSiz
 		Limit(pageSize).
 		All(ctx)
 	if err != nil {
+		slog.ErrorContext(ctx, "list codex response logs failed", "err", err, "page", page, "page_size", pageSize)
 		return pagination.PaginatedResult[ResponseLogItem]{}, err
 	}
 

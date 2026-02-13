@@ -22,7 +22,8 @@ func (s *ProxyService) forwardSSE(c *gin.Context, body []byte, headers http.Head
 	es := resty.NewEventSource().
 		SetURL(codexResponsesURL).
 		SetMethod(resty.MethodPost).
-		SetBody(bytes.NewReader(body))
+		SetBody(bytes.NewReader(body)).
+		SetMaxBufSize(1024 * 1024)
 	for key, values := range headers {
 		for _, value := range values {
 			es.AddHeader(key, value)
@@ -46,7 +47,11 @@ func (s *ProxyService) forwardSSE(c *gin.Context, body []byte, headers http.Head
 	}, nil)
 
 	es.OnRequestFailure(func(err error, res *http.Response) {
-		resBody, _ := io.ReadAll(res.Body)
+		resBody, readErr := io.ReadAll(res.Body)
+		if readErr != nil {
+			slog.ErrorContext(c.Request.Context(), "read SSE failure response body failed", "err", readErr)
+			return
+		}
 		slog.WarnContext(c.Request.Context(), "SSE request failure", "err", err, "res", string(resBody))
 	})
 
@@ -72,11 +77,13 @@ func (s *ProxyService) forwardSSE(c *gin.Context, body []byte, headers http.Head
 		}
 		upstreamErr := <-esErrChan
 		if upstreamErr != nil && !errors.Is(upstreamErr, io.EOF) {
+			slog.ErrorContext(c.Request.Context(), "forward SSE failed after stream opened", "err", upstreamErr)
 			return usage, upstreamErr
 		}
 		return usage, nil
 	case upstreamErr := <-esErrChan:
 		if upstreamErr != nil && !errors.Is(upstreamErr, io.EOF) {
+			slog.ErrorContext(c.Request.Context(), "forward SSE failed before stream opened", "err", upstreamErr)
 			return usage, upstreamErr
 		}
 		return usage, nil
@@ -85,7 +92,7 @@ func (s *ProxyService) forwardSSE(c *gin.Context, body []byte, headers http.Head
 
 // updateUsageFromSSEEventData 从 SSE 事件 data 字段里提取并更新 usage。
 func updateUsageFromSSEEventData(rawJSON string, usage *tokenUsage) {
-	if rawJSON == "" || rawJSON == "[DONE]" {
+	if rawJSON == "" {
 		return
 	}
 
