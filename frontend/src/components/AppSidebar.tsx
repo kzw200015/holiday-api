@@ -38,7 +38,7 @@ export default defineComponent({
                 <div class="flex h-16 cursor-pointer items-center px-3"
                      onClick={() => void router.push("/holiday")}>
                     <div
-                        class="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[var(--el-color-primary)] text-xs font-semibold text-white">
+                        class="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[var(--el-color-primary)] text-xs font-semibold text-white">
                         API
                     </div>
                     <div

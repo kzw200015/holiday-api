@@ -15,7 +15,7 @@ export default defineComponent({
             appStore.initializeTheme()
         })
 
-        const asideWidth = computed(() => (appStore.sidebarCollapsed ? "64px" : "240px"))
+        const asideWidth = computed(() => (appStore.sidebarCollapsed ? "65px" : "240px"))
         const CollapseIcon = computed(() => (appStore.sidebarCollapsed ? Expand : Fold))
 
         return () => (
