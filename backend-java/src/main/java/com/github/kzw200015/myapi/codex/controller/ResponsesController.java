@@ -12,9 +12,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.github.kzw200015.myapi.common.model.ApiResponse;
+import com.github.kzw200015.myapi.codex.exception.NoAvailableAccountException;
+import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
 import com.github.kzw200015.myapi.codex.model.CallLog;
-import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.NoAvailableAccountException;
-import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.UpstreamRequestFailedException;
 import com.github.kzw200015.myapi.codex.service.CodexProxyService;
 import com.github.kzw200015.myapi.codex.service.ResponseLogService;
 import lombok.RequiredArgsConstructor;

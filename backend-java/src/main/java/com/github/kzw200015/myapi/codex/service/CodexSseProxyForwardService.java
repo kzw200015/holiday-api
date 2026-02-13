@@ -16,7 +16,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
-import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.UpstreamRequestFailedException;
+import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**

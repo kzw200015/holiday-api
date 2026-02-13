@@ -5,15 +5,14 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AccessLevel;
-import lombok.Getter;
+import lombok.Data;
 import lombok.Setter;
 
 /**
  * holiday_days 表模型。
  */
-@TableName("holiday_days")
-@Getter
-@Setter
+@TableName(value = "holiday_days", autoResultMap = true)
+@Data
 public class HolidayDayEntity {
     @TableId(value = "id", type = IdType.AUTO)
     @Setter(AccessLevel.NONE)

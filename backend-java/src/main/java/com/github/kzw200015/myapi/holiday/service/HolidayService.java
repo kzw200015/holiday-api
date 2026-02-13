@@ -67,9 +67,9 @@ public class HolidayService extends ServiceImpl<HolidayDayMapper, HolidayDayEnti
 
         days.stream().map(item -> {
             HolidayDayEntity entity = new HolidayDayEntity();
-            entity.setName(item.name);
-            entity.setDate(item.date);
-            entity.setOffDay(item.isOffDay);
+            entity.setName(item.name());
+            entity.setDate(item.date());
+            entity.setOffDay(item.isOffDay());
             return entity;
         }).forEach(this::save);
     }
@@ -85,19 +85,9 @@ public class HolidayService extends ServiceImpl<HolidayDayMapper, HolidayDayEnti
                 .body(String.class);
 
         HolidayPayload payload = jsonMapper.readValue(raw, HolidayPayload.class);
-        if (payload == null || payload.days == null) {
+        if (payload == null || payload.days() == null) {
             return List.of();
         }
-        return payload.days;
-    }
-
-    static class HolidayPayload {
-        public List<RemoteHolidayDay> days;
-    }
-
-    static class RemoteHolidayDay {
-        public String name;
-        public String date;
-        public boolean isOffDay;
+        return payload.days();
     }
 }

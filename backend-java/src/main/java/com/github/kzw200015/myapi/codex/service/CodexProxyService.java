@@ -15,7 +15,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 import com.github.kzw200015.myapi.codex.model.CallLog;
-import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.NoAvailableAccountException;
+import com.github.kzw200015.myapi.codex.exception.NoAvailableAccountException;
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;

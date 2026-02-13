@@ -7,15 +7,14 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AccessLevel;
-import lombok.Getter;
+import lombok.Data;
 import lombok.Setter;
 
 /**
  * codex_oauth_sessions 表模型。
  */
-@TableName("codex_oauth_sessions")
-@Getter
-@Setter
+@TableName(value = "codex_oauth_sessions", autoResultMap = true)
+@Data
 public class CodexOAuthSessionEntity {
     @TableId(value = "id", type = IdType.AUTO)
     @Setter(AccessLevel.NONE)

@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.github.kzw200015.myapi.common.mybatis.JsonbTypeHandler;
 import lombok.AccessLevel;
-import lombok.Getter;
+import lombok.Data;
 import lombok.Setter;
 import tools.jackson.databind.JsonNode;
 
@@ -16,8 +16,7 @@ import tools.jackson.databind.JsonNode;
  * codex_accounts 表模型。
  */
 @TableName(value = "codex_accounts", autoResultMap = true)
-@Getter
-@Setter
+@Data
 public class CodexAccountEntity {
     @TableId(value = "id", type = IdType.AUTO)
     @Setter(AccessLevel.NONE)

@@ -7,15 +7,14 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AccessLevel;
-import lombok.Getter;
+import lombok.Data;
 import lombok.Setter;
 
 /**
  * codex_response_logs 表模型。
  */
-@TableName("codex_response_logs")
-@Getter
-@Setter
+@TableName(value = "codex_response_logs", autoResultMap = true)
+@Data
 public class CodexResponseLogEntity {
     @TableId(value = "id", type = IdType.AUTO)
     @Setter(AccessLevel.NONE)

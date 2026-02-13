@@ -8,7 +8,7 @@ import java.time.Duration;
 
 import org.springframework.http.HttpHeaders;
 
-import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.UpstreamRequestFailedException;
+import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -78,20 +78,4 @@ public abstract class AbstractCodexProxyForwardService {
     }
 
     public record TokenUsage(int inputTokens, int cachedInputTokens, int outputTokens) {}
-
-    protected static class TokenUsageHolder {
-        private int inputTokens;
-        private int cachedInputTokens;
-        private int outputTokens;
-
-        void set(int inputTokens, int cachedInputTokens, int outputTokens) {
-            this.inputTokens = inputTokens;
-            this.cachedInputTokens = cachedInputTokens;
-            this.outputTokens = outputTokens;
-        }
-
-        TokenUsage toUsage() {
-            return new TokenUsage(inputTokens, cachedInputTokens, outputTokens);
-        }
-    }
 }
