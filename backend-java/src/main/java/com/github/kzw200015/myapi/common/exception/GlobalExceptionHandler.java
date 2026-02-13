@@ -40,8 +40,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, "请求参数错误");
     }
 
-    @ExceptionHandler(AccountNotFoundException.class)
-    public ResponseEntity<ApiResponse<Object>> handleAccountNotFound(AccountNotFoundException ex) {
+    @ExceptionHandler({
+        AccountNotFoundException.class,
+        NoResourceFoundException.class
+    })
+    public ResponseEntity<ApiResponse<Object>> handleNotFound(Exception ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.notFound());
     }
 
@@ -53,11 +56,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UpstreamRequestFailedException.class)
     public ResponseEntity<ApiResponse<Object>> handleUpstreamRequestFailed(UpstreamRequestFailedException ex) {
         return build(HttpStatus.BAD_GATEWAY, ex.getMessage());
-    }
-
-    @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<ApiResponse<Object>> handleNoResourceFound(NoResourceFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.notFound());
     }
 
     @ExceptionHandler(Exception.class)
