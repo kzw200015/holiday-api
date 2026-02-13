@@ -31,6 +31,7 @@ public class ResponseLogService {
         entity.setAccountId(callLog.accountId());
         entity.setAccountName(callLog.accountName());
         entity.setSse(callLog.isSse());
+        entity.setRequestBody(callLog.requestBody());
         entity.setCreatedAt(OffsetDateTime.now());
         mapper.insert(entity);
     }

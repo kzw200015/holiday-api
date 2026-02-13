@@ -1,5 +1,15 @@
 package com.github.kzw200015.myapi.codex.service;
 
+import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
+import jakarta.annotation.PreDestroy;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,21 +20,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import jakarta.annotation.PreDestroy;
-
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.stereotype.Service;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-
-import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 处理 SSE 转发，并从事件流中提取 token usage。
@@ -50,18 +48,18 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
 
     public SseForwardResult forward(JsonNode body, HttpHeaders headers) {
         HttpRequest request = buildUpstreamRequest(body, headers)
-            .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
-            .build();
+                .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
+                .build();
         HttpResponse<InputStream> upstream = sendUpstream(request, HttpResponse.BodyHandlers.ofInputStream());
 
-        if (upstream.statusCode() != 200) {
+        if (upstream.statusCode() != HttpStatus.OK.value()) {
             throw new UpstreamRequestFailedException("upstream request failed: status=" + upstream.statusCode());
         }
 
         SseEmitter emitter = new SseEmitter(0L);
         CompletableFuture<TokenUsage> usageFuture = CompletableFuture.supplyAsync(
-            () -> streamToEmitter(upstream.body(), emitter),
-            sseForwardExecutor
+                () -> streamToEmitter(upstream.body(), emitter),
+                sseForwardExecutor
         );
         return new SseForwardResult(emitter, usageFuture);
     }
@@ -93,11 +91,11 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
             flushEvent(dataLines, eventName, usageHolder, emitter);
 
             emitter.complete();
-            return usageHolder.toUsage();
         } catch (Exception ex) {
             emitter.completeWithError(ex);
-            throw new CompletionException(new UpstreamRequestFailedException(ex));
         }
+
+        return usageHolder.toUsage();
     }
 
     private void flushEvent(

@@ -13,6 +13,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.time.Duration;
@@ -40,15 +41,13 @@ public class CodexProxyService {
     private static final String HEADER_CONVERSATION_ID = "conversation_id";
     private static final String HEADER_ORIGINATOR = "originator";
     private static final String HEADER_CHATGPT_ACCOUNT_ID = "ChatGPT-Account-Id";
-    private static final String HEADER_USER_AGENT = "User-Agent";
-    private static final String HEADER_AUTHORIZATION = "Authorization";
 
     private static final List<String> UPSTREAM_HEADER_WHITELIST = List.of(
             HEADER_X_CODEX_BETA_FEATURES,
             HEADER_X_OAI_WEB_SEARCH_ELIGIBLE,
             HEADER_SESSION_ID,
             HEADER_CONVERSATION_ID,
-            HEADER_USER_AGENT,
+            HttpHeaders.USER_AGENT,
             HEADER_ORIGINATOR
     );
 
@@ -74,7 +73,7 @@ public class CodexProxyService {
         long startAt = System.currentTimeMillis();
 
         String clientIp = request.getRemoteAddr() == null ? "" : request.getRemoteAddr();
-        String userAgent = trim(request.getHeader(HEADER_USER_AGENT));
+        String userAgent = trim(request.getHeader(HttpHeaders.USER_AGENT));
 
         boolean stream = updated.path("stream").asBoolean(false);
         String promptCacheKey = updated.path("prompt_cache_key").asString();
@@ -83,6 +82,7 @@ public class CodexProxyService {
             updated.put("instructions", defaultInstructions);
         }
         updated.remove("max_output_tokens");
+        JsonNode requestBody = updated.deepCopy();
 
         String stickyKey = stickySessionService.extractKey(request, promptCacheKey);
         CodexAccountEntity account = selectAccount(stickyKey);
@@ -91,14 +91,30 @@ public class CodexProxyService {
         if (stream) {
             SseForwardResult forwardResult = codexSseProxyForwardService.forward(updated, upstreamHeaders);
             CompletableFuture<CallLog> callLogFuture = forwardResult.usageFuture().thenApply(usage ->
-                    buildCallLog(usage, true, startAt, userAgent, clientIp, account)
+                    buildCallLog(
+                            usage,
+                            true,
+                            startAt,
+                            userAgent,
+                            clientIp,
+                            account,
+                            requestBody
+                    )
             );
             writeCallLogAsync(callLogFuture);
             return forwardResult.emitter();
         }
 
         HttpForwardResult forwardResult = codexHttpProxyForwardService.forward(updated, upstreamHeaders);
-        CallLog callLog = buildCallLog(forwardResult.usage(), false, startAt, userAgent, clientIp, account);
+        CallLog callLog = buildCallLog(
+                forwardResult.usage(),
+                false,
+                startAt,
+                userAgent,
+                clientIp,
+                account,
+                requestBody
+        );
         ResponseEntity<byte[]> response = ResponseEntity
                 .status(forwardResult.statusCode())
                 .body(forwardResult.responseBody());
@@ -112,7 +128,8 @@ public class CodexProxyService {
             long startAt,
             String userAgent,
             String clientIp,
-            CodexAccountEntity account
+            CodexAccountEntity account,
+            JsonNode requestBody
     ) {
         double cacheRate = usage.inputTokens() > 0
                 ? (double) usage.cachedInputTokens() / (double) usage.inputTokens()
@@ -128,7 +145,8 @@ public class CodexProxyService {
                 (int) (System.currentTimeMillis() - startAt),
                 account.getAccountId(),
                 account.getName(),
-                stream
+                stream,
+                requestBody
         );
     }
 
@@ -140,7 +158,7 @@ public class CodexProxyService {
                 headers.add(key, values.nextElement());
             }
         }
-        headers.set(HEADER_AUTHORIZATION, "Bearer " + account.getToken());
+        headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + account.getToken());
         headers.set(HEADER_CHATGPT_ACCOUNT_ID, account.getAccountId());
         return headers;
     }

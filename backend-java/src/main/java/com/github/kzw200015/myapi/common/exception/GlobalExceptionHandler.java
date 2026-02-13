@@ -6,7 +6,9 @@ import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException
 import com.github.kzw200015.myapi.common.model.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -29,20 +31,20 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({
-        HttpMessageNotReadableException.class,
-        MethodArgumentTypeMismatchException.class,
-        MissingServletRequestParameterException.class,
-        MethodArgumentNotValidException.class,
-        ConstraintViolationException.class,
-        HandlerMethodValidationException.class
+            HttpMessageNotReadableException.class,
+            MethodArgumentTypeMismatchException.class,
+            MissingServletRequestParameterException.class,
+            MethodArgumentNotValidException.class,
+            ConstraintViolationException.class,
+            HandlerMethodValidationException.class
     })
     public ResponseEntity<ApiResponse<Object>> handleBadRequest(Exception ex) {
         return build(HttpStatus.BAD_REQUEST, "请求参数错误");
     }
 
     @ExceptionHandler({
-        AccountNotFoundException.class,
-        NoResourceFoundException.class
+            AccountNotFoundException.class,
+            NoResourceFoundException.class
     })
     public ResponseEntity<ApiResponse<Object>> handleNotFound(Exception ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.notFound());
@@ -65,6 +67,6 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<ApiResponse<Object>> build(HttpStatus status, String msg) {
-        return ResponseEntity.status(status).body(ApiResponse.of(status.value(), null, msg));
+        return ResponseEntity.status(status).header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE).body(ApiResponse.of(status.value(), null, msg));
     }
 }

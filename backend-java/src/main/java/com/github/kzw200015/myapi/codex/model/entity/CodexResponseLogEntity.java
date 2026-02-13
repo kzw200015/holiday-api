@@ -6,9 +6,11 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.github.kzw200015.myapi.common.mybatis.JsonbTypeHandler;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Setter;
+import tools.jackson.databind.JsonNode;
 
 /**
  * codex_response_logs 表模型。
@@ -49,6 +51,9 @@ public class CodexResponseLogEntity {
 
     @TableField("is_sse")
     private boolean isSse;
+
+    @TableField(value = "request_body", typeHandler = JsonbTypeHandler.class)
+    private JsonNode requestBody;
 
     @TableField("created_at")
     private OffsetDateTime createdAt;

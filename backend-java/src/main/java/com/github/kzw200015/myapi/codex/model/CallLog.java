@@ -1,5 +1,7 @@
 package com.github.kzw200015.myapi.codex.model;
 
+import tools.jackson.databind.JsonNode;
+
 /**
  * /api/responses 调用日志（写库前的结构）。
  */
@@ -13,5 +15,6 @@ public record CallLog(
     int durationMs,
     String accountId,
     String accountName,
-    boolean isSse
+    boolean isSse,
+    JsonNode requestBody
 ) {}

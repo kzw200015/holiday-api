@@ -61,14 +61,13 @@ public class HolidayService extends ServiceImpl<HolidayDayMapper, HolidayDayEnti
             return;
         }
 
-        List<HolidayDayEntity> entities = days.stream().map(item -> {
+        days.stream().map(item -> {
             HolidayDayEntity entity = new HolidayDayEntity();
             entity.setName(item.name());
             entity.setDate(item.date());
             entity.setOffDay(item.isOffDay());
             return entity;
-        }).toList();
-        saveBatch(entities);
+        }).forEach(this::save);
     }
 
     private List<RemoteHolidayDay> fetchYearDays(int year) {
