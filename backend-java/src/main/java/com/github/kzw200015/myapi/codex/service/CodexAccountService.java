@@ -144,9 +144,9 @@ public class CodexAccountService {
         return new PaginatedResult<>(items, pageResult.getTotal(), page, pageSize);
     }
 
-    public Account updateAccount(String accountId, UpdateAccountRequest req) {
+    public Account updateAccount(int id, UpdateAccountRequest req) {
         CodexAccountEntity entity = codexAccountMapper.selectOne(
-                Wrappers.<CodexAccountEntity>lambdaQuery().eq(CodexAccountEntity::getAccountId, accountId)
+                Wrappers.<CodexAccountEntity>lambdaQuery().eq(CodexAccountEntity::getId, id)
         );
         if (entity == null) {
             throw new AccountNotFoundException();

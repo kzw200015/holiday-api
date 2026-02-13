@@ -3,7 +3,6 @@ package com.github.kzw200015.myapi.codex.controller;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +19,7 @@ import com.github.kzw200015.myapi.common.model.PaginatedResult;
 import com.github.kzw200015.myapi.codex.model.Account;
 import com.github.kzw200015.myapi.codex.model.CodexResponseLogItem;
 import com.github.kzw200015.myapi.codex.model.OAuthSessionInfo;
+import com.github.kzw200015.myapi.codex.model.TodayTokenUsage;
 import com.github.kzw200015.myapi.codex.service.CodexAccountService;
 import com.github.kzw200015.myapi.codex.model.UpdateAccountRequest;
 import com.github.kzw200015.myapi.codex.service.ResponseLogService;
@@ -51,12 +51,12 @@ public class CodexController {
         return ApiResponse.ok(codexAccountService.listAccountsPage(page, pageSize));
     }
 
-    @PutMapping("/accounts/{accountId}")
+    @PutMapping("/accounts/{id}")
     public ApiResponse<Account> updateCodexAccount(
-        @PathVariable("accountId") @NotBlank String accountId,
+        @PathVariable("id") @Min(1) int id,
         @RequestBody @NotNull @Valid UpdateAccountRequest request
     ) {
-        return ApiResponse.ok(codexAccountService.updateAccount(accountId, request));
+        return ApiResponse.ok(codexAccountService.updateAccount(id, request));
     }
 
     @GetMapping("/response-logs")
@@ -65,5 +65,10 @@ public class CodexController {
         @RequestParam(defaultValue = "20") @Min(1) @Max(200) int pageSize
     ) {
         return ApiResponse.ok(responseLogService.listResponseLogsPage(page, pageSize));
+    }
+
+    @GetMapping("/today-token-usage")
+    public ApiResponse<TodayTokenUsage> getTodayTokenUsage() {
+        return ApiResponse.ok(responseLogService.getTodayTokenUsage());
     }
 }

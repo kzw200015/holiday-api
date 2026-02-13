@@ -8,8 +8,8 @@ export type OAuthSessionInfo = {
 }
 
 export type Account = {
+  id: number
   name: string
-  accountId: string
   token: string
   expiresAt: string
   createdAt: string
@@ -24,10 +24,16 @@ export type ResponseLogItem = {
   outputTokens: number
   cacheRate: number
   durationMs: number
-  accountId: string
   accountName: string
   isSse: boolean
   createdAt: string
+}
+
+export type TodayTokenUsage = {
+  inputTokens: number
+  outputTokens: number
+  cachedInputTokens: number
+  totalTokens: number
 }
 
 export type UpdateAccountRequest = {
@@ -62,9 +68,9 @@ export async function listCodexAccounts(page: number, pageSize: number) {
   return data
 }
 
-export async function updateCodexAccount(accountId: string, req: UpdateAccountRequest) {
+export async function updateCodexAccount(id: number, req: UpdateAccountRequest) {
   const { data } = await HttpClient.put<ApiResponse<Account>, ApiResponse<Account>>(
-    `/codex/accounts/${accountId}`,
+    `/codex/accounts/${id}`,
     req,
   )
   return data
@@ -79,6 +85,13 @@ export async function listCodexResponseLogs(page: number, pageSize: number) {
         pageSize,
       },
     },
+  )
+  return data
+}
+
+export async function getCodexTodayTokenUsage() {
+  const { data } = await HttpClient.get<ApiResponse<TodayTokenUsage>, ApiResponse<TodayTokenUsage>>(
+    "/codex/today-token-usage",
   )
   return data
 }

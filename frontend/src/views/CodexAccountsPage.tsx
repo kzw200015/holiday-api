@@ -23,10 +23,12 @@ import {
   type Account,
   completeCodexOAuth,
   createCodexOAuthSession,
+  getCodexTodayTokenUsage,
   listCodexAccounts,
   listCodexResponseLogs,
   type OAuthSessionInfo,
   type ResponseLogItem,
+  type TodayTokenUsage,
   updateCodexAccount,
 } from "@/api/codexApi.ts"
 
@@ -48,6 +50,21 @@ function maskToken(token: string) {
 
 function formatRate(rate: number) {
   return `${(rate * 100).toFixed(2)}%`
+}
+
+function formatCompactTokenCount(value: number) {
+  const absoluteValue = Math.abs(value)
+  if (absoluteValue >= 1_000_000) {
+    return `${formatCompactNumber(value / 1_000_000)}M`
+  }
+  if (absoluteValue >= 1_000) {
+    return `${formatCompactNumber(value / 1_000)}K`
+  }
+  return new Intl.NumberFormat("zh-CN").format(value)
+}
+
+function formatCompactNumber(value: number) {
+  return value.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1")
 }
 
 async function copyToClipboard(text: string) {
@@ -80,6 +97,13 @@ export default defineComponent({
     const logsTotal = ref(0)
     const logsCurrentPage = ref(1)
     const logsPageSize = ref(10)
+    const todayTokenUsageLoading = ref(false)
+    const todayTokenUsage = ref<TodayTokenUsage>({
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedInputTokens: 0,
+      totalTokens: 0,
+    })
 
     const sessionLoading = ref(false)
     const session = ref<OAuthSessionInfo | null>(null)
@@ -90,7 +114,7 @@ export default defineComponent({
 
     const editDialogVisible = ref(false)
     const editFormRef = ref<FormInstance>()
-    const editingAccountId = ref("")
+    const editingAccountId = ref<number | null>(null)
     const editForm = reactive({
       name: "",
     })
@@ -122,6 +146,15 @@ export default defineComponent({
       }
     }
 
+    const refreshTodayTokenUsage = async () => {
+      todayTokenUsageLoading.value = true
+      try {
+        todayTokenUsage.value = await getCodexTodayTokenUsage()
+      } finally {
+        todayTokenUsageLoading.value = false
+      }
+    }
+
     const createSession = async () => {
       sessionLoading.value = true
       try {
@@ -148,6 +181,7 @@ export default defineComponent({
     onMounted(() => {
       void refreshAccounts()
       void refreshLogs()
+      void refreshTodayTokenUsage()
     })
 
     const sessionLinkText = computed(() => session.value?.url || "")
@@ -161,14 +195,14 @@ export default defineComponent({
     const canCompleteOAuth = computed(() => accountName.value.trim() !== "" && callbackUrl.value.trim() !== "")
 
     const openEditDialog = (account: Account) => {
-      editingAccountId.value = account.accountId
+      editingAccountId.value = account.id
       editForm.name = account.name
       editDialogVisible.value = true
     }
 
     const closeEditDialog = () => {
       editDialogVisible.value = false
-      editingAccountId.value = ""
+      editingAccountId.value = null
       editForm.name = ""
     }
 
@@ -181,6 +215,9 @@ export default defineComponent({
 
       editLoading.value = true
       try {
+        if (editingAccountId.value === null) {
+          return
+        }
         await updateCodexAccount(editingAccountId.value, { name: editForm.name })
         await refreshAccounts()
         ElMessage.success("已更新名称")
@@ -226,6 +263,80 @@ export default defineComponent({
           </div>
 
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="md:col-span-2">
+              <ElCard class="rounded-xl" shadow="never">
+                {{
+                  header: () => (
+                    <div class="flex items-center justify-between gap-3">
+                      <ElText class="font-semibold">今日 Token 统计</ElText>
+                      <ElButton
+                        icon={RefreshRight}
+                        loading={todayTokenUsageLoading.value}
+                        onClick={() => void refreshTodayTokenUsage()}
+                      >
+                        刷新
+                      </ElButton>
+                    </div>
+                  ),
+                  default: () => (
+                    <div
+                      class="rounded-2xl border border-[var(--el-border-color-lighter)] bg-[var(--el-fill-color-blank)] p-5">
+                      <div class="overflow-x-auto">
+                        <div
+                          class="mx-auto grid min-w-[700px] justify-center gap-x-4 gap-y-2 md:gap-x-6"
+                          style={{ gridTemplateColumns: "minmax(200px,auto) auto minmax(150px,auto) auto minmax(180px,auto)" }}
+                        >
+                          <ElText
+                            class="text-center text-[11px] tracking-[0.14em] text-[var(--el-text-color-secondary)]">
+                            输入
+                          </ElText>
+                          <div/>
+                          <ElText
+                            class="text-center text-[11px] tracking-[0.14em] text-[var(--el-text-color-secondary)]">
+                            输出
+                          </ElText>
+                          <div/>
+                          <ElText class="text-center text-[11px] tracking-[0.14em] text-[var(--el-color-primary)]">
+                            总量
+                          </ElText>
+
+                          <ElText class="text-center text-4xl font-semibold leading-none tabular-nums">
+                            {formatCompactTokenCount(todayTokenUsage.value.inputTokens)}
+                          </ElText>
+                          <ElText
+                            class="text-center text-3xl font-semibold leading-none text-[var(--el-text-color-secondary)] md:text-4xl">
+                            +
+                          </ElText>
+                          <ElText class="text-center text-4xl font-semibold leading-none tabular-nums">
+                            {formatCompactTokenCount(todayTokenUsage.value.outputTokens)}
+                          </ElText>
+                          <ElText
+                            class="text-center text-3xl font-semibold leading-none text-[var(--el-text-color-secondary)] md:text-4xl">
+                            =
+                          </ElText>
+                          <div class=" px-4 py-2 text-center">
+                            <ElText
+                              class="text-4xl font-semibold leading-none text-[var(--el-color-primary)] tabular-nums">
+                              {formatCompactTokenCount(todayTokenUsage.value.totalTokens)}
+                            </ElText>
+                          </div>
+
+                          <ElText
+                            class="justify-self-center rounded-full bg-[var(--el-fill-color-light)] px-2.5 py-1 text-xs text-[var(--el-text-color-secondary)]">
+                            缓存输入 {formatCompactTokenCount(todayTokenUsage.value.cachedInputTokens)}
+                          </ElText>
+                          <div/>
+                          <div/>
+                          <div/>
+                          <div/>
+                        </div>
+                      </div>
+                    </div>
+                  ),
+                }}
+              </ElCard>
+            </div>
+
             <div>
               <ElCard class="h-full rounded-xl text-left" shadow="never">
                 {{
@@ -362,7 +473,6 @@ export default defineComponent({
                     <>
                       <ElTable data={accounts.value} class="w-full" stripe>
                         <ElTableColumn prop="name" label="名称" minWidth={220}/>
-                        <ElTableColumn prop="accountId" label="Account ID" minWidth={260}/>
                         <ElTableColumn label="Token" minWidth={240}>
                           {{
                             default: (scope: { row: Account }) => (
@@ -457,7 +567,6 @@ export default defineComponent({
                           }}
                         </ElTableColumn>
                         <ElTableColumn prop="accountName" label="账户" minWidth={160}/>
-                        <ElTableColumn prop="accountId" label="Account ID" minWidth={220}/>
                         <ElTableColumn label="调用方式" width={110}>
                           {{
                             default: (scope: { row: ResponseLogItem }) => (

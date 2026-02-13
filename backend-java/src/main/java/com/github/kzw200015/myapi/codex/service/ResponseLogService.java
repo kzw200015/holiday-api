@@ -1,23 +1,21 @@
 package com.github.kzw200015.myapi.codex.service;
 
-import java.util.List;
-import java.time.OffsetDateTime;
-
-import org.springframework.stereotype.Service;
-
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.github.kzw200015.myapi.common.model.PaginatedResult;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.github.kzw200015.myapi.codex.model.CallLog;
 import com.github.kzw200015.myapi.codex.model.CodexResponseLogItem;
+import com.github.kzw200015.myapi.codex.model.TodayTokenUsage;
 import com.github.kzw200015.myapi.codex.model.entity.CodexResponseLogEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexResponseLogMapper;
-import lombok.RequiredArgsConstructor;
+import com.github.kzw200015.myapi.common.model.PaginatedResult;
+import org.springframework.stereotype.Service;
+
+import java.time.OffsetDateTime;
+import java.util.List;
 
 @Service
-@RequiredArgsConstructor
-public class ResponseLogService {
-    private final CodexResponseLogMapper mapper;
+public class ResponseLogService extends ServiceImpl<CodexResponseLogMapper, CodexResponseLogEntity> {
 
     public void writeCallLog(CallLog callLog) {
         CodexResponseLogEntity entity = new CodexResponseLogEntity();
@@ -33,24 +31,31 @@ public class ResponseLogService {
         entity.setSse(callLog.isSse());
         entity.setRequestBody(callLog.requestBody());
         entity.setCreatedAt(OffsetDateTime.now());
-        mapper.insert(entity);
+        save(entity);
     }
 
     public PaginatedResult<CodexResponseLogItem> listResponseLogsPage(int page, int pageSize) {
-        Page<CodexResponseLogEntity> pageResult = mapper.selectPage(
-            Page.of(page, pageSize),
-            Wrappers.<CodexResponseLogEntity>lambdaQuery()
-                    .orderByDesc(CodexResponseLogEntity::getCreatedAt)
-                    .orderByDesc(CodexResponseLogEntity::getId)
+        Page<CodexResponseLogEntity> pageResult = baseMapper.selectPage(
+                Page.of(page, pageSize),
+                Wrappers.<CodexResponseLogEntity>lambdaQuery()
+                        .orderByDesc(CodexResponseLogEntity::getCreatedAt)
+                        .orderByDesc(CodexResponseLogEntity::getId)
         );
         List<CodexResponseLogItem> items = pageResult.getRecords().stream().map(CodexResponseLogItem::from).toList();
         return new PaginatedResult<>(items, pageResult.getTotal(), page, pageSize);
     }
 
-    public int deleteLogsBefore(OffsetDateTime cutoffTime) {
-        return mapper.delete(
-            Wrappers.<CodexResponseLogEntity>lambdaQuery()
-                    .lt(CodexResponseLogEntity::getCreatedAt, cutoffTime)
+    public TodayTokenUsage getTodayTokenUsage() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime startTime = now.toLocalDate().atStartOfDay().atOffset(now.getOffset());
+        OffsetDateTime endTime = startTime.plusDays(1);
+        return baseMapper.selectTodayTokenUsage(startTime, endTime);
+    }
+
+    public void deleteLogsBefore(OffsetDateTime cutoffTime) {
+        baseMapper.delete(
+                Wrappers.<CodexResponseLogEntity>lambdaQuery()
+                        .lt(CodexResponseLogEntity::getCreatedAt, cutoffTime)
         );
     }
 }

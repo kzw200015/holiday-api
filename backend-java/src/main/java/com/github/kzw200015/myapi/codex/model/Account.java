@@ -8,8 +8,8 @@ import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
  * Codex OAuth 账户返回结构。
  */
 public record Account(
+    int id,
     String name,
-    String accountId,
     String token,
     OffsetDateTime expiresAt,
     OffsetDateTime createdAt,
@@ -17,8 +17,8 @@ public record Account(
 ) {
     public static Account from(CodexAccountEntity entity) {
         return new Account(
+            entity.getId(),
             entity.getName(),
-            entity.getAccountId(),
             entity.getToken(),
             entity.getExpiresAt(),
             entity.getCreatedAt(),
