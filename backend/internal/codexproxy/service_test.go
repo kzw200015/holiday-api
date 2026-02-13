@@ -65,11 +65,11 @@ func TestParseUsageFromResponseBody(t *testing.T) {
 	}
 }
 
-// TestUpdateUsageFromSSEDataLine 验证 SSE usage 提取逻辑。
-func TestUpdateUsageFromSSEDataLine(t *testing.T) {
-	line := "data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":88,\"output_tokens\":22,\"input_tokens_details\":{\"cached_tokens\":11}}}}\n"
+// TestUpdateUsageFromSSEEventData 验证 SSE usage 提取逻辑。
+func TestUpdateUsageFromSSEEventData(t *testing.T) {
+	rawJSON := "{\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":88,\"output_tokens\":22,\"input_tokens_details\":{\"cached_tokens\":11}}}}"
 	usage := tokenUsage{}
-	updateUsageFromSSEDataLine(line, &usage)
+	updateUsageFromSSEEventData(rawJSON, &usage)
 
 	if usage.InputTokens != 88 {
 		t.Fatalf("expected input tokens 88, got %d", usage.InputTokens)

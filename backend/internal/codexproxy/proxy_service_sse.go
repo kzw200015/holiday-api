@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -77,17 +76,6 @@ func (s *ProxyService) forwardSSE(c *gin.Context, body []byte, headers http.Head
 		}
 		return usage, nil
 	}
-}
-
-// updateUsageFromSSEDataLine 从 SSE data 行里提取并更新 usage。
-func updateUsageFromSSEDataLine(line string, usage *tokenUsage) {
-	trimmed := strings.TrimSpace(line)
-	if !strings.HasPrefix(trimmed, "data:") {
-		return
-	}
-
-	rawJSON := strings.TrimSpace(strings.TrimPrefix(trimmed, "data:"))
-	updateUsageFromSSEEventData(rawJSON, usage)
 }
 
 // updateUsageFromSSEEventData 从 SSE 事件 data 字段里提取并更新 usage。

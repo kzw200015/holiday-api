@@ -3,6 +3,7 @@ package codexproxy
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -13,12 +14,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	resty "resty.dev/v3"
 )
 
 const (
-	codexResponsesURL = "https://chatgpt.com/backend-api/codex/responses"
-	defaultStickyTTL  = time.Hour
+	codexResponsesURL              = "https://chatgpt.com/backend-api/codex/responses"
+	codexHeaderInstructionsTextURL = "https://raw.githubusercontent.com/anomalyco/opencode/refs/heads/dev/packages/opencode/src/session/prompt/codex_header.txt"
+	defaultStickyTTL               = time.Hour
 )
 
 var (
@@ -51,18 +54,25 @@ type ProxyService struct {
 	httpClient           *resty.Client
 	rrCounter            atomic.Uint64
 	stickySessionService *StickySessionService
+	defaultInstructions  string
 }
 
 // NewProxyService 创建 Codex responses 反向代理服务。
-func NewProxyService(client *ent.Client) *ProxyService {
+func NewProxyService(client *ent.Client) (*ProxyService, error) {
 	httpClient := resty.New()
 	httpClient.SetTimeout(0)
+
+	defaultInstructions, err := fetchText(codexHeaderInstructionsTextURL)
+	if err != nil {
+		return nil, err
+	}
 
 	return &ProxyService{
 		client:               client,
 		httpClient:           httpClient,
 		stickySessionService: NewStickySessionService(defaultStickyTTL),
-	}
+		defaultInstructions:  defaultInstructions,
+	}, nil
 }
 
 // ProxyResponses 将请求转发到上游并回传响应内容。
@@ -80,6 +90,17 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 
 	stream := gjson.GetBytes(body, "stream").Bool()
 	promptCacheKey := gjson.GetBytes(body, "prompt_cache_key").String()
+	instructions := gjson.GetBytes(body, "instructions").String()
+	if instructions == "" {
+		updatedBody, err := sjson.SetBytes(body, "instructions", s.defaultInstructions)
+		if err != nil {
+			return CallLog{
+				UserAgent: userAgent,
+				ClientIP:  clientIP,
+			}, ErrInvalidRequestBody
+		}
+		body = updatedBody
+	}
 
 	stickyKey := s.stickySessionService.ExtractKey(c.Request.Header, promptCacheKey)
 
@@ -137,6 +158,23 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 		AccountName:       account.Name,
 		IsSSE:             stream,
 	}, nil
+}
+
+func fetchText(url string) (string, error) {
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 // buildUpstreamHeaders 构建转发到上游 Codex 的请求头。

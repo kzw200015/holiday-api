@@ -48,7 +48,10 @@ func main() {
 	}
 
 	codexService := codex.NewService(client)
-	codexProxyService := codexproxy.NewProxyService(client)
+	codexProxyService, err := codexproxy.NewProxyService(client)
+	if err != nil {
+		panic(err)
+	}
 	codexLogService := codexproxy.NewLogService(client)
 
 	router := gin.Default()
