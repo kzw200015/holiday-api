@@ -11,20 +11,19 @@ RUN pnpm build
 FROM golang:1.24-alpine AS backend-builder
 
 WORKDIR /workspace/backend
-COPY backend/go.mod backend/go.sum ./
-RUN go mod download
+COPY backend-java/gradlew backend-java/settings.gradle backend-java/build.gradle ./
+COPY backend-java/gradle ./gradle
 
-COPY backend/ ./
-COPY --from=frontend-builder /workspace/frontend/dist ./internal/httpapi/webdist
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/myapi .
+COPY backend-java/src ./src
+COPY --from=frontend-builder /workspace/frontend/dist ./src/main/resources/static
 
-FROM alpine:3.20
+RUN ./gradlew bootJar --no-daemon
 
-RUN apk add --no-cache ca-certificates
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
-COPY --from=backend-builder /out/myapi ./myapi
+COPY --from=backend-builder /workspace/backend/build/libs/*.jar ./app.jar
 
 EXPOSE 8000
 
-ENTRYPOINT ["/app/myapi"]
+ENTRYPOINT ["java","-jar","/app/app.jar"]

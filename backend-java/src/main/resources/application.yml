@@ -1,0 +1,16 @@
+server:
+  port: 8000
+
+spring:
+  application:
+    name: myapi
+  datasource:
+    url: jdbc:postgresql://localhost:5432/myapi?sslmode=disable
+    username: postgres
+    password: REDACTED
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
