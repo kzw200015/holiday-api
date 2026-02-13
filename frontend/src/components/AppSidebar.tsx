@@ -1,7 +1,7 @@
 import { computed, defineComponent } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { Calendar, Key } from "@element-plus/icons-vue"
-import { ElIcon, ElMenu, ElMenuItem, ElText } from "element-plus"
+import { ElIcon, ElMenu, ElMenuItem } from "element-plus"
 
 const navItems = [
     {
@@ -45,12 +45,12 @@ export default defineComponent({
                             props.collapsed ? "ml-0 max-w-0 opacity-0" : "ml-2.5 max-w-32 opacity-100"
                         }`}
                     >
-                        <ElText class="font-semibold" tag="div">
+                        <div class="font-semibold">
                             控制台
-                        </ElText>
-                        <ElText class="text-xs text-[var(--el-text-color-secondary)]" tag="div">
+                        </div>
+                        <div class="text-xs text-[var(--el-text-color-secondary)]">
                             Java API
-                        </ElText>
+                        </div>
                     </div>
                 </div>
 

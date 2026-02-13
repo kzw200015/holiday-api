@@ -4,7 +4,6 @@ import { DocumentCopy, Link, RefreshRight } from "@element-plus/icons-vue"
 import {
   ElButton,
   ElCard,
-  ElCol,
   ElDialog,
   ElForm,
   ElFormItem,
@@ -12,12 +11,9 @@ import {
   ElInput,
   ElMessage,
   ElPagination,
-  ElRow,
-  ElSpace,
   ElTable,
   ElTableColumn,
   ElTag,
-  ElText,
   type FormInstance,
   type FormRules,
 } from "element-plus"
@@ -182,29 +178,29 @@ export default defineComponent({
 
     return () => (
       <section>
-        <ElSpace direction="vertical" size={16} fill>
-          <ElSpace direction="vertical" size={8} fill>
-            <ElSpace alignment="center" size={8}>
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2">
               <h1 class="m-0 text-2xl font-semibold tracking-tight">Codex 账户</h1>
               <ElTag type="info">OAuth</ElTag>
-            </ElSpace>
-            <ElText class="text-[var(--el-text-color-secondary)]">
+            </div>
+            <p class="text-[var(--el-text-color-secondary)]">
               获取授权链接完成登录后，把浏览器地址栏的回调 URL 粘贴到下方输入框提交，即可添加账户。
-            </ElText>
-          </ElSpace>
+            </p>
+          </div>
 
-          <ElRow gutter={16} class="gap-y-4">
-            <ElCol xs={24} md={12}>
-              <ElCard class="h-full rounded-xl" shadow="never">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <ElCard class="h-full rounded-xl text-left" shadow="never">
                 {{
                   header: () => (
-                    <ElRow justify="space-between" align="middle">
-                      <ElSpace alignment="center" size={8}>
+                    <div class="flex items-center justify-between gap-3">
+                      <div class="flex items-center gap-2">
                         <ElIcon>
                           <Link/>
                         </ElIcon>
                         <span class="font-semibold">获取 OAuth 链接</span>
-                      </ElSpace>
+                      </div>
                       <ElButton
                         type="primary"
                         loading={sessionLoading.value}
@@ -212,14 +208,14 @@ export default defineComponent({
                       >
                         {sessionLoading.value ? "生成中..." : "获取链接"}
                       </ElButton>
-                    </ElRow>
+                    </div>
                   ),
                   default: () => (
-                    <ElSpace direction="vertical" size={12} fill class="w-full">
-                      <ElSpace direction="vertical" size={8} fill class="w-full">
-                        <ElText size="small" class="text-[var(--el-text-color-secondary)]">
+                    <div class="flex w-full flex-col items-start gap-3 text-left">
+                      <div class="flex w-full flex-col items-start gap-2 text-left">
+                        <p class="self-start text-left text-xs text-[var(--el-text-color-secondary)]">
                           授权链接
-                        </ElText>
+                        </p>
                         <div class="w-full">
                           <ElInput
                             modelValue={sessionLinkText.value}
@@ -228,7 +224,7 @@ export default defineComponent({
                             class="w-full"
                           />
                         </div>
-                        <ElSpace wrap alignment="center" size={8}>
+                        <div class="flex flex-wrap items-center gap-2">
                           <ElButton
                             icon={DocumentCopy}
                             disabled={!session.value}
@@ -250,28 +246,28 @@ export default defineComponent({
                           >
                             打开链接
                           </ElButton>
-                        </ElSpace>
-                      </ElSpace>
+                        </div>
+                      </div>
 
-                      <ElSpace direction="vertical" size={4} fill>
-                        <ElText size="small" class="text-[var(--el-text-color-secondary)]">
+                      <div class="flex flex-col items-start gap-1 text-left">
+                        <p class="self-start text-left text-xs text-[var(--el-text-color-secondary)]">
                           state：{sessionStateText.value}
-                        </ElText>
-                        <ElText size="small" class="text-[var(--el-text-color-secondary)]">
+                        </p>
+                        <p class="self-start text-left text-xs text-[var(--el-text-color-secondary)]">
                           过期时间：{sessionExpiresAtText.value}
-                        </ElText>
-                      </ElSpace>
-                    </ElSpace>
+                        </p>
+                      </div>
+                    </div>
                   ),
                 }}
               </ElCard>
-            </ElCol>
+            </div>
 
-            <ElCol xs={24} md={12}>
-              <ElCard class="h-full rounded-xl" shadow="never">
+            <div>
+              <ElCard class="h-full rounded-xl text-left" shadow="never">
                 {{
                   header: () => (
-                    <ElRow justify="space-between" align="middle">
+                    <div class="flex items-center justify-between gap-3">
                       <span class="font-semibold">粘贴回调并添加</span>
                       <ElButton
                         type="primary"
@@ -281,10 +277,10 @@ export default defineComponent({
                       >
                         {completeLoading.value ? "提交中..." : "提交"}
                       </ElButton>
-                    </ElRow>
+                    </div>
                   ),
                   default: () => (
-                    <ElSpace direction="vertical" size={8} fill class="w-full">
+                    <div class="flex w-full flex-col items-start gap-2 text-left">
                       <div class="w-full">
                         <ElInput
                           placeholder="请输入账户名称（必填）"
@@ -301,20 +297,20 @@ export default defineComponent({
                           class="w-full"
                         />
                       </div>
-                      <ElText size="small" class="text-[var(--el-text-color-secondary)]">
+                      <p class="self-start text-left text-xs text-[var(--el-text-color-secondary)]">
                         提示：回调地址通常打不开是正常的，复制地址栏即可。
-                      </ElText>
-                    </ElSpace>
+                      </p>
+                    </div>
                   ),
                 }}
               </ElCard>
-            </ElCol>
+            </div>
 
-            <ElCol xs={24}>
+            <div class="md:col-span-2">
               <ElCard class="rounded-xl" shadow="never">
                 {{
                   header: () => (
-                    <ElRow justify="space-between" align="middle">
+                    <div class="flex items-center justify-between gap-3">
                       <span class="font-semibold">已添加账户</span>
                       <ElButton
                         icon={RefreshRight}
@@ -323,7 +319,7 @@ export default defineComponent({
                       >
                         刷新
                       </ElButton>
-                    </ElRow>
+                    </div>
                   ),
                   default: () => (
                     <>
@@ -333,7 +329,7 @@ export default defineComponent({
                         <ElTableColumn label="Token" minWidth={240}>
                           {{
                             default: (scope: { row: CodexAccount }) => (
-                              <ElSpace alignment="center" size={8}>
+                              <div class="flex items-center gap-2">
                                 <span class="font-mono text-sm">{maskToken(scope.row.token)}</span>
                                 <ElButton
                                   size="small"
@@ -341,7 +337,7 @@ export default defineComponent({
                                   icon={DocumentCopy}
                                   onClick={() => void copyToClipboard(scope.row.token)}
                                 />
-                              </ElSpace>
+                              </div>
                             ),
                           }}
                         </ElTableColumn>
@@ -375,7 +371,7 @@ export default defineComponent({
                         </ElTableColumn>
                       </ElTable>
 
-                      <ElRow justify="end" class="pt-3">
+                      <div class="flex justify-end pt-3">
                         <ElPagination
                           background
                           total={total.value}
@@ -386,13 +382,13 @@ export default defineComponent({
                           onCurrent-change={handleCurrentPageChange}
                           onSize-change={handlePageSizeChange}
                         />
-                      </ElRow>
+                      </div>
                     </>
                   ),
                 }}
               </ElCard>
-            </ElCol>
-          </ElRow>
+            </div>
+          </div>
 
           <ElDialog
             title="编辑账户"
@@ -422,8 +418,8 @@ export default defineComponent({
                 </ElForm>
               ),
               footer: () => (
-                <ElRow justify="end" align="middle">
-                  <ElSpace size={8}>
+                <div class="flex items-center justify-end">
+                  <div class="flex items-center gap-2">
                     <ElButton disabled={editLoading.value} onClick={() => closeEditDialog()}>
                       取消
                     </ElButton>
@@ -434,12 +430,12 @@ export default defineComponent({
                     >
                       保存
                     </ElButton>
-                  </ElSpace>
-                </ElRow>
+                  </div>
+                </div>
               ),
             }}
           </ElDialog>
-        </ElSpace>
+        </div>
       </section>
     )
   },
