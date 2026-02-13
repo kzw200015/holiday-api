@@ -7,23 +7,19 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	resty "resty.dev/v3"
 )
 
+type sseMessage struct {
+	name string
+	data string
+}
+
 // forwardSSEWithEventSource 使用 Resty v3 EventSource 透传 SSE 并持续更新 token 使用量。
 func (s *ProxyService) forwardSSEWithEventSource(c *gin.Context, body []byte, headers http.Header) (tokenUsage, error) {
-	type sseMessage struct {
-		name string
-		data string
-	}
-	type failureResponse struct {
-		statusCode int
-		headers    http.Header
-		body       []byte
-	}
-
 	es := resty.NewEventSource().
 		SetURL(codexResponsesURL).
 		SetMethod(resty.MethodPost).
@@ -35,79 +31,69 @@ func (s *ProxyService) forwardSSEWithEventSource(c *gin.Context, body []byte, he
 		}
 	}
 
-	clientChan := make(chan sseMessage)
-	esDone := make(chan struct{})
+	headerChan := make(chan http.Header, 1)
+	messageChan := make(chan sseMessage, 16)
 	usage := tokenUsage{}
-	var streamErr error
-	var failedResp *failureResponse
 
+	var openOnce sync.Once
 	es.OnOpen(func(_ string, responseHeaders http.Header) {
-		copyResponseHeaders(c.Writer.Header(), responseHeaders)
-		c.Status(http.StatusOK)
-	})
-
-	es.OnRequestFailure(func(_ error, response *http.Response) {
-		if response == nil {
-			return
-		}
-		defer func() {
-			_ = response.Body.Close()
-		}()
-
-		responseBody, readErr := io.ReadAll(response.Body)
-		if readErr != nil {
-			streamErr = readErr
-			return
-		}
-		failedResp = &failureResponse{
-			statusCode: response.StatusCode,
-			headers:    response.Header.Clone(),
-			body:       responseBody,
-		}
+		openOnce.Do(func() {
+			headerChan <- responseHeaders.Clone()
+		})
 	})
 
 	es.OnMessage(func(eventAny any) {
 		event := eventAny.(*resty.Event)
-		updateUsageFromSSEEventData(event.Data, &usage)
-		clientChan <- sseMessage{
+		messageChan <- sseMessage{
 			name: event.Name,
 			data: event.Data,
 		}
 	}, nil)
 
-	done := make(chan struct{})
 	go func() {
-		select {
-		case <-c.Request.Context().Done():
-			es.Close()
-		case <-done:
-		}
-	}()
-	defer close(done)
-
-	go func() {
-		defer close(esDone)
-		err := es.Get()
-		if err != nil && !errors.Is(err, io.EOF) {
-			streamErr = err
-		}
-		close(clientChan)
+		<-c.Request.Context().Done()
+		es.Close()
 	}()
 
-	c.Stream(func(w io.Writer) bool {
-		if msg, ok := <-clientChan; ok {
+	done := make(chan error, 1)
+	go func() {
+		defer close(messageChan)
+		defer close(headerChan)
+		done <- es.Get()
+		close(done)
+	}()
+
+	opened := false
+	gotUpstreamErr := false
+	var upstreamErr error
+	select {
+	case responseHeaders, ok := <-headerChan:
+		if ok {
+			copyResponseHeaders(c.Writer.Header(), responseHeaders)
+			c.Status(http.StatusOK)
+			opened = true
+		}
+	case upstreamErr = <-done:
+		gotUpstreamErr = true
+	}
+
+	if opened {
+		c.Stream(func(w io.Writer) bool {
+			msg, ok := <-messageChan
+			if !ok {
+				return false
+			}
+			updateUsageFromSSEEventData(msg.data, &usage)
 			c.SSEvent(msg.name, msg.data)
 			return true
-		}
-		return false
-	})
-
-	<-esDone
-	if failedResp != nil {
-		writeHTTPResponse(c, failedResp.statusCode, failedResp.headers, failedResp.body)
-		return usage, nil
+		})
 	}
-	if streamErr != nil && c.Request.Context().Err() == nil {
+
+	if !gotUpstreamErr {
+		upstreamErr = <-done
+	}
+
+	if upstreamErr != nil && !errors.Is(upstreamErr, io.EOF) && c.Request.Context().Err() == nil {
 		return usage, ErrUpstreamRequestFail
 	}
 	return usage, nil
