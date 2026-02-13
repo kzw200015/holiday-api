@@ -14,11 +14,11 @@ import lombok.extern.slf4j.Slf4j;
 public class CodexTokenRefreshScheduler {
     private static final Duration REFRESH_WINDOW = Duration.ofHours(1);
 
-    private final CodexAccountService codexAccountService;
+    private final CodexOAuthService codexOAuthService;
 
     @Scheduled(fixedDelay = 300000, initialDelay = 60000)
     public void refreshExpiringTokens() {
-        int refreshedCount = codexAccountService.refreshExpiringTokens(REFRESH_WINDOW);
+        int refreshedCount = codexOAuthService.refreshExpiringTokens(REFRESH_WINDOW);
         if (refreshedCount > 0) {
             log.info("刷新即将到期 token 完成，刷新数量={}", refreshedCount);
         }

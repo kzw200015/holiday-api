@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 处理 SSE 转发，并从事件流中提取 token usage。
@@ -31,13 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 @Service
 public class CodexSseProxyForwardService extends AbstractCodexProxyForwardService {
-    private static final AtomicInteger THREAD_COUNTER = new AtomicInteger(1);
-    private final ExecutorService sseForwardExecutor = Executors.newCachedThreadPool(runnable -> {
-        Thread thread = new Thread(runnable);
-        thread.setName("codex-sse-forward-" + THREAD_COUNTER.getAndIncrement());
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ExecutorService sseForwardExecutor = Executors.newThreadPerTaskExecutor(
+            Thread.ofVirtual().name("codex-sse-forward-", 0).factory()
+    );
 
     public CodexSseProxyForwardService(JsonMapper jsonMapper) {
         super(jsonMapper);

@@ -12,6 +12,7 @@ public class SchedulingConfig implements SchedulingConfigurer {
     public ThreadPoolTaskScheduler scheduledTaskExecutor() {
         ThreadPoolTaskScheduler taskScheduler = new ThreadPoolTaskScheduler();
         taskScheduler.setPoolSize(4);
+        taskScheduler.setVirtualThreads(true);
         taskScheduler.setThreadNamePrefix("scheduled-task-");
         taskScheduler.setWaitForTasksToCompleteOnShutdown(true);
         taskScheduler.setAwaitTerminationSeconds(30);

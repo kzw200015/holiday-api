@@ -21,6 +21,7 @@ import com.github.kzw200015.myapi.codex.model.CodexResponseLogItem;
 import com.github.kzw200015.myapi.codex.model.OAuthSessionInfo;
 import com.github.kzw200015.myapi.codex.model.TodayTokenUsage;
 import com.github.kzw200015.myapi.codex.service.CodexAccountService;
+import com.github.kzw200015.myapi.codex.service.CodexOAuthService;
 import com.github.kzw200015.myapi.codex.model.UpdateAccountRequest;
 import com.github.kzw200015.myapi.codex.service.ResponseLogService;
 import lombok.RequiredArgsConstructor;
@@ -31,16 +32,17 @@ import lombok.RequiredArgsConstructor;
 @Validated
 public class CodexController {
     private final CodexAccountService codexAccountService;
+    private final CodexOAuthService codexOAuthService;
     private final ResponseLogService responseLogService;
 
     @PostMapping("/oauth/session")
     public ApiResponse<OAuthSessionInfo> createCodexOAuthSession() {
-        return ApiResponse.ok(codexAccountService.createOAuthSession());
+        return ApiResponse.ok(codexOAuthService.createOAuthSession());
     }
 
     @PostMapping("/oauth/complete")
     public ApiResponse<Account> completeCodexOAuth(@RequestBody @NotNull @Valid CompleteOAuthRequest request) {
-        return ApiResponse.ok(codexAccountService.completeOAuth(request.name(), request.redirectUrl()));
+        return ApiResponse.ok(codexOAuthService.completeOAuth(request.name(), request.redirectUrl()));
     }
 
     @GetMapping("/accounts")

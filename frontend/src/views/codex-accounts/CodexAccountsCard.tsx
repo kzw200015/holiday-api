@@ -18,7 +18,12 @@ import {
   type FormRules,
 } from "element-plus"
 
-import { listCodexAccounts, type Account, updateCodexAccount } from "@/api/codexApi.ts"
+import { listCodexAccounts, type Account, type CodexAccountQuota, updateCodexAccount } from "@/api/codexApi.ts"
+
+type SimpleQuotaWindow = {
+  remainingPercent: number | null
+  resetAfterSeconds: number | null
+}
 
 function formatDateTime(value: string) {
   return dayjs(value).format("YYYY-MM-DD HH:mm:ss")
@@ -48,6 +53,125 @@ async function copyToClipboard(text: string) {
   } catch {
     ElMessage.error("复制失败，请手动复制")
   }
+}
+
+function resolveRemainingPercent(usedPercent: number | null) {
+  if (usedPercent === null) {
+    return null
+  }
+  const remaining = 100 - usedPercent
+  if (remaining < 0) {
+    return 0
+  }
+  if (remaining > 100) {
+    return 100
+  }
+  return remaining
+}
+
+function resolveSimpleWindows(quota: CodexAccountQuota) {
+  const rateLimit = quota.rateLimit
+  if (!rateLimit) {
+    return { fiveHour: null, sevenDay: null }
+  }
+
+  const primary = rateLimit.primaryWindow
+  const secondary = rateLimit.secondaryWindow
+  const primarySeconds = primary?.limitWindowSeconds
+  const secondarySeconds = secondary?.limitWindowSeconds
+
+  if (primarySeconds === 18000 || secondarySeconds === 604800) {
+    return {
+      fiveHour: primary,
+      sevenDay: secondary,
+    }
+  }
+  if (primarySeconds === 604800 || secondarySeconds === 18000) {
+    return {
+      fiveHour: secondary,
+      sevenDay: primary,
+    }
+  }
+
+  return {
+    fiveHour: primary,
+    sevenDay: secondary,
+  }
+}
+
+function toSimpleQuotaWindow(window: {
+  usedPercent: number | null
+  resetAfterSeconds: number | null
+} | null): SimpleQuotaWindow {
+  if (!window) {
+    return {
+      remainingPercent: null,
+      resetAfterSeconds: null,
+    }
+  }
+  return {
+    remainingPercent: resolveRemainingPercent(window.usedPercent),
+    resetAfterSeconds: window.resetAfterSeconds,
+  }
+}
+
+function formatCompactReset(resetAfterSeconds: number | null) {
+  if (resetAfterSeconds === null) {
+    return "-"
+  }
+  if (resetAfterSeconds <= 0) {
+    return "0m"
+  }
+  const day = Math.floor(resetAfterSeconds / 86400)
+  const hour = Math.floor((resetAfterSeconds % 86400) / 3600)
+  const minute = Math.floor((resetAfterSeconds % 3600) / 60)
+  if (day > 0) {
+    return `${day}d ${hour}h`
+  }
+  if (hour > 0) {
+    return `${hour}h ${minute}m`
+  }
+  if (minute > 0) {
+    return `${minute}m`
+  }
+  return "<1m"
+}
+
+function renderSimpleQuotaRow(label: "5h" | "7d", window: SimpleQuotaWindow) {
+  const remainingPercent = window.remainingPercent
+  const barWidth = remainingPercent === null ? 0 : Math.round(remainingPercent)
+  const percentText = remainingPercent === null ? "-" : `${Math.round(remainingPercent)}%`
+  const resetText = formatCompactReset(window.resetAfterSeconds)
+  const badgeClass =
+    label === "5h"
+      ? "rounded-lg bg-[#e7ecff] px-2 py-1 text-xs font-semibold text-[#3f5bd8]"
+      : "rounded-lg bg-[#daf3e8] px-2 py-1 text-xs font-semibold text-[#2f8a60]"
+
+  return (
+    <div class="flex items-center gap-2">
+      <span class={badgeClass}>{label}</span>
+      <div class="h-2 w-20 overflow-hidden rounded bg-[var(--el-fill-color-dark)]">
+        <div class="h-full rounded bg-[#4caf6f]" style={{ width: `${barWidth}%` }}/>
+      </div>
+      <ElText class="text-xs font-semibold tabular-nums text-[var(--el-text-color-primary)]">{percentText}</ElText>
+      <ElText class="text-xs tabular-nums text-[var(--el-text-color-secondary)]">{resetText}</ElText>
+    </div>
+  )
+}
+
+function renderQuotaContent(quota: CodexAccountQuota | null) {
+  if (!quota) {
+    return <ElText class="text-sm text-[var(--el-text-color-secondary)]">-</ElText>
+  }
+  const windows = resolveSimpleWindows(quota)
+  const fiveHour = toSimpleQuotaWindow(windows.fiveHour)
+  const sevenDay = toSimpleQuotaWindow(windows.sevenDay)
+  return (
+    <div class="flex flex-col gap-2 py-1">
+      {renderSimpleQuotaRow("5h", fiveHour)}
+      {renderSimpleQuotaRow("7d", sevenDay)}
+    </div>
+  )
 }
 
 export default defineComponent({
@@ -228,6 +352,11 @@ export default defineComponent({
                       default: (scope: { row: Account }) => (
                         <ElText class="text-sm">{formatDateTime(scope.row.updatedAt)}</ElText>
                       ),
+                    }}
+                  </ElTableColumn>
+                  <ElTableColumn label="配额" minWidth={220}>
+                    {{
+                      default: (scope: { row: Account }) => renderQuotaContent(scope.row.quota),
                     }}
                   </ElTableColumn>
                   <ElTableColumn label="启用" width={110} align="center">

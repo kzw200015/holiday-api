@@ -15,6 +15,34 @@ export type Account = {
   expiresAt: string
   createdAt: string
   updatedAt: string
+  quota: CodexAccountQuota | null
+}
+
+export type CodexQuotaWindow = {
+  usedPercent: number | null
+  limitWindowSeconds: number | null
+  resetAfterSeconds: number | null
+  resetAt: number | null
+}
+
+export type CodexQuotaRateLimit = {
+  allowed: boolean | null
+  limitReached: boolean | null
+  primaryWindow: CodexQuotaWindow | null
+  secondaryWindow: CodexQuotaWindow | null
+}
+
+export type CodexQuotaAdditionalLimit = {
+  limitName: string | null
+  meteredFeature: string | null
+  rateLimit: CodexQuotaRateLimit | null
+}
+
+export type CodexAccountQuota = {
+  planType: string | null
+  rateLimit: CodexQuotaRateLimit | null
+  codeReviewRateLimit: CodexQuotaRateLimit | null
+  additionalRateLimits: CodexQuotaAdditionalLimit[]
 }
 
 export type ResponseLogItem = {
