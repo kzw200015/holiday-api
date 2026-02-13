@@ -1,8 +1,10 @@
 package com.github.kzw200015.myapi.codex.service;
 
-public final class CodexProxyExceptions {
-    private CodexProxyExceptions() {}
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public final class CodexProxyExceptions {
     public static class NoAvailableAccountException extends RuntimeException {
         public NoAvailableAccountException() {
             super("no available codex account");

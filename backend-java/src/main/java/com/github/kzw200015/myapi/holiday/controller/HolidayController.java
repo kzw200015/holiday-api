@@ -15,17 +15,14 @@ import org.springframework.web.bind.annotation.RestController;
 import com.github.kzw200015.myapi.common.model.ApiResponse;
 import com.github.kzw200015.myapi.holiday.service.HolidayService;
 import com.github.kzw200015.myapi.holiday.model.NextOffDayResult;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/holiday")
+@RequiredArgsConstructor
 public class HolidayController {
     private final HolidayService holidayService;
-    private final DateTimeFormatter dateFormatter;
-
-    public HolidayController(HolidayService holidayService) {
-        this.holidayService = holidayService;
-        this.dateFormatter = DateTimeFormatter.ofPattern(HolidayService.DATE_LAYOUT);
-    }
+    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(HolidayService.DATE_LAYOUT);
 
     @GetMapping("/is-holiday")
     public ResponseEntity<ApiResponse<?>> isHoliday(@RequestParam(name = "date", required = false) String date) {

@@ -6,8 +6,6 @@ import java.util.Objects;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,20 +18,16 @@ import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.NoAvailable
 import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.UpstreamRequestFailedException;
 import com.github.kzw200015.myapi.codex.service.CodexProxyService;
 import com.github.kzw200015.myapi.codex.service.ResponseLogService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
+@Slf4j
+@RequiredArgsConstructor
 public class ResponsesController {
-    private static final Logger log = LoggerFactory.getLogger(ResponsesController.class);
-
     private final CodexProxyService codexProxyService;
     private final ResponseLogService responseLogService;
     private final ObjectMapper objectMapper;
-
-    public ResponsesController(CodexProxyService codexProxyService, ResponseLogService responseLogService, ObjectMapper objectMapper) {
-        this.codexProxyService = codexProxyService;
-        this.responseLogService = responseLogService;
-        this.objectMapper = objectMapper;
-    }
 
     @PostMapping("/api/responses")
     public void responses(HttpServletRequest request, HttpServletResponse response) throws IOException {

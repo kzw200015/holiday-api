@@ -6,13 +6,19 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * codex_response_logs 表模型。
  */
 @TableName("codex_response_logs")
+@Getter
+@Setter
 public class CodexResponseLogEntity {
     @TableId(value = "id", type = IdType.AUTO)
+    @Setter(AccessLevel.NONE)
     private Integer id;
 
     @TableField("user_agent")
@@ -47,96 +53,4 @@ public class CodexResponseLogEntity {
 
     @TableField("created_at")
     private OffsetDateTime createdAt;
-
-    public Integer getId() {
-        return id;
-    }
-
-    public String getUserAgent() {
-        return userAgent;
-    }
-
-    public void setUserAgent(String userAgent) {
-        this.userAgent = userAgent;
-    }
-
-    public String getClientIp() {
-        return clientIp;
-    }
-
-    public void setClientIp(String clientIp) {
-        this.clientIp = clientIp;
-    }
-
-    public int getInputTokens() {
-        return inputTokens;
-    }
-
-    public void setInputTokens(int inputTokens) {
-        this.inputTokens = inputTokens;
-    }
-
-    public int getCachedInputTokens() {
-        return cachedInputTokens;
-    }
-
-    public void setCachedInputTokens(int cachedInputTokens) {
-        this.cachedInputTokens = cachedInputTokens;
-    }
-
-    public int getOutputTokens() {
-        return outputTokens;
-    }
-
-    public void setOutputTokens(int outputTokens) {
-        this.outputTokens = outputTokens;
-    }
-
-    public double getCacheRate() {
-        return cacheRate;
-    }
-
-    public void setCacheRate(double cacheRate) {
-        this.cacheRate = cacheRate;
-    }
-
-    public int getDurationMs() {
-        return durationMs;
-    }
-
-    public void setDurationMs(int durationMs) {
-        this.durationMs = durationMs;
-    }
-
-    public String getAccountId() {
-        return accountId;
-    }
-
-    public void setAccountId(String accountId) {
-        this.accountId = accountId;
-    }
-
-    public String getAccountName() {
-        return accountName;
-    }
-
-    public void setAccountName(String accountName) {
-        this.accountName = accountName;
-    }
-
-    public boolean isSse() {
-        return isSse;
-    }
-
-    public void setSse(boolean sse) {
-        isSse = sse;
-    }
-
-    public OffsetDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(OffsetDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }

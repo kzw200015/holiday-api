@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.json.JsonMapper;
+import lombok.RequiredArgsConstructor;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -21,20 +22,15 @@ import java.util.List;
  * 节假日领域服务：启动时初始化当年与下一年的节假日数据。
  */
 @Service
+@RequiredArgsConstructor
 public class HolidayService extends ServiceImpl<HolidayDayMapper, HolidayDayEntity> {
     public static final String DATE_LAYOUT = "yyyy-MM-dd";
 
     private static final String BASE_URL = "https://raw.githubusercontent.com/NateScarlet/holiday-cn/master";
 
-    private final RestClient restClient;
-    private final DateTimeFormatter dateFormatter;
     private final JsonMapper jsonMapper;
-
-    public HolidayService(JsonMapper jsonMapper) {
-        this.restClient = RestClient.create();
-        this.dateFormatter = DateTimeFormatter.ofPattern(DATE_LAYOUT);
-        this.jsonMapper = jsonMapper;
-    }
+    private final RestClient restClient = RestClient.create();
+    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(DATE_LAYOUT);
 
     public boolean isHoliday(LocalDate date) {
         String dateText = date.format(dateFormatter);

@@ -8,13 +8,19 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.github.kzw200015.myapi.common.mybatis.JsonbTypeHandler;
 import com.fasterxml.jackson.databind.JsonNode;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * codex_accounts 表模型。
  */
 @TableName(value = "codex_accounts", autoResultMap = true)
+@Getter
+@Setter
 public class CodexAccountEntity {
     @TableId(value = "id", type = IdType.AUTO)
+    @Setter(AccessLevel.NONE)
     private Integer id;
 
     @TableField("name")
@@ -37,64 +43,4 @@ public class CodexAccountEntity {
 
     @TableField("updated_at")
     private OffsetDateTime updatedAt;
-
-    public Integer getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getAccountId() {
-        return accountId;
-    }
-
-    public void setAccountId(String accountId) {
-        this.accountId = accountId;
-    }
-
-    public String getToken() {
-        return token;
-    }
-
-    public void setToken(String token) {
-        this.token = token;
-    }
-
-    public OffsetDateTime getExpiresAt() {
-        return expiresAt;
-    }
-
-    public void setExpiresAt(OffsetDateTime expiresAt) {
-        this.expiresAt = expiresAt;
-    }
-
-    public JsonNode getOauthPayload() {
-        return oauthPayload;
-    }
-
-    public void setOauthPayload(JsonNode oauthPayload) {
-        this.oauthPayload = oauthPayload;
-    }
-
-    public OffsetDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(OffsetDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public OffsetDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(OffsetDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

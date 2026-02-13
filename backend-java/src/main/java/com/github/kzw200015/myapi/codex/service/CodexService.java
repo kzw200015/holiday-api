@@ -31,11 +31,13 @@ import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import com.github.kzw200015.myapi.codex.model.entity.CodexOAuthSessionEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexOAuthSessionMapper;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Codex OAuth 流程与账户存储。
  */
 @Service
+@RequiredArgsConstructor
 public class CodexService {
     private static final Duration OAUTH_SESSION_TTL = Duration.ofMinutes(10);
 
@@ -46,21 +48,9 @@ public class CodexService {
 
     private final CodexAccountMapper codexAccountMapper;
     private final CodexOAuthSessionMapper codexOAuthSessionMapper;
-    private final RestClient restClient;
     private final ObjectMapper objectMapper;
-    private final SecureRandom secureRandom;
-
-    public CodexService(
-        CodexAccountMapper codexAccountMapper,
-        CodexOAuthSessionMapper codexOAuthSessionMapper,
-        ObjectMapper objectMapper
-    ) {
-        this.codexAccountMapper = codexAccountMapper;
-        this.codexOAuthSessionMapper = codexOAuthSessionMapper;
-        this.restClient = RestClient.create();
-        this.objectMapper = objectMapper;
-        this.secureRandom = new SecureRandom();
-    }
+    private final RestClient restClient = RestClient.create();
+    private final SecureRandom secureRandom = new SecureRandom();
 
     public OAuthSessionInfo createOAuthSession() {
         String state = generateRandomState();

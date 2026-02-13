@@ -34,11 +34,13 @@ import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.UpstreamReq
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import lombok.RequiredArgsConstructor;
 
 /**
  * /api/responses 反向代理：按粘性会话 + 轮询选择账号，转发到上游 Codex responses。
  */
 @Service
+@RequiredArgsConstructor
 public class CodexProxyService {
     private static final String CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses";
     private static final String CODEX_HEADER_INSTRUCTIONS_TEXT_URL =
@@ -65,20 +67,11 @@ public class CodexProxyService {
     );
 
     private final CodexAccountMapper codexAccountMapper;
-    private final StickySessionService stickySessionService;
-    private final AtomicLong rrCounter;
-    private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
-    private final String defaultInstructions;
-
-    public CodexProxyService(CodexAccountMapper codexAccountMapper, ObjectMapper objectMapper) {
-        this.codexAccountMapper = codexAccountMapper;
-        this.stickySessionService = new StickySessionService(DEFAULT_STICKY_TTL);
-        this.rrCounter = new AtomicLong(0);
-        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
-        this.objectMapper = objectMapper;
-        this.defaultInstructions = fetchText(CODEX_HEADER_INSTRUCTIONS_TEXT_URL);
-    }
+    private final StickySessionService stickySessionService = new StickySessionService(DEFAULT_STICKY_TTL);
+    private final AtomicLong rrCounter = new AtomicLong(0);
+    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private final String defaultInstructions = fetchText(CODEX_HEADER_INSTRUCTIONS_TEXT_URL);
 
     public CallLog proxyResponses(HttpServletRequest request, HttpServletResponse response, byte[] rawBody) throws Exception {
         long startAt = System.currentTimeMillis();

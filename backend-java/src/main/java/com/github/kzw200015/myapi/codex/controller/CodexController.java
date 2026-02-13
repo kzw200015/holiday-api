@@ -15,17 +15,14 @@ import com.github.kzw200015.myapi.common.model.ApiResponse;
 import com.github.kzw200015.myapi.codex.service.CodexService;
 import com.github.kzw200015.myapi.codex.model.UpdateAccountRequest;
 import com.github.kzw200015.myapi.codex.service.ResponseLogService;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/codex")
+@RequiredArgsConstructor
 public class CodexController {
     private final CodexService codexService;
     private final ResponseLogService responseLogService;
-
-    public CodexController(CodexService codexService, ResponseLogService responseLogService) {
-        this.codexService = codexService;
-        this.responseLogService = responseLogService;
-    }
 
     @PostMapping("/oauth/session")
     public ResponseEntity<ApiResponse<?>> createOAuthSession() {

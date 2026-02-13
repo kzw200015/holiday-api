@@ -12,14 +12,12 @@ import com.github.kzw200015.myapi.codex.model.CallLog;
 import com.github.kzw200015.myapi.codex.model.CodexResponseLogItem;
 import com.github.kzw200015.myapi.codex.model.entity.CodexResponseLogEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexResponseLogMapper;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class ResponseLogService {
     private final CodexResponseLogMapper mapper;
-
-    public ResponseLogService(CodexResponseLogMapper mapper) {
-        this.mapper = mapper;
-    }
 
     public void writeCallLog(CallLog callLog) {
         CodexResponseLogEntity entity = new CodexResponseLogEntity();

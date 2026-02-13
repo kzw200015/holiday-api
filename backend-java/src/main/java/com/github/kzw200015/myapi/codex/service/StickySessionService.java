@@ -9,18 +9,15 @@ import java.util.HexFormat;
 import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 粘性会话：依据 session_id / conversation_id / prompt_cache_key 绑定账号一段时间。
  */
+@RequiredArgsConstructor
 public class StickySessionService {
     private final Duration stickyTtl;
-    private final Map<String, StickyBinding> bindings;
-
-    public StickySessionService(Duration stickyTtl) {
-        this.stickyTtl = stickyTtl;
-        this.bindings = new HashMap<>();
-    }
+    private final Map<String, StickyBinding> bindings = new HashMap<>();
 
     public String extractKey(HttpServletRequest request, String promptCacheKey) {
         String sessionId = trim(request.getHeader("session_id"));
