@@ -67,12 +67,12 @@ func (s *ProxyService) forwardSSE(c *gin.Context, body []byte, headers http.Head
 		}
 		upstreamErr := <-esErrChan
 		if upstreamErr != nil && !errors.Is(upstreamErr, io.EOF) {
-			return usage, errors.Join(ErrUpstreamRequestFail, upstreamErr)
+			return usage, upstreamErr
 		}
 		return usage, nil
 	case upstreamErr := <-esErrChan:
 		if upstreamErr != nil && !errors.Is(upstreamErr, io.EOF) {
-			return usage, errors.Join(ErrUpstreamRequestFail, upstreamErr)
+			return usage, upstreamErr
 		}
 		return usage, nil
 	}

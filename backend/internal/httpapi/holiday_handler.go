@@ -39,13 +39,13 @@ func (h *HolidayHandler) handleIsHoliday(c *gin.Context) {
 
 	date, err := parseHolidayDateOrNow(dateParam)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, BadRequest("date 参数格式错误，应为 yyyy-MM-dd"))
+		c.JSON(http.StatusBadRequest, BadRequest(err.Error()))
 		return
 	}
 
 	isHoliday, err := h.service.IsHoliday(c.Request.Context(), date)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, InternalServerError("查询节假日失败"))
+		c.JSON(http.StatusInternalServerError, InternalServerError(err.Error()))
 		return
 	}
 
@@ -58,13 +58,13 @@ func (h *HolidayHandler) handleNextOffDay(c *gin.Context) {
 
 	date, err := parseHolidayDateOrNow(dateParam)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, BadRequest("date 参数格式错误，应为 yyyy-MM-dd"))
+		c.JSON(http.StatusBadRequest, BadRequest(err.Error()))
 		return
 	}
 
 	nextOffDay, err := h.service.QueryNextOffDay(c.Request.Context(), date)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, InternalServerError("查询节假日失败"))
+		c.JSON(http.StatusInternalServerError, InternalServerError(err.Error()))
 		return
 	}
 

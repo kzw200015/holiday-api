@@ -3,6 +3,7 @@ package codexproxy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -27,7 +28,6 @@ const (
 var (
 	ErrNoAvailableAccount  = errors.New("no available codex account")
 	ErrUpstreamRequestFail = errors.New("upstream request failed")
-	ErrInvalidRequestBody  = errors.New("invalid request body")
 )
 
 type tokenUsage struct {
@@ -82,10 +82,7 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 	userAgent := strings.TrimSpace(c.GetHeader("User-Agent"))
 
 	if !gjson.ValidBytes(body) {
-		return CallLog{
-			UserAgent: userAgent,
-			ClientIP:  clientIP,
-		}, ErrInvalidRequestBody
+		return CallLog{}, fmt.Errorf("invalid JSON body")
 	}
 
 	stream := gjson.GetBytes(body, "stream").Bool()
@@ -94,12 +91,13 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 	if instructions == "" {
 		updatedBody, err := sjson.SetBytes(body, "instructions", s.defaultInstructions)
 		if err != nil {
-			return CallLog{
-				UserAgent: userAgent,
-				ClientIP:  clientIP,
-			}, ErrInvalidRequestBody
+			return CallLog{}, err
 		}
 		body = updatedBody
+	}
+	_, err := sjson.DeleteBytes(body, "prompt_cache_key")
+	if err != nil {
+		return CallLog{}, err
 	}
 
 	stickyKey := s.stickySessionService.ExtractKey(c.Request.Header, promptCacheKey)
@@ -118,13 +116,7 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 	if stream {
 		sseUsage, err := s.forwardSSE(c, body, upstreamHeaders)
 		if err != nil {
-			return CallLog{
-				UserAgent:   userAgent,
-				ClientIP:    clientIP,
-				AccountID:   account.AccountID,
-				AccountName: account.Name,
-				IsSSE:       stream,
-			}, err
+			return CallLog{}, err
 		}
 		usage = sseUsage
 	} else {

@@ -58,7 +58,7 @@ type responseLogsPaginationQuery struct {
 func (h *CodexHandler) handleCreateOAuthSession(c *gin.Context) {
 	info, err := h.service.CreateOAuthSession(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, InternalServerError("创建 OAuth 链接失败"))
+		c.JSON(http.StatusInternalServerError, InternalServerError(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, Ok(info))
@@ -68,7 +68,7 @@ func (h *CodexHandler) handleCreateOAuthSession(c *gin.Context) {
 func (h *CodexHandler) handleCompleteOAuth(c *gin.Context) {
 	var req completeOAuthRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, BadRequest("请求体格式错误"))
+		c.JSON(http.StatusBadRequest, BadRequest(err.Error()))
 		return
 	}
 
@@ -84,13 +84,13 @@ func (h *CodexHandler) handleCompleteOAuth(c *gin.Context) {
 func (h *CodexHandler) handleListAccounts(c *gin.Context) {
 	var query accountsPaginationQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
-		c.JSON(http.StatusBadRequest, BadRequest("请求参数错误"))
+		c.JSON(http.StatusBadRequest, BadRequest(err.Error()))
 		return
 	}
 
 	accounts, err := h.service.ListAccountsPage(c.Request.Context(), query.Page, query.PageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, InternalServerError("查询账户失败"))
+		c.JSON(http.StatusInternalServerError, InternalServerError(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, Ok(accounts))
@@ -106,7 +106,7 @@ func (h *CodexHandler) handleUpdateAccount(c *gin.Context) {
 
 	var req updateAccountRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, BadRequest("请求体格式错误"))
+		c.JSON(http.StatusBadRequest, BadRequest(err.Error()))
 		return
 	}
 
@@ -116,7 +116,7 @@ func (h *CodexHandler) handleUpdateAccount(c *gin.Context) {
 			c.JSON(http.StatusNotFound, NotFound())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, InternalServerError("更新账户失败"))
+		c.JSON(http.StatusInternalServerError, InternalServerError(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, Ok(updated))
@@ -126,21 +126,19 @@ func (h *CodexHandler) handleUpdateAccount(c *gin.Context) {
 func (h *CodexHandler) handleResponses(c *gin.Context) {
 	body, err := resolveRawBody(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误"})
+		c.JSON(http.StatusBadRequest, NewApiResponse[any](http.StatusBadRequest, nil, err.Error()))
 		return
 	}
 
 	callLog, err := h.responsesProxy.ProxyResponses(c, body)
 	if err != nil {
 		switch {
-		case errors.Is(err, codexproxy.ErrInvalidRequestBody):
-			c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误"})
 		case errors.Is(err, codexproxy.ErrNoAvailableAccount):
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "无可用 Codex 账户"})
+			c.JSON(http.StatusServiceUnavailable, NewApiResponse[any](http.StatusServiceUnavailable, nil, err.Error()))
 		case errors.Is(err, codexproxy.ErrUpstreamRequestFail):
-			c.JSON(http.StatusBadGateway, gin.H{"error": "调用上游 Codex 失败"})
+			c.JSON(http.StatusBadGateway, NewApiResponse[any](http.StatusBadGateway, nil, err.Error()))
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "代理请求失败"})
+			c.JSON(http.StatusInternalServerError, NewApiResponse[any](http.StatusInternalServerError, nil, err.Error()))
 		}
 		return
 	}

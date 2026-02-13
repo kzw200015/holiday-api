@@ -1,6 +1,7 @@
 package codexproxy
 
 import (
+	"errors"
 	"io"
 	"net/http"
 
@@ -20,7 +21,7 @@ func (s *ProxyService) forwardHTTP(c *gin.Context, body []byte, headers http.Hea
 
 	resp, err := req.Post(codexResponsesURL)
 	if err != nil {
-		return usage, ErrUpstreamRequestFail
+		return usage, errors.Join(ErrUpstreamRequestFail, err)
 	}
 	defer func() {
 		_ = resp.Body.Close()
