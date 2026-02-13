@@ -2,13 +2,13 @@ package codexproxy
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 	resty "resty.dev/v3"
 )
 
@@ -96,37 +96,24 @@ func updateUsageFromSSEEventData(rawJSON string, usage *tokenUsage) {
 		return
 	}
 
-	var event struct {
-		Usage struct {
-			InputTokens       int `json:"input_tokens"`
-			OutputTokens      int `json:"output_tokens"`
-			InputTokenDetails struct {
-				CachedTokens int `json:"cached_tokens"`
-			} `json:"input_tokens_details"`
-		} `json:"usage"`
-		Response struct {
-			Usage struct {
-				InputTokens       int `json:"input_tokens"`
-				OutputTokens      int `json:"output_tokens"`
-				InputTokenDetails struct {
-					CachedTokens int `json:"cached_tokens"`
-				} `json:"input_tokens_details"`
-			} `json:"usage"`
-		} `json:"response"`
-	}
-	if err := json.Unmarshal([]byte(rawJSON), &event); err != nil {
+	if !gjson.Valid(rawJSON) {
 		return
 	}
 
-	if event.Response.Usage.InputTokens > 0 || event.Response.Usage.OutputTokens > 0 {
-		usage.InputTokens = event.Response.Usage.InputTokens
-		usage.CachedInputTokens = event.Response.Usage.InputTokenDetails.CachedTokens
-		usage.OutputTokens = event.Response.Usage.OutputTokens
+	responseInputTokens := int(gjson.Get(rawJSON, "response.usage.input_tokens").Int())
+	responseOutputTokens := int(gjson.Get(rawJSON, "response.usage.output_tokens").Int())
+	if responseInputTokens > 0 || responseOutputTokens > 0 {
+		usage.InputTokens = responseInputTokens
+		usage.CachedInputTokens = int(gjson.Get(rawJSON, "response.usage.input_tokens_details.cached_tokens").Int())
+		usage.OutputTokens = responseOutputTokens
 		return
 	}
-	if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 {
-		usage.InputTokens = event.Usage.InputTokens
-		usage.CachedInputTokens = event.Usage.InputTokenDetails.CachedTokens
-		usage.OutputTokens = event.Usage.OutputTokens
+
+	inputTokens := int(gjson.Get(rawJSON, "usage.input_tokens").Int())
+	outputTokens := int(gjson.Get(rawJSON, "usage.output_tokens").Int())
+	if inputTokens > 0 || outputTokens > 0 {
+		usage.InputTokens = inputTokens
+		usage.CachedInputTokens = int(gjson.Get(rawJSON, "usage.input_tokens_details.cached_tokens").Int())
+		usage.OutputTokens = outputTokens
 	}
 }

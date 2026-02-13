@@ -1,11 +1,11 @@
 package codexproxy
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 // forwardHTTP 透传普通 HTTP 响应并提取 token 使用量。
@@ -47,21 +47,13 @@ func writeHTTPResponse(c *gin.Context, statusCode int, headers http.Header, body
 
 // parseUsageFromResponseBody 从普通 JSON 响应中提取 usage 字段。
 func parseUsageFromResponseBody(body []byte) tokenUsage {
-	var response struct {
-		Usage struct {
-			InputTokens       int `json:"input_tokens"`
-			OutputTokens      int `json:"output_tokens"`
-			InputTokenDetails struct {
-				CachedTokens int `json:"cached_tokens"`
-			} `json:"input_tokens_details"`
-		} `json:"usage"`
-	}
-	if err := json.Unmarshal(body, &response); err != nil {
+	if !gjson.ValidBytes(body) {
 		return tokenUsage{}
 	}
+
 	return tokenUsage{
-		InputTokens:       response.Usage.InputTokens,
-		CachedInputTokens: response.Usage.InputTokenDetails.CachedTokens,
-		OutputTokens:      response.Usage.OutputTokens,
+		InputTokens:       int(gjson.GetBytes(body, "usage.input_tokens").Int()),
+		CachedInputTokens: int(gjson.GetBytes(body, "usage.input_tokens_details.cached_tokens").Int()),
+		OutputTokens:      int(gjson.GetBytes(body, "usage.output_tokens").Int()),
 	}
 }

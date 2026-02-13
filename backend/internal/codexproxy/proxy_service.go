@@ -2,7 +2,6 @@ package codexproxy
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"myapi/internal/ent/codexaccount"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 	resty "resty.dev/v3"
 )
 
@@ -71,31 +71,30 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 	clientIP := c.ClientIP()
 	userAgent := strings.TrimSpace(c.GetHeader("User-Agent"))
 
-	var payload struct {
-		Stream         bool   `json:"stream"`
-		PromptCacheKey string `json:"prompt_cache_key"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
+	if !gjson.ValidBytes(body) {
 		return CallLog{
 			UserAgent: userAgent,
 			ClientIP:  clientIP,
 		}, ErrInvalidRequestBody
 	}
 
-	stickyKey := s.stickySessionService.ExtractKey(c.Request.Header, payload.PromptCacheKey)
+	stream := gjson.GetBytes(body, "stream").Bool()
+	promptCacheKey := gjson.GetBytes(body, "prompt_cache_key").String()
+
+	stickyKey := s.stickySessionService.ExtractKey(c.Request.Header, promptCacheKey)
 
 	account, err := s.selectAccount(c.Request.Context(), stickyKey)
 	if err != nil {
 		return CallLog{
 			UserAgent: userAgent,
 			ClientIP:  clientIP,
-			IsSSE:     payload.Stream,
+			IsSSE:     stream,
 		}, err
 	}
 
 	usage := tokenUsage{}
 	upstreamHeaders := buildUpstreamHeaders(c.Request.Header, account)
-	if payload.Stream {
+	if stream {
 		sseUsage, err := s.forwardSSE(c, body, upstreamHeaders)
 		if err != nil {
 			return CallLog{
@@ -103,7 +102,7 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 				ClientIP:    clientIP,
 				AccountID:   account.AccountID,
 				AccountName: account.Name,
-				IsSSE:       payload.Stream,
+				IsSSE:       stream,
 			}, err
 		}
 		usage = sseUsage
@@ -115,7 +114,7 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 				ClientIP:    clientIP,
 				AccountID:   account.AccountID,
 				AccountName: account.Name,
-				IsSSE:       payload.Stream,
+				IsSSE:       stream,
 			}, err
 		}
 		usage = httpUsage
@@ -136,7 +135,7 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 		DurationMs:        int(time.Since(startAt).Milliseconds()),
 		AccountID:         account.AccountID,
 		AccountName:       account.Name,
-		IsSSE:             payload.Stream,
+		IsSSE:             stream,
 	}, nil
 }
 
