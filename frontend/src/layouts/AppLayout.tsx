@@ -1,7 +1,6 @@
-import { computed, defineComponent, onMounted } from "vue"
+import { defineComponent, onMounted } from "vue"
 import { RouterView } from "vue-router"
-import { Expand, Fold } from "@element-plus/icons-vue"
-import { ElButton, ElIcon, ElSwitch } from "element-plus"
+import { ElSwitch } from "element-plus"
 
 import AppSidebar from "@/components/AppSidebar"
 import { useAppStore } from "@/stores/AppStore"
@@ -15,29 +14,20 @@ export default defineComponent({
             appStore.initializeTheme()
         })
 
-        const asideWidth = computed(() => (appStore.sidebarCollapsed ? "65px" : "240px"))
-        const CollapseIcon = computed(() => (appStore.sidebarCollapsed ? Expand : Fold))
-
         return () => (
             <div
                 class="flex min-h-screen bg-slate-100 text-slate-800 dark:bg-zinc-950 dark:text-slate-100"
             >
                 <aside
-                    class="shrink-0 border-r border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)] transition-[width] duration-200"
-                    style={{ width: asideWidth.value }}
+                    class="w-60 shrink-0 border-r border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)]"
                 >
-                    <AppSidebar collapsed={appStore.sidebarCollapsed}/>
+                    <AppSidebar/>
                 </aside>
 
                 <div class="flex min-w-0 flex-1 flex-col">
                     <header
                         class="flex h-16 shrink-0 items-center justify-between border-b border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)] px-4">
-                        <div class="flex items-center gap-2.5">
-                            <ElButton circle text onClick={appStore.toggleSidebarCollapsed}>
-                                <ElIcon>
-                                    <CollapseIcon.value/>
-                                </ElIcon>
-                            </ElButton>
+                        <div class="flex items-center">
                             <span>控制台</span>
                         </div>
                         <div class="flex items-center gap-2.5">

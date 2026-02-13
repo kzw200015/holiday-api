@@ -18,13 +18,7 @@ const navItems = [
 
 export default defineComponent({
     name: "AppSidebar",
-    props: {
-        collapsed: {
-            type: Boolean,
-            required: true,
-        },
-    },
-    setup(props) {
+    setup() {
         const route = useRoute()
         const router = useRouter()
         const activePath = computed(() => route.path)
@@ -42,15 +36,13 @@ export default defineComponent({
                         API
                     </div>
                     <div
-                        class={`grid min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity,margin-left] duration-200 ${
-                            props.collapsed ? "ml-0 max-w-0 opacity-0" : "ml-2.5 max-w-32 opacity-100"
-                        }`}
+                        class="ml-2.5 grid min-w-0 max-w-32 whitespace-nowrap"
                     >
                         <div class="font-semibold">
                             控制台
                         </div>
                         <div class="text-xs text-[var(--el-text-color-secondary)]">
-                            Java API
+                            API
                         </div>
                     </div>
                 </div>
@@ -58,7 +50,6 @@ export default defineComponent({
                 <ElMenu
                     class="border-r-0 bg-transparent"
                     defaultActive={activePath.value}
-                    collapse={props.collapsed}
                     onSelect={handleSelect}
                 >
                     {navItems.map((item) => (

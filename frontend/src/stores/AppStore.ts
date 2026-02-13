@@ -3,7 +3,6 @@ import { ref } from "vue"
 
 export const useAppStore = defineStore("AppStore", () => {
     const isDark = ref(false)
-    const sidebarCollapsed = ref(false)
 
     function initializeTheme() {
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -16,15 +15,9 @@ export const useAppStore = defineStore("AppStore", () => {
         document.documentElement.classList.toggle("dark", value)
     }
 
-    function toggleSidebarCollapsed() {
-        sidebarCollapsed.value = !sidebarCollapsed.value
-    }
-
     return {
         isDark,
-        sidebarCollapsed,
         initializeTheme,
         setDark,
-        toggleSidebarCollapsed,
     }
 })
