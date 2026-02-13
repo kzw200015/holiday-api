@@ -77,6 +77,9 @@ public class CodexProxyService {
 
         boolean stream = updated.path("stream").asBoolean(false);
         String promptCacheKey = updated.path("prompt_cache_key").asString();
+        if (promptCacheKey.isBlank()) {
+            log.warn("请求缺少 prompt_cache_key");
+        }
 
         if (updated.path("instructions").isMissingNode() || updated.path("instructions").asString().isBlank()) {
             updated.put("instructions", defaultInstructions);
