@@ -6,7 +6,7 @@ import lombok.Data;
  * SSE 事件流解析期间用于累计 usage 的可变容器。
  */
 @Data
-class TokenUsageHolder {
+public class TokenUsageHolder {
     private int inputTokens;
     private int cachedInputTokens;
     private int outputTokens;
@@ -17,7 +17,7 @@ class TokenUsageHolder {
         this.outputTokens = outputTokens;
     }
 
-    AbstractCodexProxyForwardService.TokenUsage toUsage() {
-        return new AbstractCodexProxyForwardService.TokenUsage(inputTokens, cachedInputTokens, outputTokens);
+    TokenUsage toUsage() {
+        return new TokenUsage(inputTokens, cachedInputTokens, outputTokens);
     }
 }

@@ -1,13 +1,16 @@
 package com.github.kzw200015.myapi.codex.service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
-import java.time.Duration;
-import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.HexFormat;
-
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.github.kzw200015.myapi.codex.exception.AccountNotFoundException;
+import com.github.kzw200015.myapi.codex.model.*;
+import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
+import com.github.kzw200015.myapi.codex.model.entity.CodexOAuthSessionEntity;
+import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
+import com.github.kzw200015.myapi.codex.model.mapper.CodexOAuthSessionMapper;
+import com.github.kzw200015.myapi.common.model.PaginatedResult;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
@@ -15,23 +18,16 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.github.kzw200015.myapi.common.model.PaginatedResult;
-import com.github.kzw200015.myapi.codex.model.Account;
-import com.github.kzw200015.myapi.codex.model.OAuthCallback;
-import com.github.kzw200015.myapi.codex.model.OAuthSessionInfo;
-import com.github.kzw200015.myapi.codex.model.TokenResponse;
-import com.github.kzw200015.myapi.codex.model.UpdateAccountRequest;
-import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
-import com.github.kzw200015.myapi.codex.model.entity.CodexOAuthSessionEntity;
-import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
-import com.github.kzw200015.myapi.codex.model.mapper.CodexOAuthSessionMapper;
-import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.util.HexFormat;
+import java.util.List;
 
 /**
  * Codex OAuth 流程与账户存储。
@@ -86,7 +82,7 @@ public class CodexService {
         }
 
         CodexOAuthSessionEntity session = codexOAuthSessionMapper.selectOne(
-            Wrappers.<CodexOAuthSessionEntity>lambdaQuery().eq(CodexOAuthSessionEntity::getState, callback.state())
+                Wrappers.<CodexOAuthSessionEntity>lambdaQuery().eq(CodexOAuthSessionEntity::getState, callback.state())
         );
         if (session == null) {
             throw new IllegalArgumentException("OAuth 会话不存在或已过期");
@@ -112,7 +108,7 @@ public class CodexService {
         OffsetDateTime expiresAt = OffsetDateTime.now().plusSeconds(exchange.parsed().expiresIn());
 
         CodexAccountEntity entity = codexAccountMapper.selectOne(
-            Wrappers.<CodexAccountEntity>lambdaQuery().eq(CodexAccountEntity::getAccountId, accountId)
+                Wrappers.<CodexAccountEntity>lambdaQuery().eq(CodexAccountEntity::getAccountId, accountId)
         );
         boolean exists = entity != null;
         if (!exists) {
@@ -140,8 +136,8 @@ public class CodexService {
 
     public PaginatedResult<Account> listAccountsPage(int page, int pageSize) {
         Page<CodexAccountEntity> pageResult = codexAccountMapper.selectPage(
-            Page.of(page, pageSize),
-            new QueryWrapper<CodexAccountEntity>().orderByDesc("created_at")
+                Page.of(page, pageSize),
+                new QueryWrapper<CodexAccountEntity>().orderByDesc("created_at")
         );
         List<Account> items = pageResult.getRecords().stream().map(Account::from).toList();
         return new PaginatedResult<>(items, pageResult.getTotal(), page, pageSize);
@@ -149,10 +145,10 @@ public class CodexService {
 
     public Account updateAccount(String accountId, UpdateAccountRequest req) {
         CodexAccountEntity entity = codexAccountMapper.selectOne(
-            Wrappers.<CodexAccountEntity>lambdaQuery().eq(CodexAccountEntity::getAccountId, accountId)
+                Wrappers.<CodexAccountEntity>lambdaQuery().eq(CodexAccountEntity::getAccountId, accountId)
         );
         if (entity == null) {
-            throw new IllegalStateException("NOT_FOUND");
+            throw new AccountNotFoundException();
         }
         entity.setName(req.name());
         entity.setUpdatedAt(OffsetDateTime.now());
@@ -176,18 +172,18 @@ public class CodexService {
 
     private String buildAuthorizeUrl(String state, PKCECodes pkce) {
         return UriComponentsBuilder.fromUriString(OPENAI_AUTHORIZE_URL)
-            .queryParam("client_id", OPENAI_CLIENT_ID)
-            .queryParam("response_type", "code")
-            .queryParam("redirect_uri", REDIRECT_URI)
-            .queryParam("scope", "openid email profile offline_access")
-            .queryParam("state", state)
-            .queryParam("code_challenge", pkce.codeChallenge())
-            .queryParam("code_challenge_method", "S256")
-            .queryParam("prompt", "login")
-            .queryParam("id_token_add_organizations", "true")
-            .queryParam("codex_cli_simplified_flow", "true")
-            .build(true)
-            .toUriString();
+                .queryParam("client_id", OPENAI_CLIENT_ID)
+                .queryParam("response_type", "code")
+                .queryParam("redirect_uri", REDIRECT_URI)
+                .queryParam("scope", "openid email profile offline_access")
+                .queryParam("state", state)
+                .queryParam("code_challenge", pkce.codeChallenge())
+                .queryParam("code_challenge_method", "S256")
+                .queryParam("prompt", "login")
+                .queryParam("id_token_add_organizations", "true")
+                .queryParam("codex_cli_simplified_flow", "true")
+                .build(true)
+                .toUriString();
     }
 
     private TokenExchangeResult exchangeCodeForTokens(String code, PKCECodes pkce) {
@@ -201,13 +197,13 @@ public class CodexService {
         String raw;
         try {
             raw = restClient.post()
-                .uri(OPENAI_TOKEN_URL)
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .accept(MediaType.APPLICATION_JSON)
-                .header("User-Agent", "codex-cli/0.91.0")
-                .body(form)
-                .retrieve()
-                .body(String.class);
+                    .uri(OPENAI_TOKEN_URL)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .header("User-Agent", "codex-cli/0.91.0")
+                    .body(form)
+                    .retrieve()
+                    .body(String.class);
         } catch (RestClientResponseException ex) {
             throw new IllegalArgumentException("token 交换失败: status=" + ex.getStatusCode().value());
         }
@@ -231,7 +227,6 @@ public class CodexService {
         }
 
         JsonNode claims = jsonMapper.readTree(payloadBytes);
-
         JsonNode auth = claims.get("https://api.openai.com/auth");
         if (auth == null) {
             return "";
@@ -240,7 +235,7 @@ public class CodexService {
         if (accountId == null) {
             return "";
         }
-        return accountId.asText("");
+        return accountId.asString();
     }
 
     private static byte[] sha256(byte[] raw) {
@@ -255,8 +250,4 @@ public class CodexService {
     private static String base64UrlNoPadding(byte[] raw) {
         return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
     }
-
-    private record TokenExchangeResult(String rawJson, TokenResponse parsed) {}
-
-    private record PKCECodes(String codeVerifier, String codeChallenge) {}
 }

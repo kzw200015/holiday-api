@@ -76,8 +76,4 @@ public class StickySessionService {
     private static String trim(String raw) {
         return raw == null ? "" : raw.trim();
     }
-
-    private record StickyBinding(String accountId, OffsetDateTime expiresAt) {}
-
-    public record BindingResult(String accountId, boolean found) {}
 }

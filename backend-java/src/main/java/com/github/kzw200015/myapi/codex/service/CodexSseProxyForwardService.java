@@ -8,13 +8,13 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-
-import jakarta.servlet.ServletOutputStream;
-import jakarta.servlet.http.HttpServletResponse;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
 import tools.jackson.databind.json.JsonMapper;
@@ -28,7 +28,7 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
         super(jsonMapper);
     }
 
-    public TokenUsage forward(HttpServletResponse response, byte[] body, HttpHeaders headers) throws Exception {
+    public SseForwardResult forward(byte[] body, HttpHeaders headers) throws Exception {
         HttpRequest request = buildUpstreamRequest(body, headers)
             .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
             .build();
@@ -38,35 +38,45 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
             throw new UpstreamRequestFailedException("upstream request failed: status=" + upstream.statusCode(), null);
         }
 
-        response.setStatus(200);
-        response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+        SseEmitter emitter = new SseEmitter(0L);
+        CompletableFuture<TokenUsage> usageFuture = CompletableFuture.supplyAsync(() -> streamToEmitter(upstream.body(), emitter));
+        return new SseForwardResult(emitter, usageFuture);
+    }
 
+    private TokenUsage streamToEmitter(InputStream upstreamBody, SseEmitter emitter) {
         TokenUsageHolder usageHolder = new TokenUsageHolder();
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(upstream.body(), StandardCharsets.UTF_8))) {
-            ServletOutputStream out = response.getOutputStream();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(upstreamBody, StandardCharsets.UTF_8))) {
             List<String> dataLines = new ArrayList<>();
-
             String line;
             while ((line = reader.readLine()) != null) {
-                out.print(line);
-                out.print("\n");
-
                 if (line.startsWith("data:")) {
                     dataLines.add(line.substring("data:".length()).trim());
                 }
-                if (line.isBlank()) {
-                    if (!dataLines.isEmpty()) {
-                        String data = String.join("\n", dataLines);
-                        updateUsageFromSseEventData(data, usageHolder);
-                        dataLines.clear();
-                    }
-                    out.flush();
+                if (!line.isBlank()) {
+                    continue;
                 }
-            }
-            out.flush();
-        }
 
-        return usageHolder.toUsage();
+                if (dataLines.isEmpty()) {
+                    continue;
+                }
+
+                String data = String.join("\n", dataLines);
+                updateUsageFromSseEventData(data, usageHolder);
+                emitter.send(SseEmitter.event().data(data));
+                dataLines.clear();
+            }
+
+            if (!dataLines.isEmpty()) {
+                String data = String.join("\n", dataLines);
+                updateUsageFromSseEventData(data, usageHolder);
+                emitter.send(SseEmitter.event().data(data));
+            }
+
+            emitter.complete();
+            return usageHolder.toUsage();
+        } catch (Exception ex) {
+            emitter.completeWithError(ex);
+            throw new CompletionException(new UpstreamRequestFailedException(ex));
+        }
     }
 }

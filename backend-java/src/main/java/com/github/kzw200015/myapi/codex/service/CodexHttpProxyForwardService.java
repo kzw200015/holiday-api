@@ -3,8 +3,6 @@ package com.github.kzw200015.myapi.codex.service;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
-import jakarta.servlet.http.HttpServletResponse;
-
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 
@@ -19,15 +17,12 @@ public class CodexHttpProxyForwardService extends AbstractCodexProxyForwardServi
         super(jsonMapper);
     }
 
-    public TokenUsage forward(HttpServletResponse response, byte[] body, HttpHeaders headers) throws Exception {
+    public HttpForwardResult forward(byte[] body, HttpHeaders headers) throws Exception {
         HttpRequest request = buildUpstreamRequest(body, headers).build();
         HttpResponse<byte[]> upstream = sendUpstream(request, HttpResponse.BodyHandlers.ofByteArray());
 
         byte[] responseBody = upstream.body();
         TokenUsage usage = parseUsageFromResponseBody(responseBody);
-
-        response.setStatus(upstream.statusCode());
-        response.getOutputStream().write(responseBody);
-        return usage;
+        return new HttpForwardResult(upstream.statusCode(), responseBody, usage);
     }
 }

@@ -4,12 +4,13 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -20,6 +21,7 @@ import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -28,6 +30,7 @@ import tools.jackson.databind.node.ObjectNode;
  * /api/responses 反向代理：按粘性会话 + 轮询选择账号，转发到上游 Codex responses。
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class CodexProxyService {
     private static final String CODEX_HEADER_INSTRUCTIONS_TEXT_URL =
@@ -57,11 +60,12 @@ public class CodexProxyService {
     private final JsonMapper jsonMapper;
     private final CodexHttpProxyForwardService codexHttpProxyForwardService;
     private final CodexSseProxyForwardService codexSseProxyForwardService;
+    private final ResponseLogService responseLogService;
     private final StickySessionService stickySessionService = new StickySessionService(DEFAULT_STICKY_TTL);
     private final AtomicLong rrCounter = new AtomicLong(0);
     private final String defaultInstructions = fetchText(CODEX_HEADER_INSTRUCTIONS_TEXT_URL);
 
-    public CallLog proxyResponses(HttpServletRequest request, HttpServletResponse response, byte[] rawBody) throws Exception {
+    public Object proxyResponses(HttpServletRequest request, byte[] rawBody) throws Exception {
         long startAt = System.currentTimeMillis();
 
         String clientIp = request.getRemoteAddr() == null ? "" : request.getRemoteAddr();
@@ -69,11 +73,11 @@ public class CodexProxyService {
 
         JsonNode bodyJson = jsonMapper.readTree(rawBody);
 
-        boolean stream = bodyJson.path("stream").asBoolean(false);
-        String promptCacheKey = bodyJson.path("prompt_cache_key").asText("");
+        boolean stream = readBoolean(bodyJson, "stream");
+        String promptCacheKey = readText(bodyJson, "prompt_cache_key");
+
         ObjectNode updated = (ObjectNode) bodyJson.deepCopy();
-        String instructions = updated.path("instructions").asText("");
-        if (instructions.isBlank()) {
+        if (readText(updated, "instructions").isBlank()) {
             updated.put("instructions", defaultInstructions);
         }
         updated.remove("max_output_tokens");
@@ -82,14 +86,33 @@ public class CodexProxyService {
         String stickyKey = stickySessionService.extractKey(request, promptCacheKey);
         CodexAccountEntity account = selectAccount(stickyKey);
 
-        AbstractCodexProxyForwardService.TokenUsage usage;
         HttpHeaders upstreamHeaders = buildUpstreamHeaders(request, account);
         if (stream) {
-            usage = codexSseProxyForwardService.forward(response, bodyBytes, upstreamHeaders);
-        } else {
-            usage = codexHttpProxyForwardService.forward(response, bodyBytes, upstreamHeaders);
+            SseForwardResult forwardResult = codexSseProxyForwardService.forward(bodyBytes, upstreamHeaders);
+            CompletableFuture<CallLog> callLogFuture = forwardResult.usageFuture().thenApply(usage ->
+                buildCallLog(usage, stream, startAt, userAgent, clientIp, account)
+            );
+            writeCallLogAsync(callLogFuture);
+            return forwardResult.emitter();
         }
 
+        HttpForwardResult forwardResult = codexHttpProxyForwardService.forward(bodyBytes, upstreamHeaders);
+        CallLog callLog = buildCallLog(forwardResult.usage(), stream, startAt, userAgent, clientIp, account);
+        ResponseEntity<byte[]> response = ResponseEntity
+            .status(forwardResult.statusCode())
+            .body(forwardResult.responseBody());
+        writeCallLogAsync(CompletableFuture.completedFuture(callLog));
+        return response;
+    }
+
+    private CallLog buildCallLog(
+        TokenUsage usage,
+        boolean stream,
+        long startAt,
+        String userAgent,
+        String clientIp,
+        CodexAccountEntity account
+    ) {
         double cacheRate = 0.0;
         if (usage.inputTokens() > 0) {
             cacheRate = (double) usage.cachedInputTokens() / (double) usage.inputTokens();
@@ -147,7 +170,7 @@ public class CodexProxyService {
         }
 
         if (stickyKey != null && !stickyKey.isBlank()) {
-            StickySessionService.BindingResult binding = stickySessionService.getBindingAccountId(stickyKey);
+            BindingResult binding = stickySessionService.getBindingAccountId(stickyKey);
             if (binding.found()) {
                 for (CodexAccountEntity account : accounts) {
                     if (account.getAccountId().equals(binding.accountId())) {
@@ -168,5 +191,36 @@ public class CodexProxyService {
 
     private static String trim(String raw) {
         return raw == null ? "" : raw.trim();
+    }
+
+    private boolean readBoolean(JsonNode node, String fieldName) {
+        JsonNode fieldNode = node.get(fieldName);
+        if (fieldNode == null) {
+            return false;
+        }
+        return fieldNode.asBoolean(false);
+    }
+
+    private String readText(JsonNode node, String fieldName) {
+        JsonNode fieldNode = node.get(fieldName);
+        if (fieldNode == null) {
+            return "";
+        }
+        return fieldNode.asString();
+    }
+
+    private void writeCallLogAsync(CompletableFuture<CallLog> callLogFuture) {
+        callLogFuture.whenComplete((callLog, ex) -> {
+            if (ex != null) {
+                log.warn("写入 /api/responses 调用日志失败: {}", ex.getMessage());
+                return;
+            }
+
+            try {
+                responseLogService.writeCallLog(callLog);
+            } catch (Exception writeEx) {
+                log.warn("写入 /api/responses 调用日志失败: {}", writeEx.getMessage());
+            }
+        });
     }
 }

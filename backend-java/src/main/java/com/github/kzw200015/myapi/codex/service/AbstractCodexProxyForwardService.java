@@ -42,40 +42,39 @@ public abstract class AbstractCodexProxyForwardService {
     }
 
     protected TokenUsage parseUsageFromResponseBody(byte[] bodyBytes) {
-        JsonNode node = jsonMapper.readTree(bodyBytes);
-        return new TokenUsage(
-            node.path("usage").path("input_tokens").asInt(0),
-            node.path("usage").path("input_tokens_details").path("cached_tokens").asInt(0),
-            node.path("usage").path("output_tokens").asInt(0)
-        );
+        JsonNode body = jsonMapper.readTree(bodyBytes);
+        JsonNode usageNode = body.path("usage");
+        if (usageNode.isMissingNode()) {
+            usageNode = body.path("response").path("usage");
+        }
+        return toTokenUsage(usageNode);
     }
 
     protected void updateUsageFromSseEventData(String rawJson, TokenUsageHolder holder) {
         if (rawJson == null || rawJson.isBlank()) {
             return;
         }
-        JsonNode node = jsonMapper.readTree(rawJson);
-        int responseInputTokens = node.path("response").path("usage").path("input_tokens").asInt(0);
-        int responseOutputTokens = node.path("response").path("usage").path("output_tokens").asInt(0);
-        if (responseInputTokens > 0 || responseOutputTokens > 0) {
-            holder.set(
-                responseInputTokens,
-                node.path("response").path("usage").path("input_tokens_details").path("cached_tokens").asInt(0),
-                responseOutputTokens
-            );
+
+        JsonNode eventData = jsonMapper.readTree(rawJson);
+        String eventType = eventData.path("type").asString();
+        if ("response.completed".equals(eventType) || "response.done".equals(eventType)) {
+            TokenUsage usage = toTokenUsage(eventData.path("response").path("usage"));
+            holder.set(usage.inputTokens(), usage.cachedInputTokens(), usage.outputTokens());
             return;
         }
 
-        int inputTokens = node.path("usage").path("input_tokens").asInt(0);
-        int outputTokens = node.path("usage").path("output_tokens").asInt(0);
-        if (inputTokens > 0 || outputTokens > 0) {
-            holder.set(
-                inputTokens,
-                node.path("usage").path("input_tokens_details").path("cached_tokens").asInt(0),
-                outputTokens
-            );
+        JsonNode usageNode = eventData.path("usage");
+        if (usageNode.isObject()) {
+            TokenUsage usage = toTokenUsage(usageNode);
+            holder.set(usage.inputTokens(), usage.cachedInputTokens(), usage.outputTokens());
         }
     }
 
-    public record TokenUsage(int inputTokens, int cachedInputTokens, int outputTokens) {}
+    private TokenUsage toTokenUsage(JsonNode usageNode) {
+        return new TokenUsage(
+            usageNode.path("input_tokens").asInt(0),
+            usageNode.path("input_tokens_details").path("cached_tokens").asInt(0),
+            usageNode.path("output_tokens").asInt(0)
+        );
+    }
 }
