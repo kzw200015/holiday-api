@@ -3,6 +3,8 @@ package codexproxy
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -65,13 +67,13 @@ func (s *ProxyService) forwardSSE(c *gin.Context, body []byte, headers http.Head
 			c.Writer.Flush()
 		}
 		upstreamErr := <-esErrChan
-		if upstreamErr != nil {
-			return usage, ErrUpstreamRequestFail
+		if upstreamErr != nil && !errors.Is(upstreamErr, io.EOF) {
+			return usage, errors.Join(ErrUpstreamRequestFail, upstreamErr)
 		}
 		return usage, nil
 	case upstreamErr := <-esErrChan:
-		if upstreamErr != nil {
-			return usage, ErrUpstreamRequestFail
+		if upstreamErr != nil && !errors.Is(upstreamErr, io.EOF) {
+			return usage, errors.Join(ErrUpstreamRequestFail, upstreamErr)
 		}
 		return usage, nil
 	}
