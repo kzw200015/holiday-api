@@ -9,6 +9,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// parseHolidayDateOrNow 解析 date 参数（yyyy-MM-dd）；若为空则返回当前时间。
+func parseHolidayDateOrNow(dateParam string) (time.Time, error) {
+	if dateParam == "" {
+		return time.Now(), nil
+	}
+	return time.ParseInLocation(holiday.DateLayout, dateParam, time.Local)
+}
+
 // HolidayHandler 负责节假日HTTP接口。
 type HolidayHandler struct {
 	service *holiday.Service
@@ -29,16 +37,10 @@ func (h *HolidayHandler) Register(router *gin.Engine) {
 func (h *HolidayHandler) handleIsHoliday(c *gin.Context) {
 	dateParam := c.Query("date")
 
-	var date time.Time
-	if dateParam == "" {
-		date = time.Now()
-	} else {
-		parsed, parseErr := time.ParseInLocation(holiday.DateLayout, dateParam, time.Local)
-		if parseErr != nil {
-			c.JSON(http.StatusBadRequest, BadRequest("date 参数格式错误，应为 yyyy-MM-dd"))
-			return
-		}
-		date = parsed
+	date, err := parseHolidayDateOrNow(dateParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, BadRequest("date 参数格式错误，应为 yyyy-MM-dd"))
+		return
 	}
 
 	isHoliday, err := h.service.IsHoliday(c.Request.Context(), date)
@@ -54,16 +56,10 @@ func (h *HolidayHandler) handleIsHoliday(c *gin.Context) {
 func (h *HolidayHandler) handleNextOffDay(c *gin.Context) {
 	dateParam := c.Query("date")
 
-	var date time.Time
-	if dateParam == "" {
-		date = time.Now()
-	} else {
-		parsed, parseErr := time.ParseInLocation(holiday.DateLayout, dateParam, time.Local)
-		if parseErr != nil {
-			c.JSON(http.StatusBadRequest, BadRequest("date 参数格式错误，应为 yyyy-MM-dd"))
-			return
-		}
-		date = parsed
+	date, err := parseHolidayDateOrNow(dateParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, BadRequest("date 参数格式错误，应为 yyyy-MM-dd"))
+		return
 	}
 
 	nextOffDay, err := h.service.QueryNextOffDay(c.Request.Context(), date)
