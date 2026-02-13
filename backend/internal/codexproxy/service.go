@@ -113,35 +113,30 @@ func (s *Service) ProxyResponses(c *gin.Context, body []byte) (CallLog, error) {
 
 	usage := tokenUsage{}
 	upstreamHeaders := buildUpstreamHeaders(c.Request.Header, account)
-	isSSE := false
 	if payload.Stream {
-		streaming, err := s.forwardSSEWithEventSource(c, body, upstreamHeaders, &usage)
+		sseUsage, err := s.forwardSSEWithEventSource(c, body, upstreamHeaders)
 		if err != nil {
 			return CallLog{
 				UserAgent:   userAgent,
 				ClientIP:    clientIP,
 				AccountID:   account.AccountID,
 				AccountName: account.Name,
-				IsSSE:       streaming,
+				IsSSE:       payload.Stream,
 			}, err
 		}
-		isSSE = streaming
+		usage = sseUsage
 	} else {
-		upstreamResp, err := s.sendUpstreamRequest(c, body, upstreamHeaders)
+		httpUsage, err := s.forwardHTTP(c, body, upstreamHeaders)
 		if err != nil {
 			return CallLog{
 				UserAgent:   userAgent,
 				ClientIP:    clientIP,
 				AccountID:   account.AccountID,
 				AccountName: account.Name,
-				IsSSE:       false,
+				IsSSE:       payload.Stream,
 			}, err
 		}
-		defer func() {
-			_ = upstreamResp.Body.Close()
-		}()
-		s.forwardHTTP(c, upstreamResp.RawResponse, &usage)
-		isSSE = false
+		usage = httpUsage
 	}
 
 	cacheRate := 0.0
@@ -159,7 +154,7 @@ func (s *Service) ProxyResponses(c *gin.Context, body []byte) (CallLog, error) {
 		DurationMs:        int(time.Since(startAt).Milliseconds()),
 		AccountID:         account.AccountID,
 		AccountName:       account.Name,
-		IsSSE:             isSSE,
+		IsSSE:             payload.Stream,
 	}, nil
 }
 
@@ -221,8 +216,9 @@ func (s *Service) ListResponseLogsPage(ctx context.Context, page int, pageSize i
 	}, nil
 }
 
-// sendUpstreamRequest 构造并发送到上游 Codex 的 HTTP 请求。
-func (s *Service) sendUpstreamRequest(c *gin.Context, body []byte, headers http.Header) (*resty.Response, error) {
+// forwardHTTP 透传普通 HTTP 响应并提取 token 使用量。
+func (s *Service) forwardHTTP(c *gin.Context, body []byte, headers http.Header) (tokenUsage, error) {
+	usage := tokenUsage{}
 	req := s.httpClient.R().
 		SetContext(c.Request.Context()).
 		SetBody(body).
@@ -232,9 +228,22 @@ func (s *Service) sendUpstreamRequest(c *gin.Context, body []byte, headers http.
 
 	resp, err := req.Post(codexResponsesURL)
 	if err != nil {
-		return nil, ErrUpstreamRequestFail
+		return usage, ErrUpstreamRequestFail
 	}
-	return resp, nil
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	upstreamResp := resp.RawResponse
+	responseBody, readErr := io.ReadAll(upstreamResp.Body)
+	if readErr != nil {
+		c.Status(http.StatusBadGateway)
+		return usage, nil
+	}
+	parsedUsage := parseUsageFromResponseBody(responseBody)
+	usage = parsedUsage
+
+	writeHTTPResponse(c, upstreamResp.StatusCode, upstreamResp.Header, responseBody)
+	return usage, nil
 }
 
 // buildUpstreamHeaders 构建转发到上游 Codex 的请求头。
@@ -281,23 +290,8 @@ func (s *Service) selectAccount(ctx context.Context, stickyKey string) (*ent.Cod
 	return selected, nil
 }
 
-// forwardHTTP 透传普通 HTTP 响应并提取 token 使用量。
-func (s *Service) forwardHTTP(c *gin.Context, upstreamResp *http.Response, usage *tokenUsage) {
-	body, err := io.ReadAll(upstreamResp.Body)
-	if err != nil {
-		c.Status(http.StatusBadGateway)
-		return
-	}
-	parsedUsage := parseUsageFromResponseBody(body)
-	usage.InputTokens = parsedUsage.InputTokens
-	usage.CachedInputTokens = parsedUsage.CachedInputTokens
-	usage.OutputTokens = parsedUsage.OutputTokens
-
-	writeHTTPResponse(c, upstreamResp.StatusCode, upstreamResp.Header, body)
-}
-
 // forwardSSEWithEventSource 使用 Resty v3 EventSource 透传 SSE 并持续更新 token 使用量。
-func (s *Service) forwardSSEWithEventSource(c *gin.Context, body []byte, headers http.Header, usage *tokenUsage) (bool, error) {
+func (s *Service) forwardSSEWithEventSource(c *gin.Context, body []byte, headers http.Header) (tokenUsage, error) {
 	type sseMessage struct {
 		name string
 		data string
@@ -321,12 +315,11 @@ func (s *Service) forwardSSEWithEventSource(c *gin.Context, body []byte, headers
 
 	clientChan := make(chan sseMessage)
 	esDone := make(chan struct{})
-	isSSE := false
+	usage := tokenUsage{}
 	var streamErr error
 	var failedResp *failureResponse
 
 	es.OnOpen(func(_ string, responseHeaders http.Header) {
-		isSSE = true
 		copyResponseHeaders(c.Writer.Header(), responseHeaders)
 		c.Status(http.StatusOK)
 	})
@@ -353,7 +346,7 @@ func (s *Service) forwardSSEWithEventSource(c *gin.Context, body []byte, headers
 
 	es.OnMessage(func(eventAny any) {
 		event := eventAny.(*resty.Event)
-		updateUsageFromSSEEventData(event.Data, usage)
+		updateUsageFromSSEEventData(event.Data, &usage)
 		clientChan <- sseMessage{
 			name: event.Name,
 			data: event.Data,
@@ -390,12 +383,12 @@ func (s *Service) forwardSSEWithEventSource(c *gin.Context, body []byte, headers
 	<-esDone
 	if failedResp != nil {
 		writeHTTPResponse(c, failedResp.statusCode, failedResp.headers, failedResp.body)
-		return false, nil
+		return usage, nil
 	}
 	if streamErr != nil && c.Request.Context().Err() == nil {
-		return isSSE, ErrUpstreamRequestFail
+		return usage, ErrUpstreamRequestFail
 	}
-	return isSSE, nil
+	return usage, nil
 }
 
 // copyResponseHeaders 将上游响应头复制到下游并过滤冲突字段。
