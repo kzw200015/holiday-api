@@ -1,6 +1,6 @@
 import { defineComponent, onMounted } from "vue"
 import { RouterView } from "vue-router"
-import { ElSwitch } from "element-plus"
+import { ElScrollbar, ElSwitch } from "element-plus"
 
 import AppSidebar from "@/components/AppSidebar"
 import { useAppStore } from "@/stores/AppStore"
@@ -16,12 +16,14 @@ export default defineComponent({
 
         return () => (
             <div
-                class="flex min-h-screen bg-slate-100 text-slate-800 dark:bg-zinc-950 dark:text-slate-100"
+                class="flex h-screen bg-slate-100 text-slate-800 dark:bg-zinc-950 dark:text-slate-100"
             >
                 <aside
                     class="w-60 shrink-0 border-r border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)]"
                 >
-                    <AppSidebar/>
+                    <ElScrollbar class="h-full">
+                        <AppSidebar/>
+                    </ElScrollbar>
                 </aside>
 
                 <div class="flex min-w-0 flex-1 flex-col">
@@ -42,8 +44,12 @@ export default defineComponent({
                         </div>
                     </header>
 
-                    <main class="min-h-0 flex-1 p-5">
-                        <RouterView/>
+                    <main class="min-h-0 flex-1">
+                        <ElScrollbar class="h-full">
+                            <div class="p-5">
+                                <RouterView/>
+                            </div>
+                        </ElScrollbar>
                     </main>
                 </div>
             </div>

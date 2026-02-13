@@ -6,7 +6,7 @@
     html,
     body,
     #app {
-        @apply min-h-screen min-w-[320px];
+        @apply h-full min-w-[320px];
     }
 
     body {
