@@ -1,16 +1,13 @@
 package codexproxy
 
 import (
-	"bufio"
+	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -20,7 +17,7 @@ import (
 	"myapi/internal/pagination"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-resty/resty/v2"
+	resty "resty.dev/v3"
 )
 
 const (
@@ -31,21 +28,8 @@ const (
 var (
 	ErrNoAvailableAccount  = errors.New("no available codex account")
 	ErrUpstreamRequestFail = errors.New("upstream request failed")
+	ErrInvalidRequestBody  = errors.New("invalid request body")
 )
-
-var passthroughRequestHeaders = map[string]bool{
-	"accept":          true,
-	"content-type":    true,
-	"user-agent":      true,
-	"originator":      true,
-	"conversation_id": true,
-	"session_id":      true,
-}
-
-type RequestPayload struct {
-	Stream         bool   `json:"stream"`
-	PromptCacheKey string `json:"prompt_cache_key"`
-}
 
 type tokenUsage struct {
 	InputTokens       int
@@ -80,45 +64,43 @@ type ResponseLogItem struct {
 	CreatedAt         time.Time `json:"createdAt"`
 }
 
-type stickyBinding struct {
-	AccountID string
-	ExpiresAt time.Time
-}
-
 type Service struct {
-	client         *ent.Client
-	httpClient     *resty.Client
-	stickyTTL      time.Duration
-	rrCounter      atomic.Uint64
-	stickyMu       sync.Mutex
-	stickyBindings map[string]stickyBinding
+	client               *ent.Client
+	httpClient           *resty.Client
+	rrCounter            atomic.Uint64
+	stickySessionService *StickySessionService
 }
 
+// NewService 创建 Codex responses 代理服务。
 func NewService(client *ent.Client) *Service {
 	httpClient := resty.New()
 	httpClient.SetTimeout(0)
 
 	return &Service{
-		client:         client,
-		httpClient:     httpClient,
-		stickyTTL:      defaultStickyTTL,
-		stickyBindings: make(map[string]stickyBinding),
+		client:               client,
+		httpClient:           httpClient,
+		stickySessionService: NewStickySessionService(defaultStickyTTL),
 	}
 }
 
-func ParseRequestPayload(body []byte) (RequestPayload, error) {
-	var payload RequestPayload
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return RequestPayload{}, err
-	}
-	return payload, nil
-}
-
-func (s *Service) ProxyResponses(c *gin.Context, body []byte, payload RequestPayload) (CallLog, error) {
+// ProxyResponses 将请求转发到上游并回传响应内容。
+func (s *Service) ProxyResponses(c *gin.Context, body []byte) (CallLog, error) {
 	startAt := time.Now()
 	clientIP := c.ClientIP()
 	userAgent := strings.TrimSpace(c.GetHeader("User-Agent"))
-	stickyKey := extractStickyKey(c.Request.Header, payload.PromptCacheKey)
+
+	var payload struct {
+		Stream         bool   `json:"stream"`
+		PromptCacheKey string `json:"prompt_cache_key"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return CallLog{
+			UserAgent: userAgent,
+			ClientIP:  clientIP,
+		}, ErrInvalidRequestBody
+	}
+
+	stickyKey := s.stickySessionService.ExtractKey(c.Request.Header, payload.PromptCacheKey)
 
 	account, err := s.selectAccount(c.Request.Context(), stickyKey)
 	if err != nil {
@@ -129,26 +111,37 @@ func (s *Service) ProxyResponses(c *gin.Context, body []byte, payload RequestPay
 		}, err
 	}
 
-	upstreamResp, err := s.sendUpstreamRequest(c, body, payload, account)
-	if err != nil {
-		return CallLog{
-			UserAgent:   userAgent,
-			ClientIP:    clientIP,
-			AccountID:   account.AccountID,
-			AccountName: account.Name,
-			IsSSE:       payload.Stream,
-		}, err
-	}
-	defer func() {
-		_ = upstreamResp.RawResponse.Body.Close()
-	}()
-
 	usage := tokenUsage{}
-	isSSE := payload.Stream && isEventStreamContentType(upstreamResp.RawResponse.Header.Get("Content-Type"))
-	if isSSE {
-		s.forwardSSE(c, upstreamResp.RawResponse, &usage)
+	upstreamHeaders := buildUpstreamHeaders(c.Request.Header, account)
+	isSSE := false
+	if payload.Stream {
+		streaming, err := s.forwardSSEWithEventSource(c, body, upstreamHeaders, &usage)
+		if err != nil {
+			return CallLog{
+				UserAgent:   userAgent,
+				ClientIP:    clientIP,
+				AccountID:   account.AccountID,
+				AccountName: account.Name,
+				IsSSE:       streaming,
+			}, err
+		}
+		isSSE = streaming
 	} else {
+		upstreamResp, err := s.sendUpstreamRequest(c, body, upstreamHeaders)
+		if err != nil {
+			return CallLog{
+				UserAgent:   userAgent,
+				ClientIP:    clientIP,
+				AccountID:   account.AccountID,
+				AccountName: account.Name,
+				IsSSE:       false,
+			}, err
+		}
+		defer func() {
+			_ = upstreamResp.Body.Close()
+		}()
 		s.forwardHTTP(c, upstreamResp.RawResponse, &usage)
+		isSSE = false
 	}
 
 	cacheRate := 0.0
@@ -170,6 +163,7 @@ func (s *Service) ProxyResponses(c *gin.Context, body []byte, payload RequestPay
 	}, nil
 }
 
+// WriteCallLog 持久化一次代理调用日志。
 func (s *Service) WriteCallLog(ctx context.Context, callLog CallLog) error {
 	_, err := s.client.CodexResponseLog.Create().
 		SetUserAgent(callLog.UserAgent).
@@ -186,6 +180,7 @@ func (s *Service) WriteCallLog(ctx context.Context, callLog CallLog) error {
 	return err
 }
 
+// ListResponseLogsPage 分页查询调用日志。
 func (s *Service) ListResponseLogsPage(ctx context.Context, page int, pageSize int) (pagination.PaginatedResult[ResponseLogItem], error) {
 	total, err := s.client.CodexResponseLog.Query().Count(ctx)
 	if err != nil {
@@ -226,38 +221,14 @@ func (s *Service) ListResponseLogsPage(ctx context.Context, page int, pageSize i
 	}, nil
 }
 
-func (s *Service) sendUpstreamRequest(c *gin.Context, body []byte, payload RequestPayload, account *ent.CodexAccount) (*resty.Response, error) {
+// sendUpstreamRequest 构造并发送到上游 Codex 的 HTTP 请求。
+func (s *Service) sendUpstreamRequest(c *gin.Context, body []byte, headers http.Header) (*resty.Response, error) {
 	req := s.httpClient.R().
 		SetContext(c.Request.Context()).
 		SetBody(body).
 		SetDoNotParseResponse(true)
 
-	req.SetHeader("authorization", "Bearer "+account.Token)
-	req.SetHeader("chatgpt-account-id", account.AccountID)
-	req.SetHeader("OpenAI-Beta", "responses=experimental")
-	req.SetHeader("accept", "text/event-stream")
-	req.SetHeader("originator", "opencode")
-
-	for key, values := range c.Request.Header {
-		lowerKey := strings.ToLower(key)
-		if !passthroughRequestHeaders[lowerKey] {
-			continue
-		}
-		for _, value := range values {
-			req.SetHeader(key, value)
-		}
-	}
-	if req.Header.Get("content-type") == "" {
-		req.SetHeader("content-type", "application/json")
-	}
-	if payload.PromptCacheKey != "" {
-		if req.Header.Get("conversation_id") == "" {
-			req.SetHeader("conversation_id", payload.PromptCacheKey)
-		}
-		if req.Header.Get("session_id") == "" {
-			req.SetHeader("session_id", payload.PromptCacheKey)
-		}
-	}
+	req.SetHeaderMultiValues(headers)
 
 	resp, err := req.Post(codexResponsesURL)
 	if err != nil {
@@ -266,6 +237,18 @@ func (s *Service) sendUpstreamRequest(c *gin.Context, body []byte, payload Reque
 	return resp, nil
 }
 
+// buildUpstreamHeaders 构建转发到上游 Codex 的请求头。
+func buildUpstreamHeaders(incomingHeaders http.Header, account *ent.CodexAccount) http.Header {
+	headers := incomingHeaders.Clone()
+	if headers == nil {
+		headers = make(http.Header)
+	}
+	headers.Set("authorization", "Bearer "+account.Token)
+	headers.Set("chatgpt-account-id", account.AccountID)
+	return headers
+}
+
+// selectAccount 依据粘滞策略与轮询选择可用账户。
 func (s *Service) selectAccount(ctx context.Context, stickyKey string) (*ent.CodexAccount, error) {
 	accounts, err := s.client.CodexAccount.Query().
 		Where(codexaccount.ExpiresAtGT(time.Now())).
@@ -279,58 +262,27 @@ func (s *Service) selectAccount(ctx context.Context, stickyKey string) (*ent.Cod
 	}
 
 	if stickyKey != "" {
-		stickyAccountID, found := s.getStickyAccountID(stickyKey)
+		stickyAccountID, found := s.stickySessionService.GetBindingAccountID(stickyKey)
 		if found {
 			for _, account := range accounts {
 				if account.AccountID == stickyAccountID {
 					return account, nil
 				}
 			}
-			s.deleteSticky(stickyKey)
+			s.stickySessionService.DeleteBinding(stickyKey)
 		}
 	}
 
 	index := int(s.rrCounter.Add(1)-1) % len(accounts)
 	selected := accounts[index]
 	if stickyKey != "" {
-		s.setSticky(stickyKey, selected.AccountID)
+		s.stickySessionService.SetBinding(stickyKey, selected.AccountID)
 	}
 	return selected, nil
 }
 
-func (s *Service) setSticky(stickyKey string, accountID string) {
-	s.stickyMu.Lock()
-	defer s.stickyMu.Unlock()
-	s.stickyBindings[stickyKey] = stickyBinding{
-		AccountID: accountID,
-		ExpiresAt: time.Now().Add(s.stickyTTL),
-	}
-}
-
-func (s *Service) getStickyAccountID(stickyKey string) (string, bool) {
-	s.stickyMu.Lock()
-	defer s.stickyMu.Unlock()
-
-	binding, found := s.stickyBindings[stickyKey]
-	if !found {
-		return "", false
-	}
-	if time.Now().After(binding.ExpiresAt) {
-		delete(s.stickyBindings, stickyKey)
-		return "", false
-	}
-	return binding.AccountID, true
-}
-
-func (s *Service) deleteSticky(stickyKey string) {
-	s.stickyMu.Lock()
-	defer s.stickyMu.Unlock()
-	delete(s.stickyBindings, stickyKey)
-}
-
+// forwardHTTP 透传普通 HTTP 响应并提取 token 使用量。
 func (s *Service) forwardHTTP(c *gin.Context, upstreamResp *http.Response, usage *tokenUsage) {
-	copyResponseHeaders(c.Writer.Header(), upstreamResp.Header)
-
 	body, err := io.ReadAll(upstreamResp.Body)
 	if err != nil {
 		c.Status(http.StatusBadGateway)
@@ -341,38 +293,116 @@ func (s *Service) forwardHTTP(c *gin.Context, upstreamResp *http.Response, usage
 	usage.CachedInputTokens = parsedUsage.CachedInputTokens
 	usage.OutputTokens = parsedUsage.OutputTokens
 
-	contentType := upstreamResp.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "application/json"
+	writeHTTPResponse(c, upstreamResp.StatusCode, upstreamResp.Header, body)
+}
+
+// forwardSSEWithEventSource 使用 Resty v3 EventSource 透传 SSE 并持续更新 token 使用量。
+func (s *Service) forwardSSEWithEventSource(c *gin.Context, body []byte, headers http.Header, usage *tokenUsage) (bool, error) {
+	type sseMessage struct {
+		name string
+		data string
 	}
-	c.Data(upstreamResp.StatusCode, contentType, body)
-}
+	type failureResponse struct {
+		statusCode int
+		headers    http.Header
+		body       []byte
+	}
 
-func (s *Service) forwardSSE(c *gin.Context, upstreamResp *http.Response, usage *tokenUsage) {
-	copyResponseHeaders(c.Writer.Header(), upstreamResp.Header)
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Status(upstreamResp.StatusCode)
+	es := resty.NewEventSource().
+		SetURL(codexResponsesURL).
+		SetMethod(resty.MethodPost).
+		SetBody(bytes.NewReader(body)).
+		SetRetryCount(0)
+	for key, values := range headers {
+		for _, value := range values {
+			es.AddHeader(key, value)
+		}
+	}
 
-	reader := bufio.NewReader(upstreamResp.Body)
-	c.Stream(func(writer io.Writer) bool {
-		line, err := reader.ReadString('\n')
-		if line != "" {
-			_, _ = io.WriteString(writer, line)
-			updateUsageFromSSEDataLine(line, usage)
-		}
-		if err != nil {
-			return false
-		}
-		return true
+	clientChan := make(chan sseMessage)
+	esDone := make(chan struct{})
+	isSSE := false
+	var streamErr error
+	var failedResp *failureResponse
+
+	es.OnOpen(func(_ string, responseHeaders http.Header) {
+		isSSE = true
+		copyResponseHeaders(c.Writer.Header(), responseHeaders)
+		c.Status(http.StatusOK)
 	})
+
+	es.OnRequestFailure(func(_ error, response *http.Response) {
+		if response == nil {
+			return
+		}
+		defer func() {
+			_ = response.Body.Close()
+		}()
+
+		responseBody, readErr := io.ReadAll(response.Body)
+		if readErr != nil {
+			streamErr = readErr
+			return
+		}
+		failedResp = &failureResponse{
+			statusCode: response.StatusCode,
+			headers:    response.Header.Clone(),
+			body:       responseBody,
+		}
+	})
+
+	es.OnMessage(func(eventAny any) {
+		event := eventAny.(*resty.Event)
+		updateUsageFromSSEEventData(event.Data, usage)
+		clientChan <- sseMessage{
+			name: event.Name,
+			data: event.Data,
+		}
+	}, nil)
+
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-c.Request.Context().Done():
+			es.Close()
+		case <-done:
+		}
+	}()
+	defer close(done)
+
+	go func() {
+		defer close(esDone)
+		err := es.Get()
+		if err != nil && !errors.Is(err, io.EOF) {
+			streamErr = err
+		}
+		close(clientChan)
+	}()
+
+	c.Stream(func(w io.Writer) bool {
+		if msg, ok := <-clientChan; ok {
+			c.SSEvent(msg.name, msg.data)
+			return true
+		}
+		return false
+	})
+
+	<-esDone
+	if failedResp != nil {
+		writeHTTPResponse(c, failedResp.statusCode, failedResp.headers, failedResp.body)
+		return false, nil
+	}
+	if streamErr != nil && c.Request.Context().Err() == nil {
+		return isSSE, ErrUpstreamRequestFail
+	}
+	return isSSE, nil
 }
 
+// copyResponseHeaders 将上游响应头复制到下游并过滤冲突字段。
 func copyResponseHeaders(dst http.Header, src http.Header) {
 	for key, values := range src {
 		lowerKey := strings.ToLower(key)
-		if lowerKey == "content-length" || lowerKey == "transfer-encoding" {
+		if lowerKey == "transfer-encoding" {
 			continue
 		}
 		dst.Del(key)
@@ -382,10 +412,14 @@ func copyResponseHeaders(dst http.Header, src http.Header) {
 	}
 }
 
-func isEventStreamContentType(contentType string) bool {
-	return strings.Contains(strings.ToLower(contentType), "text/event-stream")
+// writeHTTPResponse 按上游响应状态与头部写回下游。
+func writeHTTPResponse(c *gin.Context, statusCode int, headers http.Header, body []byte) {
+	copyResponseHeaders(c.Writer.Header(), headers)
+	c.Status(statusCode)
+	_, _ = c.Writer.Write(body)
 }
 
+// parseUsageFromResponseBody 从普通 JSON 响应中提取 usage 字段。
 func parseUsageFromResponseBody(body []byte) tokenUsage {
 	var response struct {
 		Usage struct {
@@ -406,6 +440,7 @@ func parseUsageFromResponseBody(body []byte) tokenUsage {
 	}
 }
 
+// updateUsageFromSSEDataLine 从 SSE data 行里提取并更新 usage。
 func updateUsageFromSSEDataLine(line string, usage *tokenUsage) {
 	trimmed := strings.TrimSpace(line)
 	if !strings.HasPrefix(trimmed, "data:") {
@@ -413,6 +448,11 @@ func updateUsageFromSSEDataLine(line string, usage *tokenUsage) {
 	}
 
 	rawJSON := strings.TrimSpace(strings.TrimPrefix(trimmed, "data:"))
+	updateUsageFromSSEEventData(rawJSON, usage)
+}
+
+// updateUsageFromSSEEventData 从 SSE 事件 data 字段里提取并更新 usage。
+func updateUsageFromSSEEventData(rawJSON string, usage *tokenUsage) {
 	if rawJSON == "" || rawJSON == "[DONE]" {
 		return
 	}
@@ -450,26 +490,4 @@ func updateUsageFromSSEDataLine(line string, usage *tokenUsage) {
 		usage.CachedInputTokens = event.Usage.InputTokenDetails.CachedTokens
 		usage.OutputTokens = event.Usage.OutputTokens
 	}
-}
-
-func extractStickyKey(headers http.Header, promptCacheKey string) string {
-	sessionID := strings.TrimSpace(headers.Get("session_id"))
-	if sessionID != "" {
-		return hashStickyValue(sessionID)
-	}
-
-	conversationID := strings.TrimSpace(headers.Get("conversation_id"))
-	if conversationID != "" {
-		return hashStickyValue(conversationID)
-	}
-
-	if strings.TrimSpace(promptCacheKey) != "" {
-		return hashStickyValue(promptCacheKey)
-	}
-	return ""
-}
-
-func hashStickyValue(raw string) string {
-	sum := sha256.Sum256([]byte(raw))
-	return hex.EncodeToString(sum[:])
 }

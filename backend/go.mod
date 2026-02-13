@@ -6,6 +6,7 @@ require (
 	entgo.io/ent v0.14.5
 	github.com/gin-gonic/gin v1.11.0
 	github.com/lib/pq v1.10.9
+	resty.dev/v3 v3.0.0-beta.6
 )
 
 require (
@@ -23,7 +24,6 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.30.1 // indirect
-	github.com/go-resty/resty/v2 v2.17.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect

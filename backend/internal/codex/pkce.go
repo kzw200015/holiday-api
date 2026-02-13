@@ -14,6 +14,7 @@ type PKCECodes struct {
 	CodeChallenge string
 }
 
+// generateCodeVerifier 生成符合 OAuth PKCE 要求的随机 verifier。
 func generateCodeVerifier() (string, error) {
 	bytes := make([]byte, 64)
 	if _, err := rand.Read(bytes); err != nil {
@@ -22,6 +23,7 @@ func generateCodeVerifier() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
+// generateCodeChallenge 基于 verifier 计算 S256 challenge。
 func generateCodeChallenge(verifier string) string {
 	hash := sha256.Sum256([]byte(verifier))
 	return base64.RawURLEncoding.EncodeToString(hash[:])

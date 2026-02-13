@@ -15,6 +15,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// openDatabaseClient 打开数据库连接并初始化表结构。
 func openDatabaseClient(ctx context.Context) (*ent.Client, error) {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
@@ -33,6 +34,7 @@ func openDatabaseClient(ctx context.Context) (*ent.Client, error) {
 	return client, nil
 }
 
+// main 负责组装服务依赖并启动 HTTP 服务。
 func main() {
 	client, err := openDatabaseClient(context.Background())
 	if err != nil {

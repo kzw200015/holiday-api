@@ -62,6 +62,7 @@ func (s *Service) QueryNextOffDay(ctx context.Context, date time.Time) (NextOffD
 	}
 }
 
+// refreshYearDays 刷新指定年份的节假日数据。
 func (s *Service) refreshYearDays(ctx context.Context, year int) error {
 	days, err := fetchYearDays(year)
 	if err != nil {

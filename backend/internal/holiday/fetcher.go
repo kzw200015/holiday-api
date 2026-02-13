@@ -6,6 +6,7 @@ import (
 	"net/http"
 )
 
+// fetchYearDays 从上游拉取指定年份的节假日数据。
 func fetchYearDays(year int) ([]Day, error) {
 	requestURL := fmt.Sprintf("%s/%d.json", baseURL, year)
 	response, err := http.Get(requestURL)

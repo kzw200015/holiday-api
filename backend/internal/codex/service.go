@@ -45,10 +45,12 @@ type Service struct {
 	httpClient *http.Client
 }
 
+// NewService 创建 Codex 领域服务。
 func NewService(client *ent.Client) *Service {
 	return &Service{client: client, httpClient: &http.Client{}}
 }
 
+// CreateOAuthSession 创建一次新的 OAuth 会话信息并持久化。
 func (s *Service) CreateOAuthSession(ctx context.Context) (OAuthSessionInfo, error) {
 	state, err := GenerateRandomState()
 	if err != nil {
@@ -78,6 +80,7 @@ func (s *Service) CreateOAuthSession(ctx context.Context) (OAuthSessionInfo, err
 	return OAuthSessionInfo{State: state, URL: url, ExpiresAt: expiresAt}, nil
 }
 
+// CompleteOAuth 使用回调地址完成授权并写入账户信息。
 func (s *Service) CompleteOAuth(ctx context.Context, name string, redirectURL string) (Account, error) {
 	cb, err := ParseOAuthCallback(redirectURL)
 	if err != nil {
@@ -174,6 +177,7 @@ func (s *Service) CompleteOAuth(ctx context.Context, name string, redirectURL st
 	}, nil
 }
 
+// ListAccountsPage 分页查询账户列表。
 func (s *Service) ListAccountsPage(ctx context.Context, page int, pageSize int) (pagination.PaginatedResult[Account], error) {
 	total, err := s.client.CodexAccount.Query().Count(ctx)
 	if err != nil {

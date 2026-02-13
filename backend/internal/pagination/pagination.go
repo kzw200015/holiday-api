@@ -2,8 +2,6 @@ package pagination
 
 import (
 	"errors"
-	"strconv"
-	"strings"
 )
 
 var (
@@ -22,32 +20,4 @@ type PaginatedResult[T any] struct {
 	Total    int `json:"total"`
 	Page     int `json:"page"`
 	PageSize int `json:"pageSize"`
-}
-
-func Parse(pageText string, pageSizeText string, defaultPageSize int, maxPageSize int) (Params, error) {
-	page := 1
-	if strings.TrimSpace(pageText) != "" {
-		value, err := strconv.Atoi(pageText)
-		if err != nil || value <= 0 {
-			return Params{}, ErrInvalidPage
-		}
-		page = value
-	}
-
-	pageSize := defaultPageSize
-	if strings.TrimSpace(pageSizeText) != "" {
-		value, err := strconv.Atoi(pageSizeText)
-		if err != nil || value <= 0 {
-			return Params{}, ErrInvalidPageSize
-		}
-		pageSize = value
-	}
-
-	if pageSize > maxPageSize {
-		return Params{}, ErrPageSizeTooLarge
-	}
-	return Params{
-		Page:     page,
-		PageSize: pageSize,
-	}, nil
 }

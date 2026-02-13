@@ -5,48 +5,52 @@ import (
 	"testing"
 )
 
-func TestParseRequestPayload(t *testing.T) {
-	payload, err := ParseRequestPayload([]byte(`{"stream":true,"prompt_cache_key":"abc"}`))
-	if err != nil {
-		t.Fatalf("ParseRequestPayload returned error: %v", err)
+// TestStickySessionBindingCRUD 验证粘滞绑定的写入、读取和删除。
+func TestStickySessionBindingCRUD(t *testing.T) {
+	stickyService := NewStickySessionService(defaultStickyTTL)
+	stickyService.SetBinding("sticky-key", "account-id")
+
+	accountID, found := stickyService.GetBindingAccountID("sticky-key")
+	if !found {
+		t.Fatalf("expected sticky binding to exist")
 	}
-	if !payload.Stream {
-		t.Fatalf("expected stream=true")
+	if accountID != "account-id" {
+		t.Fatalf("expected account-id, got %s", accountID)
 	}
-	if payload.PromptCacheKey != "abc" {
-		t.Fatalf("expected prompt_cache_key=abc, got %s", payload.PromptCacheKey)
+
+	stickyService.DeleteBinding("sticky-key")
+	_, found = stickyService.GetBindingAccountID("sticky-key")
+	if found {
+		t.Fatalf("expected sticky binding to be deleted")
 	}
 }
 
-func TestParseRequestPayloadInvalidJSON(t *testing.T) {
-	_, err := ParseRequestPayload([]byte(`{invalid`))
-	if err == nil {
-		t.Fatalf("expected error for invalid JSON")
-	}
-}
-
+// TestExtractStickyKeyPriority 验证粘滞键提取优先级。
 func TestExtractStickyKeyPriority(t *testing.T) {
+	stickyService := NewStickySessionService(defaultStickyTTL)
+
 	headers := http.Header{}
 	headers.Set("session_id", "session-value")
 	headers.Set("conversation_id", "conversation-value")
-	sticky := extractStickyKey(headers, "prompt-value")
-	if sticky != hashStickyValue("session-value") {
+	sticky := stickyService.ExtractKey(headers, "prompt-value")
+	if sticky != stickyService.HashValue("session-value") {
 		t.Fatalf("expected session_id priority")
 	}
 
 	headers.Del("session_id")
-	sticky = extractStickyKey(headers, "prompt-value")
-	if sticky != hashStickyValue("conversation-value") {
+	sticky = stickyService.ExtractKey(headers, "prompt-value")
+	if sticky != stickyService.HashValue("conversation-value") {
 		t.Fatalf("expected conversation_id priority")
 	}
 
 	headers.Del("conversation_id")
-	sticky = extractStickyKey(headers, "prompt-value")
-	if sticky != hashStickyValue("prompt-value") {
+	sticky = stickyService.ExtractKey(headers, "prompt-value")
+	if sticky != stickyService.HashValue("prompt-value") {
 		t.Fatalf("expected prompt_cache_key fallback")
 	}
 }
 
+// TestParseUsageFromResponseBody 验证普通响应 usage 提取逻辑。
 func TestParseUsageFromResponseBody(t *testing.T) {
 	body := []byte(`{"usage":{"input_tokens":120,"output_tokens":30,"input_tokens_details":{"cached_tokens":40}}}`)
 	usage := parseUsageFromResponseBody(body)
@@ -61,6 +65,7 @@ func TestParseUsageFromResponseBody(t *testing.T) {
 	}
 }
 
+// TestUpdateUsageFromSSEDataLine 验证 SSE usage 提取逻辑。
 func TestUpdateUsageFromSSEDataLine(t *testing.T) {
 	line := "data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":88,\"output_tokens\":22,\"input_tokens_details\":{\"cached_tokens\":11}}}}\n"
 	usage := tokenUsage{}

@@ -11,7 +11,6 @@ import (
 	"myapi/internal/ent"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/gin/binding"
 )
 
 // CodexHandler 提供 Codex OAuth 相关接口。
@@ -20,6 +19,7 @@ type CodexHandler struct {
 	responsesProxy *codexproxy.Service
 }
 
+// NewCodexHandler 创建 Codex 接口处理器。
 func NewCodexHandler(service *codex.Service, responsesProxy *codexproxy.Service) *CodexHandler {
 	return &CodexHandler{
 		service:        service,
@@ -27,6 +27,7 @@ func NewCodexHandler(service *codex.Service, responsesProxy *codexproxy.Service)
 	}
 }
 
+// Register 注册 Codex 相关路由。
 func (h *CodexHandler) Register(router *gin.Engine) {
 	router.POST("/api/codex/oauth/session", h.handleCreateOAuthSession)
 	router.POST("/api/codex/oauth/complete", h.handleCompleteOAuth)
@@ -51,6 +52,7 @@ type responseLogsPaginationQuery struct {
 	PageSize int `form:"pageSize,default=20" binding:"min=1,max=200"`
 }
 
+// handleCreateOAuthSession 创建 OAuth 会话并返回授权地址。
 func (h *CodexHandler) handleCreateOAuthSession(c *gin.Context) {
 	info, err := h.service.CreateOAuthSession(c.Request.Context())
 	if err != nil {
@@ -60,6 +62,7 @@ func (h *CodexHandler) handleCreateOAuthSession(c *gin.Context) {
 	c.JSON(http.StatusOK, Ok(info))
 }
 
+// handleCompleteOAuth 完成 OAuth 回调并落库账户信息。
 func (h *CodexHandler) handleCompleteOAuth(c *gin.Context) {
 	var req completeOAuthRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -75,6 +78,7 @@ func (h *CodexHandler) handleCompleteOAuth(c *gin.Context) {
 	c.JSON(http.StatusOK, Ok(account))
 }
 
+// handleListAccounts 分页查询已授权账户。
 func (h *CodexHandler) handleListAccounts(c *gin.Context) {
 	var query accountsPaginationQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -94,6 +98,7 @@ type updateAccountRequest struct {
 	Name string `json:"name" binding:"required"`
 }
 
+// handleUpdateAccount 更新账户展示名称。
 func (h *CodexHandler) handleUpdateAccount(c *gin.Context) {
 	accountID := c.Param("accountId")
 
@@ -115,22 +120,19 @@ func (h *CodexHandler) handleUpdateAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, Ok(updated))
 }
 
+// handleResponses 代理 /api/responses 请求并记录调用日志。
 func (h *CodexHandler) handleResponses(c *gin.Context) {
-	var payload codexproxy.RequestPayload
-	if err := c.ShouldBindBodyWith(&payload, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误"})
-		return
-	}
-
 	body, err := resolveRawBody(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误"})
 		return
 	}
 
-	callLog, err := h.responsesProxy.ProxyResponses(c, body, payload)
+	callLog, err := h.responsesProxy.ProxyResponses(c, body)
 	if err != nil {
 		switch {
+		case errors.Is(err, codexproxy.ErrInvalidRequestBody):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误"})
 		case errors.Is(err, codexproxy.ErrNoAvailableAccount):
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "无可用 Codex 账户"})
 		case errors.Is(err, codexproxy.ErrUpstreamRequestFail):
@@ -146,6 +148,7 @@ func (h *CodexHandler) handleResponses(c *gin.Context) {
 	}
 }
 
+// handleListResponseLogs 分页查询 /api/responses 调用日志。
 func (h *CodexHandler) handleListResponseLogs(c *gin.Context) {
 	var query responseLogsPaginationQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -161,6 +164,7 @@ func (h *CodexHandler) handleListResponseLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, Ok(logsPage))
 }
 
+// resolveRawBody 优先复用 Gin 缓存的请求体字节，避免重复读取失败。
 func resolveRawBody(c *gin.Context) ([]byte, error) {
 	if value, exists := c.Get(gin.BodyBytesKey); exists {
 		if body, ok := value.([]byte); ok && len(body) > 0 {
