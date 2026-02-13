@@ -11,7 +11,6 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.kzw200015.myapi.common.model.ApiResponse;
 import com.github.kzw200015.myapi.codex.model.CallLog;
 import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.NoAvailableAccountException;
@@ -20,6 +19,7 @@ import com.github.kzw200015.myapi.codex.service.CodexProxyService;
 import com.github.kzw200015.myapi.codex.service.ResponseLogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.databind.json.JsonMapper;
 
 @RestController
 @Slf4j
@@ -27,7 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ResponsesController {
     private final CodexProxyService codexProxyService;
     private final ResponseLogService responseLogService;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
 
     @PostMapping("/api/responses")
     public void responses(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -60,6 +60,6 @@ public class ResponsesController {
     private void writeJson(HttpServletResponse response, int status, ApiResponse<?> payload) throws IOException {
         response.setStatus(status);
         response.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
-        objectMapper.writeValue(response.getOutputStream(), payload);
+        jsonMapper.writeValue(response.getOutputStream(), payload);
     }
 }

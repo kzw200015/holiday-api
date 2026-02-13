@@ -8,15 +8,15 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 处理普通 HTTP（非 SSE）转发。
  */
 @Service
 public class CodexHttpProxyForwardService extends AbstractCodexProxyForwardService {
-    public CodexHttpProxyForwardService(ObjectMapper objectMapper) {
-        super(objectMapper);
+    public CodexHttpProxyForwardService(JsonMapper jsonMapper) {
+        super(jsonMapper);
     }
 
     public TokenUsage forward(HttpServletResponse response, byte[] body, HttpHeaders headers) throws Exception {

@@ -5,12 +5,11 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.github.kzw200015.myapi.holiday.model.NextOffDayResult;
 import com.github.kzw200015.myapi.holiday.model.entity.HolidayDayEntity;
 import com.github.kzw200015.myapi.holiday.model.mapper.HolidayDayMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.json.JsonMapper;
-import lombok.RequiredArgsConstructor;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -77,25 +76,19 @@ public class HolidayService extends ServiceImpl<HolidayDayMapper, HolidayDayEnti
 
     private List<RemoteHolidayDay> fetchYearDays(int year) {
         String requestUrl = BASE_URL + "/" + year + ".json";
-        try {
-            String raw = restClient.get()
-                    .uri(requestUrl)
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, (req, resp) -> {
-                        throw new IllegalStateException("请求假期数据失败: status=" + resp.getStatusCode().value());
-                    })
-                    .body(String.class);
+        String raw = restClient.get()
+                .uri(requestUrl)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, resp) -> {
+                    throw new IllegalStateException("请求假期数据失败: status=" + resp.getStatusCode().value());
+                })
+                .body(String.class);
 
-            HolidayPayload payload = jsonMapper.readValue(raw, HolidayPayload.class);
-            if (payload == null || payload.days == null) {
-                return List.of();
-            }
-            return payload.days;
-        } catch (RestClientResponseException ex) {
-            throw new IllegalStateException("请求假期数据失败: status=" + ex.getStatusCode().value(), ex);
-        } catch (Exception ex) {
-            throw new IllegalStateException("请求假期数据失败: " + ex.getMessage(), ex);
+        HolidayPayload payload = jsonMapper.readValue(raw, HolidayPayload.class);
+        if (payload == null || payload.days == null) {
+            return List.of();
         }
+        return payload.days;
     }
 
     static class HolidayPayload {

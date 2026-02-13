@@ -2,8 +2,6 @@ package com.github.kzw200015.myapi.holiday.controller;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,38 +20,18 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class HolidayController {
     private final HolidayService holidayService;
-    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(HolidayService.DATE_LAYOUT);
 
     @GetMapping("/is-holiday")
-    public ResponseEntity<ApiResponse<?>> isHoliday(@RequestParam(name = "date", required = false) String date) {
-        LocalDate parsed;
-        try {
-            parsed = parseHolidayDateOrNow(date);
-        } catch (DateTimeParseException ex) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.badRequest(ex.getMessage()));
-        }
-
+    public ResponseEntity<ApiResponse<?>> isHoliday(@RequestParam(required = false) LocalDate date) {
+        LocalDate parsed = date == null ? LocalDate.now(ZoneId.systemDefault()) : date;
         boolean isHoliday = holidayService.isHoliday(parsed);
         return ResponseEntity.ok(ApiResponse.ok(isHoliday));
     }
 
     @GetMapping("/next-off-day")
-    public ResponseEntity<ApiResponse<?>> nextOffDay(@RequestParam(name = "date", required = false) String date) {
-        LocalDate parsed;
-        try {
-            parsed = parseHolidayDateOrNow(date);
-        } catch (DateTimeParseException ex) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.badRequest(ex.getMessage()));
-        }
-
+    public ResponseEntity<ApiResponse<?>> nextOffDay(@RequestParam(required = false) LocalDate date) {
+        LocalDate parsed = date == null ? LocalDate.now(ZoneId.systemDefault()) : date;
         NextOffDayResult result = holidayService.queryNextOffDay(parsed);
         return ResponseEntity.ok(ApiResponse.ok(result));
-    }
-
-    private LocalDate parseHolidayDateOrNow(String dateParam) {
-        if (dateParam == null || dateParam.isBlank()) {
-            return LocalDate.now(ZoneId.systemDefault());
-        }
-        return LocalDate.parse(dateParam, dateFormatter);
     }
 }

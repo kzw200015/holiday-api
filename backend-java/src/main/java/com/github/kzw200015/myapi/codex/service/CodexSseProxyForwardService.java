@@ -16,16 +16,16 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.UpstreamRequestFailedException;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 处理 SSE 转发，并从事件流中提取 token usage。
  */
 @Service
 public class CodexSseProxyForwardService extends AbstractCodexProxyForwardService {
-    public CodexSseProxyForwardService(ObjectMapper objectMapper) {
-        super(objectMapper);
+    public CodexSseProxyForwardService(JsonMapper jsonMapper) {
+        super(jsonMapper);
     }
 
     public TokenUsage forward(HttpServletResponse response, byte[] body, HttpHeaders headers) throws Exception {

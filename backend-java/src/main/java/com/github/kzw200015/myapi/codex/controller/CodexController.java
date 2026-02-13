@@ -50,8 +50,8 @@ public class CodexController {
 
     @GetMapping("/accounts")
     public ResponseEntity<ApiResponse<?>> listAccounts(
-        @RequestParam(name = "page", defaultValue = "1") int page,
-        @RequestParam(name = "pageSize", defaultValue = "10") int pageSize
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(defaultValue = "10") int pageSize
     ) {
         if (page < 1 || pageSize < 1 || pageSize > 200) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.badRequest("请求参数错误"));
@@ -87,8 +87,8 @@ public class CodexController {
 
     @GetMapping("/response-logs")
     public ResponseEntity<ApiResponse<?>> listResponseLogs(
-        @RequestParam(name = "page", defaultValue = "1") int page,
-        @RequestParam(name = "pageSize", defaultValue = "20") int pageSize
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(defaultValue = "20") int pageSize
     ) {
         if (page < 1 || pageSize < 1 || pageSize > 200) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.badRequest("请求参数错误"));

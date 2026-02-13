@@ -1,6 +1,6 @@
 package com.github.kzw200015.myapi.common.mybatis;
 
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.baomidou.mybatisplus.extension.handlers.Jackson3TypeHandler;
 import org.apache.ibatis.type.JdbcType;
 import org.postgresql.util.PGobject;
 import org.springframework.util.StringUtils;
@@ -11,7 +11,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class JsonbTypeHandler extends JacksonTypeHandler {
+public class JsonbTypeHandler extends Jackson3TypeHandler {
 
     public JsonbTypeHandler(Class<?> type) {
         super(type);

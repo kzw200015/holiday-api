@@ -14,15 +14,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.kzw200015.myapi.codex.model.CallLog;
 import com.github.kzw200015.myapi.codex.service.CodexProxyExceptions.NoAvailableAccountException;
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * /api/responses 反向代理：按粘性会话 + 轮询选择账号，转发到上游 Codex responses。
@@ -54,7 +54,7 @@ public class CodexProxyService {
     );
 
     private final CodexAccountMapper codexAccountMapper;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
     private final CodexHttpProxyForwardService codexHttpProxyForwardService;
     private final CodexSseProxyForwardService codexSseProxyForwardService;
     private final StickySessionService stickySessionService = new StickySessionService(DEFAULT_STICKY_TTL);
@@ -67,22 +67,17 @@ public class CodexProxyService {
         String clientIp = request.getRemoteAddr() == null ? "" : request.getRemoteAddr();
         String userAgent = trim(request.getHeader(HEADER_USER_AGENT));
 
-        JsonNode bodyJson;
-        try {
-            bodyJson = objectMapper.readTree(rawBody);
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("invalid JSON body");
-        }
+        JsonNode bodyJson = jsonMapper.readTree(rawBody);
 
         boolean stream = bodyJson.path("stream").asBoolean(false);
         String promptCacheKey = bodyJson.path("prompt_cache_key").asText("");
-        ObjectNode updated = bodyJson.deepCopy();
+        ObjectNode updated = (ObjectNode) bodyJson.deepCopy();
         String instructions = updated.path("instructions").asText("");
         if (instructions.isBlank()) {
             updated.put("instructions", defaultInstructions);
         }
         updated.remove("max_output_tokens");
-        byte[] bodyBytes = objectMapper.writeValueAsBytes(updated);
+        byte[] bodyBytes = jsonMapper.writeValueAsBytes(updated);
 
         String stickyKey = stickySessionService.extractKey(request, promptCacheKey);
         CodexAccountEntity account = selectAccount(stickyKey);

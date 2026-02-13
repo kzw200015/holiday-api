@@ -16,8 +16,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -32,6 +30,8 @@ import com.github.kzw200015.myapi.codex.model.entity.CodexOAuthSessionEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexOAuthSessionMapper;
 import lombok.RequiredArgsConstructor;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Codex OAuth 流程与账户存储。
@@ -48,7 +48,7 @@ public class CodexService {
 
     private final CodexAccountMapper codexAccountMapper;
     private final CodexOAuthSessionMapper codexOAuthSessionMapper;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
     private final RestClient restClient = RestClient.create();
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -123,11 +123,7 @@ public class CodexService {
         entity.setName(name);
         entity.setToken(exchange.parsed().accessToken());
         entity.setExpiresAt(expiresAt);
-        try {
-            entity.setOauthPayload(objectMapper.readTree(exchange.rawJson()));
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("写入账户失败: oauth_payload 解析失败");
-        }
+        entity.setOauthPayload(jsonMapper.readTree(exchange.rawJson()));
         entity.setUpdatedAt(OffsetDateTime.now());
 
         if (exists) {
@@ -216,12 +212,7 @@ public class CodexService {
             throw new IllegalArgumentException("token 交换失败: status=" + ex.getStatusCode().value());
         }
 
-        TokenResponse parsed;
-        try {
-            parsed = objectMapper.readValue(raw, TokenResponse.class);
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("解析 token 响应失败: " + ex.getMessage(), ex);
-        }
+        TokenResponse parsed = jsonMapper.readValue(raw, TokenResponse.class);
 
         return new TokenExchangeResult(raw, parsed);
     }
@@ -239,12 +230,7 @@ public class CodexService {
             throw new IllegalArgumentException("解析 id_token 失败: " + ex.getMessage(), ex);
         }
 
-        JsonNode claims;
-        try {
-            claims = objectMapper.readTree(payloadBytes);
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("解析 id_token 失败: " + ex.getMessage(), ex);
-        }
+        JsonNode claims = jsonMapper.readTree(payloadBytes);
 
         JsonNode auth = claims.get("https://api.openai.com/auth");
         if (auth == null) {
