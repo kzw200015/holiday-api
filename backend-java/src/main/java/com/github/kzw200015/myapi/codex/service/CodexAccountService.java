@@ -16,6 +16,7 @@ import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexOAuthSessionMapper;
 import com.github.kzw200015.myapi.common.model.PaginatedResult;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
@@ -38,6 +39,7 @@ import java.util.List;
  * Codex OAuth 流程与账户存储。
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class CodexAccountService {
     private static final Duration OAUTH_SESSION_TTL = Duration.ofMinutes(10);
@@ -45,6 +47,7 @@ public class CodexAccountService {
     private static final String OPENAI_AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize";
     private static final String OPENAI_TOKEN_URL = "https://auth.openai.com/oauth/token";
     private static final String OPENAI_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
+    private static final String OPENAI_REFRESH_SCOPE = "openid profile email";
     private static final String REDIRECT_URI = "http://localhost:1455/auth/callback";
 
     private final CodexAccountMapper codexAccountMapper;
@@ -154,6 +157,28 @@ public class CodexAccountService {
         return Account.from(entity);
     }
 
+    public int refreshExpiringTokens(Duration refreshWindow) {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime cutoffTime = now.plus(refreshWindow);
+        List<CodexAccountEntity> accounts = codexAccountMapper.selectList(
+                Wrappers.<CodexAccountEntity>lambdaQuery()
+                        .le(CodexAccountEntity::getExpiresAt, cutoffTime)
+                        .orderByAsc(CodexAccountEntity::getExpiresAt)
+        );
+
+        int refreshedCount = 0;
+        for (CodexAccountEntity account : accounts) {
+            try {
+                refreshAccountToken(account);
+                refreshedCount++;
+            } catch (Exception ex) {
+                log.warn("刷新账号 token 失败 accountId={}: {}", account.getAccountId(), ex.getMessage());
+            }
+        }
+
+        return refreshedCount;
+    }
+
     private String generateRandomState() {
         byte[] bytes = new byte[16];
         secureRandom.nextBytes(bytes);
@@ -184,6 +209,23 @@ public class CodexAccountService {
                 .toUriString();
     }
 
+    private void refreshAccountToken(CodexAccountEntity account) {
+        String refreshToken = requireNonBlank(
+                account.getOauthPayload().path("refresh_token").asText(),
+                "账号缺少 refresh_token"
+        );
+        TokenExchangeResult refreshResult = refreshTokens(refreshToken);
+        TokenResponse refreshedToken = refreshResult.parsed();
+        requireNonBlank(refreshedToken.accessToken(), "token 响应缺少 access_token");
+
+        OffsetDateTime now = OffsetDateTime.now();
+        account.setToken(refreshedToken.accessToken());
+        account.setExpiresAt(now.plusSeconds(refreshedToken.expiresIn()));
+        account.setOauthPayload(jsonMapper.readTree(refreshResult.rawJson()));
+        account.setUpdatedAt(now);
+        codexAccountMapper.updateById(account);
+    }
+
     private TokenExchangeResult exchangeCodeForTokens(String code, PKCECodes pkce) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "authorization_code");
@@ -208,6 +250,31 @@ public class CodexAccountService {
 
         TokenResponse parsed = jsonMapper.readValue(raw, TokenResponse.class);
 
+        return new TokenExchangeResult(raw, parsed);
+    }
+
+    private TokenExchangeResult refreshTokens(String refreshToken) {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("grant_type", "refresh_token");
+        form.add("client_id", OPENAI_CLIENT_ID);
+        form.add("refresh_token", refreshToken);
+        form.add("scope", OPENAI_REFRESH_SCOPE);
+
+        String raw;
+        try {
+            raw = restClient.post()
+                    .uri(OPENAI_TOKEN_URL)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .header("User-Agent", "codex-cli/0.91.0")
+                    .body(form)
+                    .retrieve()
+                    .body(String.class);
+        } catch (RestClientResponseException ex) {
+            throw new IllegalArgumentException("token 刷新失败: status=" + ex.getStatusCode().value());
+        }
+
+        TokenResponse parsed = jsonMapper.readValue(raw, TokenResponse.class);
         return new TokenExchangeResult(raw, parsed);
     }
 
