@@ -56,6 +56,7 @@ public class CodexProxyService {
     private final CodexHttpProxyForwardService codexHttpProxyForwardService;
     private final CodexSseProxyForwardService codexSseProxyForwardService;
     private final ResponseLogService responseLogService;
+    private final RestClient restClient;
     private final StickySessionService stickySessionService = new StickySessionService(DEFAULT_STICKY_TTL);
     private final AtomicLong roundRobinCounter = new AtomicLong(0);
     private String defaultInstructions = "";
@@ -63,7 +64,6 @@ public class CodexProxyService {
     @PostConstruct
     private void initializeDefaultInstructions() {
         try {
-            RestClient restClient = RestClient.create();
             defaultInstructions = restClient.get().uri(CODEX_HEADER_INSTRUCTIONS_TEXT_URL).retrieve().body(String.class);
         } catch (Exception ex) {
             log.warn("初始化 instructions 失败: {}", ex.getMessage());

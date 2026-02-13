@@ -50,7 +50,7 @@ public class CodexService {
     private final CodexAccountMapper codexAccountMapper;
     private final CodexOAuthSessionMapper codexOAuthSessionMapper;
     private final JsonMapper jsonMapper;
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public OAuthSessionInfo createOAuthSession() {

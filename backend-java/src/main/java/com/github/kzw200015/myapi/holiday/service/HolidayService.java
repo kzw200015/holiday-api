@@ -26,7 +26,7 @@ public class HolidayService extends ServiceImpl<HolidayDayMapper, HolidayDayEnti
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
 
     private final JsonMapper jsonMapper;
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
 
     public boolean isHoliday(LocalDate date) {
         String dateText = date.format(DATE_FORMATTER);
