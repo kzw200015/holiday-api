@@ -46,4 +46,11 @@ public class ResponseLogService {
         List<CodexResponseLogItem> items = pageResult.getRecords().stream().map(CodexResponseLogItem::from).toList();
         return new PaginatedResult<>(items, pageResult.getTotal(), page, pageSize);
     }
+
+    public int deleteLogsBefore(OffsetDateTime cutoffTime) {
+        return mapper.delete(
+            Wrappers.<CodexResponseLogEntity>lambdaQuery()
+                    .lt(CodexResponseLogEntity::getCreatedAt, cutoffTime)
+        );
+    }
 }
