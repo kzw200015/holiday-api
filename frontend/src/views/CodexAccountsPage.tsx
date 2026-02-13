@@ -79,7 +79,7 @@ export default defineComponent({
     const logs = ref<ResponseLogItem[]>([])
     const logsTotal = ref(0)
     const logsCurrentPage = ref(1)
-    const logsPageSize = ref(20)
+    const logsPageSize = ref(10)
 
     const sessionLoading = ref(false)
     const session = ref<OAuthSessionInfo | null>(null)
@@ -207,7 +207,7 @@ export default defineComponent({
     }
 
     const handleLogsPageSizeChange = (size: number) => {
-      logsPageSize.value = Number(size || 20)
+      logsPageSize.value = Number(size || 10)
       logsCurrentPage.value = 1
       void refreshLogs()
     }
@@ -500,7 +500,7 @@ export default defineComponent({
                         <ElPagination
                           background
                           total={logsTotal.value}
-                          pageSizes={[20, 50, 100, 200]}
+                          pageSizes={[10, 20, 50, 100, 200]}
                           layout="total, sizes, prev, pager, next, jumper"
                           v-model:current-page={logsCurrentPage.value}
                           v-model:page-size={logsPageSize.value}
