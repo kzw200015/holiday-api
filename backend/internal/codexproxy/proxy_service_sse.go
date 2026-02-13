@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -21,8 +22,7 @@ func (s *ProxyService) forwardSSE(c *gin.Context, body []byte, headers http.Head
 	es := resty.NewEventSource().
 		SetURL(codexResponsesURL).
 		SetMethod(resty.MethodPost).
-		SetBody(bytes.NewReader(body)).
-		SetRetryCount(0)
+		SetBody(bytes.NewReader(body))
 	for key, values := range headers {
 		for _, value := range values {
 			es.AddHeader(key, value)
@@ -44,6 +44,11 @@ func (s *ProxyService) forwardSSE(c *gin.Context, body []byte, headers http.Head
 			data: event.Data,
 		}
 	}, nil)
+
+	es.OnRequestFailure(func(err error, res *http.Response) {
+		resBody, _ := io.ReadAll(res.Body)
+		slog.WarnContext(c.Request.Context(), "SSE request failure", "err", err, "res", string(resBody))
+	})
 
 	go func() {
 		<-c.Request.Context().Done()

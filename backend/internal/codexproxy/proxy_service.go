@@ -95,10 +95,7 @@ func (s *ProxyService) ProxyResponses(c *gin.Context, body []byte) (CallLog, err
 		}
 		body = updatedBody
 	}
-	_, err := sjson.DeleteBytes(body, "prompt_cache_key")
-	if err != nil {
-		return CallLog{}, err
-	}
+	body, _ = sjson.DeleteBytes(body, "max_output_tokens")
 
 	stickyKey := s.stickySessionService.ExtractKey(c.Request.Header, promptCacheKey)
 
