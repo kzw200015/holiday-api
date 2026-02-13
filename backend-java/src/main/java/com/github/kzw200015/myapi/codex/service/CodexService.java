@@ -1,10 +1,15 @@
 package com.github.kzw200015.myapi.codex.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import static com.github.kzw200015.myapi.common.util.ValidationUtils.requireNonBlank;
+
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.github.kzw200015.myapi.codex.exception.AccountNotFoundException;
-import com.github.kzw200015.myapi.codex.model.*;
+import com.github.kzw200015.myapi.codex.model.Account;
+import com.github.kzw200015.myapi.codex.model.OAuthCallback;
+import com.github.kzw200015.myapi.codex.model.OAuthSessionInfo;
+import com.github.kzw200015.myapi.codex.model.TokenResponse;
+import com.github.kzw200015.myapi.codex.model.UpdateAccountRequest;
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import com.github.kzw200015.myapi.codex.model.entity.CodexOAuthSessionEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
@@ -53,13 +58,14 @@ public class CodexService {
         PKCECodes pkce = generatePkceCodes();
         String url = buildAuthorizeUrl(state, pkce);
 
-        OffsetDateTime expiresAt = OffsetDateTime.now().plus(OAUTH_SESSION_TTL);
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime expiresAt = now.plus(OAUTH_SESSION_TTL);
         CodexOAuthSessionEntity session = new CodexOAuthSessionEntity();
         session.setState(state);
         session.setCodeVerifier(pkce.codeVerifier());
         session.setCodeChallenge(pkce.codeChallenge());
         session.setExpiresAt(expiresAt);
-        session.setCreatedAt(OffsetDateTime.now());
+        session.setCreatedAt(now);
         codexOAuthSessionMapper.insert(session);
 
         return new OAuthSessionInfo(state, url, expiresAt);
@@ -67,45 +73,38 @@ public class CodexService {
 
     public Account completeOAuth(String name, String redirectUrl) {
         OAuthCallback callback = OAuthCallback.parse(redirectUrl);
-        if (callback.error() != null && !callback.error().isBlank()) {
-            if (callback.errorDescription() != null && !callback.errorDescription().isBlank()) {
-                throw new IllegalArgumentException("OAuth 失败: " + callback.error() + " (" + callback.errorDescription() + ")");
+        String error = trim(callback.error());
+        if (!error.isBlank()) {
+            String errorDesc = trim(callback.errorDescription());
+            if (!errorDesc.isBlank()) {
+                throw new IllegalArgumentException("OAuth 失败: " + error + " (" + errorDesc + ")");
             }
-            throw new IllegalArgumentException("OAuth 失败: " + callback.error());
+            throw new IllegalArgumentException("OAuth 失败: " + error);
         }
 
-        if (callback.state() == null || callback.state().isBlank()) {
-            throw new IllegalArgumentException("回调地址缺少 state");
-        }
-        if (callback.code() == null || callback.code().isBlank()) {
-            throw new IllegalArgumentException("回调地址缺少 code");
-        }
+        String state = requireNonBlank(callback.state(), "回调地址缺少 state");
+        String code = requireNonBlank(callback.code(), "回调地址缺少 code");
 
         CodexOAuthSessionEntity session = codexOAuthSessionMapper.selectOne(
-                Wrappers.<CodexOAuthSessionEntity>lambdaQuery().eq(CodexOAuthSessionEntity::getState, callback.state())
+                Wrappers.<CodexOAuthSessionEntity>lambdaQuery().eq(CodexOAuthSessionEntity::getState, state)
         );
         if (session == null) {
             throw new IllegalArgumentException("OAuth 会话不存在或已过期");
         }
-        if (OffsetDateTime.now().isAfter(session.getExpiresAt())) {
+        OffsetDateTime now = OffsetDateTime.now();
+        if (now.isAfter(session.getExpiresAt())) {
             codexOAuthSessionMapper.deleteById(session.getId());
             throw new IllegalArgumentException("OAuth 会话已过期");
         }
 
-        TokenExchangeResult exchange = exchangeCodeForTokens(callback.code(), new PKCECodes(session.getCodeVerifier(), session.getCodeChallenge()));
-        if (exchange.parsed().accessToken() == null || exchange.parsed().accessToken().isBlank()) {
-            throw new IllegalArgumentException("token 响应缺少 access_token");
-        }
-        if (exchange.parsed().idToken() == null || exchange.parsed().idToken().isBlank()) {
-            throw new IllegalArgumentException("token 响应缺少 id_token");
-        }
+        TokenExchangeResult exchange = exchangeCodeForTokens(code, new PKCECodes(session.getCodeVerifier(), session.getCodeChallenge()));
+        TokenResponse tokens = exchange.parsed();
+        requireNonBlank(tokens.accessToken(), "token 响应缺少 access_token");
+        requireNonBlank(tokens.idToken(), "token 响应缺少 id_token");
 
-        String accountId = extractAccountIdFromIdToken(exchange.parsed().idToken());
-        if (accountId == null || accountId.isBlank()) {
-            throw new IllegalArgumentException("token 缺少 account id");
-        }
+        String accountId = requireNonBlank(extractAccountIdFromIdToken(tokens.idToken()), "token 缺少 account id");
 
-        OffsetDateTime expiresAt = OffsetDateTime.now().plusSeconds(exchange.parsed().expiresIn());
+        OffsetDateTime expiresAt = now.plusSeconds(tokens.expiresIn());
 
         CodexAccountEntity entity = codexAccountMapper.selectOne(
                 Wrappers.<CodexAccountEntity>lambdaQuery().eq(CodexAccountEntity::getAccountId, accountId)
@@ -114,30 +113,29 @@ public class CodexService {
         if (!exists) {
             entity = new CodexAccountEntity();
             entity.setAccountId(accountId);
-            entity.setCreatedAt(OffsetDateTime.now());
+            entity.setCreatedAt(now);
         }
         entity.setName(name);
-        entity.setToken(exchange.parsed().accessToken());
+        entity.setToken(tokens.accessToken());
         entity.setExpiresAt(expiresAt);
         entity.setOauthPayload(jsonMapper.readTree(exchange.rawJson()));
-        entity.setUpdatedAt(OffsetDateTime.now());
+        entity.setUpdatedAt(now);
 
         if (exists) {
             codexAccountMapper.updateById(entity);
         } else {
             codexAccountMapper.insert(entity);
         }
-        CodexAccountEntity saved = entity;
 
         codexOAuthSessionMapper.deleteById(session.getId());
 
-        return Account.from(saved);
+        return Account.from(entity);
     }
 
     public PaginatedResult<Account> listAccountsPage(int page, int pageSize) {
         Page<CodexAccountEntity> pageResult = codexAccountMapper.selectPage(
                 Page.of(page, pageSize),
-                new QueryWrapper<CodexAccountEntity>().orderByDesc("created_at")
+                Wrappers.<CodexAccountEntity>lambdaQuery().orderByDesc(CodexAccountEntity::getCreatedAt)
         );
         List<Account> items = pageResult.getRecords().stream().map(Account::from).toList();
         return new PaginatedResult<>(items, pageResult.getTotal(), page, pageSize);
@@ -236,6 +234,10 @@ public class CodexService {
             return "";
         }
         return accountId.asString();
+    }
+
+    private static String trim(String raw) {
+        return raw == null ? "" : raw.trim();
     }
 
     private static byte[] sha256(byte[] raw) {

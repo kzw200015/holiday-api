@@ -1,6 +1,6 @@
 package com.github.kzw200015.myapi.holiday.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.github.kzw200015.myapi.holiday.model.NextOffDayResult;
 import com.github.kzw200015.myapi.holiday.model.entity.HolidayDayEntity;
@@ -13,7 +13,6 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -23,16 +22,14 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class HolidayService extends ServiceImpl<HolidayDayMapper, HolidayDayEntity> {
-    public static final String DATE_LAYOUT = "yyyy-MM-dd";
-
     private static final String BASE_URL = "https://raw.githubusercontent.com/NateScarlet/holiday-cn/master";
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
 
     private final JsonMapper jsonMapper;
     private final RestClient restClient = RestClient.create();
-    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(DATE_LAYOUT);
 
     public boolean isHoliday(LocalDate date) {
-        String dateText = date.format(dateFormatter);
+        String dateText = date.format(DATE_FORMATTER);
         HolidayDayEntity found = lambdaQuery().eq(HolidayDayEntity::getDate, dateText).one();
         if (found != null) {
             return found.isOffDay();
@@ -46,32 +43,32 @@ public class HolidayService extends ServiceImpl<HolidayDayMapper, HolidayDayEnti
         for (int days = 0; ; days++) {
             LocalDate candidate = date.plusDays(days);
             if (isHoliday(candidate)) {
-                return new NextOffDayResult(candidate.format(dateFormatter), days);
+                return new NextOffDayResult(candidate.format(DATE_FORMATTER), days);
             }
         }
     }
 
     public void initCurrentAndNextYear() {
-        int currentYear = LocalDate.now(ZoneId.systemDefault()).getYear();
+        int currentYear = LocalDate.now().getYear();
         refreshYearDays(currentYear);
         refreshYearDays(currentYear + 1);
     }
 
     private void refreshYearDays(int year) {
         List<RemoteHolidayDay> days = fetchYearDays(year);
-        QueryWrapper<HolidayDayEntity> deleteWrapper = new QueryWrapper<HolidayDayEntity>().likeRight("date", year + "-");
-        remove(deleteWrapper);
+        remove(Wrappers.<HolidayDayEntity>lambdaQuery().likeRight(HolidayDayEntity::getDate, year + "-"));
         if (days.isEmpty()) {
             return;
         }
 
-        days.stream().map(item -> {
+        List<HolidayDayEntity> entities = days.stream().map(item -> {
             HolidayDayEntity entity = new HolidayDayEntity();
             entity.setName(item.name());
             entity.setDate(item.date());
             entity.setOffDay(item.isOffDay());
             return entity;
-        }).forEach(this::save);
+        }).toList();
+        saveBatch(entities);
     }
 
     private List<RemoteHolidayDay> fetchYearDays(int year) {

@@ -1,11 +1,8 @@
 package com.github.kzw200015.myapi.codex.service;
 
-import lombok.Data;
-
 /**
  * SSE 事件流解析期间用于累计 usage 的可变容器。
  */
-@Data
 public class TokenUsageHolder {
     private int inputTokens;
     private int cachedInputTokens;

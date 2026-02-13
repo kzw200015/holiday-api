@@ -5,7 +5,7 @@ import java.time.OffsetDateTime;
 
 import org.springframework.stereotype.Service;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.github.kzw200015.myapi.common.model.PaginatedResult;
 import com.github.kzw200015.myapi.codex.model.CallLog;
@@ -38,7 +38,9 @@ public class ResponseLogService {
     public PaginatedResult<CodexResponseLogItem> listResponseLogsPage(int page, int pageSize) {
         Page<CodexResponseLogEntity> pageResult = mapper.selectPage(
             Page.of(page, pageSize),
-            new QueryWrapper<CodexResponseLogEntity>().orderByDesc("created_at").orderByDesc("id")
+            Wrappers.<CodexResponseLogEntity>lambdaQuery()
+                    .orderByDesc(CodexResponseLogEntity::getCreatedAt)
+                    .orderByDesc(CodexResponseLogEntity::getId)
         );
         List<CodexResponseLogItem> items = pageResult.getRecords().stream().map(CodexResponseLogItem::from).toList();
         return new PaginatedResult<>(items, pageResult.getTotal(), page, pageSize);

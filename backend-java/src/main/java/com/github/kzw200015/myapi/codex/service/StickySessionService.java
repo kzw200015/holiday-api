@@ -30,14 +30,15 @@ public class StickySessionService {
             return hashValue(conversationId);
         }
 
-        if (promptCacheKey != null && !promptCacheKey.trim().isBlank()) {
-            return hashValue(promptCacheKey.trim());
+        String prompt = trim(promptCacheKey);
+        if (!prompt.isBlank()) {
+            return hashValue(prompt);
         }
 
         return "";
     }
 
-    public String hashValue(String raw) {
+    private static String hashValue(String raw) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] sum = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
@@ -59,7 +60,8 @@ public class StickySessionService {
             if (binding == null) {
                 return new BindingResult("", false);
             }
-            if (OffsetDateTime.now().isAfter(binding.expiresAt())) {
+            OffsetDateTime now = OffsetDateTime.now();
+            if (now.isAfter(binding.expiresAt())) {
                 bindings.remove(stickyKey);
                 return new BindingResult("", false);
             }

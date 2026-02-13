@@ -1,3 +1,8 @@
 package com.github.kzw200015.myapi.codex.controller;
 
-public record CompleteOAuthRequest(String name, String redirectUrl) {}
+import jakarta.validation.constraints.NotBlank;
+
+public record CompleteOAuthRequest(
+    @NotBlank String name,
+    @NotBlank String redirectUrl
+) {}

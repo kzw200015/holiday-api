@@ -8,6 +8,10 @@ public class UpstreamRequestFailedException extends RuntimeException {
         super("upstream request failed", cause);
     }
 
+    public UpstreamRequestFailedException(String message) {
+        super(message);
+    }
+
     public UpstreamRequestFailedException(String message, Throwable cause) {
         super(message, cause);
     }

@@ -1,6 +1,7 @@
 package com.github.kzw200015.myapi.codex.service;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.http.HttpRequest;
@@ -47,14 +48,14 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
         sseForwardExecutor.shutdown();
     }
 
-    public SseForwardResult forward(JsonNode body, HttpHeaders headers) throws Exception {
+    public SseForwardResult forward(JsonNode body, HttpHeaders headers) {
         HttpRequest request = buildUpstreamRequest(body, headers)
             .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
             .build();
         HttpResponse<InputStream> upstream = sendUpstream(request, HttpResponse.BodyHandlers.ofInputStream());
 
         if (upstream.statusCode() != 200) {
-            throw new UpstreamRequestFailedException("upstream request failed: status=" + upstream.statusCode(), null);
+            throw new UpstreamRequestFailedException("upstream request failed: status=" + upstream.statusCode());
         }
 
         SseEmitter emitter = new SseEmitter(0L);
@@ -74,39 +75,22 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith("event:")) {
                     eventName = line.substring("event:".length()).trim();
+                    continue;
                 }
                 if (line.startsWith("data:")) {
                     dataLines.add(line.substring("data:".length()).trim());
+                    continue;
                 }
                 if (!line.isBlank()) {
                     continue;
                 }
 
-                if (dataLines.isEmpty()) {
-                    eventName = "";
-                    continue;
-                }
-
-                String data = String.join("\n", dataLines);
-                updateUsageFromSseEventData(data, usageHolder);
-                SseEmitter.SseEventBuilder event = SseEmitter.event().data(data);
-                if (!eventName.isBlank()) {
-                    event.name(eventName);
-                }
-                emitter.send(event);
+                flushEvent(dataLines, eventName, usageHolder, emitter);
                 dataLines.clear();
                 eventName = "";
             }
 
-            if (!dataLines.isEmpty()) {
-                String data = String.join("\n", dataLines);
-                updateUsageFromSseEventData(data, usageHolder);
-                SseEmitter.SseEventBuilder event = SseEmitter.event().data(data);
-                if (!eventName.isBlank()) {
-                    event.name(eventName);
-                }
-                emitter.send(event);
-            }
+            flushEvent(dataLines, eventName, usageHolder, emitter);
 
             emitter.complete();
             return usageHolder.toUsage();
@@ -114,5 +98,25 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
             emitter.completeWithError(ex);
             throw new CompletionException(new UpstreamRequestFailedException(ex));
         }
+    }
+
+    private void flushEvent(
+            List<String> dataLines,
+            String eventName,
+            TokenUsageHolder usageHolder,
+            SseEmitter emitter
+    ) throws IOException {
+        if (dataLines.isEmpty()) {
+            return;
+        }
+
+        String data = String.join("\n", dataLines);
+        updateUsageFromSseEventData(data, usageHolder);
+
+        SseEmitter.SseEventBuilder event = SseEmitter.event().data(data);
+        if (!eventName.isBlank()) {
+            event.name(eventName);
+        }
+        emitter.send(event);
     }
 }

@@ -1,6 +1,6 @@
 package com.github.kzw200015.myapi.codex.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.github.kzw200015.myapi.codex.exception.NoAvailableAccountException;
 import com.github.kzw200015.myapi.codex.model.CallLog;
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
@@ -13,7 +13,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.time.Duration;
@@ -58,7 +57,7 @@ public class CodexProxyService {
     private final CodexSseProxyForwardService codexSseProxyForwardService;
     private final ResponseLogService responseLogService;
     private final StickySessionService stickySessionService = new StickySessionService(DEFAULT_STICKY_TTL);
-    private final AtomicLong rrCounter = new AtomicLong(0);
+    private final AtomicLong roundRobinCounter = new AtomicLong(0);
     private String defaultInstructions = "";
 
     @PostConstruct
@@ -71,20 +70,16 @@ public class CodexProxyService {
         }
     }
 
-    public Object proxyResponses(HttpServletRequest request, JsonNode bodyJson) throws Exception {
+    public Object proxyResponses(HttpServletRequest request, ObjectNode updated) {
         long startAt = System.currentTimeMillis();
 
         String clientIp = request.getRemoteAddr() == null ? "" : request.getRemoteAddr();
         String userAgent = trim(request.getHeader(HEADER_USER_AGENT));
 
-        JsonNode streamNode = bodyJson.get("stream");
-        boolean stream = streamNode != null && streamNode.asBoolean(false);
-        JsonNode promptCacheKeyNode = bodyJson.get("prompt_cache_key");
-        String promptCacheKey = promptCacheKeyNode == null ? "" : promptCacheKeyNode.asString();
+        boolean stream = updated.path("stream").asBoolean(false);
+        String promptCacheKey = updated.path("prompt_cache_key").asString();
 
-        ObjectNode updated = (ObjectNode) bodyJson;
-        JsonNode instructionsNode = updated.get("instructions");
-        if (instructionsNode == null || instructionsNode.asString().isBlank()) {
+        if (updated.path("instructions").isMissingNode() || updated.path("instructions").asString().isBlank()) {
             updated.put("instructions", defaultInstructions);
         }
         updated.remove("max_output_tokens");
@@ -119,10 +114,9 @@ public class CodexProxyService {
             String clientIp,
             CodexAccountEntity account
     ) {
-        double cacheRate = 0.0;
-        if (usage.inputTokens() > 0) {
-            cacheRate = (double) usage.cachedInputTokens() / (double) usage.inputTokens();
-        }
+        double cacheRate = usage.inputTokens() > 0
+                ? (double) usage.cachedInputTokens() / (double) usage.inputTokens()
+                : 0.0;
 
         return new CallLog(
                 userAgent,
@@ -142,9 +136,6 @@ public class CodexProxyService {
         HttpHeaders headers = new HttpHeaders();
         for (String key : UPSTREAM_HEADER_WHITELIST) {
             Enumeration<String> values = request.getHeaders(key);
-            if (values == null) {
-                continue;
-            }
             while (values.hasMoreElements()) {
                 headers.add(key, values.nextElement());
             }
@@ -156,15 +147,16 @@ public class CodexProxyService {
 
     private CodexAccountEntity selectAccount(String stickyKey) {
         List<CodexAccountEntity> accounts = codexAccountMapper.selectList(
-                new QueryWrapper<CodexAccountEntity>()
-                        .gt("expires_at", OffsetDateTime.now())
-                        .orderByAsc("created_at")
+                Wrappers.<CodexAccountEntity>lambdaQuery()
+                        .gt(CodexAccountEntity::getExpiresAt, OffsetDateTime.now())
+                        .orderByAsc(CodexAccountEntity::getCreatedAt)
         );
         if (accounts.isEmpty()) {
             throw new NoAvailableAccountException();
         }
 
-        if (stickyKey != null && !stickyKey.isBlank()) {
+        boolean hasSticky = stickyKey != null && !stickyKey.isBlank();
+        if (hasSticky) {
             BindingResult binding = stickySessionService.getBindingAccountId(stickyKey);
             if (binding.found()) {
                 for (CodexAccountEntity account : accounts) {
@@ -176,9 +168,10 @@ public class CodexProxyService {
             }
         }
 
-        int index = (int) (rrCounter.getAndIncrement() % accounts.size());
+        long counter = roundRobinCounter.getAndIncrement();
+        int index = (int) Math.floorMod(counter, accounts.size());
         CodexAccountEntity selected = accounts.get(index);
-        if (stickyKey != null && !stickyKey.isBlank()) {
+        if (hasSticky) {
             stickySessionService.setBinding(stickyKey, selected.getAccountId());
         }
         return selected;
