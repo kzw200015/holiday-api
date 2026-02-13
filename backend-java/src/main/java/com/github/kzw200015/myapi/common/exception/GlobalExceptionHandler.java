@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理：统一将异常转换为 {code, data, msg}。
@@ -52,6 +53,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UpstreamRequestFailedException.class)
     public ResponseEntity<ApiResponse<Object>> handleUpstreamRequestFailed(UpstreamRequestFailedException ex) {
         return build(HttpStatus.BAD_GATEWAY, ex.getMessage());
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNoResourceFound(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.notFound());
     }
 
     @ExceptionHandler(Exception.class)
