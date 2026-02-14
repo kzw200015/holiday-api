@@ -1,5 +1,4 @@
 import { computed, defineComponent, onMounted, reactive, ref } from "vue"
-import { RefreshRight } from "@element-plus/icons-vue"
 import {
   ElButton,
   ElForm,
@@ -78,19 +77,6 @@ export default defineComponent({
 
     return () => (
       <div class="space-y-4">
-        <div class="flex items-center justify-between gap-3">
-          <ElText class="font-semibold">系统提示词配置</ElText>
-          <ElButton
-            icon={RefreshRight}
-            loading={loading.value}
-            onClick={() => {
-              void refreshPromptConfig()
-            }}
-          >
-            刷新
-          </ElButton>
-        </div>
-
         <ElForm labelPosition="top" v-loading={loading.value}>
           <ElFormItem label="系统提示词来源">
             <ElRadioGroup
