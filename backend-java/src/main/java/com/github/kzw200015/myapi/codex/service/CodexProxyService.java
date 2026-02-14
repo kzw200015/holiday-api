@@ -106,12 +106,12 @@ public class CodexProxyService {
         JsonNode instructionsNode = requestBody.path("instructions");
         if (instructionsNode.isMissingNode() || instructionsNode.asString().isBlank()) {
             requestBody.put("instructions", defaultInstructions);
-        }
 
-        JsonNode firstInputNode = requestBody.path("input").path(0);
-        if (!firstInputNode.isMissingNode() && firstInputNode instanceof ObjectNode firstInputObjectNode) {
-            JsonNode contentNode = firstInputObjectNode.path("content");
-            firstInputObjectNode.put("content", contentNode.asString().replace(defaultInstructions, ""));
+            JsonNode firstInputNode = requestBody.path("input").path(0);
+            if (!firstInputNode.isMissingNode() && firstInputNode instanceof ObjectNode firstInputObjectNode) {
+                JsonNode contentNode = firstInputObjectNode.path("content");
+                firstInputObjectNode.put("content", contentNode.asString().replace(defaultInstructions, ""));
+            }
         }
     }
 

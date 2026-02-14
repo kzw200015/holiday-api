@@ -52,6 +52,7 @@ export type ResponseLogItem = {
   cachedInputTokens: number
   outputTokens: number
   cacheRate: number
+  firstTokenLatencyMs: number
   durationMs: number
   accountName: string
   isSse: boolean

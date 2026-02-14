@@ -100,7 +100,12 @@ export default defineComponent({
                     ),
                   }}
                 </ElTableColumn>
-                <ElTableColumn label="响应时间(ms)" width={120}>
+                <ElTableColumn label="首字延迟(ms)" width={130}>
+                  {{
+                    default: (scope: { row: ResponseLogItem }) => <ElText>{scope.row.firstTokenLatencyMs}</ElText>,
+                  }}
+                </ElTableColumn>
+                <ElTableColumn label="耗时(ms)" width={120}>
                   {{
                     default: (scope: { row: ResponseLogItem }) => <ElText>{scope.row.durationMs}</ElText>,
                   }}

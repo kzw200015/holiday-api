@@ -12,6 +12,7 @@ public record CallLog(
     int cachedInputTokens,
     int outputTokens,
     double cacheRate,
+    int firstTokenLatencyMs,
     int durationMs,
     String accountId,
     String accountName,

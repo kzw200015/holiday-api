@@ -40,6 +40,9 @@ public class CodexResponseLogEntity {
     @TableField("cache_rate")
     private double cacheRate;
 
+    @TableField("first_token_latency_ms")
+    private int firstTokenLatencyMs;
+
     @TableField("duration_ms")
     private int durationMs;
 

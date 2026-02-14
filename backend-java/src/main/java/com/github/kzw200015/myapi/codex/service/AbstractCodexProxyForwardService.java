@@ -76,12 +76,13 @@ public abstract class AbstractCodexProxyForwardService {
             TokenUsage usage,
             boolean stream,
             long startAt,
+            int firstTokenLatencyMs,
             String userAgent,
             String clientIp,
             CodexAccountEntity account,
             JsonNode requestBody
     ) {
-        CallLog callLog = buildCallLog(usage, stream, startAt, userAgent, clientIp, account, requestBody);
+        CallLog callLog = buildCallLog(usage, stream, startAt, firstTokenLatencyMs, userAgent, clientIp, account, requestBody);
         writeCallLogAsync(callLog);
     }
 
@@ -89,6 +90,7 @@ public abstract class AbstractCodexProxyForwardService {
             TokenUsage usage,
             boolean stream,
             long startAt,
+            int firstTokenLatencyMs,
             String userAgent,
             String clientIp,
             CodexAccountEntity account,
@@ -105,6 +107,7 @@ public abstract class AbstractCodexProxyForwardService {
                 usage.cachedInputTokens(),
                 usage.outputTokens(),
                 cacheRate,
+                firstTokenLatencyMs,
                 (int) (System.currentTimeMillis() - startAt),
                 account.getAccountId(),
                 account.getName(),

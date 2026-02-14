@@ -25,6 +25,7 @@ public class ResponseLogService extends ServiceImpl<CodexResponseLogMapper, Code
         entity.setCachedInputTokens(callLog.cachedInputTokens());
         entity.setOutputTokens(callLog.outputTokens());
         entity.setCacheRate(callLog.cacheRate());
+        entity.setFirstTokenLatencyMs(callLog.firstTokenLatencyMs());
         entity.setDurationMs(callLog.durationMs());
         entity.setAccountId(callLog.accountId());
         entity.setAccountName(callLog.accountName());

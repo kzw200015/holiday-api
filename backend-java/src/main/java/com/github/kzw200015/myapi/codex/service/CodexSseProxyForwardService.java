@@ -29,6 +29,9 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @Service
 public class CodexSseProxyForwardService extends AbstractCodexProxyForwardService {
+    private static final String SSE_EVENT_PREFIX = "event:";
+    private static final String SSE_DATA_PREFIX = "data:";
+
     private final ThreadPoolManager threadPoolManager;
 
     public CodexSseProxyForwardService(JsonMapper jsonMapper, ResponseLogService responseLogService, ThreadPoolManager threadPoolManager) {
@@ -71,33 +74,36 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
             JsonNode requestBody
     ) {
         TokenUsageHolder usageHolder = new TokenUsageHolder();
+        FirstEventLatencyTracker latencyTracker = new FirstEventLatencyTracker(startAt);
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(upstreamBody, StandardCharsets.UTF_8))) {
             List<String> dataLines = new ArrayList<>();
             String eventName = "";
             String line;
             while ((line = reader.readLine()) != null) {
-                if (line.startsWith("event:")) {
-                    eventName = line.substring("event:".length()).trim();
-                    continue;
+                if (line.isBlank()) {
+                    sendEventIfReady(dataLines, eventName, usageHolder, emitter, latencyTracker);
+                    eventName = "";
+                } else if (line.startsWith(SSE_EVENT_PREFIX)) {
+                    eventName = extractSseFieldValue(line, SSE_EVENT_PREFIX);
+                } else if (line.startsWith(SSE_DATA_PREFIX)) {
+                    dataLines.add(extractSseFieldValue(line, SSE_DATA_PREFIX));
                 }
-                if (line.startsWith("data:")) {
-                    dataLines.add(line.substring("data:".length()).trim());
-                    continue;
-                }
-                if (!line.isBlank()) {
-                    continue;
-                }
-
-                flushEvent(dataLines, eventName, usageHolder, emitter);
-                dataLines.clear();
-                eventName = "";
             }
 
-            flushEvent(dataLines, eventName, usageHolder, emitter);
+            sendEventIfReady(dataLines, eventName, usageHolder, emitter, latencyTracker);
 
             emitter.complete();
             TokenUsage usage = usageHolder.toUsage();
-            writeCallLogAfterForward(usage, true, startAt, userAgent, clientIp, account, requestBody);
+            writeCallLogAfterForward(
+                    usage,
+                    true,
+                    startAt,
+                    latencyTracker.getFirstTokenLatencyMs(),
+                    userAgent,
+                    clientIp,
+                    account,
+                    requestBody
+            );
         } catch (IOException ex) {
             log.warn("SSE 流写入失败: {}", ex.getMessage());
             emitter.complete();
@@ -107,16 +113,18 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
         }
     }
 
-    private void flushEvent(
+    private void sendEventIfReady(
             List<String> dataLines,
             String eventName,
             TokenUsageHolder usageHolder,
-            SseEmitter emitter
+            SseEmitter emitter,
+            FirstEventLatencyTracker latencyTracker
     ) throws IOException {
         if (dataLines.isEmpty()) {
             return;
         }
 
+        latencyTracker.markFirstEvent();
         String data = String.join("\n", dataLines);
         updateUsageFromSseEventData(data, usageHolder);
 
@@ -125,5 +133,35 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
             event.name(eventName);
         }
         emitter.send(event);
+        dataLines.clear();
+    }
+
+    private String extractSseFieldValue(String line, String prefix) {
+        return line.substring(prefix.length()).trim();
+    }
+
+    /**
+     * 记录首个 SSE 事件到达时延。
+     */
+    private static final class FirstEventLatencyTracker {
+        private final long startAt;
+        private int firstTokenLatencyMs;
+        private boolean hasFirstEvent;
+
+        private FirstEventLatencyTracker(long startAt) {
+            this.startAt = startAt;
+        }
+
+        private void markFirstEvent() {
+            if (hasFirstEvent) {
+                return;
+            }
+            firstTokenLatencyMs = (int) (System.currentTimeMillis() - startAt);
+            hasFirstEvent = true;
+        }
+
+        private int getFirstTokenLatencyMs() {
+            return firstTokenLatencyMs;
+        }
     }
 }

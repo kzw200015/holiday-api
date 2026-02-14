@@ -30,10 +30,11 @@ public class CodexHttpProxyForwardService extends AbstractCodexProxyForwardServi
         long startAt = System.currentTimeMillis();
         HttpRequest request = buildUpstreamRequest(body, headers).build();
         HttpResponse<byte[]> upstream = sendUpstream(request, HttpResponse.BodyHandlers.ofByteArray());
+        int firstTokenLatencyMs = (int) (System.currentTimeMillis() - startAt);
 
         byte[] responseBody = upstream.body();
         TokenUsage usage = parseUsageFromResponseBody(responseBody);
-        writeCallLogAfterForward(usage, false, startAt, userAgent, clientIp, account, body);
+        writeCallLogAfterForward(usage, false, startAt, firstTokenLatencyMs, userAgent, clientIp, account, body);
         return ResponseEntity.status(upstream.statusCode()).body(responseBody);
     }
 }
