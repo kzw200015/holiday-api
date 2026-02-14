@@ -339,7 +339,6 @@ export default defineComponent({
                       <ElButton
                         size="small"
                         type="primary"
-                        plain
                         onClick={() => {
                           openEditDialog(scope.row)
                         }}

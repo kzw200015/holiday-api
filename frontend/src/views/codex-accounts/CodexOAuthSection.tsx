@@ -119,7 +119,6 @@ export default defineComponent({
                     </ElButton>
                     <ElButton
                       type="success"
-                      plain
                       disabled={!session.value}
                       onClick={() => {
                         window.open(sessionUrl.value, "_blank")

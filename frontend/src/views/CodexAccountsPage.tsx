@@ -19,7 +19,6 @@ export default defineComponent({
           <ElButton
             class="ml-auto"
             type="primary"
-            plain
             onClick={() => {
               promptConfigDrawerVisible.value = true
             }}
