@@ -2,6 +2,7 @@ import { defineComponent } from "vue"
 import { ElTag, ElText } from "element-plus"
 
 import CodexAccountsCard from "@/views/codex-accounts/CodexAccountsCard.tsx"
+import CodexPromptConfigCard from "@/views/codex-accounts/CodexPromptConfigCard.tsx"
 import CodexResponseLogsCard from "@/views/codex-accounts/CodexResponseLogsCard.tsx"
 import CodexTokenUsageCard from "@/views/codex-accounts/CodexTokenUsageCard.tsx"
 
@@ -16,6 +17,7 @@ export default defineComponent({
         </header>
 
         <CodexTokenUsageCard/>
+        <CodexPromptConfigCard/>
         <CodexAccountsCard/>
         <CodexResponseLogsCard/>
       </section>

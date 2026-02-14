@@ -18,6 +18,26 @@ export type Account = {
   quota: CodexAccountQuota | null
 }
 
+export const CODEX_PROMPT_SOURCE = {
+  OPENCODE: "opencode",
+  CUSTOM: "custom",
+} as const
+
+export type CodexPromptSource = (typeof CODEX_PROMPT_SOURCE)[keyof typeof CODEX_PROMPT_SOURCE]
+
+export type CodexPromptConfig = {
+  source: CodexPromptSource
+  customPrompt: string
+  forceOverride: boolean
+  updatedAt: string
+}
+
+export type UpdateCodexPromptConfigRequest = {
+  source: CodexPromptSource
+  customPrompt: string
+  forceOverride: boolean
+}
+
 export type CodexQuotaWindow = {
   usedPercent: number | null
   limitWindowSeconds: number | null
@@ -102,6 +122,21 @@ export async function listCodexAccounts(page: number, pageSize: number) {
 export async function updateCodexAccount(id: number, req: UpdateAccountRequest) {
   const { data } = await HttpClient.put<ApiResponse<Account>, ApiResponse<Account>>(
     `/codex/accounts/${id}`,
+    req,
+  )
+  return data
+}
+
+export async function getCodexPromptConfig() {
+  const { data } = await HttpClient.get<ApiResponse<CodexPromptConfig>, ApiResponse<CodexPromptConfig>>(
+    "/codex/prompt-config",
+  )
+  return data
+}
+
+export async function updateCodexPromptConfig(req: UpdateCodexPromptConfigRequest) {
+  const { data } = await HttpClient.put<ApiResponse<CodexPromptConfig>, ApiResponse<CodexPromptConfig>>(
+    "/codex/prompt-config",
     req,
   )
   return data

@@ -4,15 +4,12 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.github.kzw200015.myapi.codex.exception.NoAvailableAccountException;
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
-import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClient;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.time.OffsetDateTime;
@@ -28,9 +25,6 @@ import java.util.stream.Stream;
 @Slf4j
 @RequiredArgsConstructor
 public class CodexProxyService {
-    private static final String CODEX_HEADER_INSTRUCTIONS_TEXT_URL =
-            "https://raw.githubusercontent.com/anomalyco/opencode/refs/heads/dev/packages/opencode/src/session/prompt/codex_header.txt";
-
     private static final String HEADER_X_CODEX_BETA_FEATURES = "x-codex-beta-features";
     private static final String HEADER_X_OAI_WEB_SEARCH_ELIGIBLE = "x-oai-web-search-eligible";
     private static final String HEADER_SESSION_ID = "session_id";
@@ -50,20 +44,13 @@ public class CodexProxyService {
     private final CodexAccountMapper codexAccountMapper;
     private final CodexHttpProxyForwardService codexHttpProxyForwardService;
     private final CodexSseProxyForwardService codexSseProxyForwardService;
-    private final RestClient restClient;
+    private final CodexPromptInstructionService codexPromptInstructionService;
     private final StickySessionService stickySessionService;
     private final AtomicLong roundRobinCounter = new AtomicLong(0);
-    private String defaultInstructions = "";
 
-    @PostConstruct
-    private void initializeDefaultInstructions() {
-        try {
-            defaultInstructions = restClient.get().uri(CODEX_HEADER_INSTRUCTIONS_TEXT_URL).retrieve().body(String.class);
-        } catch (Exception ex) {
-            log.warn("初始化 instructions 失败: {}", ex.getMessage());
-        }
-    }
-
+    /**
+     * 处理 /api/responses 请求并转发到上游。
+     */
     public Object proxyResponses(HttpServletRequest request, ObjectNode requestBody) {
         String clientIp = request.getRemoteAddr() == null ? "" : request.getRemoteAddr();
         String userAgent = request.getHeader(HttpHeaders.USER_AGENT) == null ? "" : request.getHeader(HttpHeaders.USER_AGENT).trim();
@@ -74,7 +61,7 @@ public class CodexProxyService {
             log.warn("请求缺少 prompt_cache_key");
         }
 
-        applyDefaultInstructionsIfAbsent(requestBody);
+        codexPromptInstructionService.applyPromptInstructions(requestBody);
         requestBody.remove("max_output_tokens");
 
         String stickyKey = stickySessionService.extractKey(request, promptCacheKey);
@@ -101,28 +88,8 @@ public class CodexProxyService {
     }
 
     /**
-     * 当请求未携带 instructions 时注入默认值。
-     * 同时会移除 input[0].content 中重复的默认 instructions 前缀，避免重复传递同一段指令。
+     * 构建上游请求头，并在缺失时用 prompt_cache_key 补齐会话标识。
      */
-    private void applyDefaultInstructionsIfAbsent(ObjectNode requestBody) {
-        JsonNode instructionsNode = requestBody.path("instructions");
-        if (instructionsNode.isMissingNode() || instructionsNode.asString().isBlank()) {
-            log.warn("请求缺少 instructions，已注入默认 instructions");
-            requestBody.put("instructions", defaultInstructions);
-
-            JsonNode firstInputNode = requestBody.path("input").path(0);
-            if (!firstInputNode.isMissingNode() && firstInputNode instanceof ObjectNode firstInputObjectNode) {
-                JsonNode contentNode = firstInputObjectNode.path("content");
-                String content = contentNode.asString();
-                String trimmedContent = content.replace(defaultInstructions, "");
-                if (!content.equals(trimmedContent)) {
-                    log.warn("input[0].content 包含重复 instructions 前缀，已移除");
-                }
-                firstInputObjectNode.put("content", trimmedContent);
-            }
-        }
-    }
-
     private HttpHeaders buildUpstreamHeaders(HttpServletRequest request, CodexAccountEntity account, String promptCacheKey) {
         HttpHeaders headers = new HttpHeaders();
         for (String key : UPSTREAM_HEADER_WHITELIST) {
@@ -144,6 +111,9 @@ public class CodexProxyService {
         return headers;
     }
 
+    /**
+     * 从可用账号中按粘性优先、轮询兜底选择转发账号。
+     */
     private CodexAccountEntity selectAccount(String stickyKey) {
         List<CodexAccountEntity> accounts = codexAccountMapper.selectList(
                 Wrappers.<CodexAccountEntity>lambdaQuery()

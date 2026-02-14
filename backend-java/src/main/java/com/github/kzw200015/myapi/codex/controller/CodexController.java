@@ -17,12 +17,15 @@ import org.springframework.validation.annotation.Validated;
 import com.github.kzw200015.myapi.common.model.ApiResponse;
 import com.github.kzw200015.myapi.common.model.PaginatedResult;
 import com.github.kzw200015.myapi.codex.model.Account;
+import com.github.kzw200015.myapi.codex.model.CodexPromptConfig;
 import com.github.kzw200015.myapi.codex.model.CodexResponseLogItem;
 import com.github.kzw200015.myapi.codex.model.OAuthSessionInfo;
 import com.github.kzw200015.myapi.codex.model.TodayTokenUsage;
+import com.github.kzw200015.myapi.codex.model.UpdateAccountRequest;
+import com.github.kzw200015.myapi.codex.model.UpdatePromptConfigRequest;
 import com.github.kzw200015.myapi.codex.service.CodexAccountService;
 import com.github.kzw200015.myapi.codex.service.CodexOAuthService;
-import com.github.kzw200015.myapi.codex.model.UpdateAccountRequest;
+import com.github.kzw200015.myapi.codex.service.CodexPromptConfigService;
 import com.github.kzw200015.myapi.codex.service.ResponseLogService;
 import lombok.RequiredArgsConstructor;
 
@@ -33,6 +36,7 @@ import lombok.RequiredArgsConstructor;
 public class CodexController {
     private final CodexAccountService codexAccountService;
     private final CodexOAuthService codexOAuthService;
+    private final CodexPromptConfigService codexPromptConfigService;
     private final ResponseLogService responseLogService;
 
     @PostMapping("/oauth/session")
@@ -51,6 +55,18 @@ public class CodexController {
         @RequestParam(defaultValue = "10") @Min(1) @Max(200) int pageSize
     ) {
         return ApiResponse.ok(codexAccountService.listAccountsPage(page, pageSize));
+    }
+
+    @GetMapping("/prompt-config")
+    public ApiResponse<CodexPromptConfig> getCodexPromptConfig() {
+        return ApiResponse.ok(codexPromptConfigService.getPromptConfig());
+    }
+
+    @PutMapping("/prompt-config")
+    public ApiResponse<CodexPromptConfig> updateCodexPromptConfig(
+        @RequestBody @NotNull @Valid UpdatePromptConfigRequest request
+    ) {
+        return ApiResponse.ok(codexPromptConfigService.updatePromptConfig(request));
     }
 
     @PutMapping("/accounts/{id}")
