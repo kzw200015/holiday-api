@@ -3,7 +3,7 @@ import { CirclePlus, DocumentCopy, RefreshRight } from "@element-plus/icons-vue"
 import {
   ElButton,
   ElCard,
-  ElDialog,
+  ElDrawer,
   ElForm,
   ElFormItem,
   ElInput,
@@ -160,7 +160,7 @@ export default defineComponent({
     const togglingAccountId = ref<number | null>(null)
     const oauthDrawerVisible = ref(false)
 
-    const editDialogVisible = ref(false)
+    const editDrawerVisible = ref(false)
     const editFormRef = ref<FormInstance>()
     const editingAccount = ref<Account | null>(null)
     const editForm = reactive({
@@ -187,16 +187,20 @@ export default defineComponent({
       void refreshAccounts()
     })
 
-    const openEditDialog = (account: Account) => {
+    const openEditDrawer = (account: Account) => {
       editingAccount.value = account
       editForm.name = account.name
-      editDialogVisible.value = true
+      editDrawerVisible.value = true
     }
 
-    const closeEditDialog = () => {
-      editDialogVisible.value = false
+    const resetEditDrawerState = () => {
       editingAccount.value = null
       editForm.name = ""
+    }
+
+    const closeEditDrawer = () => {
+      editDrawerVisible.value = false
+      resetEditDrawerState()
     }
 
     const saveEdit = async () => {
@@ -224,7 +228,7 @@ export default defineComponent({
         })
         await refreshAccounts()
         ElMessage.success("已更新名称")
-        closeEditDialog()
+        closeEditDrawer()
       } finally {
         editLoading.value = false
       }
@@ -340,7 +344,7 @@ export default defineComponent({
                         size="small"
                         type="primary"
                         onClick={() => {
-                          openEditDialog(scope.row)
+                          openEditDrawer(scope.row)
                         }}
                       >
                         编辑
@@ -376,18 +380,12 @@ export default defineComponent({
           }}
         />
 
-        <ElDialog
+        <ElDrawer
           title="编辑账户"
-          modelValue={editDialogVisible.value}
-          onUpdate:modelValue={(value: boolean) => {
-            if (!value) {
-              closeEditDialog()
-              return
-            }
-            editDialogVisible.value = value
-          }}
-          width="420px"
+          size="420px"
           destroyOnClose
+          v-model={editDrawerVisible.value}
+          onClosed={resetEditDrawerState}
         >
           {{
             default: () => (
@@ -405,7 +403,7 @@ export default defineComponent({
             ),
             footer: () => (
               <div class="flex items-center justify-end gap-2">
-                <ElButton disabled={editLoading.value} onClick={closeEditDialog}>
+                <ElButton disabled={editLoading.value} onClick={closeEditDrawer}>
                   取消
                 </ElButton>
                 <ElButton
@@ -420,7 +418,7 @@ export default defineComponent({
               </div>
             ),
           }}
-        </ElDialog>
+        </ElDrawer>
       </>
     )
   },
