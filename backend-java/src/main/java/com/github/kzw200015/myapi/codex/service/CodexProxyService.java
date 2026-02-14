@@ -153,22 +153,15 @@ public class CodexProxyService {
      */
     private void applyDefaultInstructionsIfAbsent(ObjectNode requestBody) {
         JsonNode instructionsNode = requestBody.path("instructions");
-        if (!instructionsNode.asString().isBlank()) {
-            return;
-        }
-
-        requestBody.put("instructions", defaultInstructions);
-        if (defaultInstructions.isBlank()) {
-            return;
+        if (instructionsNode.isMissingNode() || instructionsNode.asString().isBlank()) {
+            requestBody.put("instructions", defaultInstructions);
         }
 
         JsonNode firstInputNode = requestBody.path("input").path(0);
-        if (firstInputNode.isMissingNode() || !(firstInputNode instanceof ObjectNode firstInputObjectNode)) {
-            return;
+        if (!firstInputNode.isMissingNode() && firstInputNode instanceof ObjectNode firstInputObjectNode) {
+            JsonNode contentNode = firstInputObjectNode.path("content");
+            firstInputObjectNode.put("content", contentNode.asString().replace(defaultInstructions, ""));
         }
-
-        JsonNode contentNode = firstInputNode.path("content");
-        firstInputObjectNode.put("content", contentNode.asString().replace(defaultInstructions, ""));
     }
 
     private HttpHeaders buildUpstreamHeaders(HttpServletRequest request, CodexAccountEntity account, String promptCacheKey) {
