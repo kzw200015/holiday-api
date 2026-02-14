@@ -1,6 +1,8 @@
 package com.github.kzw200015.myapi.codex.service;
 
+import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -13,16 +15,24 @@ import java.net.http.HttpResponse;
  */
 @Service
 public class CodexHttpProxyForwardService extends AbstractCodexProxyForwardService {
-    public CodexHttpProxyForwardService(JsonMapper jsonMapper) {
-        super(jsonMapper);
+    public CodexHttpProxyForwardService(JsonMapper jsonMapper, ResponseLogService responseLogService) {
+        super(jsonMapper, responseLogService);
     }
 
-    public HttpForwardResult forward(JsonNode body, HttpHeaders headers) {
+    public ResponseEntity<byte[]> forward(
+            JsonNode body,
+            HttpHeaders headers,
+            String userAgent,
+            String clientIp,
+            CodexAccountEntity account
+    ) {
+        long startAt = System.currentTimeMillis();
         HttpRequest request = buildUpstreamRequest(body, headers).build();
         HttpResponse<byte[]> upstream = sendUpstream(request, HttpResponse.BodyHandlers.ofByteArray());
 
         byte[] responseBody = upstream.body();
         TokenUsage usage = parseUsageFromResponseBody(responseBody);
-        return new HttpForwardResult(upstream.statusCode(), responseBody, usage);
+        writeCallLogAfterForward(usage, false, startAt, userAgent, clientIp, account, body);
+        return ResponseEntity.status(upstream.statusCode()).body(responseBody);
     }
 }

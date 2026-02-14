@@ -1,6 +1,7 @@
 package com.github.kzw200015.myapi.codex.service;
 
 import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
+import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -34,8 +35,8 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
             Thread.ofVirtual().name("codex-sse-forward-", 0).factory()
     );
 
-    public CodexSseProxyForwardService(JsonMapper jsonMapper) {
-        super(jsonMapper);
+    public CodexSseProxyForwardService(JsonMapper jsonMapper, ResponseLogService responseLogService) {
+        super(jsonMapper, responseLogService);
     }
 
     @PreDestroy
@@ -43,7 +44,14 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
         sseForwardExecutor.shutdown();
     }
 
-    public SseForwardResult forward(JsonNode body, HttpHeaders headers) {
+    public SseEmitter forward(
+            JsonNode body,
+            HttpHeaders headers,
+            String userAgent,
+            String clientIp,
+            CodexAccountEntity account
+    ) {
+        long startAt = System.currentTimeMillis();
         HttpRequest request = buildUpstreamRequest(body, headers)
                 .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
                 .build();
@@ -54,14 +62,22 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
         }
 
         SseEmitter emitter = new SseEmitter(0L);
-        CompletableFuture<TokenUsage> usageFuture = CompletableFuture.supplyAsync(
-                () -> streamToEmitter(upstream.body(), emitter),
+        CompletableFuture.runAsync(
+                () -> streamToEmitter(upstream.body(), emitter, startAt, userAgent, clientIp, account, body),
                 sseForwardExecutor
         );
-        return new SseForwardResult(emitter, usageFuture);
+        return emitter;
     }
 
-    private TokenUsage streamToEmitter(InputStream upstreamBody, SseEmitter emitter) {
+    private void streamToEmitter(
+            InputStream upstreamBody,
+            SseEmitter emitter,
+            long startAt,
+            String userAgent,
+            String clientIp,
+            CodexAccountEntity account,
+            JsonNode requestBody
+    ) {
         TokenUsageHolder usageHolder = new TokenUsageHolder();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(upstreamBody, StandardCharsets.UTF_8))) {
             List<String> dataLines = new ArrayList<>();
@@ -88,17 +104,15 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
             flushEvent(dataLines, eventName, usageHolder, emitter);
 
             emitter.complete();
+            TokenUsage usage = usageHolder.toUsage();
+            writeCallLogAfterForward(usage, true, startAt, userAgent, clientIp, account, requestBody);
         } catch (IOException ex) {
             log.warn("SSE 流写入失败: {}", ex.getMessage());
-            try {
-                emitter.complete();
-            } catch (Throwable ignored) {
-            }
+            emitter.complete();
         } catch (Exception ex) {
             emitter.completeWithError(ex);
+            throw new UpstreamRequestFailedException(ex);
         }
-
-        return usageHolder.toUsage();
     }
 
     private void flushEvent(

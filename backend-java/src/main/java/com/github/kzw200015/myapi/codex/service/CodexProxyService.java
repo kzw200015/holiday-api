@@ -2,7 +2,6 @@ package com.github.kzw200015.myapi.codex.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.github.kzw200015.myapi.codex.exception.NoAvailableAccountException;
-import com.github.kzw200015.myapi.codex.model.CallLog;
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
 import jakarta.annotation.PostConstruct;
@@ -10,7 +9,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
@@ -19,7 +17,6 @@ import tools.jackson.databind.node.ObjectNode;
 import java.time.OffsetDateTime;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -51,7 +48,6 @@ public class CodexProxyService {
     private final CodexAccountMapper codexAccountMapper;
     private final CodexHttpProxyForwardService codexHttpProxyForwardService;
     private final CodexSseProxyForwardService codexSseProxyForwardService;
-    private final ResponseLogService responseLogService;
     private final RestClient restClient;
     private final StickySessionService stickySessionService;
     private final AtomicLong roundRobinCounter = new AtomicLong(0);
@@ -67,8 +63,6 @@ public class CodexProxyService {
     }
 
     public Object proxyResponses(HttpServletRequest request, ObjectNode requestBody) {
-        long startAt = System.currentTimeMillis();
-
         String clientIp = request.getRemoteAddr() == null ? "" : request.getRemoteAddr();
         String userAgent = request.getHeader(HttpHeaders.USER_AGENT) == null ? "" : request.getHeader(HttpHeaders.USER_AGENT).trim();
 
@@ -86,64 +80,21 @@ public class CodexProxyService {
 
         HttpHeaders upstreamHeaders = buildUpstreamHeaders(request, account, promptCacheKey);
         if (stream) {
-            SseForwardResult forwardResult = codexSseProxyForwardService.forward(requestBody, upstreamHeaders);
-            CompletableFuture<CallLog> callLogFuture = forwardResult.usageFuture().thenApply(usage ->
-                    buildCallLog(
-                            usage,
-                            true,
-                            startAt,
-                            userAgent,
-                            clientIp,
-                            account,
-                            requestBody
-                    )
+            return codexSseProxyForwardService.forward(
+                    requestBody,
+                    upstreamHeaders,
+                    userAgent,
+                    clientIp,
+                    account
             );
-            writeCallLogAsync(callLogFuture);
-            return forwardResult.emitter();
         }
 
-        HttpForwardResult forwardResult = codexHttpProxyForwardService.forward(requestBody, upstreamHeaders);
-        CallLog callLog = buildCallLog(
-                forwardResult.usage(),
-                false,
-                startAt,
+        return codexHttpProxyForwardService.forward(
+                requestBody,
+                upstreamHeaders,
                 userAgent,
                 clientIp,
-                account,
-                requestBody
-        );
-        ResponseEntity<byte[]> response = ResponseEntity
-                .status(forwardResult.statusCode())
-                .body(forwardResult.responseBody());
-        writeCallLogAsync(CompletableFuture.completedFuture(callLog));
-        return response;
-    }
-
-    private CallLog buildCallLog(
-            TokenUsage usage,
-            boolean stream,
-            long startAt,
-            String userAgent,
-            String clientIp,
-            CodexAccountEntity account,
-            JsonNode requestBody
-    ) {
-        double cacheRate = usage.inputTokens() > 0
-                ? (double) usage.cachedInputTokens() / (double) usage.inputTokens()
-                : 0.0;
-
-        return new CallLog(
-                userAgent,
-                clientIp,
-                usage.inputTokens(),
-                usage.cachedInputTokens(),
-                usage.outputTokens(),
-                cacheRate,
-                (int) (System.currentTimeMillis() - startAt),
-                account.getAccountId(),
-                account.getName(),
-                stream,
-                requestBody
+                account
         );
     }
 
@@ -214,18 +165,4 @@ public class CodexProxyService {
         return selected;
     }
 
-    private void writeCallLogAsync(CompletableFuture<CallLog> callLogFuture) {
-        callLogFuture.whenComplete((callLog, ex) -> {
-            if (ex != null) {
-                log.warn("写入 /api/responses 调用日志失败: {}", ex.getMessage());
-                return;
-            }
-
-            try {
-                responseLogService.writeCallLog(callLog);
-            } catch (Exception writeEx) {
-                log.warn("写入 /api/responses 调用日志失败: {}", writeEx.getMessage());
-            }
-        });
-    }
 }

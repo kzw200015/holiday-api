@@ -1,6 +1,9 @@
 package com.github.kzw200015.myapi.codex.service;
 
 import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
+import com.github.kzw200015.myapi.codex.model.CallLog;
+import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -14,13 +17,16 @@ import java.time.Duration;
 /**
  * Codex 上游转发的公共父类，封装请求构建与 token usage 解析逻辑。
  */
+@Slf4j
 public abstract class AbstractCodexProxyForwardService {
     private static final String CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses";
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     protected final JsonMapper jsonMapper;
+    private final ResponseLogService responseLogService;
 
-    protected AbstractCodexProxyForwardService(JsonMapper jsonMapper) {
+    protected AbstractCodexProxyForwardService(JsonMapper jsonMapper, ResponseLogService responseLogService) {
         this.jsonMapper = jsonMapper;
+        this.responseLogService = responseLogService;
     }
 
     protected HttpRequest.Builder buildUpstreamRequest(JsonNode body, HttpHeaders headers) {
@@ -41,11 +47,7 @@ public abstract class AbstractCodexProxyForwardService {
 
     protected TokenUsage parseUsageFromResponseBody(byte[] bodyBytes) {
         JsonNode body = jsonMapper.readTree(bodyBytes);
-        JsonNode usageNode = body.path("usage");
-        if (usageNode.isMissingNode()) {
-            usageNode = body.path("response").path("usage");
-        }
-        return toTokenUsage(usageNode);
+        return toTokenUsage(extractUsageNodeFromResponseBody(body));
     }
 
     protected void updateUsageFromSseEventData(String rawJson, TokenUsageHolder holder) {
@@ -56,15 +58,75 @@ public abstract class AbstractCodexProxyForwardService {
         JsonNode eventData = jsonMapper.readTree(rawJson);
         String eventType = eventData.path("type").asString();
         if ("response.completed".equals(eventType) || "response.done".equals(eventType)) {
-            TokenUsage usage = toTokenUsage(eventData.path("response").path("usage"));
-            holder.set(usage.inputTokens(), usage.cachedInputTokens(), usage.outputTokens());
+            updateUsageHolder(holder, eventData.path("response").path("usage"));
             return;
         }
 
         JsonNode usageNode = eventData.path("usage");
         if (usageNode.isObject()) {
-            TokenUsage usage = toTokenUsage(usageNode);
-            holder.set(usage.inputTokens(), usage.cachedInputTokens(), usage.outputTokens());
+            updateUsageHolder(holder, usageNode);
+        }
+    }
+
+    protected void writeCallLogAfterForward(
+            TokenUsage usage,
+            boolean stream,
+            long startAt,
+            String userAgent,
+            String clientIp,
+            CodexAccountEntity account,
+            JsonNode requestBody
+    ) {
+        CallLog callLog = buildCallLog(usage, stream, startAt, userAgent, clientIp, account, requestBody);
+        writeCallLog(callLog);
+    }
+
+    private CallLog buildCallLog(
+            TokenUsage usage,
+            boolean stream,
+            long startAt,
+            String userAgent,
+            String clientIp,
+            CodexAccountEntity account,
+            JsonNode requestBody
+    ) {
+        double cacheRate = usage.inputTokens() > 0
+                ? (double) usage.cachedInputTokens() / (double) usage.inputTokens()
+                : 0.0;
+
+        return new CallLog(
+                userAgent,
+                clientIp,
+                usage.inputTokens(),
+                usage.cachedInputTokens(),
+                usage.outputTokens(),
+                cacheRate,
+                (int) (System.currentTimeMillis() - startAt),
+                account.getAccountId(),
+                account.getName(),
+                stream,
+                requestBody
+        );
+    }
+
+    private JsonNode extractUsageNodeFromResponseBody(JsonNode body) {
+        JsonNode usageNode = body.path("usage");
+        if (!usageNode.isMissingNode()) {
+            return usageNode;
+        }
+        return body.path("response").path("usage");
+    }
+
+    private void updateUsageHolder(TokenUsageHolder holder, JsonNode usageNode) {
+        TokenUsage usage = toTokenUsage(usageNode);
+        holder.set(usage.inputTokens(), usage.cachedInputTokens(), usage.outputTokens());
+    }
+
+    private void writeCallLog(CallLog callLog) {
+        try {
+            responseLogService.writeCallLog(callLog);
+        } catch (Exception ex) {
+            log.warn("写入 /api/responses 调用日志失败: {}", ex.getMessage());
         }
     }
 
