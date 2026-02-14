@@ -78,9 +78,7 @@ public class CodexProxyService {
             log.warn("请求缺少 prompt_cache_key");
         }
 
-        if (requestBody.path("instructions").isMissingNode() || requestBody.path("instructions").asString().isBlank()) {
-            requestBody.put("instructions", defaultInstructions);
-        }
+        applyDefaultInstructionsIfAbsent(requestBody);
         requestBody.remove("max_output_tokens");
 
         String stickyKey = stickySessionService.extractKey(request, promptCacheKey);
@@ -147,6 +145,30 @@ public class CodexProxyService {
                 stream,
                 requestBody
         );
+    }
+
+    /**
+     * 当请求未携带 instructions 时注入默认值。
+     * 同时会移除 input[0].content 中重复的默认 instructions 前缀，避免重复传递同一段指令。
+     */
+    private void applyDefaultInstructionsIfAbsent(ObjectNode requestBody) {
+        JsonNode instructionsNode = requestBody.path("instructions");
+        if (!instructionsNode.asString().isBlank()) {
+            return;
+        }
+
+        requestBody.put("instructions", defaultInstructions);
+        if (defaultInstructions.isBlank()) {
+            return;
+        }
+
+        JsonNode firstInputNode = requestBody.path("input").path(0);
+        if (firstInputNode.isMissingNode() || !(firstInputNode instanceof ObjectNode firstInputObjectNode)) {
+            return;
+        }
+
+        JsonNode contentNode = firstInputNode.path("content");
+        firstInputObjectNode.put("content", contentNode.asString().replace(defaultInstructions, ""));
     }
 
     private HttpHeaders buildUpstreamHeaders(HttpServletRequest request, CodexAccountEntity account, String promptCacheKey) {
