@@ -4,12 +4,15 @@ import com.github.kzw200015.myapi.codex.model.CodexPromptConfig;
 import com.github.kzw200015.myapi.codex.model.CodexPromptSource;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class CodexPromptInstructionService {
     private static final String CODEX_HEADER_INSTRUCTIONS_TEXT_URL =
@@ -24,16 +27,16 @@ public class CodexPromptInstructionService {
      */
     @PostConstruct
     private void initializeOpencodeInstructions() {
-        String instructions;
-        try {
-            instructions = restClient.get().uri(CODEX_HEADER_INSTRUCTIONS_TEXT_URL).retrieve().body(String.class);
-        } catch (Exception ex) {
-            throw new IllegalStateException("初始化 opencode 系统提示词失败", ex);
-        }
-        if (instructions == null || instructions.isBlank()) {
-            throw new IllegalStateException("初始化 opencode 系统提示词失败: 内容为空");
-        }
-        opencodeInstructions = instructions;
+        opencodeInstructions = fetchOpencodeInstructions();
+    }
+
+    /**
+     * 每天刷新一次 opencode 系统提示词。
+     */
+    @Scheduled(cron = "0 0 4 * * *")
+    public void refreshOpencodeInstructions() {
+        opencodeInstructions = fetchOpencodeInstructions();
+        log.info("已刷新 opencode 系统提示词");
     }
 
     /**
@@ -89,5 +92,18 @@ public class CodexPromptInstructionService {
         }
         String contentWithoutInstructions = content.substring(opencodeInstructions.length());
         firstInputObjectNode.put("content", contentWithoutInstructions);
+    }
+
+    private String fetchOpencodeInstructions() {
+        String instructions;
+        try {
+            instructions = restClient.get().uri(CODEX_HEADER_INSTRUCTIONS_TEXT_URL).retrieve().body(String.class);
+        } catch (Exception ex) {
+            throw new IllegalStateException("获取 opencode 系统提示词失败", ex);
+        }
+        if (instructions == null || instructions.isBlank()) {
+            throw new IllegalStateException("获取 opencode 系统提示词失败: 内容为空");
+        }
+        return instructions;
     }
 }
