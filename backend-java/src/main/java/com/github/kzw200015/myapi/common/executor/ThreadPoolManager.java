@@ -19,8 +19,6 @@ public class ThreadPoolManager {
 
     /**
      * Codex SSE 转发线程池，用于处理 SSE 流转发任务
-     * -- GETTER --
-     * 获取 Codex SSE 转发线程池
      */
     private final ExecutorService codexSseForwardExecutor = Executors.newThreadPerTaskExecutor(
             Thread.ofVirtual().name("codex-sse-forward-", 0).factory()
@@ -28,8 +26,6 @@ public class ThreadPoolManager {
 
     /**
      * Codex 配额查询线程池，用于并行查询多个账号的配额信息
-     * -- GETTER --
-     * 获取 Codex 配额查询线程池
      */
     private final ExecutorService codexQuotaExecutor = Executors.newThreadPerTaskExecutor(
             Thread.ofVirtual().name("codex-quota-", 0).factory()
@@ -37,8 +33,6 @@ public class ThreadPoolManager {
 
     /**
      * Codex 日志写入线程池，用于异步写入调用日志
-     * -- GETTER --
-     * 获取 Codex 日志写入线程池
      */
     private final ExecutorService codexLogExecutor = Executors.newThreadPerTaskExecutor(
             Thread.ofVirtual().name("codex-log-", 0).factory()
