@@ -1,6 +1,6 @@
 import { defineComponent, onMounted } from "vue"
 import { RouterView } from "vue-router"
-import { ElScrollbar, ElSwitch, ElText } from "element-plus"
+import { ElScrollbar, ElSwitch } from "element-plus"
 import { Moon, Sunny } from "@element-plus/icons-vue"
 
 import AppSidebar from "@/components/AppSidebar"
@@ -29,10 +29,7 @@ export default defineComponent({
 
         <div class="flex min-w-0 flex-1 flex-col">
           <header
-            class="flex h-16 shrink-0 items-center justify-between border-b border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)] px-4">
-            <div class="flex items-center">
-              <ElText>控制台</ElText>
-            </div>
+            class="flex h-16 shrink-0 items-center justify-end border-b border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)] px-4">
             <div class="flex items-center gap-2">
               <Sunny
                 class={`h-4 w-4 ${appStore.isDark ? "text-[var(--el-text-color-placeholder)]" : "text-[var(--el-color-warning)]"}`}
