@@ -48,7 +48,7 @@ public class CodexPromptInstructionService {
 
         String resolvedInstructions = resolveInstructions(promptConfig);
         requestBody.put("instructions", resolvedInstructions);
-        removeDuplicateInstructionsInInputContent(requestBody, resolvedInstructions);
+        removeDuplicateInstructionsInInputContent(requestBody);
     }
 
     /**
@@ -71,9 +71,9 @@ public class CodexPromptInstructionService {
     }
 
     /**
-     * 去掉 input[0].content 中与 instructions 重复的前缀内容。
+     * 去掉 input[0].content 中与 opencodeInstructions 重复的前缀内容。
      */
-    private static void removeDuplicateInstructionsInInputContent(ObjectNode requestBody, String instructions) {
+    private void removeDuplicateInstructionsInInputContent(ObjectNode requestBody) {
         JsonNode firstInputNode = requestBody.path("input").path(0);
         if (firstInputNode.isMissingNode() || !(firstInputNode instanceof ObjectNode firstInputObjectNode)) {
             return;
@@ -84,7 +84,10 @@ public class CodexPromptInstructionService {
             return;
         }
         String content = contentNode.asString();
-        String contentWithoutInstructions = content.replace(instructions, "");
+        if (!content.startsWith(opencodeInstructions)) {
+            return;
+        }
+        String contentWithoutInstructions = content.substring(opencodeInstructions.length());
         firstInputObjectNode.put("content", contentWithoutInstructions);
     }
 }
