@@ -1,14 +1,9 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-router"
 
-import AppLayout from "@/layouts/AppLayout"
-import HolidayPage from "@/views/HolidayPage"
-import CodexAccountsPage from "@/views/CodexAccountsPage"
-import NotFoundPage from "@/views/NotFoundPage"
-
 const routes: RouteRecordRaw[] = [
   {
     path: "/",
-    component: AppLayout,
+    component: () => import("@/layouts/AppLayout"),
     children: [
       {
         path: "",
@@ -17,17 +12,17 @@ const routes: RouteRecordRaw[] = [
       {
         path: "holiday",
         name: "HolidayPage",
-        component: HolidayPage,
+        component: () => import("@/views/HolidayPage"),
       },
       {
         path: "codex",
         name: "CodexAccountsPage",
-        component: CodexAccountsPage,
+        component: () => import("@/views/CodexAccountsPage"),
       },
       {
         path: ":pathMatch(.*)*",
         name: "NotFoundPage",
-        component: NotFoundPage,
+        component: () => import("@/views/NotFoundPage"),
       },
     ],
   },
