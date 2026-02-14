@@ -321,7 +321,7 @@ export default defineComponent({
             ),
             default: () => (
               <>
-                <ElTable data={accounts.value} class="w-full" stripe>
+                <ElTable data={accounts.value} class="w-full" stripe v-loading={loading.value}>
                   <ElTableColumn prop="name" label="名称" minWidth={220}/>
                   <ElTableColumn label="Token" minWidth={240}>
                     {{
