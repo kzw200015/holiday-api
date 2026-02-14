@@ -2,7 +2,6 @@ import { computed, defineComponent, onMounted, reactive, ref } from "vue"
 import { RefreshRight } from "@element-plus/icons-vue"
 import {
   ElButton,
-  ElCard,
   ElForm,
   ElFormItem,
   ElInput,
@@ -78,83 +77,78 @@ export default defineComponent({
     }
 
     return () => (
-      <ElCard class="rounded-xl" shadow="never">
-        {{
-          header: () => (
-            <div class="flex items-center justify-between gap-3">
-              <ElText class="font-semibold">系统提示词配置</ElText>
-              <ElButton
-                icon={RefreshRight}
-                loading={loading.value}
-                onClick={() => {
-                  void refreshPromptConfig()
-                }}
-              >
-                刷新
-              </ElButton>
+      <div class="space-y-4">
+        <div class="flex items-center justify-between gap-3">
+          <ElText class="font-semibold">系统提示词配置</ElText>
+          <ElButton
+            icon={RefreshRight}
+            loading={loading.value}
+            onClick={() => {
+              void refreshPromptConfig()
+            }}
+          >
+            刷新
+          </ElButton>
+        </div>
+
+        <ElForm labelPosition="top" v-loading={loading.value}>
+          <ElFormItem label="系统提示词来源">
+            <ElRadioGroup
+              modelValue={form.source}
+              onUpdate:modelValue={(value) => {
+                form.source = value as CodexPromptSource
+              }}
+            >
+              <ElRadio value={CODEX_PROMPT_SOURCE.OPENCODE}>opencode</ElRadio>
+              <ElRadio value={CODEX_PROMPT_SOURCE.CUSTOM}>自定义</ElRadio>
+            </ElRadioGroup>
+          </ElFormItem>
+
+          <ElFormItem label="自定义提示词">
+            <ElInput
+              type="textarea"
+              rows={7}
+              disabled={!isCustomSource.value}
+              placeholder="请输入自定义系统提示词"
+              modelValue={form.customPrompt}
+              onUpdate:modelValue={(value: string) => {
+                form.customPrompt = value
+              }}
+            />
+          </ElFormItem>
+
+          <ElFormItem label="是否强制覆盖系统提示词">
+            <ElSwitch
+              modelValue={form.forceOverride}
+              onUpdate:modelValue={(value) => {
+                form.forceOverride = value as boolean
+              }}
+            />
+          </ElFormItem>
+
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <ElTag type={form.forceOverride ? "danger" : "info"}>
+                {form.forceOverride ? "强制覆盖" : "按请求保留"}
+              </ElTag>
+              <ElText class="text-xs text-[var(--el-text-color-secondary)]">
+                更新时间：{updatedAt.value ? formatDateTime(updatedAt.value) : "-"}
+              </ElText>
             </div>
-          ),
-          default: () => (
-            <ElForm labelPosition="top" v-loading={loading.value}>
-              <ElFormItem label="系统提示词来源">
-                <ElRadioGroup
-                  modelValue={form.source}
-                  onUpdate:modelValue={(value) => {
-                    form.source = value as CodexPromptSource
-                  }}
-                >
-                  <ElRadio value={CODEX_PROMPT_SOURCE.OPENCODE}>opencode</ElRadio>
-                  <ElRadio value={CODEX_PROMPT_SOURCE.CUSTOM}>自定义</ElRadio>
-                </ElRadioGroup>
-              </ElFormItem>
 
-              <ElFormItem label="自定义提示词">
-                <ElInput
-                  type="textarea"
-                  rows={7}
-                  disabled={!isCustomSource.value}
-                  placeholder="请输入自定义系统提示词"
-                  modelValue={form.customPrompt}
-                  onUpdate:modelValue={(value: string) => {
-                    form.customPrompt = value
-                  }}
-                />
-              </ElFormItem>
-
-              <ElFormItem label="是否强制覆盖系统提示词">
-                <ElSwitch
-                  modelValue={form.forceOverride}
-                  onUpdate:modelValue={(value) => {
-                    form.forceOverride = value as boolean
-                  }}
-                />
-              </ElFormItem>
-
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <div class="flex items-center gap-2">
-                  <ElTag type={form.forceOverride ? "danger" : "info"}>
-                    {form.forceOverride ? "强制覆盖" : "按请求保留"}
-                  </ElTag>
-                  <ElText class="text-xs text-[var(--el-text-color-secondary)]">
-                    更新时间：{updatedAt.value ? formatDateTime(updatedAt.value) : "-"}
-                  </ElText>
-                </div>
-
-                <ElButton
-                  type="primary"
-                  loading={saving.value}
-                  disabled={loading.value}
-                  onClick={() => {
-                    void savePromptConfig()
-                  }}
-                >
-                  保存
-                </ElButton>
-              </div>
-            </ElForm>
-          ),
-        }}
-      </ElCard>
+            <ElButton
+              type="primary"
+              loading={saving.value}
+              disabled={loading.value}
+              onClick={() => {
+                void savePromptConfig()
+              }}
+            >
+              保存
+            </ElButton>
+          </div>
+        </ElForm>
+      </div>
     )
   },
 })
