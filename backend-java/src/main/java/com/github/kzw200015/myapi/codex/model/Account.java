@@ -14,7 +14,6 @@ public record Account(
     boolean enabled,
     OffsetDateTime expiresAt,
     OffsetDateTime createdAt,
-    OffsetDateTime updatedAt,
     CodexAccountQuota quota
 ) {
     public static Account from(CodexAccountEntity entity) {
@@ -29,7 +28,6 @@ public record Account(
             entity.isEnabled(),
             entity.getExpiresAt(),
             entity.getCreatedAt(),
-            entity.getUpdatedAt(),
             quota
         );
     }

@@ -14,7 +14,6 @@ export type Account = {
   enabled: boolean
   expiresAt: string
   createdAt: string
-  updatedAt: string
   quota: CodexAccountQuota | null
 }
 
