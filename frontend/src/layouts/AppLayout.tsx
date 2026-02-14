@@ -1,6 +1,7 @@
 import { defineComponent, onMounted } from "vue"
 import { RouterView } from "vue-router"
 import { ElScrollbar, ElSwitch, ElText } from "element-plus"
+import { Moon, Sunny } from "@element-plus/icons-vue"
 
 import AppSidebar from "@/components/AppSidebar"
 import { useAppStore } from "@/stores/AppStore"
@@ -32,14 +33,16 @@ export default defineComponent({
             <div class="flex items-center">
               <ElText>控制台</ElText>
             </div>
-            <div class="flex items-center gap-2.5">
-              <ElText>{appStore.isDark ? "深色主题" : "浅色主题"}</ElText>
+            <div class="flex items-center gap-2">
+              <Sunny
+                class={`h-4 w-4 ${appStore.isDark ? "text-[var(--el-text-color-placeholder)]" : "text-[var(--el-color-warning)]"}`}
+              />
               <ElSwitch
                 modelValue={appStore.isDark}
-                inlinePrompt
-                activeText="暗"
-                inactiveText="亮"
                 onUpdate:modelValue={(value) => appStore.setDark(value as boolean)}
+              />
+              <Moon
+                class={`h-4 w-4 ${appStore.isDark ? "text-[var(--el-color-primary)]" : "text-[var(--el-text-color-placeholder)]"}`}
               />
             </div>
           </header>
