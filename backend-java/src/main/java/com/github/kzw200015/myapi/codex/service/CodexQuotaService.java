@@ -1,6 +1,5 @@
 package com.github.kzw200015.myapi.codex.service;
 
-import jakarta.annotation.PreDestroy;
 import com.github.kzw200015.myapi.codex.model.Account;
 import com.github.kzw200015.myapi.codex.model.CodexAccountQuota;
 import com.github.kzw200015.myapi.codex.model.CodexQuotaAdditionalLimit;
@@ -8,7 +7,7 @@ import com.github.kzw200015.myapi.codex.model.CodexQuotaRateLimit;
 import com.github.kzw200015.myapi.codex.model.CodexQuotaWindow;
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
 import com.github.kzw200015.myapi.codex.util.JsonNodeReadUtils;
-import lombok.RequiredArgsConstructor;
+import com.github.kzw200015.myapi.common.executor.ThreadPoolManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -20,30 +19,26 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class CodexQuotaService {
     private static final String CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
     private static final String CODEX_USAGE_USER_AGENT = "codex_cli_rs/0.76.0 (Debian 13.0.0; x86_64) WindowsTerminal";
 
     private final RestClient restClient;
     private final JsonMapper jsonMapper;
-    private final ExecutorService codexQuotaExecutor = Executors.newThreadPerTaskExecutor(
-            Thread.ofVirtual().name("codex-quota-", 0).factory()
-    );
+    private final ThreadPoolManager threadPoolManager;
 
-    @PreDestroy
-    private void shutdownQuotaExecutor() {
-        codexQuotaExecutor.shutdown();
+    public CodexQuotaService(RestClient restClient, JsonMapper jsonMapper, ThreadPoolManager threadPoolManager) {
+        this.restClient = restClient;
+        this.jsonMapper = jsonMapper;
+        this.threadPoolManager = threadPoolManager;
     }
 
     public List<Account> buildAccountsWithQuota(List<CodexAccountEntity> entities) {
         List<CompletableFuture<Account>> futures = entities.stream()
-                .map(entity -> CompletableFuture.supplyAsync(() -> buildAccountWithQuota(entity), codexQuotaExecutor))
+                .map(entity -> CompletableFuture.supplyAsync(() -> buildAccountWithQuota(entity), threadPoolManager.getCodexQuotaExecutor()))
                 .toList();
         return futures.stream().map(CompletableFuture::join).toList();
     }

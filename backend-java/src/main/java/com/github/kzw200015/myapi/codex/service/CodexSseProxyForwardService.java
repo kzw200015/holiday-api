@@ -2,7 +2,7 @@ package com.github.kzw200015.myapi.codex.service;
 
 import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
-import jakarta.annotation.PreDestroy;
+import com.github.kzw200015.myapi.common.executor.ThreadPoolManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -22,8 +22,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * 处理 SSE 转发，并从事件流中提取 token usage。
@@ -31,17 +29,11 @@ import java.util.concurrent.Executors;
 @Slf4j
 @Service
 public class CodexSseProxyForwardService extends AbstractCodexProxyForwardService {
-    private final ExecutorService sseForwardExecutor = Executors.newThreadPerTaskExecutor(
-            Thread.ofVirtual().name("codex-sse-forward-", 0).factory()
-    );
+    private final ThreadPoolManager threadPoolManager;
 
-    public CodexSseProxyForwardService(JsonMapper jsonMapper, ResponseLogService responseLogService) {
-        super(jsonMapper, responseLogService);
-    }
-
-    @PreDestroy
-    private void shutdownExecutor() {
-        sseForwardExecutor.shutdown();
+    public CodexSseProxyForwardService(JsonMapper jsonMapper, ResponseLogService responseLogService, ThreadPoolManager threadPoolManager) {
+        super(jsonMapper, responseLogService, threadPoolManager);
+        this.threadPoolManager = threadPoolManager;
     }
 
     public SseEmitter forward(
@@ -64,7 +56,7 @@ public class CodexSseProxyForwardService extends AbstractCodexProxyForwardServic
         SseEmitter emitter = new SseEmitter(0L);
         CompletableFuture.runAsync(
                 () -> streamToEmitter(upstream.body(), emitter, startAt, userAgent, clientIp, account, body),
-                sseForwardExecutor
+                threadPoolManager.getCodexSseForwardExecutor()
         );
         return emitter;
     }

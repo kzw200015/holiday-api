@@ -1,6 +1,7 @@
 package com.github.kzw200015.myapi.codex.service;
 
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
+import com.github.kzw200015.myapi.common.executor.ThreadPoolManager;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -15,8 +16,8 @@ import java.net.http.HttpResponse;
  */
 @Service
 public class CodexHttpProxyForwardService extends AbstractCodexProxyForwardService {
-    public CodexHttpProxyForwardService(JsonMapper jsonMapper, ResponseLogService responseLogService) {
-        super(jsonMapper, responseLogService);
+    public CodexHttpProxyForwardService(JsonMapper jsonMapper, ResponseLogService responseLogService, ThreadPoolManager threadPoolManager) {
+        super(jsonMapper, responseLogService, threadPoolManager);
     }
 
     public ResponseEntity<byte[]> forward(

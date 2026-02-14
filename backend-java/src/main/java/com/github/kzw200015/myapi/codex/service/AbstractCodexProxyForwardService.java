@@ -3,7 +3,7 @@ package com.github.kzw200015.myapi.codex.service;
 import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
 import com.github.kzw200015.myapi.codex.model.CallLog;
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
-import jakarta.annotation.PreDestroy;
+import com.github.kzw200015.myapi.common.executor.ThreadPoolManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import tools.jackson.databind.JsonNode;
@@ -15,8 +15,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * Codex 上游转发的公共父类，封装请求构建与 token usage 解析逻辑。
@@ -25,20 +23,14 @@ import java.util.concurrent.Executors;
 public abstract class AbstractCodexProxyForwardService {
     private static final String CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses";
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
-    private final ExecutorService logExecutor = Executors.newThreadPerTaskExecutor(
-            Thread.ofVirtual().name("codex-log-", 0).factory()
-    );
     protected final JsonMapper jsonMapper;
     private final ResponseLogService responseLogService;
+    private final ThreadPoolManager threadPoolManager;
 
-    protected AbstractCodexProxyForwardService(JsonMapper jsonMapper, ResponseLogService responseLogService) {
+    protected AbstractCodexProxyForwardService(JsonMapper jsonMapper, ResponseLogService responseLogService, ThreadPoolManager threadPoolManager) {
         this.jsonMapper = jsonMapper;
         this.responseLogService = responseLogService;
-    }
-
-    @PreDestroy
-    private void shutdownLogExecutor() {
-        logExecutor.shutdown();
+        this.threadPoolManager = threadPoolManager;
     }
 
     protected HttpRequest.Builder buildUpstreamRequest(JsonNode body, HttpHeaders headers) {
@@ -141,7 +133,7 @@ public abstract class AbstractCodexProxyForwardService {
             } catch (Exception ex) {
                 log.warn("写入 /api/responses 调用日志失败: {}", ex.getMessage());
             }
-        }, logExecutor);
+        }, threadPoolManager.getCodexLogExecutor());
     }
 
     private TokenUsage toTokenUsage(JsonNode usageNode) {
