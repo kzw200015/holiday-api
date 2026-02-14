@@ -73,49 +73,37 @@ export default defineComponent({
             <>
               <ElTable data={logs.value} class="w-full" stripe v-loading={loading.value}>
                 <ElTableColumn label="时间" minWidth={180}>
-                  {{
-                    default: (scope: { row: ResponseLogItem }) => (
-                      <ElText>{formatDateTime(scope.row.createdAt)}</ElText>
-                    ),
-                  }}
+                  {(scope: { row: ResponseLogItem }) => (
+                    <ElText>{formatDateTime(scope.row.createdAt)}</ElText>
+                  )}
                 </ElTableColumn>
                 <ElTableColumn prop="accountName" label="账户" minWidth={160}/>
                 <ElTableColumn label="调用方式" width={110}>
-                  {{
-                    default: (scope: { row: ResponseLogItem }) => (
-                      <ElTag type={scope.row.isSse ? "success" : "info"}>
-                        {scope.row.isSse ? "SSE" : "HTTP"}
-                      </ElTag>
-                    ),
-                  }}
+                  {(scope: { row: ResponseLogItem }) => (
+                    <ElTag type={scope.row.isSse ? "success" : "info"}>
+                      {scope.row.isSse ? "SSE" : "HTTP"}
+                    </ElTag>
+                  )}
                 </ElTableColumn>
                 <ElTableColumn prop="clientIp" label="IP" minWidth={140}/>
                 <ElTableColumn prop="inputTokens" label="输入Token" width={120}/>
                 <ElTableColumn prop="cachedInputTokens" label="缓存输入Token" width={130}/>
                 <ElTableColumn prop="outputTokens" label="输出Token" width={110}/>
                 <ElTableColumn label="缓存率" width={110}>
-                  {{
-                    default: (scope: { row: ResponseLogItem }) => (
-                      <ElText>{formatRate(scope.row.cacheRate)}</ElText>
-                    ),
-                  }}
+                  {(scope: { row: ResponseLogItem }) => (
+                    <ElText>{formatRate(scope.row.cacheRate)}</ElText>
+                  )}
                 </ElTableColumn>
                 <ElTableColumn label="首字延迟(ms)" width={130}>
-                  {{
-                    default: (scope: { row: ResponseLogItem }) => <ElText>{scope.row.firstTokenLatencyMs}</ElText>,
-                  }}
+                  {(scope: { row: ResponseLogItem }) => <ElText>{scope.row.firstTokenLatencyMs}</ElText>}
                 </ElTableColumn>
                 <ElTableColumn label="耗时(ms)" width={120}>
-                  {{
-                    default: (scope: { row: ResponseLogItem }) => <ElText>{scope.row.durationMs}</ElText>,
-                  }}
+                  {(scope: { row: ResponseLogItem }) => <ElText>{scope.row.durationMs}</ElText>}
                 </ElTableColumn>
                 <ElTableColumn label="UA" minWidth={320}>
-                  {{
-                    default: (scope: { row: ResponseLogItem }) => (
-                      <ElText class="break-all">{scope.row.userAgent || "-"}</ElText>
-                    ),
-                  }}
+                  {(scope: { row: ResponseLogItem }) => (
+                    <ElText class="break-all">{scope.row.userAgent || "-"}</ElText>
+                  )}
                 </ElTableColumn>
               </ElTable>
 

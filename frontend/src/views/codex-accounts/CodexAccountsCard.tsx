@@ -296,69 +296,57 @@ export default defineComponent({
                 <ElTable data={accounts.value} class="w-full" stripe v-loading={loading.value}>
                   <ElTableColumn prop="name" label="名称" minWidth={220}/>
                   <ElTableColumn label="Token" minWidth={240}>
-                    {{
-                      default: (scope: { row: Account }) => (
-                        <div class="flex items-center gap-2">
-                          <ElText class="font-mono text-sm">{maskToken(scope.row.token)}</ElText>
-                          <ElButton
-                            size="small"
-                            text
-                            icon={DocumentCopy}
-                            onClick={() => {
-                              void copyToClipboard(scope.row.token)
-                            }}
-                          />
-                        </div>
-                      ),
-                    }}
-                  </ElTableColumn>
-                  <ElTableColumn label="过期时间" minWidth={200}>
-                    {{
-                      default: (scope: { row: Account }) => (
-                        <ElText class="text-sm">{formatDateTime(scope.row.expiresAt)}</ElText>
-                      ),
-                    }}
-                  </ElTableColumn>
-                  <ElTableColumn label="更新时间" minWidth={200}>
-                    {{
-                      default: (scope: { row: Account }) => (
-                        <ElText class="text-sm">{formatDateTime(scope.row.updatedAt)}</ElText>
-                      ),
-                    }}
-                  </ElTableColumn>
-                  <ElTableColumn label="配额" minWidth={220}>
-                    {{
-                      default: (scope: { row: Account }) => renderQuotaContent(scope.row.quota),
-                    }}
-                  </ElTableColumn>
-                  <ElTableColumn label="启用" width={110} align="center">
-                    {{
-                      default: (scope: { row: Account }) => (
-                        <ElSwitch
-                          modelValue={scope.row.enabled}
-                          loading={togglingAccountId.value === scope.row.id}
-                          onChange={(value: string | number | boolean) => {
-                            void toggleAccountEnabled(scope.row, Boolean(value))
-                          }}
-                        />
-                      ),
-                    }}
-                  </ElTableColumn>
-                  <ElTableColumn label="操作" width={120} align="right">
-                    {{
-                      default: (scope: { row: Account }) => (
+                    {(scope: { row: Account }) => (
+                      <div class="flex items-center gap-2">
+                        <ElText class="font-mono text-sm">{maskToken(scope.row.token)}</ElText>
                         <ElButton
                           size="small"
-                          type="primary"
-                          plain
+                          text
+                          icon={DocumentCopy}
                           onClick={() => {
-                            openEditDialog(scope.row)
+                            void copyToClipboard(scope.row.token)
                           }}
-                        >
-                          编辑
-                        </ElButton>
-                      ),
-                    }}
+                        />
+                      </div>
+                    )}
+                  </ElTableColumn>
+                  <ElTableColumn label="过期时间" minWidth={200}>
+                    {(scope: { row: Account }) => (
+                      <ElText class="text-sm">{formatDateTime(scope.row.expiresAt)}</ElText>
+                    )}
+                  </ElTableColumn>
+                  <ElTableColumn label="更新时间" minWidth={200}>
+                    {(scope: { row: Account }) => (
+                      <ElText class="text-sm">{formatDateTime(scope.row.updatedAt)}</ElText>
+                    )}
+                  </ElTableColumn>
+                  <ElTableColumn label="配额" minWidth={220}>
+                    {(scope: { row: Account }) => renderQuotaContent(scope.row.quota)}
+                  </ElTableColumn>
+                  <ElTableColumn label="启用" width={110} align="center">
+                    {(scope: { row: Account }) => (
+                      <ElSwitch
+                        modelValue={scope.row.enabled}
+                        loading={togglingAccountId.value === scope.row.id}
+                        onChange={(value: string | number | boolean) => {
+                          void toggleAccountEnabled(scope.row, Boolean(value))
+                        }}
+                      />
+                    )}
+                  </ElTableColumn>
+                  <ElTableColumn label="操作" width={120} align="right">
+                    {(scope: { row: Account }) => (
+                      <ElButton
+                        size="small"
+                        type="primary"
+                        plain
+                        onClick={() => {
+                          openEditDialog(scope.row)
+                        }}
+                      >
+                        编辑
+                      </ElButton>
+                    )}
                   </ElTableColumn>
                 </ElTable>
 
