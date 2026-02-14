@@ -66,30 +66,29 @@ public class CodexProxyService {
         }
     }
 
-    public Object proxyResponses(HttpServletRequest request, ObjectNode updated) {
+    public Object proxyResponses(HttpServletRequest request, ObjectNode requestBody) {
         long startAt = System.currentTimeMillis();
 
         String clientIp = request.getRemoteAddr() == null ? "" : request.getRemoteAddr();
-        String userAgent = trim(request.getHeader(HttpHeaders.USER_AGENT));
+        String userAgent = request.getHeader(HttpHeaders.USER_AGENT) == null ? "" : request.getHeader(HttpHeaders.USER_AGENT).trim();
 
-        boolean stream = updated.path("stream").asBoolean(false);
-        String promptCacheKey = updated.path("prompt_cache_key").asString();
+        boolean stream = requestBody.path("stream").asBoolean(false);
+        String promptCacheKey = requestBody.path("prompt_cache_key").asString() == null ? "" : requestBody.path("prompt_cache_key").asString().trim();
         if (promptCacheKey.isBlank()) {
             log.warn("请求缺少 prompt_cache_key");
         }
 
-        if (updated.path("instructions").isMissingNode() || updated.path("instructions").asString().isBlank()) {
-            updated.put("instructions", defaultInstructions);
+        if (requestBody.path("instructions").isMissingNode() || requestBody.path("instructions").asString().isBlank()) {
+            requestBody.put("instructions", defaultInstructions);
         }
-        updated.remove("max_output_tokens");
-        JsonNode requestBody = updated.deepCopy();
+        requestBody.remove("max_output_tokens");
 
         String stickyKey = stickySessionService.extractKey(request, promptCacheKey);
         CodexAccountEntity account = selectAccount(stickyKey);
 
-        HttpHeaders upstreamHeaders = buildUpstreamHeaders(request, account);
+        HttpHeaders upstreamHeaders = buildUpstreamHeaders(request, account, promptCacheKey);
         if (stream) {
-            SseForwardResult forwardResult = codexSseProxyForwardService.forward(updated, upstreamHeaders);
+            SseForwardResult forwardResult = codexSseProxyForwardService.forward(requestBody, upstreamHeaders);
             CompletableFuture<CallLog> callLogFuture = forwardResult.usageFuture().thenApply(usage ->
                     buildCallLog(
                             usage,
@@ -105,7 +104,7 @@ public class CodexProxyService {
             return forwardResult.emitter();
         }
 
-        HttpForwardResult forwardResult = codexHttpProxyForwardService.forward(updated, upstreamHeaders);
+        HttpForwardResult forwardResult = codexHttpProxyForwardService.forward(requestBody, upstreamHeaders);
         CallLog callLog = buildCallLog(
                 forwardResult.usage(),
                 false,
@@ -150,13 +149,17 @@ public class CodexProxyService {
         );
     }
 
-    private HttpHeaders buildUpstreamHeaders(HttpServletRequest request, CodexAccountEntity account) {
+    private HttpHeaders buildUpstreamHeaders(HttpServletRequest request, CodexAccountEntity account, String promptCacheKey) {
         HttpHeaders headers = new HttpHeaders();
         for (String key : UPSTREAM_HEADER_WHITELIST) {
             Enumeration<String> values = request.getHeaders(key);
             while (values.hasMoreElements()) {
                 headers.add(key, values.nextElement());
             }
+        }
+        if (!promptCacheKey.isBlank()) {
+            headers.set(HEADER_CONVERSATION_ID, promptCacheKey);
+            headers.set(HEADER_SESSION_ID, promptCacheKey);
         }
         headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + account.getToken());
         headers.set(HEADER_CHATGPT_ACCOUNT_ID, account.getAccountId());
@@ -194,10 +197,6 @@ public class CodexProxyService {
             stickySessionService.setBinding(stickyKey, selected.getAccountId());
         }
         return selected;
-    }
-
-    private static String trim(String raw) {
-        return raw == null ? "" : raw.trim();
     }
 
     private void writeCallLogAsync(CompletableFuture<CallLog> callLogFuture) {
