@@ -1,5 +1,4 @@
 import { defineComponent, onMounted, reactive, ref } from "vue"
-import dayjs from "dayjs"
 import { CirclePlus, DocumentCopy, RefreshRight } from "@element-plus/icons-vue"
 import {
   ElButton,
@@ -20,54 +19,28 @@ import {
 
 import { listCodexAccounts, type Account, type CodexAccountQuota, updateCodexAccount } from "@/api/codexApi.ts"
 import CodexOAuthSection from "@/views/codex-accounts/CodexOAuthSection.tsx"
+import { copyToClipboard, formatDateTime } from "@/views/codex-accounts/utils.ts"
+
+const FIVE_HOUR_WINDOW_SECONDS = 18_000
+const SEVEN_DAY_WINDOW_SECONDS = 604_800
 
 type SimpleQuotaWindow = {
   remainingPercent: number | null
   resetAfterSeconds: number | null
 }
 
-function formatDateTime(value: string) {
-  return dayjs(value).format("YYYY-MM-DD HH:mm:ss")
-}
-
 function maskToken(token: string) {
-  const trimmed = (token || "").trim()
-  if (trimmed === "") {
+  if (token === "") {
     return "-"
   }
-  if (trimmed.length <= 12) {
-    return trimmed
+  if (token.length <= 12) {
+    return token
   }
-  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`
-}
-
-async function copyToClipboard(text: string) {
-  const content = (text || "").trim()
-  if (!content) {
-    ElMessage.warning("没有可复制的内容")
-    return
-  }
-
-  try {
-    await navigator.clipboard.writeText(content)
-    ElMessage.success("已复制")
-  } catch {
-    ElMessage.error("复制失败，请手动复制")
-  }
+  return `${token.slice(0, 6)}...${token.slice(-4)}`
 }
 
 function resolveRemainingPercent(usedPercent: number | null) {
-  if (usedPercent === null) {
-    return null
-  }
-  const remaining = 100 - usedPercent
-  if (remaining < 0) {
-    return 0
-  }
-  if (remaining > 100) {
-    return 100
-  }
-  return remaining
+  return usedPercent === null ? null : Math.max(0, Math.min(100, 100 - usedPercent))
 }
 
 function resolveSimpleWindows(quota: CodexAccountQuota) {
@@ -81,13 +54,14 @@ function resolveSimpleWindows(quota: CodexAccountQuota) {
   const primarySeconds = primary?.limitWindowSeconds
   const secondarySeconds = secondary?.limitWindowSeconds
 
-  if (primarySeconds === 18000 || secondarySeconds === 604800) {
+  if (primarySeconds === FIVE_HOUR_WINDOW_SECONDS || secondarySeconds === SEVEN_DAY_WINDOW_SECONDS) {
     return {
       fiveHour: primary,
       sevenDay: secondary,
     }
   }
-  if (primarySeconds === 604800 || secondarySeconds === 18000) {
+
+  if (primarySeconds === SEVEN_DAY_WINDOW_SECONDS || secondarySeconds === FIVE_HOUR_WINDOW_SECONDS) {
     return {
       fiveHour: secondary,
       sevenDay: primary,
@@ -188,10 +162,9 @@ export default defineComponent({
 
     const editDialogVisible = ref(false)
     const editFormRef = ref<FormInstance>()
-    const editingAccountId = ref<number | null>(null)
+    const editingAccount = ref<Account | null>(null)
     const editForm = reactive({
       name: "",
-      enabled: true,
     })
     const editLoading = ref(false)
 
@@ -215,17 +188,15 @@ export default defineComponent({
     })
 
     const openEditDialog = (account: Account) => {
-      editingAccountId.value = account.id
+      editingAccount.value = account
       editForm.name = account.name
-      editForm.enabled = account.enabled
       editDialogVisible.value = true
     }
 
     const closeEditDialog = () => {
       editDialogVisible.value = false
-      editingAccountId.value = null
+      editingAccount.value = null
       editForm.name = ""
-      editForm.enabled = true
     }
 
     const saveEdit = async () => {
@@ -240,14 +211,16 @@ export default defineComponent({
         return
       }
 
+      const account = editingAccount.value
+      if (!account) {
+        return
+      }
+
       editLoading.value = true
       try {
-        if (editingAccountId.value === null) {
-          return
-        }
-        await updateCodexAccount(editingAccountId.value, {
+        await updateCodexAccount(account.id, {
           name: editForm.name,
-          enabled: editForm.enabled,
+          enabled: account.enabled,
         })
         await refreshAccounts()
         ElMessage.success("已更新名称")
@@ -279,22 +252,14 @@ export default defineComponent({
     }
 
     const handleCurrentPageChange = (page: number) => {
-      currentPage.value = Number(page || 1)
+      currentPage.value = page
       void refreshAccounts()
     }
 
     const handlePageSizeChange = (size: number) => {
-      pageSize.value = Number(size || 10)
+      pageSize.value = size
       currentPage.value = 1
       void refreshAccounts()
-    }
-
-    const openOAuthDrawer = () => {
-      oauthDrawerVisible.value = true
-    }
-
-    const handleAccountAdded = async () => {
-      await refreshAccounts()
     }
 
     return () => (
@@ -308,7 +273,9 @@ export default defineComponent({
                   <ElButton
                     type="primary"
                     icon={CirclePlus}
-                    onClick={openOAuthDrawer}
+                    onClick={() => {
+                      oauthDrawerVisible.value = true
+                    }}
                   >
                     添加账户
                   </ElButton>
@@ -418,7 +385,7 @@ export default defineComponent({
             oauthDrawerVisible.value = value
           }}
           onAccountAdded={() => {
-            void handleAccountAdded()
+            void refreshAccounts()
           }}
         />
 
@@ -450,21 +417,19 @@ export default defineComponent({
               </ElForm>
             ),
             footer: () => (
-              <div class="flex justify-end">
-                <div class="flex items-center gap-2">
-                  <ElButton disabled={editLoading.value} onClick={closeEditDialog}>
-                    取消
-                  </ElButton>
-                  <ElButton
-                    type="primary"
-                    loading={editLoading.value}
-                    onClick={() => {
-                      void saveEdit()
-                    }}
-                  >
-                    保存
-                  </ElButton>
-                </div>
+              <div class="flex items-center justify-end gap-2">
+                <ElButton disabled={editLoading.value} onClick={closeEditDialog}>
+                  取消
+                </ElButton>
+                <ElButton
+                  type="primary"
+                  loading={editLoading.value}
+                  onClick={() => {
+                    void saveEdit()
+                  }}
+                >
+                  保存
+                </ElButton>
               </div>
             ),
           }}

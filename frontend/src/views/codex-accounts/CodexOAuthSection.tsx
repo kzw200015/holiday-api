@@ -1,5 +1,4 @@
 import { computed, defineComponent, ref } from "vue"
-import dayjs from "dayjs"
 import { DocumentCopy, Link } from "@element-plus/icons-vue"
 import { ElButton, ElCard, ElDrawer, ElIcon, ElInput, ElMessage, ElText } from "element-plus"
 
@@ -8,25 +7,7 @@ import {
   createCodexOAuthSession,
   type OAuthSessionInfo,
 } from "@/api/codexApi.ts"
-
-function formatDateTime(value: string) {
-  return dayjs(value).format("YYYY-MM-DD HH:mm:ss")
-}
-
-async function copyToClipboard(text: string) {
-  const content = (text || "").trim()
-  if (!content) {
-    ElMessage.warning("没有可复制的内容")
-    return
-  }
-
-  try {
-    await navigator.clipboard.writeText(content)
-    ElMessage.success("已复制")
-  } catch {
-    ElMessage.error("复制失败，请手动复制")
-  }
-}
+import { copyToClipboard, formatDateTime } from "@/views/codex-accounts/utils.ts"
 
 export default defineComponent({
   name: "CodexOAuthSection",
@@ -54,9 +35,9 @@ export default defineComponent({
       },
     })
 
-    const sessionLinkText = computed(() => session.value?.url || "")
-    const sessionStateText = computed(() => session.value?.state || "-")
-    const sessionExpiresAtText = computed(() => {
+    const sessionUrl = computed(() => session.value?.url ?? "")
+    const sessionState = computed(() => session.value?.state ?? "-")
+    const sessionExpiresAt = computed(() => {
       if (!session.value) {
         return "-"
       }
@@ -121,47 +102,38 @@ export default defineComponent({
                     </div>
                   ),
                   default: () => (
-                    <div class="flex w-full flex-col items-start gap-3">
-                      <div class="flex w-full flex-col items-start gap-2">
-                        <ElText class="self-start text-xs text-[var(--el-text-color-secondary)]">授权链接</ElText>
-                        <div class="w-full">
-                          <ElInput
-                            modelValue={sessionLinkText.value}
-                            readonly
-                            placeholder="点击右上角获取链接"
-                            class="w-full"
-                          />
-                        </div>
-                        <div class="flex flex-wrap items-center gap-2">
-                          <ElButton
-                            icon={DocumentCopy}
-                            disabled={!session.value}
-                            onClick={() => {
-                              void copyToClipboard(sessionLinkText.value)
-                            }}
-                          >
-                            复制链接
-                          </ElButton>
-                          <ElButton
-                            type="success"
-                            plain
-                            disabled={!session.value}
-                            onClick={() => {
-                              const url = sessionLinkText.value
-                              if (!url) {
-                                return
-                              }
-                              window.open(url, "_blank")
-                            }}
-                          >
-                            打开链接
-                          </ElButton>
-                        </div>
+                    <div class="space-y-3">
+                      <ElText class="text-xs text-[var(--el-text-color-secondary)]">授权链接</ElText>
+                      <ElInput
+                        modelValue={sessionUrl.value}
+                        readonly
+                        placeholder="点击右上角获取链接"
+                      />
+                      <div class="flex flex-wrap items-center gap-2">
+                        <ElButton
+                          icon={DocumentCopy}
+                          disabled={!session.value}
+                          onClick={() => {
+                            void copyToClipboard(sessionUrl.value)
+                          }}
+                        >
+                          复制链接
+                        </ElButton>
+                        <ElButton
+                          type="success"
+                          plain
+                          disabled={!session.value}
+                          onClick={() => {
+                            window.open(sessionUrl.value, "_blank")
+                          }}
+                        >
+                          打开链接
+                        </ElButton>
                       </div>
 
-                      <div class="flex flex-col items-start gap-1">
-                        <ElText class="text-xs text-[var(--el-text-color-secondary)]">state：{sessionStateText.value}</ElText>
-                        <ElText class="text-xs text-[var(--el-text-color-secondary)]">过期时间：{sessionExpiresAtText.value}</ElText>
+                      <div class="space-y-1">
+                        <ElText class="text-xs text-[var(--el-text-color-secondary)]">state：{sessionState.value}</ElText>
+                        <ElText class="text-xs text-[var(--el-text-color-secondary)]">过期时间：{sessionExpiresAt.value}</ElText>
                       </div>
                     </div>
                   ),
@@ -186,30 +158,24 @@ export default defineComponent({
                     </div>
                   ),
                   default: () => (
-                    <div class="flex w-full flex-col items-start gap-2">
-                      <div class="w-full">
-                        <ElInput
-                          placeholder="请输入账户名称（必填）"
-                          modelValue={accountName.value}
-                          onUpdate:modelValue={(value: string) => {
-                            accountName.value = value
-                          }}
-                          class="w-full"
-                        />
-                      </div>
-                      <div class="w-full">
-                        <ElInput
-                          type="textarea"
-                          autosize={{ minRows: 3, maxRows: 6 }}
-                          placeholder="粘贴 http://localhost:1455/auth/callback?..."
-                          modelValue={callbackUrl.value}
-                          onUpdate:modelValue={(value: string) => {
-                            callbackUrl.value = value
-                          }}
-                          class="w-full"
-                        />
-                      </div>
-                      <ElText class="self-start text-xs text-[var(--el-text-color-secondary)]">
+                    <div class="space-y-2">
+                      <ElInput
+                        placeholder="请输入账户名称（必填）"
+                        modelValue={accountName.value}
+                        onUpdate:modelValue={(value: string) => {
+                          accountName.value = value
+                        }}
+                      />
+                      <ElInput
+                        type="textarea"
+                        autosize={{ minRows: 3, maxRows: 6 }}
+                        placeholder="粘贴 http://localhost:1455/auth/callback?..."
+                        modelValue={callbackUrl.value}
+                        onUpdate:modelValue={(value: string) => {
+                          callbackUrl.value = value
+                        }}
+                      />
+                      <ElText class="text-xs text-[var(--el-text-color-secondary)]">
                         提示：回调地址通常打不开是正常的，复制地址栏即可。
                       </ElText>
                     </div>

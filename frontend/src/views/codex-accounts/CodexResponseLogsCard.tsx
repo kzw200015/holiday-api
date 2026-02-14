@@ -1,5 +1,4 @@
 import { defineComponent, onMounted, ref } from "vue"
-import dayjs from "dayjs"
 import { RefreshRight } from "@element-plus/icons-vue"
 import {
   ElButton,
@@ -12,10 +11,7 @@ import {
 } from "element-plus"
 
 import { listCodexResponseLogs, type ResponseLogItem } from "@/api/codexApi.ts"
-
-function formatDateTime(value: string) {
-  return dayjs(value).format("YYYY-MM-DD HH:mm:ss")
-}
+import { formatDateTime } from "@/views/codex-accounts/utils.ts"
 
 function formatRate(rate: number) {
   return `${(rate * 100).toFixed(2)}%`
@@ -46,12 +42,12 @@ export default defineComponent({
     })
 
     const handleCurrentPageChange = (page: number) => {
-      currentPage.value = Number(page || 1)
+      currentPage.value = page
       void refreshLogs()
     }
 
     const handlePageSizeChange = (size: number) => {
-      pageSize.value = Number(size || 10)
+      pageSize.value = size
       currentPage.value = 1
       void refreshLogs()
     }

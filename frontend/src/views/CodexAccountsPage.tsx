@@ -9,29 +9,15 @@ export default defineComponent({
   name: "CodexAccountsPage",
   setup() {
     return () => (
-      <section>
-        <div class="flex flex-col gap-4">
-          <div class="flex flex-col gap-2">
-            <div class="flex items-center gap-2">
-              <ElText class="m-0 text-2xl font-semibold tracking-tight">Codex 账户</ElText>
-              <ElTag type="info">管理面板</ElTag>
-            </div>
-          </div>
+      <section class="space-y-4">
+        <header class="flex items-center gap-2">
+          <ElText class="text-2xl font-semibold tracking-tight">Codex 账户</ElText>
+          <ElTag type="info">管理面板</ElTag>
+        </header>
 
-          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div class="md:col-span-2">
-              <CodexTokenUsageCard/>
-            </div>
-
-            <div class="md:col-span-2">
-              <CodexAccountsCard/>
-            </div>
-
-            <div class="md:col-span-2">
-              <CodexResponseLogsCard/>
-            </div>
-          </div>
-        </div>
+        <CodexTokenUsageCard/>
+        <CodexAccountsCard/>
+        <CodexResponseLogsCard/>
       </section>
     )
   },

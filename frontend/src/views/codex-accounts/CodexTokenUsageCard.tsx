@@ -62,48 +62,70 @@ export default defineComponent({
           ),
           default: () => (
             <div class="bg-[var(--el-fill-color-blank)] p-5">
-              <div class="overflow-x-auto">
+              <div class="overflow-x-auto overflow-y-hidden">
                 <div
-                  class="mx-auto grid min-w-[700px] justify-center gap-x-4 gap-y-2 md:gap-x-6"
-                  style={{ gridTemplateColumns: "minmax(200px,auto) auto minmax(150px,auto) auto minmax(180px,auto)" }}
+                  class="mx-auto grid min-w-[620px] items-center justify-center gap-x-4 gap-y-3 md:gap-x-6"
+                  style={{
+                    gridTemplateColumns: "minmax(150px,auto) auto minmax(150px,auto) auto minmax(150px,auto)",
+                    gridTemplateRows: "auto auto auto",
+                  }}
                 >
-                  <ElText class="text-center text-[11px] tracking-[0.14em] text-[var(--el-text-color-secondary)]">
+                  <ElText
+                    class="text-center text-[11px] tracking-[0.14em] text-[var(--el-text-color-secondary)]"
+                    style={{ gridColumn: "1", gridRow: "1" }}
+                  >
                     输入
                   </ElText>
-                  <div/>
-                  <ElText class="text-center text-[11px] tracking-[0.14em] text-[var(--el-text-color-secondary)]">
+                  <ElText
+                    class="text-center text-[11px] tracking-[0.14em] text-[var(--el-text-color-secondary)]"
+                    style={{ gridColumn: "3", gridRow: "1" }}
+                  >
                     输出
                   </ElText>
-                  <div/>
-                  <ElText class="text-center text-[11px] tracking-[0.14em] text-[var(--el-color-primary)]">
+                  <ElText
+                    class="text-center text-[11px] tracking-[0.14em] text-[var(--el-color-primary)]"
+                    style={{ gridColumn: "5", gridRow: "1" }}
+                  >
                     总量
                   </ElText>
 
-                  <ElText class="text-center text-4xl font-semibold leading-none tabular-nums">
+                  <ElText
+                    class="text-center text-4xl font-semibold leading-none tabular-nums"
+                    style={{ gridColumn: "1", gridRow: "2" }}
+                  >
                     {formatCompactTokenCount(usage.value.inputTokens)}
                   </ElText>
-                  <ElText class="text-center text-3xl font-semibold leading-none text-[var(--el-text-color-secondary)] md:text-4xl">
-                    +
-                  </ElText>
-                  <ElText class="text-center text-4xl font-semibold leading-none tabular-nums">
-                    {formatCompactTokenCount(usage.value.outputTokens)}
-                  </ElText>
-                  <ElText class="text-center text-3xl font-semibold leading-none text-[var(--el-text-color-secondary)] md:text-4xl">
-                    =
-                  </ElText>
-                  <div class="px-4 py-2 text-center">
-                    <ElText class="text-4xl font-semibold leading-none text-[var(--el-color-primary)] tabular-nums">
-                      {formatCompactTokenCount(usage.value.totalTokens)}
+                  <div class="flex items-center justify-center" style={{ gridColumn: "2", gridRow: "2" }}>
+                    <ElText
+                      class="text-3xl font-semibold leading-none text-[var(--el-text-color-secondary)] md:text-4xl">
+                      +
                     </ElText>
                   </div>
+                  <ElText
+                    class="text-center text-4xl font-semibold leading-none tabular-nums"
+                    style={{ gridColumn: "3", gridRow: "2" }}
+                  >
+                    {formatCompactTokenCount(usage.value.outputTokens)}
+                  </ElText>
+                  <div class="flex items-center justify-center" style={{ gridColumn: "4", gridRow: "2" }}>
+                    <ElText
+                      class="text-3xl font-semibold leading-none text-[var(--el-text-color-secondary)] md:text-4xl">
+                      =
+                    </ElText>
+                  </div>
+                  <ElText
+                    class="text-center text-4xl font-semibold leading-none text-[var(--el-color-primary)] tabular-nums"
+                    style={{ gridColumn: "5", gridRow: "2" }}
+                  >
+                    {formatCompactTokenCount(usage.value.totalTokens)}
+                  </ElText>
 
-                  <ElText class="justify-self-center rounded-full bg-[var(--el-fill-color-light)] px-2.5 py-1 text-xs text-[var(--el-text-color-secondary)]">
+                  <ElText
+                    class="justify-self-center rounded-full bg-[var(--el-fill-color-light)] px-2.5 py-1 text-xs text-[var(--el-text-color-secondary)]"
+                    style={{ gridColumn: "1", gridRow: "3" }}
+                  >
                     缓存输入 {formatCompactTokenCount(usage.value.cachedInputTokens)}
                   </ElText>
-                  <div/>
-                  <div/>
-                  <div/>
-                  <div/>
                 </div>
               </div>
             </div>
