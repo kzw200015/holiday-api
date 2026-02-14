@@ -1,20 +1,13 @@
-import { defineComponent, ref } from "vue"
+import { defineComponent } from "vue"
 import { ElTag, ElText } from "element-plus"
 
 import CodexAccountsCard from "@/views/codex-accounts/CodexAccountsCard.tsx"
-import CodexOAuthSection from "@/views/codex-accounts/CodexOAuthSection.tsx"
 import CodexResponseLogsCard from "@/views/codex-accounts/CodexResponseLogsCard.tsx"
 import CodexTokenUsageCard from "@/views/codex-accounts/CodexTokenUsageCard.tsx"
 
 export default defineComponent({
   name: "CodexAccountsPage",
   setup() {
-    const accountsReloadVersion = ref(0)
-
-    const handleAccountAdded = () => {
-      accountsReloadVersion.value += 1
-    }
-
     return () => (
       <section>
         <div class="flex flex-col gap-4">
@@ -30,10 +23,8 @@ export default defineComponent({
               <CodexTokenUsageCard/>
             </div>
 
-            <CodexOAuthSection onAccountAdded={handleAccountAdded}/>
-
             <div class="md:col-span-2">
-              <CodexAccountsCard reloadVersion={accountsReloadVersion.value}/>
+              <CodexAccountsCard/>
             </div>
 
             <div class="md:col-span-2">

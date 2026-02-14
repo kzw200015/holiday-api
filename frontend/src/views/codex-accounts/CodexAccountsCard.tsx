@@ -1,6 +1,6 @@
-import { defineComponent, onMounted, reactive, ref, watch } from "vue"
+import { defineComponent, onMounted, reactive, ref } from "vue"
 import dayjs from "dayjs"
-import { DocumentCopy, RefreshRight } from "@element-plus/icons-vue"
+import { CirclePlus, DocumentCopy, RefreshRight } from "@element-plus/icons-vue"
 import {
   ElButton,
   ElCard,
@@ -19,6 +19,7 @@ import {
 } from "element-plus"
 
 import { listCodexAccounts, type Account, type CodexAccountQuota, updateCodexAccount } from "@/api/codexApi.ts"
+import CodexOAuthSection from "@/views/codex-accounts/CodexOAuthSection.tsx"
 
 type SimpleQuotaWindow = {
   remainingPercent: number | null
@@ -176,19 +177,14 @@ function renderQuotaContent(quota: CodexAccountQuota | null) {
 
 export default defineComponent({
   name: "CodexAccountsCard",
-  props: {
-    reloadVersion: {
-      type: Number,
-      required: true,
-    },
-  },
-  setup(props) {
+  setup() {
     const loading = ref(false)
     const accounts = ref<Account[]>([])
     const total = ref(0)
     const currentPage = ref(1)
     const pageSize = ref(10)
     const togglingAccountId = ref<number | null>(null)
+    const oauthDrawerVisible = ref(false)
 
     const editDialogVisible = ref(false)
     const editFormRef = ref<FormInstance>()
@@ -217,14 +213,6 @@ export default defineComponent({
     onMounted(() => {
       void refreshAccounts()
     })
-
-    watch(
-      () => props.reloadVersion,
-      () => {
-        currentPage.value = 1
-        void refreshAccounts()
-      },
-    )
 
     const openEditDialog = (account: Account) => {
       editingAccountId.value = account.id
@@ -301,6 +289,14 @@ export default defineComponent({
       void refreshAccounts()
     }
 
+    const openOAuthDrawer = () => {
+      oauthDrawerVisible.value = true
+    }
+
+    const handleAccountAdded = async () => {
+      await refreshAccounts()
+    }
+
     return () => (
       <>
         <ElCard class="rounded-xl" shadow="never">
@@ -308,15 +304,24 @@ export default defineComponent({
             header: () => (
               <div class="flex items-center justify-between gap-3">
                 <ElText class="font-semibold">已添加账户</ElText>
-                <ElButton
-                  icon={RefreshRight}
-                  loading={loading.value}
-                  onClick={() => {
-                    void refreshAccounts()
-                  }}
-                >
-                  刷新
-                </ElButton>
+                <div class="flex items-center gap-2">
+                  <ElButton
+                    type="primary"
+                    icon={CirclePlus}
+                    onClick={openOAuthDrawer}
+                  >
+                    添加账户
+                  </ElButton>
+                  <ElButton
+                    icon={RefreshRight}
+                    loading={loading.value}
+                    onClick={() => {
+                      void refreshAccounts()
+                    }}
+                  >
+                    刷新
+                  </ElButton>
+                </div>
               </div>
             ),
             default: () => (
@@ -406,6 +411,16 @@ export default defineComponent({
             ),
           }}
         </ElCard>
+
+        <CodexOAuthSection
+          modelValue={oauthDrawerVisible.value}
+          onUpdate:modelValue={(value: boolean) => {
+            oauthDrawerVisible.value = value
+          }}
+          onAccountAdded={() => {
+            void handleAccountAdded()
+          }}
+        />
 
         <ElDialog
           title="编辑账户"
