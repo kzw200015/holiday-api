@@ -152,8 +152,3 @@
 - Go 新增测试使用 `*_test.go`，与被测包同目录。
 - Java 新增测试放在 `backend-java/src/test/java/...`。
 - 前端若新增测试，优先靠近源文件放置。
-
-## 10. Cursor / Copilot 规则扫描结果
-
-- 未发现 `.cursor/rules/`、`.cursorrules`、`.github/copilot-instructions.md`。
-- 当前仓库无额外 Cursor/Copilot 专用规则文件。
