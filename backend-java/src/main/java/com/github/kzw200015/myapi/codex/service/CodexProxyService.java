@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -18,6 +19,7 @@ import java.time.OffsetDateTime;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 
 /**
  * /api/responses 反向代理：按粘性会话 + 轮询选择账号，转发到上游 Codex responses。
@@ -105,12 +107,18 @@ public class CodexProxyService {
     private void applyDefaultInstructionsIfAbsent(ObjectNode requestBody) {
         JsonNode instructionsNode = requestBody.path("instructions");
         if (instructionsNode.isMissingNode() || instructionsNode.asString().isBlank()) {
+            log.warn("请求缺少 instructions，已注入默认 instructions");
             requestBody.put("instructions", defaultInstructions);
 
             JsonNode firstInputNode = requestBody.path("input").path(0);
             if (!firstInputNode.isMissingNode() && firstInputNode instanceof ObjectNode firstInputObjectNode) {
                 JsonNode contentNode = firstInputObjectNode.path("content");
-                firstInputObjectNode.put("content", contentNode.asString().replace(defaultInstructions, ""));
+                String content = contentNode.asString();
+                String trimmedContent = content.replace(defaultInstructions, "");
+                if (!content.equals(trimmedContent)) {
+                    log.warn("input[0].content 包含重复 instructions 前缀，已移除");
+                }
+                firstInputObjectNode.put("content", trimmedContent);
             }
         }
     }
@@ -124,8 +132,12 @@ public class CodexProxyService {
             }
         }
         if (!promptCacheKey.isBlank()) {
-            headers.set(HEADER_CONVERSATION_ID, promptCacheKey);
-            headers.set(HEADER_SESSION_ID, promptCacheKey);
+            Stream.of(HEADER_CONVERSATION_ID, HEADER_SESSION_ID)
+                    .filter(headerName -> !StringUtils.hasText(headers.getFirst(headerName)))
+                    .forEach(headerName -> {
+                        log.warn("请求头缺少 {}，已使用 prompt_cache_key 填充", headerName);
+                        headers.set(headerName, promptCacheKey);
+                    });
         }
         headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + account.getToken());
         headers.set(HEADER_CHATGPT_ACCOUNT_ID, account.getAccountId());
