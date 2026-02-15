@@ -3,15 +3,13 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.github.kzw200015.myapi.codex.model.mapper.CodexResponseLogMapper">
-
     <select id="selectTodayTokenUsage" resultType="com.github.kzw200015.myapi.codex.model.TodayTokenUsage">
-        select
-            coalesce(sum(input_tokens), 0) as input_tokens,
-            coalesce(sum(output_tokens), 0) as output_tokens,
-            coalesce(sum(cached_input_tokens), 0) as cached_input_tokens,
-            coalesce(sum(input_tokens + output_tokens), 0) as total_tokens
-        from codex_response_logs
-        where created_at &gt;= #{startTime}
-          and created_at &lt; #{endTime}
+        SELECT COALESCE(SUM(input_tokens), 0)                 AS input_tokens,
+               COALESCE(SUM(output_tokens), 0)                AS output_tokens,
+               COALESCE(SUM(cached_input_tokens), 0)          AS cached_input_tokens,
+               COALESCE(SUM(input_tokens + output_tokens), 0) AS total_tokens
+        FROM codex_response_logs
+        WHERE created_at &gt;= #{startTime}
+          AND created_at &lt; #{endTime}
     </select>
 </mapper>
