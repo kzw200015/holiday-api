@@ -16,17 +16,18 @@ import org.springframework.validation.annotation.Validated;
 
 import com.github.kzw200015.myapi.common.model.ApiResponse;
 import com.github.kzw200015.myapi.common.model.PaginatedResult;
-import com.github.kzw200015.myapi.codex.model.Account;
-import com.github.kzw200015.myapi.codex.model.CodexPromptConfig;
-import com.github.kzw200015.myapi.codex.model.CodexResponseLogItem;
-import com.github.kzw200015.myapi.codex.model.OAuthSessionInfo;
-import com.github.kzw200015.myapi.codex.model.TodayTokenUsage;
-import com.github.kzw200015.myapi.codex.model.UpdateAccountRequest;
-import com.github.kzw200015.myapi.codex.model.UpdatePromptConfigRequest;
-import com.github.kzw200015.myapi.codex.service.CodexAccountService;
-import com.github.kzw200015.myapi.codex.service.CodexOAuthService;
-import com.github.kzw200015.myapi.codex.service.CodexPromptConfigService;
-import com.github.kzw200015.myapi.codex.service.ResponseLogService;
+import com.github.kzw200015.myapi.codex.dto.account.Account;
+import com.github.kzw200015.myapi.codex.dto.account.UpdateAccountRequest;
+import com.github.kzw200015.myapi.codex.dto.log.CodexResponseLogItem;
+import com.github.kzw200015.myapi.codex.dto.log.TodayTokenUsage;
+import com.github.kzw200015.myapi.codex.dto.oauth.CompleteOAuthRequest;
+import com.github.kzw200015.myapi.codex.dto.oauth.OAuthSessionInfo;
+import com.github.kzw200015.myapi.codex.dto.prompt.CodexPromptConfig;
+import com.github.kzw200015.myapi.codex.dto.prompt.UpdatePromptConfigRequest;
+import com.github.kzw200015.myapi.codex.service.account.CodexAccountService;
+import com.github.kzw200015.myapi.codex.service.log.ResponseLogService;
+import com.github.kzw200015.myapi.codex.service.oauth.CodexOAuthService;
+import com.github.kzw200015.myapi.codex.service.prompt.CodexPromptConfigService;
 import lombok.RequiredArgsConstructor;
 
 @RestController

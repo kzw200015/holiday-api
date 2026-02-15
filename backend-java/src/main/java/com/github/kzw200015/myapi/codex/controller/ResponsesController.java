@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.validation.annotation.Validated;
 
-import com.github.kzw200015.myapi.codex.service.CodexProxyService;
+import com.github.kzw200015.myapi.codex.service.proxy.CodexProxyService;
 import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.node.ObjectNode;
 

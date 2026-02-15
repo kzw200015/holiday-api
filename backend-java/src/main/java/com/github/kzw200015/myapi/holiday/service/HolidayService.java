@@ -2,9 +2,9 @@ package com.github.kzw200015.myapi.holiday.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.github.kzw200015.myapi.holiday.model.NextOffDayResult;
-import com.github.kzw200015.myapi.holiday.model.entity.HolidayDayEntity;
-import com.github.kzw200015.myapi.holiday.model.mapper.HolidayDayMapper;
+import com.github.kzw200015.myapi.holiday.dao.entity.HolidayDayEntity;
+import com.github.kzw200015.myapi.holiday.dao.mapper.HolidayDayMapper;
+import com.github.kzw200015.myapi.holiday.dto.NextOffDayResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

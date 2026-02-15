@@ -1,16 +1,15 @@
 package com.github.kzw200015.myapi.holiday.controller;
 
-import java.time.LocalDate;
-
+import com.github.kzw200015.myapi.common.model.ApiResponse;
+import com.github.kzw200015.myapi.holiday.dto.NextOffDayResult;
+import com.github.kzw200015.myapi.holiday.service.HolidayService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.github.kzw200015.myapi.common.model.ApiResponse;
-import com.github.kzw200015.myapi.holiday.service.HolidayService;
-import com.github.kzw200015.myapi.holiday.model.NextOffDayResult;
-import lombok.RequiredArgsConstructor;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/holiday")
