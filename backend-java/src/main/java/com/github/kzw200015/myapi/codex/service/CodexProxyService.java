@@ -1,9 +1,6 @@
 package com.github.kzw200015.myapi.codex.service;
 
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.github.kzw200015.myapi.codex.exception.NoAvailableAccountException;
 import com.github.kzw200015.myapi.codex.model.entity.CodexAccountEntity;
-import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,10 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.node.ObjectNode;
 
-import java.time.OffsetDateTime;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 /**
@@ -41,22 +36,21 @@ public class CodexProxyService {
             HEADER_ORIGINATOR
     );
 
-    private final CodexAccountMapper codexAccountMapper;
     private final CodexHttpProxyForwardService codexHttpProxyForwardService;
     private final CodexSseProxyForwardService codexSseProxyForwardService;
     private final CodexPromptInstructionService codexPromptInstructionService;
+    private final CodexAccountSelectionService codexAccountSelectionService;
     private final StickySessionService stickySessionService;
-    private final AtomicLong roundRobinCounter = new AtomicLong(0);
 
     /**
      * 处理 /api/responses 请求并转发到上游。
      */
     public Object proxyResponses(HttpServletRequest request, ObjectNode requestBody) {
-        String clientIp = request.getRemoteAddr() == null ? "" : request.getRemoteAddr();
-        String userAgent = request.getHeader(HttpHeaders.USER_AGENT) == null ? "" : request.getHeader(HttpHeaders.USER_AGENT).trim();
+        String clientIp = trimToEmpty(request.getRemoteAddr());
+        String userAgent = trimToEmpty(request.getHeader(HttpHeaders.USER_AGENT));
 
         boolean stream = requestBody.path("stream").asBoolean(false);
-        String promptCacheKey = requestBody.path("prompt_cache_key").asString() == null ? "" : requestBody.path("prompt_cache_key").asString().trim();
+        String promptCacheKey = trimToEmpty(requestBody.path("prompt_cache_key").asText());
         if (promptCacheKey.isBlank()) {
             log.warn("请求缺少 prompt_cache_key");
         }
@@ -65,7 +59,7 @@ public class CodexProxyService {
         requestBody.remove("max_output_tokens");
 
         String stickyKey = stickySessionService.extractKey(request, promptCacheKey);
-        CodexAccountEntity account = selectAccount(stickyKey);
+        CodexAccountEntity account = codexAccountSelectionService.selectAvailableAccount(stickyKey);
 
         HttpHeaders upstreamHeaders = buildUpstreamHeaders(request, account, promptCacheKey);
         if (stream) {
@@ -111,40 +105,7 @@ public class CodexProxyService {
         return headers;
     }
 
-    /**
-     * 从可用账号中按粘性优先、轮询兜底选择转发账号。
-     */
-    private CodexAccountEntity selectAccount(String stickyKey) {
-        List<CodexAccountEntity> accounts = codexAccountMapper.selectList(
-                Wrappers.<CodexAccountEntity>lambdaQuery()
-                        .eq(CodexAccountEntity::isEnabled, true)
-                        .gt(CodexAccountEntity::getExpiresAt, OffsetDateTime.now())
-                        .orderByAsc(CodexAccountEntity::getCreatedAt)
-        );
-        if (accounts.isEmpty()) {
-            throw new NoAvailableAccountException();
-        }
-
-        boolean hasSticky = stickyKey != null && !stickyKey.isBlank();
-        if (hasSticky) {
-            BindingResult binding = stickySessionService.getBindingAccountId(stickyKey);
-            if (binding.found()) {
-                for (CodexAccountEntity account : accounts) {
-                    if (account.getAccountId().equals(binding.accountId())) {
-                        return account;
-                    }
-                }
-                stickySessionService.deleteBinding(stickyKey);
-            }
-        }
-
-        long counter = roundRobinCounter.getAndIncrement();
-        int index = Math.floorMod(counter, accounts.size());
-        CodexAccountEntity selected = accounts.get(index);
-        if (hasSticky) {
-            stickySessionService.setBinding(stickyKey, selected.getAccountId());
-        }
-        return selected;
+    private static String trimToEmpty(String raw) {
+        return raw == null ? "" : raw.trim();
     }
-
 }

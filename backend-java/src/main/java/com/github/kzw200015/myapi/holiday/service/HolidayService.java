@@ -6,10 +6,7 @@ import com.github.kzw200015.myapi.holiday.model.NextOffDayResult;
 import com.github.kzw200015.myapi.holiday.model.entity.HolidayDayEntity;
 import com.github.kzw200015.myapi.holiday.model.mapper.HolidayDayMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -22,11 +19,9 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class HolidayService extends ServiceImpl<HolidayDayMapper, HolidayDayEntity> {
-    private static final String BASE_URL = "https://raw.githubusercontent.com/NateScarlet/holiday-cn/master";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
 
-    private final JsonMapper jsonMapper;
-    private final RestClient restClient;
+    private final HolidayRemoteClient holidayRemoteClient;
 
     public boolean isHoliday(LocalDate date) {
         String dateText = date.format(DATE_FORMATTER);
@@ -55,7 +50,7 @@ public class HolidayService extends ServiceImpl<HolidayDayMapper, HolidayDayEnti
     }
 
     private void refreshYearDays(int year) {
-        List<RemoteHolidayDay> days = fetchYearDays(year);
+        List<HolidayRemoteClient.HolidayDaySnapshot> days = holidayRemoteClient.fetchYearDays(year);
         remove(Wrappers.<HolidayDayEntity>lambdaQuery().likeRight(HolidayDayEntity::getDate, year + "-"));
         if (days.isEmpty()) {
             return;
@@ -70,20 +65,4 @@ public class HolidayService extends ServiceImpl<HolidayDayMapper, HolidayDayEnti
         }).forEach(this::save);
     }
 
-    private List<RemoteHolidayDay> fetchYearDays(int year) {
-        String requestUrl = BASE_URL + "/" + year + ".json";
-        String raw = restClient.get()
-                .uri(requestUrl)
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, (req, resp) -> {
-                    throw new IllegalStateException("请求假期数据失败: status=" + resp.getStatusCode().value());
-                })
-                .body(String.class);
-
-        HolidayPayload payload = jsonMapper.readValue(raw, HolidayPayload.class);
-        if (payload == null || payload.days() == null) {
-            return List.of();
-        }
-        return payload.days();
-    }
 }

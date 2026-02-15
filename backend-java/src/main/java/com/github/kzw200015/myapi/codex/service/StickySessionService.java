@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -20,7 +21,7 @@ public class StickySessionService {
     private static final Duration DEFAULT_STICKY_TTL = Duration.ofHours(1);
 
     private final Duration stickyTtl = DEFAULT_STICKY_TTL;
-    private final ConcurrentMap<String, StickyBinding> bindings = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Binding> bindings = new ConcurrentHashMap<>();
 
     public String extractKey(HttpServletRequest request, String promptCacheKey) {
         String sessionId = trim(request.getHeader("session_id"));
@@ -52,22 +53,22 @@ public class StickySessionService {
     }
 
     public void setBinding(String stickyKey, String accountId) {
-        bindings.put(stickyKey, new StickyBinding(accountId, OffsetDateTime.now().plus(stickyTtl)));
+        bindings.put(stickyKey, new Binding(accountId, OffsetDateTime.now().plus(stickyTtl)));
     }
 
-    public BindingResult getBindingAccountId(String stickyKey) {
-        StickyBinding binding = bindings.get(stickyKey);
+    public Optional<String> findBindingAccountId(String stickyKey) {
+        Binding binding = bindings.get(stickyKey);
         if (binding == null) {
-            return new BindingResult("", false);
+            return Optional.empty();
         }
 
         OffsetDateTime now = OffsetDateTime.now();
         if (now.isAfter(binding.expiresAt())) {
             bindings.remove(stickyKey, binding);
-            return new BindingResult("", false);
+            return Optional.empty();
         }
 
-        return new BindingResult(binding.accountId(), true);
+        return Optional.of(binding.accountId());
     }
 
     public void deleteBinding(String stickyKey) {
@@ -83,4 +84,6 @@ public class StickySessionService {
     private static String trim(String raw) {
         return raw == null ? "" : raw.trim();
     }
+
+    private record Binding(String accountId, OffsetDateTime expiresAt) {}
 }

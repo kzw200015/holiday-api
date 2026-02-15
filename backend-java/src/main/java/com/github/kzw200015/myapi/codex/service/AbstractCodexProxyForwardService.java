@@ -146,4 +146,22 @@ public abstract class AbstractCodexProxyForwardService {
                 usageNode.path("output_tokens").asInt(0)
         );
     }
+
+    protected record TokenUsage(int inputTokens, int cachedInputTokens, int outputTokens) {}
+
+    protected static final class TokenUsageHolder {
+        private int inputTokens;
+        private int cachedInputTokens;
+        private int outputTokens;
+
+        void set(int inputTokens, int cachedInputTokens, int outputTokens) {
+            this.inputTokens = inputTokens;
+            this.cachedInputTokens = cachedInputTokens;
+            this.outputTokens = outputTokens;
+        }
+
+        TokenUsage toUsage() {
+            return new TokenUsage(inputTokens, cachedInputTokens, outputTokens);
+        }
+    }
 }

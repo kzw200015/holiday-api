@@ -11,13 +11,7 @@ import com.github.kzw200015.myapi.codex.model.mapper.CodexAccountMapper;
 import com.github.kzw200015.myapi.codex.model.mapper.CodexOAuthSessionMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -36,22 +30,17 @@ import static com.github.kzw200015.myapi.common.util.ValidationUtils.requireNonB
 @RequiredArgsConstructor
 public class CodexOAuthService {
     private static final Duration OAUTH_SESSION_TTL = Duration.ofMinutes(10);
-    private static final String OPENAI_AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize";
-    private static final String OPENAI_TOKEN_URL = "https://auth.openai.com/oauth/token";
-    private static final String OPENAI_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
-    private static final String OPENAI_REFRESH_SCOPE = "openid profile email";
-    private static final String REDIRECT_URI = "http://localhost:1455/auth/callback";
 
     private final CodexAccountMapper codexAccountMapper;
     private final CodexOAuthSessionMapper codexOAuthSessionMapper;
+    private final CodexOAuthClient codexOAuthClient;
     private final JsonMapper jsonMapper;
-    private final RestClient restClient;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public OAuthSessionInfo createOAuthSession() {
         String state = generateRandomState();
         PKCECodes pkce = generatePkceCodes();
-        String url = buildAuthorizeUrl(state, pkce);
+        String url = codexOAuthClient.buildAuthorizeUrl(state, pkce.codeChallenge());
 
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime expiresAt = now.plus(OAUTH_SESSION_TTL);
@@ -67,60 +56,21 @@ public class CodexOAuthService {
     }
 
     public Account completeOAuth(String name, String redirectUrl) {
-        OAuthCallback callback = OAuthCallback.parse(redirectUrl);
-        String error = trim(callback.error());
-        if (!error.isBlank()) {
-            String errorDesc = trim(callback.errorDescription());
-            if (!errorDesc.isBlank()) {
-                throw new IllegalArgumentException("OAuth 失败: " + error + " (" + errorDesc + ")");
-            }
-            throw new IllegalArgumentException("OAuth 失败: " + error);
-        }
-
+        OAuthCallback callback = parseAndValidateCallback(redirectUrl);
         String state = requireNonBlank(callback.state(), "回调地址缺少 state");
         String code = requireNonBlank(callback.code(), "回调地址缺少 code");
 
-        CodexOAuthSessionEntity session = codexOAuthSessionMapper.selectOne(
-                Wrappers.<CodexOAuthSessionEntity>lambdaQuery().eq(CodexOAuthSessionEntity::getState, state)
-        );
-        if (session == null) {
-            throw new IllegalArgumentException("OAuth 会话不存在或已过期");
-        }
         OffsetDateTime now = OffsetDateTime.now();
-        if (now.isAfter(session.getExpiresAt())) {
-            codexOAuthSessionMapper.deleteById(session.getId());
-            throw new IllegalArgumentException("OAuth 会话已过期");
-        }
+        CodexOAuthSessionEntity session = loadValidSession(state, now);
 
-        TokenExchangeResult exchange = exchangeCodeForTokens(code, new PKCECodes(session.getCodeVerifier(), session.getCodeChallenge()));
+        CodexOAuthClient.TokenExchange exchange = codexOAuthClient.exchangeCodeForTokens(code, session.getCodeVerifier());
         TokenResponse tokens = exchange.parsed();
         requireNonBlank(tokens.accessToken(), "token 响应缺少 access_token");
         requireNonBlank(tokens.idToken(), "token 响应缺少 id_token");
 
         String accountId = requireNonBlank(extractAccountIdFromIdToken(tokens.idToken()), "token 缺少 account id");
 
-        OffsetDateTime expiresAt = now.plusSeconds(tokens.expiresIn());
-        CodexAccountEntity entity = codexAccountMapper.selectOne(
-                Wrappers.<CodexAccountEntity>lambdaQuery().eq(CodexAccountEntity::getAccountId, accountId)
-        );
-        boolean exists = entity != null;
-        if (!exists) {
-            entity = new CodexAccountEntity();
-            entity.setAccountId(accountId);
-            entity.setEnabled(true);
-            entity.setCreatedAt(now);
-        }
-        entity.setName(name);
-        entity.setToken(tokens.accessToken());
-        entity.setExpiresAt(expiresAt);
-        entity.setOauthPayload(jsonMapper.readTree(exchange.rawJson()));
-        entity.setUpdatedAt(now);
-
-        if (exists) {
-            codexAccountMapper.updateById(entity);
-        } else {
-            codexAccountMapper.insert(entity);
-        }
+        CodexAccountEntity entity = upsertAccount(name, accountId, tokens, exchange.rawJson(), now);
 
         codexOAuthSessionMapper.deleteById(session.getId());
         return Account.from(entity);
@@ -152,7 +102,7 @@ public class CodexOAuthService {
                 account.getOauthPayload().path("refresh_token").asString(),
                 "账号缺少 refresh_token"
         );
-        TokenExchangeResult refreshResult = refreshTokens(refreshToken);
+        CodexOAuthClient.TokenExchange refreshResult = codexOAuthClient.refreshTokens(refreshToken);
         TokenResponse refreshedToken = refreshResult.parsed();
         requireNonBlank(refreshedToken.accessToken(), "token 响应缺少 access_token");
 
@@ -164,55 +114,64 @@ public class CodexOAuthService {
         codexAccountMapper.updateById(account);
     }
 
-    private TokenExchangeResult exchangeCodeForTokens(String code, PKCECodes pkce) {
-        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("grant_type", "authorization_code");
-        form.add("client_id", OPENAI_CLIENT_ID);
-        form.add("code", code.trim());
-        form.add("redirect_uri", REDIRECT_URI);
-        form.add("code_verifier", pkce.codeVerifier());
-
-        String raw;
-        try {
-            raw = restClient.post()
-                    .uri(OPENAI_TOKEN_URL)
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .accept(MediaType.APPLICATION_JSON)
-                    .header("User-Agent", "codex-cli/0.91.0")
-                    .body(form)
-                    .retrieve()
-                    .body(String.class);
-        } catch (RestClientResponseException ex) {
-            throw new IllegalArgumentException("token 交换失败: status=" + ex.getStatusCode().value());
+    private OAuthCallback parseAndValidateCallback(String redirectUrl) {
+        OAuthCallback callback = OAuthCallback.parse(redirectUrl);
+        String error = trim(callback.error());
+        if (error.isBlank()) {
+            return callback;
         }
 
-        TokenResponse parsed = jsonMapper.readValue(raw, TokenResponse.class);
-        return new TokenExchangeResult(raw, parsed);
+        String errorDesc = trim(callback.errorDescription());
+        if (!errorDesc.isBlank()) {
+            throw new IllegalArgumentException("OAuth 失败: " + error + " (" + errorDesc + ")");
+        }
+        throw new IllegalArgumentException("OAuth 失败: " + error);
     }
 
-    private TokenExchangeResult refreshTokens(String refreshToken) {
-        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("grant_type", "refresh_token");
-        form.add("client_id", OPENAI_CLIENT_ID);
-        form.add("refresh_token", refreshToken);
-        form.add("scope", OPENAI_REFRESH_SCOPE);
+    private CodexOAuthSessionEntity loadValidSession(String state, OffsetDateTime now) {
+        CodexOAuthSessionEntity session = codexOAuthSessionMapper.selectOne(
+                Wrappers.<CodexOAuthSessionEntity>lambdaQuery().eq(CodexOAuthSessionEntity::getState, state)
+        );
+        if (session == null) {
+            throw new IllegalArgumentException("OAuth 会话不存在或已过期");
+        }
+        if (now.isAfter(session.getExpiresAt())) {
+            codexOAuthSessionMapper.deleteById(session.getId());
+            throw new IllegalArgumentException("OAuth 会话已过期");
+        }
+        return session;
+    }
 
-        String raw;
-        try {
-            raw = restClient.post()
-                    .uri(OPENAI_TOKEN_URL)
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .accept(MediaType.APPLICATION_JSON)
-                    .header("User-Agent", "codex-cli/0.91.0")
-                    .body(form)
-                    .retrieve()
-                    .body(String.class);
-        } catch (RestClientResponseException ex) {
-            throw new IllegalArgumentException("token 刷新失败: status=" + ex.getStatusCode().value());
+    private CodexAccountEntity upsertAccount(
+            String name,
+            String accountId,
+            TokenResponse tokens,
+            String oauthPayload,
+            OffsetDateTime now
+    ) {
+        OffsetDateTime expiresAt = now.plusSeconds(tokens.expiresIn());
+        CodexAccountEntity entity = codexAccountMapper.selectOne(
+                Wrappers.<CodexAccountEntity>lambdaQuery().eq(CodexAccountEntity::getAccountId, accountId)
+        );
+        boolean exists = entity != null;
+        if (!exists) {
+            entity = new CodexAccountEntity();
+            entity.setAccountId(accountId);
+            entity.setEnabled(true);
+            entity.setCreatedAt(now);
         }
 
-        TokenResponse parsed = jsonMapper.readValue(raw, TokenResponse.class);
-        return new TokenExchangeResult(raw, parsed);
+        entity.setName(name);
+        entity.setToken(tokens.accessToken());
+        entity.setExpiresAt(expiresAt);
+        entity.setOauthPayload(jsonMapper.readTree(oauthPayload));
+        entity.setUpdatedAt(now);
+        if (exists) {
+            codexAccountMapper.updateById(entity);
+        } else {
+            codexAccountMapper.insert(entity);
+        }
+        return entity;
     }
 
     private String extractAccountIdFromIdToken(String idToken) {
@@ -254,22 +213,6 @@ public class CodexOAuthService {
         return new PKCECodes(verifier, challenge);
     }
 
-    private String buildAuthorizeUrl(String state, PKCECodes pkce) {
-        return UriComponentsBuilder.fromUriString(OPENAI_AUTHORIZE_URL)
-                .queryParam("client_id", OPENAI_CLIENT_ID)
-                .queryParam("response_type", "code")
-                .queryParam("redirect_uri", REDIRECT_URI)
-                .queryParam("scope", "openid email profile offline_access")
-                .queryParam("state", state)
-                .queryParam("code_challenge", pkce.codeChallenge())
-                .queryParam("code_challenge_method", "S256")
-                .queryParam("prompt", "login")
-                .queryParam("id_token_add_organizations", "true")
-                .queryParam("codex_cli_simplified_flow", "true")
-                .build(true)
-                .toUriString();
-    }
-
     private static String trim(String raw) {
         return raw == null ? "" : raw.trim();
     }
@@ -286,4 +229,6 @@ public class CodexOAuthService {
     private static String base64UrlNoPadding(byte[] raw) {
         return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
     }
+
+    private record PKCECodes(String codeVerifier, String codeChallenge) {}
 }
