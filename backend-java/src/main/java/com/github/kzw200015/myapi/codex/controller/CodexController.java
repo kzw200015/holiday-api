@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -76,6 +77,12 @@ public class CodexController {
         @RequestBody @NotNull @Valid UpdateAccountRequest request
     ) {
         return ApiResponse.ok(codexAccountService.updateAccount(id, request));
+    }
+
+    @DeleteMapping("/accounts/{id}")
+    public ApiResponse<Object> deleteCodexAccount(@PathVariable("id") @Min(1) int id) {
+        codexAccountService.deleteAccount(id);
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/response-logs")

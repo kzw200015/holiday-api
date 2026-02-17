@@ -126,6 +126,13 @@ export async function updateCodexAccount(id: number, req: UpdateAccountRequest) 
   return data
 }
 
+export async function deleteCodexAccount(id: number) {
+  const { data } = await HttpClient.delete<ApiResponse<null>, ApiResponse<null>>(
+    `/codex/accounts/${id}`,
+  )
+  return data
+}
+
 export async function getCodexPromptConfig() {
   const { data } = await HttpClient.get<ApiResponse<CodexPromptConfig>, ApiResponse<CodexPromptConfig>>(
     "/codex/prompt-config",

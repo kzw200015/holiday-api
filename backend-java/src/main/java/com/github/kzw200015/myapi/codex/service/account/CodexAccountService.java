@@ -43,4 +43,11 @@ public class CodexAccountService {
         codexAccountMapper.updateById(entity);
         return Account.from(entity);
     }
+
+    public void deleteAccount(int id) {
+        int deleted = codexAccountMapper.deleteById(id);
+        if (deleted == 0) {
+            throw new AccountNotFoundException();
+        }
+    }
 }

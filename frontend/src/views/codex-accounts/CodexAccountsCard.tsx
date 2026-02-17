@@ -1,5 +1,5 @@
 import { defineComponent, onMounted, reactive, ref } from "vue"
-import { CirclePlus, DocumentCopy, RefreshRight } from "@element-plus/icons-vue"
+import { CirclePlus, Delete, DocumentCopy, EditPen, RefreshRight } from "@element-plus/icons-vue"
 import {
   ElButton,
   ElCard,
@@ -9,6 +9,7 @@ import {
   ElInput,
   ElMessage,
   ElPagination,
+  ElPopconfirm,
   ElSwitch,
   ElTable,
   ElTableColumn,
@@ -17,7 +18,13 @@ import {
   type FormRules,
 } from "element-plus"
 
-import { listCodexAccounts, type Account, type CodexAccountQuota, updateCodexAccount } from "@/api/codexApi.ts"
+import {
+  deleteCodexAccount,
+  listCodexAccounts,
+  type Account,
+  type CodexAccountQuota,
+  updateCodexAccount,
+} from "@/api/codexApi.ts"
 import CodexOAuthSection from "@/views/codex-accounts/CodexOAuthSection.tsx"
 import { copyToClipboard, formatDateTime } from "@/views/codex-accounts/utils.ts"
 
@@ -158,6 +165,7 @@ export default defineComponent({
     const currentPage = ref(1)
     const pageSize = ref(10)
     const togglingAccountId = ref<number | null>(null)
+    const deletingAccountId = ref<number | null>(null)
     const oauthDrawerVisible = ref(false)
 
     const editDrawerVisible = ref(false)
@@ -255,6 +263,21 @@ export default defineComponent({
       }
     }
 
+    const deleteAccount = async (account: Account) => {
+      deletingAccountId.value = account.id
+      try {
+        await deleteCodexAccount(account.id)
+        if (accounts.value.length === 1 && currentPage.value > 1) {
+          // 删除当前页最后一条时，回到上一页避免出现空页。
+          currentPage.value -= 1
+        }
+        await refreshAccounts()
+        ElMessage.success("已删除账户")
+      } finally {
+        deletingAccountId.value = null
+      }
+    }
+
     const handleCurrentPageChange = (page: number) => {
       currentPage.value = page
       void refreshAccounts()
@@ -322,7 +345,7 @@ export default defineComponent({
                   <ElTableColumn label="配额" minWidth={220}>
                     {(scope: { row: Account }) => renderQuotaContent(scope.row.quota)}
                   </ElTableColumn>
-                  <ElTableColumn label="启用" width={110} align="center">
+                  <ElTableColumn label="启用" width={110} align="center" fixed="right">
                     {(scope: { row: Account }) => (
                       <ElSwitch
                         modelValue={scope.row.enabled}
@@ -333,17 +356,42 @@ export default defineComponent({
                       />
                     )}
                   </ElTableColumn>
-                  <ElTableColumn label="操作" width={120} align="right">
+                  <ElTableColumn label="操作" width={220} align="right" fixed="right">
                     {(scope: { row: Account }) => (
-                      <ElButton
-                        size="small"
-                        type="primary"
-                        onClick={() => {
-                          openEditDrawer(scope.row)
-                        }}
-                      >
-                        编辑
-                      </ElButton>
+                      <div class="flex justify-end gap-2">
+                        <ElButton
+                          size="small"
+                          type="primary"
+                          icon={EditPen}
+                          onClick={() => {
+                            openEditDrawer(scope.row)
+                          }}
+                        >
+                          编辑
+                        </ElButton>
+                        <ElPopconfirm
+                          title={`确认删除账户「${scope.row.name}」吗？`}
+                          confirmButtonText="删除"
+                          cancelButtonText="取消"
+                          onConfirm={() => {
+                            void deleteAccount(scope.row)
+                          }}
+                        >
+                          {{
+                            reference: () => (
+                              <ElButton
+                                size="small"
+                                type="danger"
+                                icon={Delete}
+                                loading={deletingAccountId.value === scope.row.id}
+                                disabled={deletingAccountId.value !== null && deletingAccountId.value !== scope.row.id}
+                              >
+                                删除
+                              </ElButton>
+                            ),
+                          }}
+                        </ElPopconfirm>
+                      </div>
                     )}
                   </ElTableColumn>
                 </ElTable>
