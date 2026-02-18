@@ -342,7 +342,7 @@ export default defineComponent({
                       <ElText class="text-sm">{formatDateTime(scope.row.expiresAt)}</ElText>
                     )}
                   </ElTableColumn>
-                  <ElTableColumn label="配额" minWidth={220}>
+                  <ElTableColumn label="配额" minWidth={220} fixed="right">
                     {(scope: { row: Account }) => renderQuotaContent(scope.row.quota)}
                   </ElTableColumn>
                   <ElTableColumn label="启用" width={110} align="center" fixed="right">
