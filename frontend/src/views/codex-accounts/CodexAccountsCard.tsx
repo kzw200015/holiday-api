@@ -132,7 +132,7 @@ function renderSimpleQuotaRow(label: "5h" | "7d", window: SimpleQuotaWindow) {
   return (
     <div class="flex items-center gap-2">
       <span class={badgeClass}>{label}</span>
-      <div class="h-2 w-20 overflow-hidden rounded bg-[var(--el-fill-color-dark)]">
+      <div class="h-2 w-20 shrink-0 overflow-hidden rounded bg-[var(--el-fill-color-dark)]">
         <div class="h-full rounded bg-[#4caf6f]" style={{ width: `${barWidth}%` }}/>
       </div>
       <ElText class="text-xs font-semibold tabular-nums text-[var(--el-text-color-primary)]">{percentText}</ElText>
