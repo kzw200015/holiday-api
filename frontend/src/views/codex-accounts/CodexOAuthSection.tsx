@@ -7,6 +7,7 @@ import {
   createCodexOAuthSession,
   type OAuthSessionInfo,
 } from "@/api/codexApi.ts"
+import { useAppStore } from "@/stores/AppStore"
 import { copyToClipboard, formatDateTime } from "@/views/codex-accounts/utils.ts"
 
 export default defineComponent({
@@ -22,6 +23,7 @@ export default defineComponent({
     accountAdded: () => true,
   },
   setup(props, { emit }) {
+    const appStore = useAppStore()
     const sessionLoading = ref(false)
     const session = ref<OAuthSessionInfo | null>(null)
     const accountName = ref("")
@@ -37,6 +39,7 @@ export default defineComponent({
 
     const sessionUrl = computed(() => session.value?.url ?? "")
     const sessionState = computed(() => session.value?.state ?? "-")
+    const drawerSize = computed(() => (appStore.isMobile ? "92vw" : "560px"))
     const sessionExpiresAt = computed(() => {
       if (!session.value) {
         return "-"
@@ -71,7 +74,7 @@ export default defineComponent({
     return () => (
       <ElDrawer
         title="Codex OAuth 授权"
-        size="560px"
+        size={drawerSize.value}
         modelValue={drawerVisible.value}
         onUpdate:modelValue={(value: boolean) => {
           drawerVisible.value = value

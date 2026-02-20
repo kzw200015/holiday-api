@@ -178,6 +178,10 @@ export default defineComponent({
     })
     const editLoading = ref(false)
     const rightFixed = computed(() => (appStore.isMobile ? undefined : "right"))
+    const editDrawerSize = computed(() => (appStore.isMobile ? "92vw" : "420px"))
+    const paginationLayout = computed(() => (
+      appStore.isMobile ? "prev, pager, next" : "total, sizes, prev, pager, next, jumper"
+    ))
 
     const editRules: FormRules = {
       name: [{ required: true, message: "请输入账户名称", trigger: "blur" }],
@@ -399,12 +403,15 @@ export default defineComponent({
                   </ElTableColumn>
                 </ElTable>
 
-                <div class="flex justify-end pt-3">
+                <div class={appStore.isMobile ? "flex w-full justify-end overflow-x-auto pt-3" : "flex justify-end pt-3"}>
                   <ElPagination
+                    class={appStore.isMobile ? "shrink-0" : ""}
                     background
+                    small={appStore.isMobile}
                     total={total.value}
                     pageSizes={[10, 20, 50, 100]}
-                    layout="total, sizes, prev, pager, next, jumper"
+                    pagerCount={appStore.isMobile ? 5 : 7}
+                    layout={paginationLayout.value}
                     v-model:current-page={currentPage.value}
                     v-model:page-size={pageSize.value}
                     onCurrent-change={handleCurrentPageChange}
@@ -428,7 +435,7 @@ export default defineComponent({
 
         <ElDrawer
           title="编辑账户"
-          size="420px"
+          size={editDrawerSize.value}
           destroyOnClose
           v-model={editDrawerVisible.value}
           onClosed={resetEditDrawerState}

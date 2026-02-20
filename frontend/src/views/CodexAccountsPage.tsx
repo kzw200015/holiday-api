@@ -1,6 +1,7 @@
-import { defineComponent, ref } from "vue"
+import { computed, defineComponent, ref } from "vue"
 import { ElButton, ElDrawer, ElTag, ElText } from "element-plus"
 
+import { useAppStore } from "@/stores/AppStore"
 import CodexAccountsCard from "@/views/codex-accounts/CodexAccountsCard.tsx"
 import CodexPromptConfigCard from "@/views/codex-accounts/CodexPromptConfigCard.tsx"
 import CodexResponseLogsCard from "@/views/codex-accounts/CodexResponseLogsCard.tsx"
@@ -9,7 +10,9 @@ import CodexTokenUsageCard from "@/views/codex-accounts/CodexTokenUsageCard.tsx"
 export default defineComponent({
   name: "CodexAccountsPage",
   setup() {
+    const appStore = useAppStore()
     const promptConfigDrawerVisible = ref(false)
+    const promptConfigDrawerSize = computed(() => (appStore.isMobile ? "92vw" : "640px"))
 
     return () => (
       <section class="space-y-4">
@@ -33,7 +36,7 @@ export default defineComponent({
 
         <ElDrawer
           title="系统提示词配置"
-          size="640px"
+          size={promptConfigDrawerSize.value}
           destroyOnClose
           v-model={promptConfigDrawerVisible.value}
         >

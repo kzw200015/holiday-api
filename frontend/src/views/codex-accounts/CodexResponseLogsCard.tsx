@@ -1,4 +1,4 @@
-import { defineComponent, onMounted, ref } from "vue"
+import { computed, defineComponent, onMounted, ref } from "vue"
 import { RefreshRight } from "@element-plus/icons-vue"
 import {
   ElButton,
@@ -11,6 +11,7 @@ import {
 } from "element-plus"
 
 import { listCodexResponseLogs, type ResponseLogItem } from "@/api/codexApi.ts"
+import { useAppStore } from "@/stores/AppStore"
 import { formatDateTime } from "@/views/codex-accounts/utils.ts"
 
 function formatRate(rate: number) {
@@ -20,11 +21,15 @@ function formatRate(rate: number) {
 export default defineComponent({
   name: "CodexResponseLogsCard",
   setup() {
+    const appStore = useAppStore()
     const loading = ref(false)
     const logs = ref<ResponseLogItem[]>([])
     const total = ref(0)
     const currentPage = ref(1)
     const pageSize = ref(10)
+    const paginationLayout = computed(() => (
+      appStore.isMobile ? "prev, pager, next" : "total, sizes, prev, pager, next, jumper"
+    ))
 
     const refreshLogs = async () => {
       loading.value = true
@@ -107,12 +112,15 @@ export default defineComponent({
                 </ElTableColumn>
               </ElTable>
 
-              <div class="flex justify-end pt-3">
+              <div class={appStore.isMobile ? "flex w-full justify-end overflow-x-auto pt-3" : "flex justify-end pt-3"}>
                 <ElPagination
+                  class={appStore.isMobile ? "shrink-0" : ""}
                   background
+                  small={appStore.isMobile}
                   total={total.value}
                   pageSizes={[10, 20, 50, 100, 200]}
-                  layout="total, sizes, prev, pager, next, jumper"
+                  pagerCount={appStore.isMobile ? 5 : 7}
+                  layout={paginationLayout.value}
                   v-model:current-page={currentPage.value}
                   v-model:page-size={pageSize.value}
                   onCurrent-change={handleCurrentPageChange}
