@@ -436,6 +436,7 @@ export default defineComponent({
         <ElDrawer
           title="编辑账户"
           size={editDrawerSize.value}
+          appendToBody
           destroyOnClose
           v-model={editDrawerVisible.value}
           onClosed={resetEditDrawerState}

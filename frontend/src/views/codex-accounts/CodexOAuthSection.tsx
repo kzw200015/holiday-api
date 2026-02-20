@@ -75,6 +75,7 @@ export default defineComponent({
       <ElDrawer
         title="Codex OAuth 授权"
         size={drawerSize.value}
+        appendToBody
         modelValue={drawerVisible.value}
         onUpdate:modelValue={(value: boolean) => {
           drawerVisible.value = value

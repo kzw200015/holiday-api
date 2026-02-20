@@ -37,6 +37,7 @@ export default defineComponent({
         <ElDrawer
           title="系统提示词配置"
           size={promptConfigDrawerSize.value}
+          appendToBody
           destroyOnClose
           v-model={promptConfigDrawerVisible.value}
         >
