@@ -1,4 +1,4 @@
-import { computed, defineComponent } from "vue"
+import { computed, defineComponent, type PropType } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { Calendar, Key } from "@element-plus/icons-vue"
 import { ElIcon, ElMenu, ElMenuItem, ElText } from "element-plus"
@@ -23,6 +23,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    onMenuSelect: {
+      type: Function as PropType<() => void>,
+      default: undefined,
+    },
   },
   setup(props) {
     const route = useRoute()
@@ -31,6 +35,7 @@ export default defineComponent({
 
     const handleSelect = async (index: string) => {
       await router.push(index)
+      props.onMenuSelect?.()
     }
 
     return () => (
