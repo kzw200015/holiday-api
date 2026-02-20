@@ -6,7 +6,6 @@ import java.time.OffsetDateTime;
 
 public record CodexResponseLogItem(
         String userAgent,
-        String clientIp,
         int inputTokens,
         int cachedInputTokens,
         int outputTokens,
@@ -14,13 +13,13 @@ public record CodexResponseLogItem(
         int firstTokenLatencyMs,
         int durationMs,
         String accountName,
+        String model,
         boolean isSse,
         OffsetDateTime createdAt
 ) {
     public static CodexResponseLogItem from(CodexResponseLogEntity entity) {
         return new CodexResponseLogItem(
                 entity.getUserAgent(),
-                entity.getClientIp(),
                 entity.getInputTokens(),
                 entity.getCachedInputTokens(),
                 entity.getOutputTokens(),
@@ -28,6 +27,7 @@ public record CodexResponseLogItem(
                 entity.getFirstTokenLatencyMs(),
                 entity.getDurationMs(),
                 entity.getAccountName(),
+                entity.getModel(),
                 entity.isSse(),
                 entity.getCreatedAt()
         );

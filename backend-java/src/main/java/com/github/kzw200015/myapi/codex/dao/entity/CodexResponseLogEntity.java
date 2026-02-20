@@ -55,6 +55,9 @@ public class CodexResponseLogEntity {
     @TableField("is_sse")
     private boolean isSse;
 
+    @TableField("model")
+    private String model;
+
     @TableField(value = "request_body", typeHandler = JsonbTypeHandler.class)
     private JsonNode requestBody;
 

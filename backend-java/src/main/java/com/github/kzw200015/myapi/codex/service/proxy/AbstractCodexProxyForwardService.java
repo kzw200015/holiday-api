@@ -100,6 +100,7 @@ public abstract class AbstractCodexProxyForwardService {
         double cacheRate = usage.inputTokens() > 0
                 ? (double) usage.cachedInputTokens() / (double) usage.inputTokens()
                 : 0.0;
+        String model = requestBody.path("model").asText(null);
 
         return new CallLog(
                 userAgent,
@@ -113,6 +114,7 @@ public abstract class AbstractCodexProxyForwardService {
                 account.getAccountId(),
                 account.getName(),
                 stream,
+                model,
                 requestBody
         );
     }

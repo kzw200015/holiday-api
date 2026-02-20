@@ -30,6 +30,7 @@ public class ResponseLogService extends ServiceImpl<CodexResponseLogMapper, Code
         entity.setAccountId(callLog.accountId());
         entity.setAccountName(callLog.accountName());
         entity.setSse(callLog.isSse());
+        entity.setModel(callLog.model());
         entity.setRequestBody(callLog.requestBody());
         entity.setCreatedAt(OffsetDateTime.now());
         save(entity);

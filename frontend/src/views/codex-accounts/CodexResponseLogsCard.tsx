@@ -90,7 +90,7 @@ export default defineComponent({
                     </ElTag>
                   )}
                 </ElTableColumn>
-                <ElTableColumn prop="clientIp" label="IP" minWidth={140}/>
+                <ElTableColumn prop="model" label="模型" minWidth={160}/>
                 <ElTableColumn prop="inputTokens" label="输入Token" width={120}/>
                 <ElTableColumn prop="cachedInputTokens" label="缓存输入Token" width={130}/>
                 <ElTableColumn prop="outputTokens" label="输出Token" width={110}/>

@@ -66,7 +66,6 @@ export type CodexAccountQuota = {
 
 export type ResponseLogItem = {
   userAgent: string
-  clientIp: string
   inputTokens: number
   cachedInputTokens: number
   outputTokens: number
@@ -74,6 +73,7 @@ export type ResponseLogItem = {
   firstTokenLatencyMs: number
   durationMs: number
   accountName: string
+  model: string | null
   isSse: boolean
   createdAt: string
 }

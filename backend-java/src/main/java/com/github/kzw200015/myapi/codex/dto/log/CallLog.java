@@ -17,5 +17,6 @@ public record CallLog(
     String accountId,
     String accountName,
     boolean isSse,
+    String model,
     JsonNode requestBody
 ) {}
