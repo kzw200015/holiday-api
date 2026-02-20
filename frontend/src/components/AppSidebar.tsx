@@ -28,25 +28,7 @@ export default defineComponent({
     }
 
     return () => (
-      <aside class="flex h-full flex-col">
-        <div class="flex h-16 cursor-pointer items-center px-3"
-             onClick={() => void router.push("/holiday")}>
-          <div
-            class="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[var(--el-color-primary)] text-xs font-semibold text-white">
-            API
-          </div>
-          <div
-            class="ml-2.5 grid min-w-0 max-w-32 whitespace-nowrap"
-          >
-            <ElText class="font-semibold">
-              控制台
-            </ElText>
-            <ElText class="text-xs text-[var(--el-text-color-secondary)]">
-              API
-            </ElText>
-          </div>
-        </div>
-
+      <div class="h-full">
         <ElMenu
           class="border-r-0 bg-transparent"
           defaultActive={activePath.value}
@@ -61,7 +43,7 @@ export default defineComponent({
             </ElMenuItem>
           ))}
         </ElMenu>
-      </aside>
+      </div>
     )
   },
 })
