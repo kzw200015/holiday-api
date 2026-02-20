@@ -1,7 +1,7 @@
-import { defineComponent, onMounted } from "vue"
+import { defineComponent, onMounted, ref } from "vue"
 import { RouterView, useRouter } from "vue-router"
-import { ElScrollbar, ElSwitch } from "element-plus"
-import { Moon, Sunny } from "@element-plus/icons-vue"
+import { ElButton, ElScrollbar, ElSwitch } from "element-plus"
+import { ArrowLeftBold, ArrowRightBold, Moon, Sunny } from "@element-plus/icons-vue"
 
 import AppSidebar from "@/components/AppSidebar"
 import { useAppStore } from "@/stores/AppStore"
@@ -11,6 +11,7 @@ export default defineComponent({
   setup() {
     const appStore = useAppStore()
     const router = useRouter()
+    const isSidebarCollapsed = ref(false)
 
     onMounted(() => {
       appStore.initializeTheme()
@@ -58,10 +59,21 @@ export default defineComponent({
 
         <div class="flex min-h-0 flex-1">
           <aside
-            class="w-60 shrink-0 border-r border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)]"
+            class={`${isSidebarCollapsed.value ? "w-16" : "w-60"} relative shrink-0 border-r border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)] transition-all duration-200`}
           >
+            <div class="absolute -right-3 top-1/2 z-10 -translate-y-1/2">
+              <ElButton
+                circle
+                size="small"
+                icon={isSidebarCollapsed.value ? ArrowRightBold : ArrowLeftBold}
+                class="border border-[var(--el-border-color)] bg-[var(--el-bg-color-overlay)] text-[var(--el-text-color-primary)]"
+                onClick={() => {
+                  isSidebarCollapsed.value = !isSidebarCollapsed.value
+                }}
+              />
+            </div>
             <ElScrollbar class="h-full">
-              <AppSidebar/>
+              <AppSidebar collapsed={isSidebarCollapsed.value}/>
             </ElScrollbar>
           </aside>
 

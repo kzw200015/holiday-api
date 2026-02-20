@@ -18,7 +18,13 @@ const navItems = [
 
 export default defineComponent({
   name: "AppSidebar",
-  setup() {
+  props: {
+    collapsed: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  setup(props) {
     const route = useRoute()
     const router = useRouter()
     const activePath = computed(() => route.path)
@@ -31,6 +37,7 @@ export default defineComponent({
       <div class="h-full">
         <ElMenu
           class="border-r-0 bg-transparent"
+          collapse={props.collapsed}
           defaultActive={activePath.value}
           onSelect={handleSelect}
         >
