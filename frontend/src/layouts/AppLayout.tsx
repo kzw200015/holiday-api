@@ -1,4 +1,4 @@
-import { defineComponent, onMounted, onUnmounted, ref } from "vue"
+import { defineComponent, onMounted, onUnmounted, ref, watch } from "vue"
 import { RouterView, useRouter } from "vue-router"
 import { ElButton, ElScrollbar, ElSwitch } from "element-plus"
 import { ArrowLeftBold, ArrowRightBold, Expand, Fold, Moon, Sunny } from "@element-plus/icons-vue"
@@ -12,18 +12,10 @@ export default defineComponent({
     const appStore = useAppStore()
     const router = useRouter()
     const isSidebarCollapsed = ref(false)
-    const isMobile = ref(false)
     const isMobileSidebarOpen = ref(false)
 
-    const updateLayoutMode = () => {
-      isMobile.value = window.innerWidth < 768
-      if (!isMobile.value) {
-        isMobileSidebarOpen.value = false
-      }
-    }
-
     const toggleSidebar = () => {
-      if (isMobile.value) {
+      if (appStore.isMobile) {
         isMobileSidebarOpen.value = !isMobileSidebarOpen.value
         return
       }
@@ -31,19 +23,27 @@ export default defineComponent({
     }
 
     const closeMobileSidebar = () => {
-      if (isMobile.value) {
+      if (appStore.isMobile) {
         isMobileSidebarOpen.value = false
       }
     }
 
     onMounted(() => {
       appStore.initializeTheme()
-      updateLayoutMode()
-      window.addEventListener("resize", updateLayoutMode)
+      appStore.startResponsiveTracking()
     })
 
+    watch(
+      () => appStore.isMobile,
+      (value) => {
+        if (!value) {
+          isMobileSidebarOpen.value = false
+        }
+      },
+    )
+
     onUnmounted(() => {
-      window.removeEventListener("resize", updateLayoutMode)
+      appStore.stopResponsiveTracking()
     })
 
     return () => (
@@ -97,7 +97,7 @@ export default defineComponent({
         </header>
 
         <div class="relative flex min-h-0 flex-1">
-          {isMobile.value && isMobileSidebarOpen.value && (
+          {appStore.isMobile && isMobileSidebarOpen.value && (
             <button
               class="fixed inset-0 top-16 z-20 bg-black/20 md:hidden"
               aria-label="关闭侧栏"
@@ -107,12 +107,12 @@ export default defineComponent({
 
           <aside
             class={
-              isMobile.value
+              appStore.isMobile
                 ? `${isMobileSidebarOpen.value ? "translate-x-0" : "-translate-x-full"} fixed left-0 top-16 z-30 h-[calc(100vh-4rem)] w-60 border-r border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)] transition-transform duration-200`
                 : `${isSidebarCollapsed.value ? "w-16" : "w-60"} relative shrink-0 border-r border-[var(--el-border-color-light)] bg-[var(--el-bg-color-overlay)] transition-all duration-200`
             }
           >
-            {!isMobile.value && (
+            {!appStore.isMobile && (
               <div class="absolute -right-3 top-1/2 z-10 -translate-y-1/2">
                 <ElButton
                   circle
@@ -125,7 +125,7 @@ export default defineComponent({
             )}
             <ElScrollbar class="h-full">
               <AppSidebar
-                collapsed={!isMobile.value && isSidebarCollapsed.value}
+                collapsed={!appStore.isMobile && isSidebarCollapsed.value}
                 onMenuSelect={closeMobileSidebar}
               />
             </ElScrollbar>

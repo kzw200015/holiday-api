@@ -1,4 +1,4 @@
-import { defineComponent, onMounted, reactive, ref } from "vue"
+import { computed, defineComponent, onMounted, reactive, ref } from "vue"
 import { CirclePlus, Delete, DocumentCopy, EditPen, RefreshRight } from "@element-plus/icons-vue"
 import {
   ElButton,
@@ -25,6 +25,7 @@ import {
   type CodexAccountQuota,
   updateCodexAccount,
 } from "@/api/codexApi.ts"
+import { useAppStore } from "@/stores/AppStore"
 import CodexOAuthSection from "@/views/codex-accounts/CodexOAuthSection.tsx"
 import { copyToClipboard, formatDateTime } from "@/views/codex-accounts/utils.ts"
 
@@ -159,6 +160,7 @@ function renderQuotaContent(quota: CodexAccountQuota | null) {
 export default defineComponent({
   name: "CodexAccountsCard",
   setup() {
+    const appStore = useAppStore()
     const loading = ref(false)
     const accounts = ref<Account[]>([])
     const total = ref(0)
@@ -175,6 +177,7 @@ export default defineComponent({
       name: "",
     })
     const editLoading = ref(false)
+    const rightFixed = computed(() => (appStore.isMobile ? undefined : "right"))
 
     const editRules: FormRules = {
       name: [{ required: true, message: "请输入账户名称", trigger: "blur" }],
@@ -342,10 +345,10 @@ export default defineComponent({
                       <ElText class="text-sm">{formatDateTime(scope.row.expiresAt)}</ElText>
                     )}
                   </ElTableColumn>
-                  <ElTableColumn label="配额" minWidth={220} fixed="right">
+                  <ElTableColumn label="配额" minWidth={220} fixed={rightFixed.value}>
                     {(scope: { row: Account }) => renderQuotaContent(scope.row.quota)}
                   </ElTableColumn>
-                  <ElTableColumn label="启用" width={110} align="center" fixed="right">
+                  <ElTableColumn label="启用" width={110} align="center" fixed={rightFixed.value}>
                     {(scope: { row: Account }) => (
                       <ElSwitch
                         modelValue={scope.row.enabled}
@@ -356,7 +359,7 @@ export default defineComponent({
                       />
                     )}
                   </ElTableColumn>
-                  <ElTableColumn label="操作" width={220} align="right" fixed="right">
+                  <ElTableColumn label="操作" width={220} align="right" fixed={rightFixed.value}>
                     {(scope: { row: Account }) => (
                       <div class="flex justify-end gap-2">
                         <ElButton
