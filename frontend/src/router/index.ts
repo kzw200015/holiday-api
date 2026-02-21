@@ -16,8 +16,17 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "codex",
+        redirect: "/codex/accounts",
+      },
+      {
+        path: "codex/accounts",
         name: "CodexAccountsPage",
-        component: () => import("@/views/CodexAccountsPage"),
+        component: () => import("@/views/codex/CodexAccountsPage"),
+      },
+      {
+        path: "codex/response-logs",
+        name: "CodexResponseLogsPage",
+        component: () => import("@/views/codex/CodexResponseLogsPage"),
       },
       {
         path: ":pathMatch(.*)*",

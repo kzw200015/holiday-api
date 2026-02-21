@@ -18,7 +18,7 @@ import {
   type CodexPromptSource,
   updateCodexPromptConfig,
 } from "@/api/codexApi.ts"
-import { formatDateTime } from "@/views/codex-accounts/utils.ts"
+import { formatDateTime } from "@/views/codex/utils.ts"
 
 type PromptConfigForm = {
   source: CodexPromptSource

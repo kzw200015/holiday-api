@@ -8,7 +8,7 @@ import {
   type OAuthSessionInfo,
 } from "@/api/codexApi.ts"
 import { useAppStore } from "@/stores/AppStore"
-import { copyToClipboard, formatDateTime } from "@/views/codex-accounts/utils.ts"
+import { copyToClipboard, formatDateTime } from "@/views/codex/utils.ts"
 
 export default defineComponent({
   name: "CodexOAuthSection",

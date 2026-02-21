@@ -12,7 +12,7 @@ import {
 
 import { listCodexResponseLogs, type ResponseLogItem } from "@/api/codexApi.ts"
 import { useAppStore } from "@/stores/AppStore"
-import { formatDateTime } from "@/views/codex-accounts/utils.ts"
+import { formatDateTime } from "@/views/codex/utils.ts"
 
 function formatRate(rate: number) {
   return `${(rate * 100).toFixed(2)}%`

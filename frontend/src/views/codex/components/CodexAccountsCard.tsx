@@ -26,8 +26,8 @@ import {
   updateCodexAccount,
 } from "@/api/codexApi.ts"
 import { useAppStore } from "@/stores/AppStore"
-import CodexOAuthSection from "@/views/codex-accounts/CodexOAuthSection.tsx"
-import { copyToClipboard, formatDateTime } from "@/views/codex-accounts/utils.ts"
+import CodexOAuthSection from "@/views/codex/components/CodexOAuthSection.tsx"
+import { copyToClipboard, formatDateTime } from "@/views/codex/utils.ts"
 
 const FIVE_HOUR_WINDOW_SECONDS = 18_000
 const SEVEN_DAY_WINDOW_SECONDS = 604_800

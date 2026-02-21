@@ -2,10 +2,9 @@ import { computed, defineComponent, ref } from "vue"
 import { ElButton, ElDrawer, ElTag, ElText } from "element-plus"
 
 import { useAppStore } from "@/stores/AppStore"
-import CodexAccountsCard from "@/views/codex-accounts/CodexAccountsCard.tsx"
-import CodexPromptConfigCard from "@/views/codex-accounts/CodexPromptConfigCard.tsx"
-import CodexResponseLogsCard from "@/views/codex-accounts/CodexResponseLogsCard.tsx"
-import CodexTokenUsageCard from "@/views/codex-accounts/CodexTokenUsageCard.tsx"
+import CodexAccountsCard from "@/views/codex/components/CodexAccountsCard.tsx"
+import CodexPromptConfigCard from "@/views/codex/components/CodexPromptConfigCard.tsx"
+import CodexTokenUsageCard from "@/views/codex/components/CodexTokenUsageCard.tsx"
 
 export default defineComponent({
   name: "CodexAccountsPage",
@@ -32,7 +31,6 @@ export default defineComponent({
 
         <CodexTokenUsageCard/>
         <CodexAccountsCard/>
-        <CodexResponseLogsCard/>
 
         <ElDrawer
           title="系统提示词配置"
