@@ -11,10 +11,10 @@ RUN pnpm build
 FROM eclipse-temurin:21-jdk-alpine AS backend-builder
 
 WORKDIR /workspace/backend
-COPY backend-java/gradlew backend-java/settings.gradle backend-java/build.gradle ./
-COPY backend-java/gradle ./gradle
+COPY backend/gradlew backend/settings.gradle backend/build.gradle ./
+COPY backend/gradle ./gradle
 
-COPY backend-java/src ./src
+COPY backend/src ./src
 COPY --from=frontend-builder /workspace/frontend/dist ./src/main/resources/static
 
 RUN --mount=type=cache,id=gradle-repo,target=/root/.gradle ./gradlew bootJar --no-daemon
