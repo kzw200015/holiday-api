@@ -36,7 +36,8 @@ public class CodexOAuthClient {
                 .queryParam("prompt", "login")
                 .queryParam("id_token_add_organizations", "true")
                 .queryParam("codex_cli_simplified_flow", "true")
-                .build(true)
+                .build()
+                .encode()
                 .toUriString();
     }
 
