@@ -1,9 +1,7 @@
+import type { NextOffDayResult } from "@myapi/shared/holiday"
 import { type ApiResponse, HttpClient } from "@/api/httpClient.ts"
 
-export type NextOffDayResult = {
-  nextOffDayDate: string
-  daysToNextOffDay: number
-}
+export type { NextOffDayResult }
 
 export async function isHoliday(date?: string) {
   const params = date ? { date } : undefined

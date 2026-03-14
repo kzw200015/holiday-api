@@ -1,29 +1,35 @@
-FROM node:22-alpine AS frontend-builder
+FROM node:22-alpine AS base
 
-WORKDIR /workspace/frontend
+WORKDIR /workspace
 RUN corepack enable
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared/package.json ./packages/shared/
+COPY frontend/package.json ./frontend/
+COPY backend/package.json ./backend/
 RUN pnpm install --frozen-lockfile
 
-COPY frontend/ ./
-RUN pnpm build
+FROM base AS frontend-builder
 
-FROM eclipse-temurin:21-jdk-alpine AS backend-builder
+COPY packages/shared/ ./packages/shared/
+COPY frontend/ ./frontend/
+RUN pnpm --filter frontend build
 
-WORKDIR /workspace/backend
-COPY backend/gradlew backend/settings.gradle backend/build.gradle ./
-COPY backend/gradle ./gradle
-
-COPY backend/src ./src
-COPY --from=frontend-builder /workspace/frontend/dist ./src/main/resources/static
-
-RUN --mount=type=cache,id=gradle-repo,target=/root/.gradle ./gradlew bootJar --no-daemon
-
-FROM eclipse-temurin:21-jre
+FROM node:22-alpine
 
 WORKDIR /app
-COPY --from=backend-builder /workspace/backend/build/libs/*.jar ./app.jar
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared/package.json ./packages/shared/
+COPY backend/package.json ./backend/
+RUN pnpm install --frozen-lockfile --prod --filter backend
 
+COPY packages/shared/src ./packages/shared/src
+COPY backend/src ./backend/src
+COPY backend/tsconfig.json ./backend/
+COPY --from=frontend-builder /workspace/frontend/dist ./backend/public
+
+ENV NODE_ENV=production
+WORKDIR /app/backend
 EXPOSE 8000
 
-ENTRYPOINT ["java","-jar","/app/app.jar"]
+CMD ["tsx", "src/index.ts"]

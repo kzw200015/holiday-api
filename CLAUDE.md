@@ -4,39 +4,47 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Dev Commands
 
-### Backend (Gradle + Spring Boot 4 + Java 21)
+### Monorepo (pnpm workspace)
 ```bash
-cd backend
-./gradlew compileJava          # 编译（修改后必须运行验证）
-./gradlew bootRun              # 启动开发服务器 (port 8000)
-./gradlew bootJar              # 构建可执行 JAR
-./gradlew test                 # 运行测试
+pnpm install                   # 根目录安装所有依赖
+pnpm build                     # 全量编译（前端构建 + 后端类型检查，修改后必须运行验证）
 ```
 
-### Frontend (pnpm + Vite + Vue 3 + TypeScript)
+### Backend (Hono.js + Drizzle ORM + TypeScript)
 ```bash
-cd frontend
-pnpm install                   # 安装依赖
-pnpm dev                       # 启动开发服务器（代理 /api → localhost:8000）
-pnpm build                     # vue-tsc 类型检查 + vite 构建（修改后必须运行验证）
+pnpm dev:backend               # 启动后端开发服务器 (port 8000, tsx watch)
+pnpm --filter backend build    # tsc 类型检查（不产出编译文件）
+```
+
+### Frontend (Vite + Vue 3 + TypeScript)
+```bash
+pnpm dev:frontend              # 启动前端开发服务器（代理 /api → localhost:8000）
+pnpm --filter frontend build   # vue-tsc 类型检查 + vite 构建
 ```
 
 ### Docker
 ```bash
-docker build -t myapi:latest .   # 多阶段构建：前端 → 后端 → 运行时
+docker build -t myapi:latest .   # 多阶段构建：前端 → 运行时（tsx 直接运行 .ts 源码）
 ```
 
 ## Architecture
 
-全栈应用，后端 Spring Boot + 前端 Vue 3，生产环境前端静态资源打包到后端 JAR 中。
+全栈 monorepo 应用，pnpm workspace 管理三个包。生产环境前端静态资源由后端 serveStatic 提供。
 
 ### 项目结构
 ```
-backend/                        # Spring Boot 4, Gradle, Java 21
-  src/main/java/.../myapi/
+packages/
+  shared/                       # @myapi/shared — 前后端共享类型和工具（不编译，直接导出 .ts 源文件）
+    src/
+      apiResponse.ts            # ApiResponse<T> 类型 + 工厂函数
+      holiday.ts                # NextOffDayResult 类型
+      pagination.ts             # PaginatedResult<T> 类型
+
+backend/                        # Hono.js, Drizzle ORM, TypeScript, tsx 运行
+  src/
+    db/                         # Drizzle schema 定义 + 数据库客户端
     holiday/                    # 节假日查询模块
-    common/                     # 公共层：ApiResponse, PaginatedResult, GlobalExceptionHandler, JsonbTypeHandler
-    config/                     # MybatisPlus 分页、RestClient 配置
+    index.ts                    # 入口文件
 
 frontend/                       # Vue 3.5, Vite 7, TypeScript 5.9 (严格模式), TSX
   src/
@@ -48,9 +56,9 @@ frontend/                       # Vue 3.5, Vite 7, TypeScript 5.9 (严格模式)
 ```
 
 ### 关键架构决策
-- **数据库**：PostgreSQL，使用 JSONB 类型 + 自定义 `JsonbTypeHandler`
-- **ORM**：MyBatis-Plus，下划线自动转驼峰，Mapper XML 在 `resources/mapper/`
-- **统一响应**：`ApiResponse<T>` record（ok / badRequest / notFound / internalServerError）
-- **分页**：`PaginatedResult<T>` record，MyBatis-Plus 分页拦截器
+- **Monorepo**：pnpm workspace，`@myapi/shared` 包共享类型定义（导出 .ts 源文件，消费方通过 tsconfig paths + vite alias 解析）
+- **数据库**：PostgreSQL，Drizzle ORM 声明式 schema（不运行 migration）
+- **统一响应**：`ApiResponse<T>` 类型 + ok / badRequest / notFound / internalServerError 工厂函数（在 shared 包中）
+- **日期处理**：全部使用 dayjs，避免原生 Date 时区陷阱
 - **前端组件**：使用 TSX（非 SFC），Element Plus UI 框架 + Tailwind CSS
-- **路径别名**：前端 `@` → `src/`
+- **路径别名**：前端 `@` → `src/`，`@myapi/shared/*` → `packages/shared/src/*`

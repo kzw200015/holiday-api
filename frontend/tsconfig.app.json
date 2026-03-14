@@ -9,6 +9,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@myapi/shared/*": [
+        "../packages/shared/src/*"
       ]
     },
     "jsx": "preserve",

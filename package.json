@@ -1,0 +1,9 @@
+{
+  "name": "myapi",
+  "private": true,
+  "scripts": {
+    "dev:backend": "pnpm --filter backend dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "build": "pnpm --filter frontend build && pnpm --filter backend build"
+  }
+}
