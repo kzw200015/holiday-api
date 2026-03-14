@@ -1,7 +1,7 @@
 import { createApp } from "vue"
 import { createPinia } from "pinia"
 
-import AppRoot from "@/App"
+import AppRoot from "@/App.vue"
 import { AppRouter } from "@/router"
 
 import "element-plus/dist/index.css"

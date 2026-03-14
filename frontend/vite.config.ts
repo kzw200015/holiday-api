@@ -1,10 +1,9 @@
 import path from "node:path"
 import { defineConfig } from "vite"
 import vue from "@vitejs/plugin-vue"
-import vueJsx from "@vitejs/plugin-vue-jsx"
 
 export default defineConfig({
-  plugins: [vue(), vueJsx()],
+  plugins: [vue()],
   resolve: {
     alias: {
       "@myapi/shared": path.resolve(__dirname, "../packages/shared/src"),

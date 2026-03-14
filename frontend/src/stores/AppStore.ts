@@ -6,7 +6,7 @@ const MOBILE_BREAKPOINT = 768
 export const useAppStore = defineStore("AppStore", () => {
   const isDark = ref(false)
   const isMobile = ref(false)
-  let isResponsiveTrackingStarted = false
+  let mql: MediaQueryList | null = null
 
   function initializeTheme() {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -14,25 +14,26 @@ export const useAppStore = defineStore("AppStore", () => {
     document.documentElement.classList.toggle("dark", isDark.value)
   }
 
-  function updateViewportMode() {
-    isMobile.value = window.innerWidth < MOBILE_BREAKPOINT
+  /* 使用 matchMedia 监听断点变化，仅在穿越阈值时触发 */
+  function handleBreakpointChange(e: MediaQueryListEvent | MediaQueryList) {
+    isMobile.value = e.matches
   }
 
   function startResponsiveTracking() {
-    if (isResponsiveTrackingStarted) {
+    if (mql) {
       return
     }
-    updateViewportMode()
-    window.addEventListener("resize", updateViewportMode)
-    isResponsiveTrackingStarted = true
+    mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+    handleBreakpointChange(mql)
+    mql.addEventListener("change", handleBreakpointChange)
   }
 
   function stopResponsiveTracking() {
-    if (!isResponsiveTrackingStarted) {
+    if (!mql) {
       return
     }
-    window.removeEventListener("resize", updateViewportMode)
-    isResponsiveTrackingStarted = false
+    mql.removeEventListener("change", handleBreakpointChange)
+    mql = null
   }
 
   function setDark(value: boolean) {

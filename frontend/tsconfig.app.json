@@ -14,8 +14,6 @@
         "../packages/shared/src/*"
       ]
     },
-    "jsx": "preserve",
-    "jsxImportSource": "vue",
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -25,6 +23,6 @@
   },
   "include": [
     "src/**/*.ts",
-    "src/**/*.tsx"
+    "src/**/*.vue"
   ]
 }

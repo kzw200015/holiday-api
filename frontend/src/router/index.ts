@@ -3,7 +3,7 @@ import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-rou
 const routes: RouteRecordRaw[] = [
   {
     path: "/",
-    component: () => import("@/layouts/AppLayout"),
+    component: () => import("@/layouts/AppLayout.vue"),
     children: [
       {
         path: "",
@@ -11,13 +11,13 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "holiday",
-        name: "HolidayPage",
-        component: () => import("@/views/HolidayPage"),
+        name: "HolidayView",
+        component: () => import("@/views/HolidayView.vue"),
       },
       {
         path: ":pathMatch(.*)*",
-        name: "NotFoundPage",
-        component: () => import("@/views/NotFoundPage"),
+        name: "NotFoundView",
+        component: () => import("@/views/NotFoundView.vue"),
       },
     ],
   },
