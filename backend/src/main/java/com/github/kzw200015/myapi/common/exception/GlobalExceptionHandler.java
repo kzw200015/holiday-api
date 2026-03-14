@@ -1,8 +1,5 @@
 package com.github.kzw200015.myapi.common.exception;
 
-import com.github.kzw200015.myapi.codex.exception.AccountNotFoundException;
-import com.github.kzw200015.myapi.codex.exception.NoAvailableAccountException;
-import com.github.kzw200015.myapi.codex.exception.UpstreamRequestFailedException;
 import com.github.kzw200015.myapi.common.model.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -43,22 +40,9 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, "请求参数错误");
     }
 
-    @ExceptionHandler({
-            AccountNotFoundException.class,
-            NoResourceFoundException.class
-    })
+    @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiResponse<Object>> handleNotFound(Exception ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.notFound());
-    }
-
-    @ExceptionHandler(NoAvailableAccountException.class)
-    public ResponseEntity<ApiResponse<Object>> handleNoAvailableAccount(NoAvailableAccountException ex) {
-        return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
-    }
-
-    @ExceptionHandler(UpstreamRequestFailedException.class)
-    public ResponseEntity<ApiResponse<Object>> handleUpstreamRequestFailed(UpstreamRequestFailedException ex) {
-        return build(HttpStatus.BAD_GATEWAY, ex.getMessage());
     }
 
     @ExceptionHandler(AsyncRequestNotUsableException.class)

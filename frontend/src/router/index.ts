@@ -15,20 +15,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/views/HolidayPage"),
       },
       {
-        path: "codex",
-        redirect: "/codex/accounts",
-      },
-      {
-        path: "codex/accounts",
-        name: "CodexAccountsPage",
-        component: () => import("@/views/codex/CodexAccountsPage"),
-      },
-      {
-        path: "codex/response-logs",
-        name: "CodexResponseLogsPage",
-        component: () => import("@/views/codex/CodexResponseLogsPage"),
-      },
-      {
         path: ":pathMatch(.*)*",
         name: "NotFoundPage",
         component: () => import("@/views/NotFoundPage"),
