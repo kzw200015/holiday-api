@@ -32,4 +32,4 @@ ENV NODE_ENV=production
 WORKDIR /app/backend
 EXPOSE 8000
 
-CMD ["tsx", "src/index.ts"]
+CMD ["pnpm", "exec", "tsx", "src/index.ts"]
