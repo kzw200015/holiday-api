@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@bytebase/dbhub@latest", "--transport", "stdio", "--dsn", "postgresql://postgres:REDACTED@localhost:5432/myapi"]
+    }
+  }
+}
