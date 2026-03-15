@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.1",
-    "@myapi/shared": "workspace:*",
+    "@packages/types": "workspace:*",
     "dayjs": "^1.11.13",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.7.7",

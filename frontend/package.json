@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
-    "@myapi/shared": "workspace:*",
+    "@packages/types": "workspace:*",
     "axios": "^1.13.4",
     "dayjs": "^1.11.13",
     "element-plus": "^2.13.2",

@@ -1,8 +1,8 @@
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import { Hono } from "hono";
-import { ok, badRequest } from "@myapi/shared/apiResponse";
-import { isHoliday, queryNextOffDay } from "./holidayService.js";
+import { ok, badRequest } from "@packages/types/apiResponse";
+import { isHoliday, queryNextOffDay } from "@/holiday/holidayService.js";
 
 dayjs.extend(customParseFormat);
 

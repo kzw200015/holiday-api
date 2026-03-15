@@ -11,7 +11,8 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@myapi/shared/*": ["../packages/shared/src/*"]
+      "@/*": ["./src/*"],
+      "@packages/types/*": ["../packages/shared/src/*"]
     }
   },
   "include": ["src"]

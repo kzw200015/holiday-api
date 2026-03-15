@@ -1,5 +1,5 @@
 {
-  "name": "@myapi/shared",
+  "name": "@packages/types",
   "version": "1.0.0",
   "type": "module",
   "exports": {

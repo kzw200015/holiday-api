@@ -1,10 +1,10 @@
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
-import { internalServerError, notFound } from "@myapi/shared/apiResponse";
-import { holidayRouter } from "./holiday/holidayRouter.js";
-import { initCurrentAndNextYear } from "./holiday/holidayService.js";
-import { logger } from "./logger.js";
+import { internalServerError, notFound } from "@packages/types/apiResponse";
+import { holidayRouter } from "@/holiday/holidayRouter.js";
+import { initCurrentAndNextYear } from "@/holiday/holidayService.js";
+import { logger } from "@/logger.js";
 
 const app = new Hono();
 

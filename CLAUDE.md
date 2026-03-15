@@ -34,7 +34,7 @@ docker build -t myapi:latest .   # 多阶段构建：前端 → 运行时（tsx 
 ### 项目结构
 ```
 packages/
-  shared/                       # @myapi/shared — 前后端共享类型和工具（不编译，直接导出 .ts 源文件）
+  shared/                       # @packages/types — 前后端共享类型和工具（不编译，直接导出 .ts 源文件）
     src/
       apiResponse.ts            # ApiResponse<T> 类型 + 工厂函数
       holiday.ts                # NextOffDayResult 类型
@@ -56,9 +56,9 @@ frontend/                       # Vue 3.5, Vite 7, TypeScript 5.9 (严格模式)
 ```
 
 ### 关键架构决策
-- **Monorepo**：pnpm workspace，`@myapi/shared` 包共享类型定义（导出 .ts 源文件，消费方通过 tsconfig paths + vite alias 解析）
+- **Monorepo**：pnpm workspace，`@packages/types` 包共享类型定义（导出 .ts 源文件，消费方通过 tsconfig paths + vite alias 解析）
 - **数据库**：PostgreSQL，Drizzle ORM 声明式 schema（不运行 migration）
 - **统一响应**：`ApiResponse<T>` 类型 + ok / badRequest / notFound / internalServerError 工厂函数（在 shared 包中）
 - **日期处理**：全部使用 dayjs，避免原生 Date 时区陷阱
 - **前端组件**：使用 TSX（非 SFC），Element Plus UI 框架 + Tailwind CSS
-- **路径别名**：前端 `@` → `src/`，`@myapi/shared/*` → `packages/shared/src/*`
+- **路径别名**：前后端 `@` → `src/`，`@packages/types/*` → `packages/shared/src/*`（后端运行时通过 tsconfig-paths 解析）

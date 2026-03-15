@@ -1,10 +1,10 @@
 import dayjs from "dayjs";
 import { eq, like } from "drizzle-orm";
-import type { NextOffDayResult } from "@myapi/shared/holiday";
-import { db } from "../db/client.js";
-import { holidayDays } from "../db/schema.js";
-import { logger } from "../logger.js";
-import { fetchYearDays } from "./holidayRemoteClient.js";
+import type { NextOffDayResult } from "@packages/types/holiday";
+import { db } from "@/db/client.js";
+import { holidayDays } from "@/db/schema.js";
+import { logger } from "@/logger.js";
+import { fetchYearDays } from "@/holiday/holidayRemoteClient.js";
 
 /** 判断指定日期是否为休息日：先查库，无记录则按周末判断 */
 export async function isHoliday(date: dayjs.Dayjs): Promise<boolean> {

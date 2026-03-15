@@ -10,7 +10,7 @@
       "@/*": [
         "./src/*"
       ],
-      "@myapi/shared/*": [
+      "@packages/types/*": [
         "../packages/shared/src/*"
       ]
     },

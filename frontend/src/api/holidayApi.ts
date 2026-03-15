@@ -1,4 +1,4 @@
-import type { NextOffDayResult } from "@myapi/shared/holiday"
+import type { NextOffDayResult } from "@packages/types/holiday"
 import { HttpClient } from "@/api/httpClient"
 
 export type { NextOffDayResult }
