@@ -1,4 +1,4 @@
-import pino from "pino";
+import pino from "pino"
 
 /** 应用日志实例，开发环境使用 pino-pretty 格式化输出 */
 export const logger = pino({
@@ -7,4 +7,4 @@ export const logger = pino({
       target: "pino-pretty",
     },
   }),
-});
+})

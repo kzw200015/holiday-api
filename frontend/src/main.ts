@@ -7,7 +7,7 @@ import { AppRouter } from "@/router"
 import "element-plus/dist/index.css"
 import "element-plus/theme-chalk/dark/css-vars.css"
 import "@/styles/index.css"
-import { ElLoading } from "element-plus";
+import { ElLoading } from "element-plus"
 
 const app = createApp(AppRoot)
 
