@@ -3,10 +3,13 @@
 @tailwind utilities;
 
 @layer base {
-  html,
+  html {
+    @apply h-full min-w-[320px];
+  }
+
   body,
   #app {
-    @apply h-full min-w-[320px];
+    @apply h-full;
   }
 
   body {

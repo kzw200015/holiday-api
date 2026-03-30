@@ -95,7 +95,7 @@ export default defineComponent({
           {/* 移动端遮罩层 */}
           {appStore.isMobile && isMobileSidebarOpen.value && (
             <button
-              class="fixed inset-0 top-16 z-20 bg-black/20 md:hidden"
+              class="fixed inset-0 top-16 z-20 bg-black/20"
               aria-label="关闭侧栏"
               onClick={closeMobileSidebar}
             />
