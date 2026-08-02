@@ -9,3 +9,8 @@ backend/.env
 node_modules/
 dist/
 .ace-tool/
+
+# go:embed 目录：只跟踪占位文件，构建产物不入库
+!backend/internal/web/dist/
+backend/internal/web/dist/*
+!backend/internal/web/dist/.gitkeep

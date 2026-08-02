@@ -64,7 +64,7 @@ export default defineComponent({
             {/* Logo 区域 */}
             <div
               class="flex cursor-pointer items-center"
-              onClick={() => router.push("/holiday")}
+              onClick={() => router.push("/")}
             >
               <div class="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[var(--el-color-primary)] text-xs font-semibold text-white">
                 API

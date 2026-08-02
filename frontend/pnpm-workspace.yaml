@@ -1,0 +1,4 @@
+# pnpm 设置文件（单项目，不声明工作区成员）
+# 显式放行需要执行构建脚本的依赖，避免 pnpm 以 ERR_PNPM_IGNORED_BUILDS 非零退出
+allowBuilds:
+  esbuild: true

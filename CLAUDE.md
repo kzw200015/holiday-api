@@ -4,61 +4,74 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Dev Commands
 
-### Monorepo (pnpm workspace)
-```bash
-pnpm install                   # 根目录安装所有依赖
-pnpm build                     # 全量编译（前端构建 + 后端类型检查，修改后必须运行验证）
-```
+仓库不再使用 monorepo / pnpm workspace，`frontend` 与 `backend` 是两个互相独立的项目，各自在自己的目录下执行命令。
 
-### Backend (Hono.js + Drizzle ORM + TypeScript)
+### Backend (Go + Gin + sqlx)
 ```bash
-pnpm dev:backend               # 启动后端开发服务器 (port 8000, tsx watch)
-pnpm --filter backend build    # tsc 类型检查（不产出编译文件）
+cd backend
+go run ./cmd/server            # 启动开发服务器 (port 8000)，自动读取 backend/.env
+go build ./...                 # 编译检查
+go vet ./...                   # 静态检查
+go test ./...                  # 单元测试
 ```
 
 ### Frontend (Vite + Vue 3 + TypeScript)
 ```bash
-pnpm dev:frontend              # 启动前端开发服务器（代理 /api → localhost:8000）
-pnpm --filter frontend build   # vue-tsc 类型检查 + vite 构建
+cd frontend
+pnpm install
+pnpm dev                       # 启动开发服务器（代理 /api → localhost:8000）
+pnpm build                     # vue-tsc 类型检查 + vite 构建
 ```
 
 ### Docker
 ```bash
-docker build -t myapi:latest .   # 多阶段构建：前端 → 运行时（tsx 直接运行 .ts 源码）
+docker build -t myapi:latest .   # 多阶段构建：前端 → Go 编译 → alpine 运行时
 ```
 
 ## Architecture
 
-全栈 monorepo 应用，pnpm workspace 管理三个包。生产环境前端静态资源由后端 serveStatic 提供。
+前后端分离的两个独立项目，生产环境前端静态资源由 Go 后端提供。
 
 ### 项目结构
 ```
-packages/
-  shared/                       # @packages/types — 前后端共享类型和工具（不编译，直接导出 .ts 源文件）
-    src/
-      apiResponse.ts            # ApiResponse<T> 类型 + 工厂函数
-      holiday.ts                # NextOffDayResult 类型
-      pagination.ts             # PaginatedResult<T> 类型
+backend/                        # Go 项目，模块名 myapi（Gin + sqlx + pgx）
+  go.mod
+  cmd/server/main.go            # 入口：装配依赖、启动初始化、优雅关闭
+  internal/
+    apiresponse/                # 统一响应结构 Response{code,data,msg}
+    config/                     # 环境变量加载（DB_URL）
+    database/                   # sqlx 连接池
+    logging/                    # log/slog 日志实例（固定 JSON 输出）
+    server/                     # gin 引擎装配、中间件、SPA 静态资源
+    web/                        # go:embed 内嵌前端产物；dist/ 仅含 .gitkeep，构建时由前端产物填充
+    holiday/                    # 节假日模块（model / remote / repository / service / handler）
+                                # 当前唯一接口：GET /api/holiday/is-holiday?date=YYYY-MM-DD → ApiResponse<boolean>
 
-backend/                        # Hono.js, Drizzle ORM, TypeScript, tsx 运行
+frontend/                       # Vue 3.5, Vite 8, TypeScript 6 (严格模式), TSX, Tailwind CSS 4
+                                # 当前无业务页面，仅保留基础设施骨架
   src/
-    db/                         # Drizzle schema 定义 + 数据库客户端
-    holiday/                    # 节假日查询模块
-    index.ts                    # 入口文件
-
-frontend/                       # Vue 3.5, Vite 7, TypeScript 5.9 (严格模式), TSX
-  src/
-    api/                        # Axios HTTP 客户端，按模块拆分 API 调用
-    views/                      # 页面组件 (TSX)
-    components/                 # 公共 UI 组件
-    stores/                     # Pinia 状态管理
-    layouts/                    # 布局组件
+    main.ts                     # 应用入口：Pinia + 路由 + Element Plus 样式
+    App.tsx                     # 根组件：Element Plus 中文化 + 路由出口
+    router/                     # 路由实例，routes 下 children 为空，新页面在此登记
+    layouts/AppLayout.tsx       # 顶栏 + 响应式侧栏 + 内容区
+    components/AppSidebar.tsx   # 侧栏导航，navItems 为空数组
+    stores/AppStore.ts          # Pinia：暗色主题 + 移动端断点
+    api/httpClient.ts           # Axios 封装，拦截器解包 ApiResponse
+    types/apiResponse.ts        # ApiResponse<T> 类型（后端以 Go 结构体对齐同一 JSON 契约）
+    styles/index.css            # Tailwind 4 入口：@import "tailwindcss" + @theme + dark 自定义变体
+  pnpm-workspace.yaml           # 仅承载 pnpm 设置（allowBuilds），不声明工作区成员
 ```
 
 ### 关键架构决策
-- **Monorepo**：pnpm workspace，`@packages/types` 包共享类型定义（导出 .ts 源文件，消费方通过 tsconfig paths + vite alias 解析）
-- **数据库**：PostgreSQL，Drizzle ORM 声明式 schema（不运行 migration）
-- **统一响应**：`ApiResponse<T>` 类型 + ok / badRequest / notFound / internalServerError 工厂函数（在 shared 包中）
-- **日期处理**：全部使用 dayjs，避免原生 Date 时区陷阱
+- **后端分层**：handler（HTTP）→ service（业务）→ repository（SQL），依赖通过构造函数注入，无全局单例
+- **数据库**：PostgreSQL，sqlx + pgx 驱动，手写 SQL（不使用 ORM、不运行 migration）
+- **统一响应**：`apiresponse.Response{code,data,msg}`，与前端 `ApiResponse<T>` 字段一致
+- **错误处理**：handler 通过 `c.Error` 上报，`errorHandler` 中间件统一转 500 JSON；panic 由 `recovery` 中间件兜底
+- **无环境模式切换**：不区分开发/生产。gin 固定 ReleaseMode，日志固定 JSON
+- **静态资源**：前端产物经 `go:embed` 编入二进制（`internal/web`），运行镜像无 public 目录。直接用 `gin-contrib/static` 的 `EmbedFolder` + `Serve("/")`，无自定义包装。前端是 hash 路由（`createWebHashHistory`），服务端只会收到 `/`，因此不需要 SPA 深链接回退——不要再加
+- **API 404**：`/api/*` 未匹配在 `NoRoute` 中返回 JSON `{code:404,...}`，其余路径保持 gin 默认 404
+- **环境变量**：`DB_URL`（必填，开发环境可写入 `backend/.env`）、`TZ`（可选，容器内已安装 tzdata）
 - **前端组件**：使用 TSX（非 SFC），Element Plus UI 框架 + Tailwind CSS
-- **路径别名**：前后端 `@` → `src/`，`@packages/types/*` → `packages/shared/src/*`（后端运行时通过 tsconfig-paths 解析）
+- **路径别名**：仅 `@` → `frontend/src/`（tsconfig paths + vite alias 两处同步配置；TS 6 已弃用 `baseUrl`，不要加回）
+- **Tailwind 4**：CSS-first 配置，无 `tailwind.config.cjs` / `postcss.config.cjs`。走 `@tailwindcss/vite` 插件（内置 Lightning CSS，不需要 postcss/autoprefixer）；暗色模式靠 `@custom-variant dark (&:where(.dark, .dark *))` 保持 class 策略
+- **TypeScript 版本**：锁在 6.x（`~6.0.3`）。7.x 是 Go 原生重写版，vue-tsc 尚不兼容，不要升

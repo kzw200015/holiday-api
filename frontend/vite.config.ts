@@ -2,13 +2,13 @@ import path from "node:path"
 import { defineConfig } from "vite"
 import vue from "@vitejs/plugin-vue"
 import vueJsx from "@vitejs/plugin-vue-jsx"
+import tailwindcss from "@tailwindcss/vite"
 
 export default defineConfig({
-  plugins: [vue(), vueJsx()],
+  plugins: [vue(), vueJsx(), tailwindcss()],
   resolve: {
     alias: {
-      "@packages/types": path.resolve(__dirname, "../packages/shared/src"),
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   server: {

@@ -1,6 +1,6 @@
+import type { Calendar } from "@element-plus/icons-vue"
 import { computed, defineComponent } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { Calendar } from "@element-plus/icons-vue"
 import { ElIcon, ElMenu, ElMenuItem } from "element-plus"
 
 type NavItem = {
@@ -9,10 +9,8 @@ type NavItem = {
   icon: typeof Calendar
 }
 
-/* 侧栏导航项配置 */
-const navItems: NavItem[] = [
-  { path: "/holiday", label: "节假日", icon: Calendar },
-]
+/* 侧栏导航项配置：新增页面时在此登记 */
+const navItems: NavItem[] = []
 
 /* 侧栏导航组件 */
 export default defineComponent({

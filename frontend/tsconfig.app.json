@@ -5,13 +5,9 @@
     "types": [
       "vite/client"
     ],
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"
-      ],
-      "@packages/types/*": [
-        "../packages/shared/src/*"
       ]
     },
     "strict": true,

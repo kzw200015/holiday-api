@@ -1,4 +1,4 @@
-import type { ApiResponse } from "@packages/types/apiResponse"
+import type { ApiResponse } from "@/types/apiResponse"
 import type { AxiosError, AxiosRequestConfig } from "axios"
 import axios from "axios"
 import { ElMessage } from "element-plus"
