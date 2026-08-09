@@ -47,7 +47,7 @@ docker build -t myapi .
 - `GET /api/holiday/is-holiday` 有外部调用方，响应体 `data` 固定为 boolean。
 - `date` 列存 `YYYY-MM-DD` 字符串，年份即前缀，`replaceYear` 靠 `likeRight("$year-")` 删旧数据。
 - `replaceYear` 的 `@Transactional` 是跨 Bean 调用才生效（由 `HolidayService` 调用），且刻意逐条 `insert` 而非批量插入 —— 批量版本另开 SqlSession，会脱离当前事务。
-- `HolidayDay.isOffDay` 显式标注 `@param:JsonProperty` 与 `@field:TableField`，因为 Kotlin 为 `isXxx` 生成的读写方法名会让 Jackson 和 MyBatis 都推断错。
+- `isOffDay` 这类 `isXxx` 属性不需要标注 `@JsonProperty` / `@TableField`：jackson-module-kotlin 会原样保留 `is` 前缀，MyBatis-Plus 按字段名推列名并直接反射读写字段，两侧都绕开了 Kotlin 生成的 `setOffDay` 方法名。
 
 **启动依赖**：`HolidayDataInitializer` 在启动时拉取当年和次年数据，失败即中止启动。因此本地跑后端需要能连上 PostgreSQL 且能访问 `raw.githubusercontent.com`。数据库连接写在 `application.yml`，部署时用 `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD` 覆盖。仓库内没有建表脚本，`holiday_days` 表需预先存在。
 
