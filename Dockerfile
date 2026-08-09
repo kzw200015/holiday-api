@@ -13,31 +13,30 @@ COPY frontend/ ./
 RUN pnpm build
 
 # ---------- 后端构建 ----------
-FROM golang:1.26-alpine AS backend-builder
+FROM eclipse-temurin:25-jdk AS backend-builder
 
 WORKDIR /src
-COPY backend/go.mod backend/go.sum ./
-RUN go mod download
+COPY backend/gradle ./gradle
+COPY backend/gradlew backend/settings.gradle.kts backend/build.gradle.kts ./
+COPY backend/src ./src
+# 前端产物放入静态资源目录，随可执行 jar 一起打包
+COPY --from=frontend-builder /app/dist ./src/main/resources/static
 
-COPY backend/ ./
-# 前端产物放入 go:embed 目录，随二进制一起编译进最终镜像
-COPY --from=frontend-builder /app/dist ./internal/web/dist
-
-# 静态链接，便于在精简运行时镜像中执行
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
+# Gradle 用户目录挂成 BuildKit 缓存，依赖 jar 与 wrapper 发行版跨构建复用，
+# 不会因为源码变更而失效（dependencies 任务只解析元数据、不下载 jar，起不到预热作用）
+RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon bootJar
 
 # ---------- 运行时 ----------
-FROM alpine:3.22
+FROM eclipse-temurin:25-jre-alpine
 
-# ca-certificates 用于访问 HTTPS 数据源，tzdata 支持通过 TZ 环境变量指定时区
-RUN apk add --no-cache ca-certificates tzdata \
-    && adduser -D -u 10001 app
+# JDK 自带时区数据库，通过 TZ 环境变量指定时区即可
+RUN adduser -D -u 10001 app
 
 WORKDIR /app
-# 前端资源已内嵌，运行时只需这一个二进制
-COPY --from=backend-builder /out/server ./server
+# 前端资源已打进 jar，运行时只需这一个文件
+COPY --from=backend-builder /src/build/libs/*.jar ./app.jar
 
 USER app
 EXPOSE 8000
 
-CMD ["./server"]
+ENTRYPOINT ["java", "-jar", "app.jar"]
