@@ -50,11 +50,9 @@ backend/                        # Go 项目，模块名 myapi（Gin + sqlx + pgx
 frontend/                       # Vue 3.5, Vite 8, TypeScript 6 (严格模式), TSX, Tailwind CSS 4
                                 # 当前无业务页面，仅保留基础设施骨架
   src/
-    main.ts                     # 应用入口：Pinia + 路由 + Element Plus 样式
-    App.tsx                     # 根组件：Element Plus 中文化 + 路由出口
-    router/                     # 路由实例，routes 下 children 为空，新页面在此登记
-    layouts/AppLayout.tsx       # 顶栏 + 响应式侧栏 + 内容区
-    components/AppSidebar.tsx   # 侧栏导航，navItems 为空数组
+    main.ts                     # 应用入口：Pinia + 路由 + 全局样式
+    App.tsx                     # 根组件：初始化主题与断点跟踪 + 路由出口
+    router/                     # 路由实例，routes 为空数组，新页面在此登记
     stores/AppStore.ts          # Pinia：暗色主题 + 移动端断点
     api/httpClient.ts           # Axios 封装，拦截器解包 ApiResponse
     types/apiResponse.ts        # ApiResponse<T> 类型（后端以 Go 结构体对齐同一 JSON 契约）
@@ -72,7 +70,7 @@ frontend/                       # Vue 3.5, Vite 8, TypeScript 6 (严格模式), 
 - **API 404**：`/api/*` 未匹配在 `NoRoute` 中返回 JSON `{code:404,...}`，其余路径保持 gin 默认 404
 - **配置加载**：用 viper（`internal/config`），在工作目录读 `.env`（`SetConfigFile` + `SetConfigType("env")`，文件不存在时跳过）并开启 `AutomaticEnv`，环境变量优先级高于 `.env`。不再使用 godotenv
 - **环境变量**：`DB_URL`（必填，开发环境可写入 `backend/.env`）、`TZ`（可选，容器内已安装 tzdata）
-- **前端组件**：使用 TSX（非 SFC），Element Plus UI 框架 + Tailwind CSS
+- **前端组件**：使用 TSX（非 SFC），样式仅用 Tailwind CSS。不使用 UI 组件库（已移除 Element Plus，不要再引入）。当前 `src` 下无任何组件，仅有入口、路由、store、请求封装等骨架
 - **路径别名**：仅 `@` → `frontend/src/`（tsconfig paths + vite alias 两处同步配置；TS 6 已弃用 `baseUrl`，不要加回）
 - **Tailwind 4**：CSS-first 配置，无 `tailwind.config.cjs` / `postcss.config.cjs`。走 `@tailwindcss/vite` 插件（内置 Lightning CSS，不需要 postcss/autoprefixer）；暗色模式靠 `@custom-variant dark (&:where(.dark, .dark *))` 保持 class 策略
 - **TypeScript 版本**：锁在 6.x（`~6.0.3`）。7.x 是 Go 原生重写版，vue-tsc 尚不兼容，不要升

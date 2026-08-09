@@ -1,7 +1,6 @@
 import type { ApiResponse } from "@/types/apiResponse"
 import type { AxiosError, AxiosRequestConfig } from "axios"
 import axios from "axios"
-import { ElMessage } from "element-plus"
 
 export type { ApiResponse }
 
@@ -17,11 +16,7 @@ function resolveErrorMessage(error: AxiosError<ApiErrorResponse>) {
 
 instance.interceptors.response.use(
   (response) => response.data,
-  (error: AxiosError<ApiErrorResponse>) => {
-    const message = resolveErrorMessage(error)
-    ElMessage.error(message)
-    return Promise.reject(new Error(message))
-  },
+  (error: AxiosError<ApiErrorResponse>) => Promise.reject(new Error(resolveErrorMessage(error))),
 )
 
 /** 类型安全的 HTTP 客户端，利用 axios 泛型重载声明拦截器解包后的返回类型 */
