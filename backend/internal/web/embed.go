@@ -11,7 +11,5 @@ import "embed"
 // DistDir 是 Embedded 中前端产物所在的子目录。
 const DistDir = "dist"
 
-// all: 前缀确保 .gitkeep 等点开头的文件也被嵌入，避免目录为空导致编译失败。
-//
 //go:embed all:dist
 var Embedded embed.FS
