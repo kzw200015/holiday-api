@@ -1,22 +1,9 @@
-import { defineComponent, onMounted, onUnmounted } from "vue"
+import { defineComponent } from "vue"
 import { RouterView } from "vue-router"
 
-import { useAppStore } from "@/stores/AppStore"
-
-/* 根组件：初始化主题与响应式断点跟踪 + 路由出口 */
+/* 根组件：路由出口（主题初始化在 main.ts 挂载前完成，避免首帧闪白） */
 export default defineComponent({
   setup() {
-    const appStore = useAppStore()
-
-    onMounted(() => {
-      appStore.initializeTheme()
-      appStore.startResponsiveTracking()
-    })
-
-    onUnmounted(() => {
-      appStore.stopResponsiveTracking()
-    })
-
     return () => <RouterView />
   },
 })

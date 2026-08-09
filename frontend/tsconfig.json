@@ -1,5 +1,13 @@
 {
   "files": [],
+  // 实际编译配置在 tsconfig.app.json，此处的 paths 仅供 shadcn-vue 等工具链读取别名
+  "compilerOptions": {
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    }
+  },
   "references": [
     {
       "path": "./tsconfig.app.json"
