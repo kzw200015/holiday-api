@@ -12,8 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/joho/godotenv"
-
 	"myapi/internal/config"
 	"myapi/internal/database"
 	"myapi/internal/holiday"
@@ -29,9 +27,6 @@ func main() {
 }
 
 func run() error {
-	// 开发环境从 .env 加载环境变量，文件不存在时忽略
-	_ = godotenv.Load()
-
 	cfg, err := config.Load()
 	if err != nil {
 		return err

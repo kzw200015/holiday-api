@@ -39,7 +39,7 @@ backend/                        # Go 项目，模块名 myapi（Gin + sqlx + pgx
   cmd/server/main.go            # 入口：装配依赖、启动初始化、优雅关闭
   internal/
     apiresponse/                # 统一响应结构 Response{code,data,msg}
-    config/                     # 环境变量加载（DB_URL）
+    config/                     # viper 配置加载（DB_URL）
     database/                   # sqlx 连接池
     logging/                    # log/slog 日志实例（固定 JSON 输出）
     server/                     # gin 引擎装配、中间件、SPA 静态资源
@@ -70,6 +70,7 @@ frontend/                       # Vue 3.5, Vite 8, TypeScript 6 (严格模式), 
 - **无环境模式切换**：不区分开发/生产。gin 固定 ReleaseMode，日志固定 JSON
 - **静态资源**：前端产物经 `go:embed` 编入二进制（`internal/web`），运行镜像无 public 目录。直接用 `gin-contrib/static` 的 `EmbedFolder` + `Serve("/")`，无自定义包装。前端是 hash 路由（`createWebHashHistory`），服务端只会收到 `/`，因此不需要 SPA 深链接回退——不要再加
 - **API 404**：`/api/*` 未匹配在 `NoRoute` 中返回 JSON `{code:404,...}`，其余路径保持 gin 默认 404
+- **配置加载**：用 viper（`internal/config`），在工作目录读 `.env`（`SetConfigFile` + `SetConfigType("env")`，文件不存在时跳过）并开启 `AutomaticEnv`，环境变量优先级高于 `.env`。不再使用 godotenv
 - **环境变量**：`DB_URL`（必填，开发环境可写入 `backend/.env`）、`TZ`（可选，容器内已安装 tzdata）
 - **前端组件**：使用 TSX（非 SFC），Element Plus UI 框架 + Tailwind CSS
 - **路径别名**：仅 `@` → `frontend/src/`（tsconfig paths + vite alias 两处同步配置；TS 6 已弃用 `baseUrl`，不要加回）
