@@ -70,3 +70,17 @@ docker build -t myapi .
 ## 语言约定
 
 代码注释、提交信息与文档一律用简体中文。注释写「为什么这么做」而非复述代码，现有代码里的取舍说明（事务边界、Kotlin 注解目标、CSS 覆盖原因等）是主要的上下文来源，改动相关代码时同步更新。
+
+## Agent skills
+
+### Issue tracker
+
+问题与规格以 Markdown 文件形式存放在 `.scratch/` 下。详见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+沿用五个标准角色的默认标签字符串。详见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+单上下文布局：根目录 `CONTEXT.md` + `docs/adr/`。详见 `docs/agents/domain.md`。
