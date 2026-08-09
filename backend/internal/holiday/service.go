@@ -19,18 +19,23 @@ func NewService(repo *Repository, remote *RemoteClient, logger *slog.Logger) *Se
 	return &Service{repo: repo, remote: remote, logger: logger}
 }
 
-// IsHoliday 判断指定日期是否为休息日：先查库，无记录则按周末判断。
-func (s *Service) IsHoliday(ctx context.Context, date time.Time) (bool, error) {
-	isOffDay, found, err := s.repo.FindOffDay(ctx, date.Format(DateLayout))
+// Query 查询指定日期是否为休息日及对应的节假日名称：
+// 先查库，无记录则按周末判断（此时名称为空）。
+func (s *Service) Query(ctx context.Context, date time.Time) (QueryResult, error) {
+	dateStr := date.Format(DateLayout)
+
+	day, found, err := s.repo.FindDay(ctx, dateStr)
 	if err != nil {
-		return false, err
+		return QueryResult{}, err
 	}
 	if found {
-		return isOffDay, nil
+		return QueryResult{Date: dateStr, IsOffDay: day.IsOffDay, Name: day.Name}, nil
 	}
+
 	// 无记录，按周末判断
 	weekday := date.Weekday()
-	return weekday == time.Saturday || weekday == time.Sunday, nil
+	isWeekend := weekday == time.Saturday || weekday == time.Sunday
+	return QueryResult{Date: dateStr, IsOffDay: isWeekend}, nil
 }
 
 // InitCurrentAndNextYear 在启动时刷新当年和下一年的节假日数据。

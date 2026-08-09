@@ -19,18 +19,18 @@ func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{db: db}
 }
 
-// FindOffDay 查询指定日期的休息日标记。
+// FindDay 查询指定日期的节假日记录。
 // found 为 false 表示库中无该日期记录。
-func (r *Repository) FindOffDay(ctx context.Context, date string) (isOffDay bool, found bool, err error) {
-	err = r.db.GetContext(ctx, &isOffDay,
-		`SELECT is_off_day FROM holiday_days WHERE date = $1 LIMIT 1`, date)
+func (r *Repository) FindDay(ctx context.Context, date string) (day DaySnapshot, found bool, err error) {
+	err = r.db.GetContext(ctx, &day,
+		`SELECT name, date, is_off_day FROM holiday_days WHERE date = $1 LIMIT 1`, date)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, false, nil
+		return DaySnapshot{}, false, nil
 	}
 	if err != nil {
-		return false, false, fmt.Errorf("查询 %s 节假日记录失败: %w", date, err)
+		return DaySnapshot{}, false, fmt.Errorf("查询 %s 节假日记录失败: %w", date, err)
 	}
-	return isOffDay, true, nil
+	return day, true, nil
 }
 
 // ReplaceYear 以「先删后插」的方式刷新指定年份的数据，整体在一个事务内完成。
@@ -48,11 +48,11 @@ func (r *Repository) ReplaceYear(ctx context.Context, year int, days []DaySnapsh
 		return fmt.Errorf("删除 %d 年旧数据失败: %w", year, err)
 	}
 
-	// 批量插入新数据
+	// 批量插入新数据，命名参数直接取自 DaySnapshot 的 db 标签
 	if len(days) > 0 {
 		if _, err := tx.NamedExecContext(ctx,
-			`INSERT INTO holiday_days (name, date, is_off_day) VALUES (:name, :date, :isOffDay)`,
-			toInsertParams(days)); err != nil {
+			`INSERT INTO holiday_days (name, date, is_off_day) VALUES (:name, :date, :is_off_day)`,
+			days); err != nil {
 			return fmt.Errorf("插入 %d 年节假日数据失败: %w", year, err)
 		}
 	}
@@ -61,20 +61,4 @@ func (r *Repository) ReplaceYear(ctx context.Context, year int, days []DaySnapsh
 		return fmt.Errorf("提交事务失败: %w", err)
 	}
 	return nil
-}
-
-// insertParam 是批量插入使用的命名参数结构。
-type insertParam struct {
-	Name     string `db:"name"`
-	Date     string `db:"date"`
-	IsOffDay bool   `db:"isOffDay"`
-}
-
-// toInsertParams 将远程快照转换为插入参数。
-func toInsertParams(days []DaySnapshot) []insertParam {
-	params := make([]insertParam, len(days))
-	for i, d := range days {
-		params[i] = insertParam{Name: d.Name, Date: d.Date, IsOffDay: d.IsOffDay}
-	}
-	return params
 }
