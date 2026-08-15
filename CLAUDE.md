@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./gradlew bootRun                                  # 启动后端，监听 8000
 ./gradlew test                                     # 跑全部测试
 ./gradlew test --tests '*HolidayControllerTest'    # 跑单个测试类
-./gradlew test --tests '*HolidayControllerTest.detail 返回日期、是否休息与名称'  # 跑单个测试方法
+./gradlew test --tests '*HolidayControllerTest.detailReturnsDateIsOffDayAndName'  # 跑单个测试方法（认方法名，不认 @DisplayName）
 ./gradlew bootJar                                  # 打可执行 jar
 ```
 
@@ -70,6 +70,8 @@ docker build -t myapi .
 ## 语言约定
 
 代码注释、提交信息与文档一律用简体中文。注释写「为什么这么做」而非复述代码，现有代码里的取舍说明（事务边界、Kotlin 注解目标、CSS 覆盖原因等）是主要的上下文来源，改动相关代码时同步更新。
+
+**标识符一律用英文**，包括测试方法名：常规 camelCase，不用反引号包空格短句，中文描述写进 `@DisplayName`。测试报告和 IDE 里显示的是 `@DisplayName`，但 `--tests` 过滤只匹配方法名。
 
 ## Agent skills
 

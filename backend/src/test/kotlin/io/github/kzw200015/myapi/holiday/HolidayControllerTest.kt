@@ -1,5 +1,6 @@
 package io.github.kzw200015.myapi.holiday
 
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.mockito.BDDMockito.given
 import org.springframework.beans.factory.annotation.Autowired
@@ -22,7 +23,8 @@ class HolidayControllerTest {
     private lateinit var holidayService: HolidayService
 
     @Test
-    fun `日期非法时返回 400`() {
+    @DisplayName("日期非法时返回 400")
+    fun returnsBadRequestForInvalidDate() {
         // 2024-02-31 是不存在的日期，同样应被拒绝
         for (date in listOf("2024-02-31", "abc")) {
             mockMvc.get("/api/holiday/is-holiday") { param("date", date) }
@@ -34,7 +36,8 @@ class HolidayControllerTest {
     }
 
     @Test
-    fun `未匹配的 api 路径返回统一 404`() {
+    @DisplayName("未匹配的 api 路径返回统一 404")
+    fun returnsUnifiedNotFoundForUnmatchedApiPaths() {
         for (path in listOf("/api/unknown", "/api")) {
             mockMvc.get(path)
                 .andExpect {
@@ -45,7 +48,8 @@ class HolidayControllerTest {
     }
 
     @Test
-    fun `date 省略或为空串时取当天`() {
+    @DisplayName("date 省略或为空串时取当天")
+    fun fallsBackToTodayWhenDateOmittedOrBlank() {
         val today = LocalDate.now()
         given(holidayService.query(today))
             .willReturn(HolidayQueryResult(date = today.toString(), isOffDay = false, name = ""))
@@ -63,7 +67,8 @@ class HolidayControllerTest {
     }
 
     @Test
-    fun `is-holiday 只返回布尔值`() {
+    @DisplayName("is-holiday 只返回布尔值")
+    fun isHolidayReturnsOnlyBoolean() {
         given(holidayService.query(LocalDate.of(2026, 1, 1)))
             .willReturn(HolidayQueryResult(date = "2026-01-01", isOffDay = true, name = "元旦"))
 
@@ -75,7 +80,8 @@ class HolidayControllerTest {
     }
 
     @Test
-    fun `detail 返回日期、是否休息与名称`() {
+    @DisplayName("detail 返回日期、是否休息与名称")
+    fun detailReturnsDateIsOffDayAndName() {
         given(holidayService.query(LocalDate.of(2026, 1, 1)))
             .willReturn(HolidayQueryResult(date = "2026-01-01", isOffDay = true, name = "元旦"))
 
