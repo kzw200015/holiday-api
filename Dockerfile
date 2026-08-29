@@ -12,31 +12,35 @@ RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
 RUN pnpm build
 
-# ---------- 后端构建 ----------
-FROM eclipse-temurin:25-jdk AS backend-builder
+# ---------- 后端类型检查 ----------
+# Bun 直接跑 TS 源码、不做类型检查，这一步补上「编译失败即构建失败」的保障
+FROM oven/bun:1-alpine AS backend-typecheck
 
-WORKDIR /src
-COPY backend/gradle ./gradle
-COPY backend/gradlew backend/settings.gradle.kts backend/build.gradle.kts ./
+WORKDIR /app
+COPY backend/package.json backend/bun.lock ./
+# Bun 的包缓存挂成 BuildKit 缓存，跨构建复用已下载的包
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile
+
+COPY backend/tsconfig.json ./
 COPY backend/src ./src
-# 前端产物放入静态资源目录，随可执行 jar 一起打包
-COPY --from=frontend-builder /app/dist ./src/main/resources/static
-
-# Gradle 用户目录挂成 BuildKit 缓存，依赖 jar 与 wrapper 发行版跨构建复用，
-# 不会因为源码变更而失效（dependencies 任务只解析元数据、不下载 jar，起不到预热作用）
-RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon bootJar
+RUN bun run typecheck
 
 # ---------- 运行时 ----------
-FROM eclipse-temurin:25-jre-alpine
+FROM oven/bun:1-alpine
 
-# JDK 自带时区数据库，通过 TZ 环境变量指定时区即可
+# Bun 自带时区数据，通过 TZ 环境变量指定时区即可
 RUN adduser -D -u 10001 app
 
 WORKDIR /app
-# 前端资源已打进 jar，运行时只需这一个文件
-COPY --from=backend-builder /src/build/libs/*.jar ./app.jar
+# 只装生产依赖；包缓存在挂载里，不会进镜像层
+COPY backend/package.json backend/bun.lock ./
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile --production
+# 源码从类型检查阶段取，确保该阶段真正参与构建（BuildKit 只构建最终镜像依赖到的阶段）
+COPY --from=backend-typecheck /app/src ./src
+# 前端产物放入静态资源目录，由后端直接提供
+COPY --from=frontend-builder /app/dist ./public
 
 USER app
 EXPOSE 8000
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["bun", "src/index.ts"]

@@ -8,8 +8,5 @@ docs
 
 **/node_modules
 frontend/dist
-backend/.gradle
-backend/.kotlin
-backend/build
 # 本地前端产物不带入构建上下文，镜像内由 frontend-builder 阶段填充
-backend/src/main/resources/static
+backend/public
