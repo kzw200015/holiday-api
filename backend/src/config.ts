@@ -23,4 +23,12 @@ export const config = {
 
   /** 前端构建产物目录，镜像构建时由 frontend-builder 阶段填充。 */
   staticDir: process.env.STATIC_DIR ?? path.resolve(import.meta.dir, "../public"),
+
+  holiday: {
+    /**
+     * 定时刷新节假日数据的间隔（毫秒），默认 24 小时。
+     * 数据源一年只更新几次（次年安排公布、临时调休），每天拉一次足够，也不会给数据源造成压力。
+     */
+    refreshIntervalMs: Number(process.env.HOLIDAY_REFRESH_INTERVAL_MS ?? 24 * 60 * 60 * 1000),
+  },
 }

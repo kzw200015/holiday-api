@@ -1,7 +1,7 @@
 import type { CalendarDate } from "@internationalized/date"
 import { eq, like } from "drizzle-orm"
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql"
-import { type IsoDate, isWeekend } from "../time/date"
+import { currentYear, type IsoDate, isWeekend } from "../time/date"
 import { holidayDayTable, type HolidayDay } from "./holidayModels"
 import type { HolidayRemoteClient } from "./holidayRemoteClient"
 
@@ -44,19 +44,30 @@ export function createHolidayService({
       return { date: dateText, isOffDay: isWeekend(date), name: "" }
     },
 
-    /** 刷新指定年份的节假日数据：远程拉取后以「先删后插」替换该年数据。 */
-    async refreshYear(year: number): Promise<void> {
-      // 远程拉取放在事务外，避免一次最长 60 秒的 HTTP 调用白占着数据库连接
-      const remoteDays = await holidayRemoteClient.fetchYearDays(year)
-      // 删和插在一个事务内完成，回调抛错即回滚，正常返回即提交。插入走单条多行 INSERT，不需要逐条执行
-      await db.transaction(async (tx) => {
-        await tx.delete(holidayDayTable).where(like(holidayDayTable.date, `${year}-%`))
-        // Drizzle 不接受空数组的 values()，远程数据为空时只清理旧数据
-        if (remoteDays.length > 0) {
-          await tx.insert(holidayDayTable).values(remoteDays)
-        }
-      })
-      console.info(`已刷新 ${year} 年节假日数据，共 ${remoteDays.length} 条`)
+    refreshYear,
+
+    /**
+     * 刷新当年和次年的数据：两年互不依赖所以并行拉取，任一失败即整体 reject（另一年仍会跑完）。
+     * 年份在每次调用时重新计算，跨年后定时刷新会自动带上新的次年。
+     */
+    async refreshUpcomingYears(): Promise<void> {
+      const year = currentYear()
+      await Promise.all([year, year + 1].map(refreshYear))
     },
+  }
+
+  /** 刷新指定年份的节假日数据：远程拉取后以「先删后插」替换该年数据。 */
+  async function refreshYear(year: number): Promise<void> {
+    // 远程拉取放在事务外，避免一次最长 60 秒的 HTTP 调用白占着数据库连接
+    const remoteDays = await holidayRemoteClient.fetchYearDays(year)
+    // 删和插在一个事务内完成，回调抛错即回滚，正常返回即提交。插入走单条多行 INSERT，不需要逐条执行
+    await db.transaction(async (tx) => {
+      await tx.delete(holidayDayTable).where(like(holidayDayTable.date, `${year}-%`))
+      // Drizzle 不接受空数组的 values()，远程数据为空时只清理旧数据
+      if (remoteDays.length > 0) {
+        await tx.insert(holidayDayTable).values(remoteDays)
+      }
+    })
+    console.info(`已刷新 ${year} 年节假日数据，共 ${remoteDays.length} 条`)
   }
 }
