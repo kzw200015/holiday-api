@@ -24,6 +24,19 @@ export const config = {
   /** 前端构建产物目录，镜像构建时由 frontend-builder 阶段填充。 */
   staticDir: process.env.STATIC_DIR ?? path.resolve(import.meta.dir, "../public"),
 
+  log: {
+    /**
+     * 最低输出级别，pino 的级别名：trace / debug / info / warn / error / fatal。
+     * bun test 会把 NODE_ENV 设成 test，此时默认静音，免得请求日志混进测试输出。
+     */
+    level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === "test" ? "silent" : "info"),
+    /**
+     * 输出格式：json 或 pretty。默认看标准输出是不是终端——本地 bun run dev 是终端就用 pretty，
+     * 容器里 stdout 接的是日志采集就用 json，不用在两边分别配。
+     */
+    format: process.env.LOG_FORMAT ?? (process.stdout.isTTY ? "pretty" : "json"),
+  },
+
   holiday: {
     /**
      * 定时刷新节假日数据的间隔（毫秒），默认 24 小时。

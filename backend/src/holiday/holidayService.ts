@@ -1,6 +1,7 @@
 import type { CalendarDate } from "@internationalized/date"
 import { eq, like } from "drizzle-orm"
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql"
+import { logger } from "../logger"
 import { currentYear, type IsoDate, isWeekend } from "../time/date"
 import { holidayDayTable, type HolidayDay } from "./holidayModels"
 import type { HolidayRemoteClient } from "./holidayRemoteClient"
@@ -68,6 +69,6 @@ export function createHolidayService({
         await tx.insert(holidayDayTable).values(remoteDays)
       }
     })
-    console.info(`已刷新 ${year} 年节假日数据，共 ${remoteDays.length} 条`)
+    logger.info({ year, count: remoteDays.length }, "已刷新节假日数据")
   }
 }

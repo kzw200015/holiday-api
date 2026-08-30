@@ -2,6 +2,8 @@ import { Hono } from "hono"
 import { serveStatic } from "hono/bun"
 import { internalServerError, notFound } from "./apiresponse/apiResponse"
 import { createHolidayController, type HolidayQuerier } from "./holiday/holidayController"
+import { logger } from "./logger"
+import { requestLogger } from "./web/requestLogger"
 
 export interface AppDependencies {
   holidayService: HolidayQuerier
@@ -16,6 +18,7 @@ export interface AppDependencies {
 export function createApp({ holidayService, staticDir }: AppDependencies) {
   const app = new Hono()
 
+  app.use("/api/*", requestLogger)
   app.route("/api/holiday", createHolidayController(holidayService))
   // 其余 /api 路径统一返回 JSON 格式的 404；挂在静态资源之前，省得去磁盘找 public/api/... 文件
   app.all("/api/*", (c) => c.json(notFound(), 404))
@@ -38,7 +41,7 @@ export function createApp({ holidayService, staticDir }: AppDependencies) {
 
   // 未捕获异常统一转成 ApiResponse 结构的 500
   app.onError((err, c) => {
-    console.error(`未捕获异常: ${c.req.path}`, err)
+    logger.error({ err, method: c.req.method, path: c.req.path }, "未捕获异常")
     return c.json(internalServerError(err.message || "Internal Server Error"), 500)
   })
 

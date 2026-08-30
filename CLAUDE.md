@@ -52,7 +52,9 @@ docker build -t myapi .
 - `refreshYear` 用 `db.transaction` 包住「先删后插」，回调抛错即回滚；插入是单条多行 `INSERT`，`values([])` 会被 Drizzle 拒绝，所以远程为空时只删不插（2027 年数据未发布前就是这种情况）。
 - 远程拉取放在事务外，不让最长 60 秒的 HTTP 调用占着数据库连接；远程响应用 zod 校验结构后才入库。
 
-**启动依赖与定时刷新**：`src/index.ts` 在监听端口之前调用 `refreshUpcomingYears()` 并行拉取当年和次年数据，任一失败即以未处理的 rejection 退出进程。因此本地跑后端需要能连上 PostgreSQL 且能访问 `raw.githubusercontent.com`。启动后 `setInterval` 按 `config.holiday.refreshIntervalMs`（默认 24 小时）重复同一刷新，年份每次重新计算所以跨年不用重启；定时刷新失败只记日志不退出，库里已有数据可继续服务。默认配置（连接串、连接池参数、端口、静态目录、刷新间隔）都在 `src/config.ts`，部署时用 `DATABASE_URL` / `PORT` / `STATIC_DIR` / `HOLIDAY_REFRESH_INTERVAL_MS` 环境变量覆盖。仓库内没有建表脚本，`holiday_days` 表需预先存在。
+**启动依赖与定时刷新**：`src/index.ts` 在监听端口之前调用 `refreshUpcomingYears()` 并行拉取当年和次年数据，任一失败即以未处理的 rejection 退出进程。因此本地跑后端需要能连上 PostgreSQL 且能访问 `raw.githubusercontent.com`。启动后 `setInterval` 按 `config.holiday.refreshIntervalMs`（默认 24 小时）重复同一刷新，年份每次重新计算所以跨年不用重启；定时刷新失败只记日志不退出，库里已有数据可继续服务。默认配置（连接串、连接池参数、端口、静态目录、刷新间隔、日志）都在 `src/config.ts`，部署时用 `DATABASE_URL` / `PORT` / `STATIC_DIR` / `HOLIDAY_REFRESH_INTERVAL_MS` / `LOG_LEVEL` / `LOG_FORMAT` 环境变量覆盖。仓库内没有建表脚本，`holiday_days` 表需预先存在。
+
+**日志**：用 pino，`src/logger.ts` 导出进程级单例 `logger`，各模块直接 import，不写 `console.*`。写法固定为 `logger.info({ 结构化字段 }, "消息")`，错误放在 `err` 键（pino 自带序列化）。格式默认按 stdout 是否终端自动选：终端 pretty（pino-pretty 同步流，不走 transport 的 worker 线程，Bun 上更稳），容器 json；`bun test` 下默认静音。`web/requestLogger.ts` 只挂在 `/api/*` 上记访问日志（方法、路径、状态码、耗时），静态资源不记。
 
 **测试**：`bun:test`，测试文件与源码同目录（`*.test.ts`）。用 `createApp` 组装一个传入假 service 的应用，通过 `app.request()` 走完整处理链，只覆盖路由与响应结构，不连数据库和远程数据源。断言直接比对完整 JSON 字符串，所以响应字段顺序变化会导致测试失败。
 
