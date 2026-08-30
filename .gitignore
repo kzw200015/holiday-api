@@ -8,3 +8,8 @@
 node_modules/
 dist/
 .ace-tool/
+
+### 本地配置：只跟踪示例文件，真实密钥不入库 ###
+.env
+.env.*
+!.env.example

@@ -37,6 +37,9 @@ COPY backend/package.json backend/bun.lock ./
 RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile --production
 # 源码从类型检查阶段取，确保该阶段真正参与构建（BuildKit 只构建最终镜像依赖到的阶段）
 COPY --from=backend-typecheck /app/src ./src
+# 迁移文件由进程启动时应用（见 src/index.ts 的 migrate 调用），必须进镜像；
+# 生成它们的 drizzle-kit 是开发依赖，运行时用不到
+COPY backend/drizzle ./drizzle
 # 前端产物放入静态资源目录，由后端直接提供
 COPY --from=frontend-builder /app/dist ./public
 

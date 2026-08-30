@@ -1,7 +1,6 @@
 import { type CalendarDate, parseDate } from "@internationalized/date"
 import { beforeEach, describe, expect, mock, test } from "bun:test"
-import path from "node:path"
-import { createApp } from "../app"
+import { createTestApp } from "../testing/testApp"
 import { todayDate } from "../time/date"
 import type { HolidayDay } from "./holidayModels"
 
@@ -11,8 +10,7 @@ import type { HolidayDay } from "./holidayModels"
  */
 describe("HolidayController", () => {
   const query = mock<(date: CalendarDate) => Promise<HolidayDay>>()
-  // 指向一个不存在的目录，让所有非 /api 路径都落到 notFound
-  const app = createApp({ holidayService: { query }, staticDir: path.join(import.meta.dir, "__no_static__") })
+  const { app } = createTestApp({ holidayService: { query } })
 
   beforeEach(() => {
     query.mockReset()
