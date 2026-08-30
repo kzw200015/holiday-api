@@ -5,9 +5,6 @@ import { calendarDateSchema, todayDate } from "../time/date"
 import { apiValidator } from "../web/apiValidator"
 import type { HolidayService } from "./holidayService"
 
-/** 控制器只依赖查询能力，测试时可以直接传一个只有 query 的对象。 */
-export type HolidayQuerier = Pick<HolidayService, "query">
-
 /**
  * date 参数：省略或空串取当天，否则必须是合法的 YYYY-MM-DD，校验通过后处理函数拿到的是解析好的 CalendarDate。
  * 同名参数重复出现会被解析成数组，同样落进 union 的错误分支，所以类型错误也用这一条提示。
@@ -21,8 +18,9 @@ const dateQuerySchema = z.object({
 
 /**
  * 节假日相关的 HTTP 接口，挂载在 /api/holiday 下。
+ * 只依赖 service 的查询能力，测试时可以直接传一个只有 query 的对象。
  */
-export function createHolidayController(holidayService: HolidayQuerier) {
+export function createHolidayController(holidayService: Pick<HolidayService, "query">) {
   return (
     new Hono()
       /**

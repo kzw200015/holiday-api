@@ -1,21 +1,23 @@
 import { Hono } from "hono"
 import { serveStatic } from "hono/bun"
 import { internalServerError, notFound } from "./apiresponse/apiResponse"
-import { createHolidayController, type HolidayQuerier } from "./holiday/holidayController"
+import { createHolidayController } from "./holiday/holidayController"
+import type { HolidayService } from "./holiday/holidayService"
 import { logger } from "./logger"
 import { requestLogger } from "./web/requestLogger"
-
-export interface AppDependencies {
-  holidayService: HolidayQuerier
-  /** 前端构建产物目录，目录不存在时所有非 /api 路径都会 404。 */
-  staticDir: string
-}
 
 /**
  * 组装 HTTP 应用：路由、静态资源与统一的 404 / 异常处理。
  * 依赖从外部传入，测试时可以用假的 service 替换而不碰数据库与远程数据源。
  */
-export function createApp({ holidayService, staticDir }: AppDependencies) {
+export function createApp({
+  holidayService,
+  staticDir,
+}: {
+  holidayService: Pick<HolidayService, "query">
+  /** 前端构建产物目录，目录不存在时所有非 /api 路径都会 404。 */
+  staticDir: string
+}) {
   const app = new Hono()
 
   app.use("/api/*", requestLogger)
