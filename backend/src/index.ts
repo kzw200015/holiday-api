@@ -2,13 +2,12 @@ import { SQL } from "bun"
 import { drizzle } from "drizzle-orm/bun-sql"
 import { createApp } from "./app"
 import { config } from "./config"
-import { HolidayDayRepository } from "./holiday/holidayDayRepository"
-import { HolidayRemoteClient } from "./holiday/holidayRemoteClient"
-import { HolidayService } from "./holiday/holidayService"
-import { currentYear } from "./time/localDate"
+import { createHolidayRemoteClient } from "./holiday/holidayRemoteClient"
+import { createHolidayService } from "./holiday/holidayService"
+import { currentYear } from "./time/date"
 
 const db = drizzle({ client: new SQL({ url: config.database.url, ...config.database.pool }) })
-const holidayService = new HolidayService(new HolidayDayRepository(db), new HolidayRemoteClient())
+const holidayService = createHolidayService({ db, holidayRemoteClient: createHolidayRemoteClient() })
 
 // 先刷新当年和下一年的数据再监听端口：两年互不依赖所以并行拉取；
 // 任一失败都会以未处理的 rejection 结束进程，容器随之退出

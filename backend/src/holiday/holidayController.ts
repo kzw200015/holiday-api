@@ -1,7 +1,7 @@
 import { Hono } from "hono"
 import { z } from "zod"
 import { ok } from "../apiresponse/apiResponse"
-import { calendarDateSchema, todayDate } from "../time/localDate"
+import { calendarDateSchema, todayDate } from "../time/date"
 import { apiValidator } from "../web/apiValidator"
 import type { HolidayService } from "./holidayService"
 

@@ -38,18 +38,18 @@ docker build -t myapi .
 
 ## 后端架构
 
-源码根 `src/`，按业务功能分目录（`holiday`），横切关注点单独分目录（`apiresponse`、`web`、`time`）。没有依赖注入容器：`src/index.ts` 是组装根，手工 `new` 出 Repository / Service 再传给 `createApp`；类和工厂函数只声明自己需要的依赖类型（如控制器只依赖 `Pick<HolidayService, "query">`），测试据此直接传假对象。
+源码根 `src/`，按业务功能分目录（`holiday`），横切关注点单独分目录（`apiresponse`、`web`、`time`）。没有依赖注入容器，也不用 class：Service、远程客户端、控制器、应用都是 `createXxx()` 工厂函数，把依赖闭包进去后返回一个普通对象，对外类型用 `ReturnType<typeof createXxx>` 从实现推导，不另写 interface；`src/index.ts` 是组装根，手工建好 Drizzle 实例、逐层调用工厂再传给 `createApp`。工厂函数只声明自己需要的依赖类型（如控制器只依赖 `Pick<HolidayService, "query">`），测试据此直接传假对象。
 
 **统一响应契约**：所有接口返回 `ApiResponse { code, data, msg }`，字段顺序即序列化顺序。`app.ts` 里 `app.all("/api/*")` 兜住未匹配的 `/api` 路径返回 JSON 格式的 404，`onError` 把未捕获异常转成同一结构的 500；其余路径找不到静态文件时保持空响应体的 404（前端是哈希路由，静态资源兜底逻辑依赖这一点）。后端 `src/apiresponse/apiResponse.ts` 与前端 `src/types/apiResponse.ts` 是一对，改一边要同步另一边。
 
-**节假日模块分层**：`holidayController.ts`（Hono 子路由，参数校验用 `web/apiValidator.ts` 包过的 zod，失败统一回 `ApiResponse` 结构的 400）→ `HolidayService`（业务判断）→ `HolidayDayRepository`（查询条件与存储约定）→ Drizzle（`holidayModels.ts` 里的 `pgTable` 声明，驱动为 Bun 内置 `bun:sql`）。没有迁移脚本，`pgTable` 只声明代码会读写的列，用来推导类型和拼 SQL。
+**节假日模块分层**：`holidayController.ts`（Hono 子路由，参数校验用 `web/apiValidator.ts` 包过的 zod，失败统一回 `ApiResponse` 结构的 400）→ `HolidayService`（业务判断，同时直接写查询条件与存储约定，没有单独的数据访问层）→ Drizzle（`holidayModels.ts` 里的 `pgTable` 声明，驱动为 Bun 内置 `bun:sql`）。没有迁移脚本，`pgTable` 只声明代码会读写的列，用来推导类型和拼 SQL。
 
 几个已在注释中固化的约束，修改时不要推翻：
 
 - `GET /api/holiday/is-holiday` 有外部调用方，响应体 `data` 固定为 boolean。
-- 日期有两种表示，规则在 `time/localDate.ts`：数据库列和接口出入参用 `YYYY-MM-DD` 字符串（`IsoDate`）；HTTP 入口校验时用 `calendarDateSchema` 一次性解析成 `@internationalized/date` 的 `CalendarDate`（只有年月日、无时区，等价于原来的 `LocalDate`，前端日历组件也用这个库），业务层按对象传递，落库或写响应体时 `toString()` 转回字符串，不用原生 `Date`。格式规则只有一份 `isoDateSchema`（`z.iso.date()`，严格位数 + 日历合法性），远程 JSON 也用它校验；解析只走 `parseDate`，不要手写 `new CalendarDate(...)`（会静默钳位）。控制器的 `date` 参数省略或空串取当天，校验失败的文案固定为「日期格式错误，应为 YYYY-MM-DD」。
-- `date` 列存 `YYYY-MM-DD` 字符串，年份即前缀，`replaceYear` 靠 `like(date, "YYYY-%")` 删旧数据。该列有唯一索引 `holiday_days_date_key`，`findByDate` 因此 `limit(2)` 后多行即抛，而不是静默取第一条。
-- `replaceYear` 用 `db.transaction` 包住「先删后插」，回调抛错即回滚；插入是单条多行 `INSERT`，`values([])` 会被 Drizzle 拒绝，所以远程为空时只删不插（2027 年数据未发布前就是这种情况）。
+- 日期有两种表示，规则在 `time/date.ts`：数据库列和接口出入参用 `YYYY-MM-DD` 字符串（`IsoDate`）；HTTP 入口校验时用 `calendarDateSchema` 一次性解析成 `@internationalized/date` 的 `CalendarDate`（只有年月日、无时区，等价于原来的 `LocalDate`，前端日历组件也用这个库），业务层按对象传递，落库或写响应体时 `toString()` 转回字符串，不用原生 `Date`。格式规则只有一份 `isoDateSchema`（`z.iso.date()`，严格位数 + 日历合法性），远程 JSON 也用它校验；解析只走 `parseDate`，不要手写 `new CalendarDate(...)`（会静默钳位）。控制器的 `date` 参数省略或空串取当天，校验失败的文案固定为「日期格式错误，应为 YYYY-MM-DD」。
+- `date` 列存 `YYYY-MM-DD` 字符串，年份即前缀，`refreshYear` 靠 `like(date, "YYYY-%")` 删旧数据。该列有唯一索引 `holiday_days_date_key`，`query` 因此 `limit(2)` 后多行即抛，而不是静默取第一条。
+- `refreshYear` 用 `db.transaction` 包住「先删后插」，回调抛错即回滚；插入是单条多行 `INSERT`，`values([])` 会被 Drizzle 拒绝，所以远程为空时只删不插（2027 年数据未发布前就是这种情况）。
 - 远程拉取放在事务外，不让最长 60 秒的 HTTP 调用占着数据库连接；远程响应用 zod 校验结构后才入库。
 
 **启动依赖**：`src/index.ts` 在监听端口之前并行拉取当年和次年数据，任一失败即以未处理的 rejection 退出进程。因此本地跑后端需要能连上 PostgreSQL 且能访问 `raw.githubusercontent.com`。默认配置（连接串、连接池参数、端口、静态目录）都在 `src/config.ts`，部署时用 `DATABASE_URL` / `PORT` / `STATIC_DIR` 环境变量覆盖。仓库内没有建表脚本，`holiday_days` 表需预先存在。

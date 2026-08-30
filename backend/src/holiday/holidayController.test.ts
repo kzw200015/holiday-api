@@ -2,7 +2,7 @@ import { type CalendarDate, parseDate } from "@internationalized/date"
 import { beforeEach, describe, expect, mock, test } from "bun:test"
 import path from "node:path"
 import { createApp } from "../app"
-import { todayDate } from "../time/localDate"
+import { todayDate } from "../time/date"
 import type { HolidayDay } from "./holidayModels"
 
 /**

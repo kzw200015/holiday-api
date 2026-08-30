@@ -1,8 +1,8 @@
 import { parseDate } from "@internationalized/date"
 import { describe, expect, test } from "bun:test"
-import { calendarDateSchema, isoDateSchema, isWeekend, todayDate } from "./localDate"
+import { calendarDateSchema, isoDateSchema, isWeekend, todayDate } from "./date"
 
-describe("localDate", () => {
+describe("date", () => {
   test("只接受位数完整且日历上存在的 YYYY-MM-DD", () => {
     expect(isoDateSchema.safeParse("2024-02-29").success).toBe(true)
     expect(isoDateSchema.safeParse("2026-01-01").success).toBe(true)
