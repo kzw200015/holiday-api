@@ -1,0 +1,1 @@
+ALTER TABLE "eh_credentials" RENAME COLUMN "cookie_encrypted" TO "cookie";

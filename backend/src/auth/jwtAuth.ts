@@ -1,7 +1,7 @@
 import type { Context, MiddlewareHandler } from "hono"
 import { createMiddleware } from "hono/factory"
 import { sign, verify } from "hono/jwt"
-import { unauthorized } from "../apiresponse/apiResponse"
+import { unauthorized } from "../web/apiResponse"
 
 /** 挂在 context 上的登录态，子路由用 `new Hono<SessionEnv>()` 声明后就能拿到 c.get("userId")。 */
 export type SessionEnv = { Variables: { userId: number } }
@@ -20,7 +20,7 @@ const ALGORITHM = "HS256"
  *
  * 用请求头而不是 Cookie，是因为 Cookie 由浏览器自动携带，跨站表单就能借用户的身份发写请求，
  * 于是还得配一层 CSRF 校验；令牌要前端主动取出来塞进头里，跨站页面读不到也就伪造不了。
- * 代价是 <img src> 这类浏览器直接发起的请求带不了头——图片改走签名地址，见 web/attachmentSigner.ts。
+ * 代价是 <img src> 这类浏览器直接发起的请求带不了头——图片改走签名地址，见 crypto/attachmentSigner.ts。
  *
  * 令牌是无状态的：服务端不存已签发的令牌，所以没法强制踢掉某个会话，只能等它过期。
  * 真要做的话，加一个 users.token_epoch 列、签进载荷、改密码时 +1 即可全端下线，

@@ -8,7 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 功能上有三块：本站账号（`auth`）、E-Hentai / ExHentai 第三方只读客户端（`eh`，搜索 → 详情 → 阅读 → 看评论）、节假日查询（`holiday`，接口有外部调用方）。
 
-**启动前必须设 `EH_SECRET_KEY`**（`openssl rand -hex 32` 生成），否则进程直接拒绝启动——登录令牌签名、e 站凭据加密、图片地址签名都由它派生。本地把 `backend/.env.example` 复制成 `.env` 填上即可，`.env` 已被 gitignore 挡住。数据库表不用手动建：进程启动时会先跑 `drizzle/` 下的迁移。
+**启动前必须设 `EH_SECRET_KEY`**（`openssl rand -hex 32` 生成），否则进程直接拒绝启动——登录令牌签名和图片地址签名都由它派生。本地把 `backend/.env.example` 复制成 `.env` 填上即可，`.env` 已被 gitignore 挡住。数据库表不用手动建：进程启动时会先跑 `drizzle/` 下的迁移。
+
+**注册默认关闭**（`ALLOW_REGISTRATION`）。要建第一个账号就临时设成 `true`，注册完改回来重启。这条和「e 站凭据明文入库」是配套的取舍，见下面 `auth` 与 `eh` 两节。
 
 ## 常用命令
 
@@ -42,11 +44,11 @@ docker build -t myapi .
 
 ## 后端架构
 
-源码根 `src/`，按业务功能分目录（`holiday`、`auth`、`eh`），横切关注点单独分目录（`apiresponse`、`web`、`time`、`crypto`、`testing`）。没有依赖注入容器，**依赖注入靠显式定义的 class**：Service、远程客户端、控制器、应用都是 class，依赖用一个对象参数传进构造器、解构后存成 `private readonly` 字段，class 名同时就是对外类型，不另写 interface。`src/index.ts` 是组装根，手工建好 Drizzle 实例、逐层 `new` 出来再传给 `new App(...)`。依赖类型只声明自己用得上的部分（如控制器只依赖 `Pick<HolidayService, "query">`），测试据此直接传假对象——注意 `Pick<>` 挑出来的都是 public 成员，private 字段不参与结构匹配，所以假对象仍然兼容。
+源码根 `src/`，按业务功能分目录（`holiday`、`auth`、`eh`），横切关注点单独分目录（`web`、`crypto`、`db`、`time`、`testing`）。横切目录的分界是**依赖**而不是话题：`web/` 放依赖 Hono 的东西（响应契约、参数校验、访问日志），`crypto/` 放不依赖任何框架的密钥运算（`deriveSecret` 派生子密钥、`attachmentSigner` 签名），`db/` 放 Drizzle 的共用片段。没有依赖注入容器，**依赖注入靠显式定义的 class**：Service、远程客户端、控制器、应用都是 class，依赖用一个对象参数传进构造器、解构后存成 `private readonly` 字段，class 名同时就是对外类型，不另写 interface。`src/index.ts` 是组装根，手工建好 Drizzle 实例、逐层 `new` 出来再传给 `new App(...)`。依赖类型只声明自己用得上的部分（如控制器只依赖 `Pick<HolidayService, "query">`），测试据此直接传假对象——注意 `Pick<>` 挑出来的都是 public 成员，private 字段不参与结构匹配，所以假对象仍然兼容。
 
 **控制器和应用直接 `extends Hono`**：`HolidayController`、`AuthController`、`EhController`、`EhImageController`、`App` 都是 Hono 的子类，构造器里调 `this.get(...)` / `this.use(...)` 注册路由，挂载时 `this.route("/api/xxx", new XxxController(...))` 直接传实例。代价是链式调用的类型推导（Hono 的 RPC 客户端要用）没了，本项目前端走 axios，用不上。
 
-**统一响应契约**：所有接口返回 `ApiResponse { code, data, msg }`，字段顺序即序列化顺序。`app.ts` 里 `app.all("/api/*")` 兜住未匹配的 `/api` 路径返回 JSON 格式的 404，`onError` 把未捕获异常转成同一结构的 500；其余路径找不到静态文件时保持空响应体的 404（前端是哈希路由，静态资源兜底逻辑依赖这一点）。后端 `src/apiresponse/apiResponse.ts` 与前端 `src/types/apiResponse.ts` 是一对，改一边要同步另一边。
+**统一响应契约**：所有接口返回 `ApiResponse { code, data, msg }`，字段顺序即序列化顺序。`app.ts` 里 `app.all("/api/*")` 兜住未匹配的 `/api` 路径返回 JSON 格式的 404，`onError` 把未捕获异常转成同一结构的 500；其余路径找不到静态文件时保持空响应体的 404（前端是哈希路由，静态资源兜底逻辑依赖这一点）。后端 `src/web/apiResponse.ts` 与前端 `src/types/apiResponse.ts` 是一对，改一边要同步另一边。
 
 **唯一的例外是两个图片接口**（`/api/eh/thumbnail` 和 `.../pages/:page/image`），它们直接返回二进制流。
 
@@ -56,9 +58,9 @@ docker build -t myapi .
 
 **没有 CSRF 中间件**：跨站伪造之所以成立，是因为 Cookie 由浏览器自动带上；身份改走 `Authorization` 头之后，跨站页面既读不到令牌也就冒名不了。`frontend/vite.config.ts` 的代理因此也不再需要改写 `Origin`。
 
-**`/api/eh` 挂了两个控制器，顺序有讲究**：`EhImageController`（不要求登录）必须 route 在 `EhController`（要求登录）之前，两者前缀相同，反过来的话图片请求会先撞上 JWT 中间件。拆成两个 class 而不是在一个里面挑几条豁免，是为了让「哪些接口不需要登录」一眼可见。
+**`/api/eh` 挂了两个控制器，顺序有讲究**：`EhImageController`（`ehImageController.ts`，不要求登录）必须 route 在 `EhController`（`ehController.ts`，要求登录）之前，两者前缀相同，反过来的话图片请求会先撞上 JWT 中间件。分成两个 class、两个文件而不是在一个里面挑几条豁免，是为了让「哪些接口不需要登录」一眼可见。两者共用的入参校验（`galleryRefSchema`、`galleryPageSchema`）放在 `ehModels.ts` 里挨着 `GalleryRef`——谁 import 谁都别扭，索性都不放控制器里。
 
-**节假日模块分层**：`holidayController.ts`（Hono 子路由，参数校验用 `web/apiValidator.ts` 包过的 zod，失败统一回 `ApiResponse` 结构的 400）→ `HolidayService`（业务判断，同时直接写查询条件与存储约定，没有单独的数据访问层）→ Drizzle（`holidayModels.ts` 里的 `pgTable` 声明，驱动为 Bun 内置 `bun:sql`）。没有迁移脚本，`pgTable` 只声明代码会读写的列，用来推导类型和拼 SQL。
+**节假日模块分层**：`holidayController.ts`（Hono 子路由，参数校验用 `web/apiValidator.ts` 包过的 zod，失败统一回 `ApiResponse` 结构的 400）→ `HolidayService`（业务判断，同时直接写查询条件与存储约定，没有单独的数据访问层）→ Drizzle（`holidayModels.ts` 里的 `pgTable` 声明，驱动为 Bun 内置 `bun:sql`）。
 
 几个已在注释中固化的约束，修改时不要推翻：
 
@@ -68,11 +70,20 @@ docker build -t myapi .
 - `refreshYear` 用 `db.transaction` 包住「先删后插」，回调抛错即回滚；插入是单条多行 `INSERT`，`values([])` 会被 Drizzle 拒绝，所以远程为空时只删不插（2027 年数据未发布前就是这种情况）。
 - 远程拉取放在事务外，不让最长 60 秒的 HTTP 调用占着数据库连接；远程响应用 zod 校验结构后才入库。
 
-**账号与鉴权（`auth`）**：登录后签发 **JWT**（`hono/jwt`，HS256，载荷 `{ sub: userId, exp }`），前端存 localStorage、每个请求放进 `Authorization: Bearer`。没有 sessions 表，服务端也不存已签发的令牌，所以**踢不了人，只能等过期**（真要做就加一列 `users.token_epoch` 签进载荷，代价是每次校验都要查库）。**签发和校验都写死 `HS256`**，不看令牌头里的 `alg`——照令牌自称的算法去验等于让攻击者自己挑锁。也因此**没有 logout 接口**：退出就是前端把令牌丢掉，留一个只回 200 的空接口反而会让人误以为服务端真作废了它。密码用 Bun 内置 `Bun.password`（argon2id），零依赖。注册开关是 `ALLOW_REGISTRATION`，默认开。
+**账号与鉴权（`auth`）**：登录后签发 **JWT**（`hono/jwt`，HS256，载荷 `{ sub: userId, exp }`），前端存 localStorage、每个请求放进 `Authorization: Bearer`。没有 sessions 表，服务端也不存已签发的令牌，所以**踢不了人，只能等过期**（真要做就加一列 `users.token_epoch` 签进载荷，代价是每次校验都要查库）。**签发和校验都写死 `HS256`**，不看令牌头里的 `alg`——照令牌自称的算法去验等于让攻击者自己挑锁。也因此**没有 logout 接口**：退出就是前端把令牌丢掉，留一个只回 200 的空接口反而会让人误以为服务端真作废了它。密码用 Bun 内置 `Bun.password`（argon2id），零依赖。
 
-**图片走签名地址而不是令牌**（`web/attachmentSigner.ts`）：`<img src>` 是浏览器自己发的请求，带不了 `Authorization` 头。所以两个图片接口不鉴权，只认地址里的签名——签名覆盖「这是哪一份附件」加过期时间，两者任一被改就对不上。缩略图签的是上游地址，大图签的是 `userId:gid:token`：**页码刻意不参与签名**，一本图集一张通行证，否则 300 页的详情就得回传 300 条签好的地址；地址模板由 `GET /api/eh/galleries/:gid/:token` 随详情下发，形如 `.../pages/{page}/image?uid=&e=&s=`，前端只把 `{page}` 换成页码。**大图的 userId 只能取自签名过的 `uid` 参数**，不能取当前登录者——那条链路根本没有登录者。有效期由 `ATTACHMENT_TTL_MS` 控制（默认 24 小时），过期表现为图片裂开，重新取一次详情即可；签名不对或过期回 **403**（`EhFailure` 的 `badSignature`）而不是 502——过期是有效期到点后的日常现象，混进 502 会把「e 站真的挂了」的信号淹掉。缩略图地址在**组装响应时**才签名，不进 `galleryCache`，否则缓存 TTL 就得永远短于附件有效期。`ehSignedUrl.test.ts` 专门测这个闭环：签发和校验各拼一次 subject，两边不一致的话所有图片会一起打不开，而各自的单元测试都是绿的。
+**注册开关 `ALLOW_REGISTRATION` 默认关**，只有显式设成 `"true"` 才开。公网部署时任何人注册即可借这台机器代理 e 站流量，被封的是本机出口 IP；而且 e 站凭据现在是明文入库的，账号越少、越都是自己人，那个取舍才成立。没有留「第一个账号自动放行」之类的后门——建号就是临时开一下开关、注册、关回去重启，多这两步换掉一条永远开着的旁路。
 
-**e 站模块（`eh`）分层**：`ehController`（校验 `gid` 正整数、`token` 为 10 位十六进制——这两项会被拼进上游地址）→ `ehService`（编排 + 进程内缓存 + 凭据加解密）→ `ehClient`（统一 fetch：伪装 UA、带固定 Cookie、超时、异常翻译）。出网没有限速也没有熔断——刻意去掉的，代价是请求节奏不再受控，出口 IP 更容易被 e 站盯上。`ehParser` 是纯函数层，配 `__fixtures__/` 里从真实页面裁下来的样本单测。
+**图片走签名地址而不是令牌**（`crypto/attachmentSigner.ts`）：`<img src>` 是浏览器自己发的请求，带不了 `Authorization` 头。所以两个图片接口不鉴权，只认地址里的签名——签名覆盖「这是哪一份附件」加过期时间，两者任一被改就对不上。缩略图签的是上游地址，大图签的是 `userId:gid:token`：**页码刻意不参与签名**，一本图集一张通行证，否则 300 页的详情就得回传 300 条签好的地址；地址模板由 `GET /api/eh/galleries/:gid/:token` 随详情下发，形如 `.../pages/{page}/image?uid=&e=&s=`，前端只把 `{page}` 换成页码。**大图的 userId 只能取自签名过的 `uid` 参数**，不能取当前登录者——那条链路根本没有登录者。有效期由 `ATTACHMENT_TTL_MS` 控制（默认 24 小时），过期表现为图片裂开，重新取一次详情即可；签名不对或过期回 **403**（`EhFailure` 的 `badSignature`）而不是 502——过期是有效期到点后的日常现象，混进 502 会把「e 站真的挂了」的信号淹掉。缩略图地址在**组装响应时**才签名，不进 `galleryCache`，否则缓存 TTL 就得永远短于附件有效期。`ehSignedUrl.test.ts` 专门测这个闭环：签发和校验各拼一次 subject，两边不一致的话所有图片会一起打不开，而各自的单元测试都是绿的。
+
+**e 站模块（`eh`）分层**：`ehController` / `ehImageController`（校验 `gid` 正整数、`token` 为 10 位十六进制——这两项会被拼进上游地址）→ `ehService`（对外门面：编排用例、元数据缓存、附件地址的签发与校验）→ `ehClient`（统一 fetch：伪装 UA、带固定 Cookie、超时、异常翻译）。
+
+`ehService` 底下还挂着两块自带状态的协作者，都在 `index.ts` 里 `new` 好注入进去：
+
+- **`EhCredentialStore`（`ehCredentials.ts`）**：凭据入库、取出、按有没有里站权限决定这次请求走前站还是里站。它那三个接口在 `EhService` 上只是原样转交——控制器只认门面一个依赖，模块内部怎么分工不往外泄。
+- **`EhImageLocator`（`ehImageLocator.ts`）**：「第 N 页的图片地址是什么」这条链路，连同它那五张缓存表和在途请求去重表。对外只有两个方法：`resolve(ctx, ref, page, { reload })` 拿地址（`reload` 用于图床失效后换源，它绕开所有缓存），`absorbGalleryPage` 收下详情页 HTML 里顺带带来的每页令牌。
+
+出网没有限速也没有熔断——刻意去掉的，代价是请求节奏不再受控，出口 IP 更容易被 e 站盯上。`ehParser` 是纯函数层，配 `__fixtures__/` 里从真实页面裁下来的样本单测。
 
 几条已在注释里固化的取舍：
 
@@ -84,12 +95,13 @@ docker build -t myapi .
 - **四种「200 但不是你要的东西」必须识别**（`classifyResponse`）：内容警告插页、sad panda（里站回 200 + 空 body）、IP 被封（200 的纯文本页）、509 配额超限。四种各自抛出对应的 `EhFailure`，由 `app.onError` 翻成状态码；后两种以前还会触发熔断停手 10 分钟，熔断随限流器一起删掉了（见下一条），现在撞上封禁也不会自动停手。
 - **出网不限速、不熔断**。曾经有过一个三通道的限流器（html 串行 + 秒级间隔、api 令牌桶、image 只限并发）和识别到封禁后停手 10 分钟的熔断，后来按需求整体删掉了。现在所有上游请求直接发出去，也不会因为撞上封禁而停手。要加回来的话，加在 `ehClient` 的 `request` 外面一层，而不是散到各个调用点。
 - **取图链路**：每页令牌 → showkey → `showpage` 接口。**`showpage` 的响应里白送了下一页的令牌**，顺序阅读时顺手写回缓存，所以一本 300 页的图集只需要 2 次 HTML 请求（首页详情 + 首张 `/s/` 页），之后每页只有 1 次轻量 API 调用，只有跳页才会回头抓详情页分片。showkey 失效（`{"error":"Key mismatch"}`）时重抓 `/s/` 页换新的，**只重试一次**。图床节点失效表现为图片 403，用页面里的 `nl` 令牌换源重取一次。
-- **一张缓存表都不建**：图集元数据、每页令牌、showkey、解析出的图片地址全在进程内的 `TtlCache`（`eh/ehCache.ts`）里。这些都能重新拉，而仓库没有迁移工具、每张表都要人工执行 DDL，为可重建的数据付这个代价不值。
+- **一张缓存表都不建**：图集元数据在 `ehService`，每页令牌、showkey、换源令牌、解析出的图片地址在 `ehImageLocator`，解密过的凭据在 `ehCredentials`，全是进程内的 `TtlCache`（`eh/ehCache.ts`）。这些数据都能重新拉，为可重建的东西加表、加迁移、加运维负担不值。
 - **缩略图代理用 HMAC 签名地址**，端点只认自己签发过的 URL，客户端指定不了主机。白名单（精确匹配 `ehgt.org`、后缀 `.hath.network`，注意那个点不能省）、`redirect: "manual"`、`Content-Type` 必须 `image/` 是纵深防御，别放宽。
-- **`f_cats` 传的是要排除的分类位和**，方向极易写反；全不选和全选都要省略这个参数（按公式算全不选会得到 1023，那是「全部排除」）。换算封在 `ehService.toCategoryFilter` 里，接口和前端只用分类名。分类名的唯一来源是 `ehService.CATEGORY_NAMES`，控制器拿它做 `z.enum` 校验——不校验的话前端拼错名字只会让那一位算成 0，表现是「筛选点了但结果没变」，查不出来。
-- 主密钥按用途派生子密钥（`crypto/secretBox.ts` 的 `deriveSecret`）：JWT 签名（`jwt-v1`）、e 站 Cookie 加密（`eh-cookie-v1`）、图片地址签名（`attachment-v1`）各用各的，不共用裸密钥。改用途标签等于换密钥，已签发的令牌和已发出去的图片地址会一起失效。
+- **`f_cats` 传的是要排除的分类位和**，方向极易写反；全不选和全选都要省略这个参数（按公式算全不选会得到 1023，那是「全部排除」）。换算封在 `ehCategory.ts` 的 `toCategoryFilter` 里，接口和前端只用分类名。分类名的唯一来源是同文件的 `CATEGORY_NAMES`，控制器拿它做 `z.enum` 校验——不校验的话前端拼错名字只会让那一位算成 0，表现是「筛选点了但结果没变」，查不出来。
+- **e 站 Cookie 明文入库**（`eh_credentials.cookie`，JSON 文本）。曾经用 AES-GCM 加密，后来按需求去掉了：加密防的是「库漏了但主密钥没漏」那一类场景（备份文件、只读账号、SQL 注入、从库），关掉公开注册之后库里只有自己人的凭据，这层就不划算了。代价要认清——**那一列等同于 e 站账号本身**，拿到就能登进去，所以数据库备份、从库、监控查询都要按凭据的标准对待。读的时候**不做「解析不出来就当未绑定」的兜底**：那一列只由 `bind()` 写入，真解析不出来说明有人手工改过库，让它抛出去比静默显示成「未绑定」好查得多。要加回来的话，加解密都在 `ehCredentials.ts` 一处，再补一把 `eh-cookie-v1` 子密钥即可。
+- 主密钥按用途派生子密钥（`crypto/deriveSecret.ts`）：JWT 签名（`jwt-v1`）和图片地址签名（`attachment-v1`）各用各的，不共用裸密钥。改用途标签等于换密钥，已签发的令牌和已发出去的图片地址会一起失效。
 
-**启动依赖与定时刷新**：`src/index.ts` 在监听端口之前调用 `refreshUpcomingYears()` 并行拉取当年和次年数据，任一失败即以未处理的 rejection 退出进程。因此本地跑后端需要能连上 PostgreSQL 且能访问 `raw.githubusercontent.com`。启动后 `setInterval` 按 `config.holiday.refreshIntervalMs`（默认 24 小时）重复同一刷新，年份每次重新计算所以跨年不用重启；定时刷新失败只记日志不退出，库里已有数据可继续服务。默认配置都在 `src/config.ts`，部署时用同名环境变量覆盖：`DATABASE_URL` / `PORT` / `STATIC_DIR` / `HOLIDAY_REFRESH_INTERVAL_MS` / `LOG_LEVEL` / `LOG_FORMAT`，以及 `EH_SECRET_KEY`（**必填**）/ `ALLOW_REGISTRATION` / `TOKEN_TTL_MS` / `ATTACHMENT_TTL_MS` / `EH_USER_AGENT` / `EH_REQUEST_TIMEOUT_MS`。
+**启动依赖与定时刷新**：`src/index.ts` 在监听端口之前调用 `refreshUpcomingYears()` 并行拉取当年和次年数据，任一失败即以未处理的 rejection 退出进程。因此本地跑后端需要能连上 PostgreSQL 且能访问 `raw.githubusercontent.com`。启动后 `setInterval` 按 `config.holiday.refreshIntervalMs`（默认 24 小时）重复同一刷新，年份每次重新计算所以跨年不用重启；定时刷新失败只记日志不退出，库里已有数据可继续服务。默认配置都在 `src/config.ts`，部署时用同名环境变量覆盖：`DATABASE_URL` / `PORT` / `STATIC_DIR` / `HOLIDAY_REFRESH_INTERVAL_MS` / `LOG_LEVEL` / `LOG_FORMAT`，以及 `EH_SECRET_KEY`（**必填**）/ `ALLOW_REGISTRATION`（默认关）/ `TOKEN_TTL_MS` / `ATTACHMENT_TTL_MS` / `EH_USER_AGENT` / `EH_REQUEST_TIMEOUT_MS`。
 
 **数据库迁移**：`*Models.ts` 是 schema 的唯一真相，迁移由 drizzle-kit 生成、由进程启动时应用。
 
@@ -117,7 +129,7 @@ bunx drizzle-kit check  # 检查迁移文件之间有没有冲突
 
 **测试**：`bun:test`，测试文件与源码同目录（`*.test.ts`）。控制器测试用 `testing/testApp.ts` 的 `createTestApp(overrides)` 组装应用，它返回 `{ app, mocks }`：所有依赖先补成签名正确的空 mock，用例从 `mocks` 里取出自己关心的那几个来配置和断言，方法名单因此只在 `App` 的构造器参数类型里存一份（`ConstructorParameters<typeof App>[0]`）。想拿真实实现测某条链路时用 `createTestApp({ ehService: 真实实例 })` 覆盖掉对应的 mock，`ehSignedUrl.test.ts` 就是这么做的。同文件还导出 `testUser` 和 `loginAsTestUser`（返回 `{ Authorization }`，直接展开进 headers），需要登录态的测试别再各造一份。通过 `app.request()` 走完整处理链，断言直接比对完整 JSON 字符串，所以响应字段顺序变化会导致测试失败。
 
-除控制器外还有两类值得单独测的纯逻辑：`ehParser`（用 `__fixtures__/` 里从真实页面裁下来的样本，这是最容易被 e 站改版打破的一层），以及三处安全边界——`isAllowedImageUrl`、`secretBox`、`AttachmentSigner`。重新采样 fixture 时保持同样的裁剪方式：结构特征要真实，体积要小。
+除控制器外还有两类值得单独测的纯逻辑：`ehParser`（用 `__fixtures__/` 里从真实页面裁下来的样本，这是最容易被 e 站改版打破的一层），以及两处安全边界——`isAllowedImageUrl`、`AttachmentSigner`。重新采样 fixture 时保持同样的裁剪方式：结构特征要真实，体积要小。
 
 ## 前端架构
 

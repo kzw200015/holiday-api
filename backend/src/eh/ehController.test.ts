@@ -3,10 +3,13 @@ import { createTestApp, loginAsTestUser, postJson as post, testUser as user } fr
 import { EhFailure, type EhFailureKind } from "./ehFailure"
 
 /**
- * e 站路由的回归测试：只覆盖鉴权、参数校验、失败翻译和响应结构，
+ * 挂在 /api/eh 下的全部路由的回归测试：只覆盖鉴权、参数校验、失败翻译和响应结构，
  * 不连数据库也不碰 e 站。断言比对完整 JSON 字符串，字段顺序变了就会失败。
+ *
+ * EhController 和 EhImageController 合在一个文件里测，是因为这里最要紧的一条断言
+ * 正是「哪些接口要登录、哪些不要」——那是两个类之间的边界，拆开各测就断在中间了。
  */
-describe("EhController", () => {
+describe("/api/eh", () => {
   const { app, mocks } = createTestApp()
   const { ehService } = mocks
   const { login } = mocks.authService

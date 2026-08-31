@@ -1,6 +1,6 @@
 import { Hono } from "hono"
 import { z } from "zod"
-import { ok } from "../apiresponse/apiResponse"
+import { ok } from "../web/apiResponse"
 import { calendarDateSchema, todayDate } from "../time/date"
 import { apiValidator } from "../web/apiValidator"
 import type { HolidayService } from "./holidayService"

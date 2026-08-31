@@ -53,7 +53,7 @@ export const config = {
 
   security: {
     /**
-     * 主密钥，JWT 签名、e 站 Cookie 加密、图片地址签名都由它派生出各自的子密钥（见 crypto/secretBox.ts）。
+     * 主密钥，JWT 签名和图片地址签名由它派生出各自的子密钥（见 crypto/deriveSecret.ts）。
      *
      * 这一项故意没有可用的默认值：数据库口令泄露只影响这一个库，而签名密钥泄露意味着任何人
      * 都能伪造任意用户的令牌。为空时 index.ts 会拒绝启动。用 `openssl rand -hex 32` 生成。
@@ -61,10 +61,14 @@ export const config = {
     secretKey: process.env.EH_SECRET_KEY ?? "",
 
     /**
-     * 是否开放注册。公网部署时任何人注册即可借这台机器代理 e 站流量，被封的是本机出口 IP，
-     * 所以要留一个关掉的开关；默认开着是因为不开就没法创建第一个账号。
+     * 是否开放注册，**默认关闭**。
+     *
+     * 公网部署时任何人注册即可借这台机器代理 e 站流量，被封的是本机出口 IP。
+     * 而且 eh_credentials.cookie 存的是明文凭据，账号越少、越都是自己人，这个取舍才成立。
+     *
+     * 建第一个账号（或再加人）的办法：把 ALLOW_REGISTRATION=true 设上、启动、注册完再改回来重启。
      */
-    allowRegistration: (process.env.ALLOW_REGISTRATION ?? "true") === "true",
+    allowRegistration: process.env.ALLOW_REGISTRATION === "true",
 
     /**
      * 登录令牌有效期（毫秒），默认 30 天。

@@ -1,7 +1,7 @@
 import { zValidator } from "@hono/zod-validator"
 import type { ValidationTargets } from "hono"
 import type { z } from "zod"
-import { badRequest } from "../apiresponse/apiResponse"
+import { badRequest } from "./apiResponse"
 
 /**
  * 请求参数校验：包一层 zValidator，把校验失败统一转成 ApiResponse 结构的 400，

@@ -5,13 +5,15 @@ import { App } from "./app"
 import { AuthService } from "./auth/authService"
 import { JwtAuth } from "./auth/jwtAuth"
 import { config } from "./config"
-import { deriveSecret, SecretBox } from "./crypto/secretBox"
+import { AttachmentSigner } from "./crypto/attachmentSigner"
+import { deriveSecret } from "./crypto/deriveSecret"
 import { EhClient } from "./eh/ehClient"
+import { EhCredentialStore } from "./eh/ehCredentials"
+import { EhImageLocator } from "./eh/ehImageLocator"
 import { EhService } from "./eh/ehService"
 import { HolidayRemoteClient } from "./holiday/holidayRemoteClient"
 import { HolidayService } from "./holiday/holidayService"
 import { logger } from "./logger"
-import { AttachmentSigner } from "./web/attachmentSigner"
 
 // 密钥缺失就别启动了：留空意味着任何人都能伪造任意用户的令牌，
 // 这种问题一旦上线就查不出来，不如在这里直接把容器拦停
@@ -29,16 +31,19 @@ logger.info("数据库迁移已就绪")
 
 const holidayService = new HolidayService({ db, holidayRemoteClient: new HolidayRemoteClient() })
 const authService = new AuthService({ db, allowRegistration: config.security.allowRegistration })
-// 三个用途各派生一把子密钥，全都写在这里：摆在一起才看得出有没有谁直接拿了裸主密钥。
+// 两个用途各派生一把子密钥，都写在这里：摆在一起才看得出有没有谁直接拿了裸主密钥。
 // 用途标签是密钥的一部分，改标签等于换密钥——已签发的令牌和已发出去的图片地址会一起失效
 const jwtAuth = new JwtAuth({
   secret: deriveSecret(config.security.secretKey, "jwt-v1"),
   ttlMs: config.security.tokenTtlMs,
 })
+// 同一个 EhClient 实例传给三处：出网只有这一个出口，日后要加回限速或熔断也就只有一处可加
+const ehClient = new EhClient(config.eh)
 const ehService = new EhService({
   db,
-  ehClient: new EhClient(config.eh),
-  secretBox: new SecretBox(deriveSecret(config.security.secretKey, "eh-cookie-v1")),
+  ehClient,
+  credentials: new EhCredentialStore({ db, ehClient }),
+  imageLocator: new EhImageLocator(ehClient),
   attachmentSigner: new AttachmentSigner({
     secret: deriveSecret(config.security.secretKey, "attachment-v1"),
     ttlMs: config.security.attachmentTtlMs,

@@ -1,15 +1,16 @@
 import { Hono } from "hono"
 import { serveStatic } from "hono/bun"
 import { HTTPException } from "hono/http-exception"
-import { failure, internalServerError, notFound } from "./apiresponse/apiResponse"
 import { AuthController } from "./auth/authController"
 import type { AuthService } from "./auth/authService"
 import type { JwtAuth } from "./auth/jwtAuth"
-import { EhController, type EhControllerService, EhImageController, type EhImageControllerService } from "./eh/ehController"
+import { EhController, type EhControllerService } from "./eh/ehController"
 import { EH_FAILURE_STATUS, EhFailure } from "./eh/ehFailure"
+import { EhImageController, type EhImageControllerService } from "./eh/ehImageController"
 import { HolidayController } from "./holiday/holidayController"
 import type { HolidayService } from "./holiday/holidayService"
 import { logger } from "./logger"
+import { failure, internalServerError, notFound } from "./web/apiResponse"
 import { requestLogger } from "./web/requestLogger"
 
 /**

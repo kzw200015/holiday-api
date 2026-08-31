@@ -1,6 +1,6 @@
 import { Hono } from "hono"
 import { z } from "zod"
-import { type ApiResponse, badRequest, ok } from "../apiresponse/apiResponse"
+import { type ApiResponse, badRequest, ok } from "../web/apiResponse"
 import { apiValidator } from "../web/apiValidator"
 import type { User } from "./authModels"
 import type { AuthService } from "./authService"

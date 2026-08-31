@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql"
 import { createTestApp, loginAsTestUser } from "../testing/testApp"
-import { AttachmentSigner } from "../web/attachmentSigner"
+import { AttachmentSigner } from "../crypto/attachmentSigner"
 import type { EhClient } from "./ehClient"
+import { EhCredentialStore } from "./ehCredentials"
+import { EhImageLocator } from "./ehImageLocator"
 import { EhService } from "./ehService"
 
 /**
@@ -57,7 +59,9 @@ describe("签名图片地址", () => {
     const ehService = new EhService({
       db,
       ehClient,
-      secretBox: { seal: () => Promise.resolve(""), open: () => Promise.resolve("") } as never,
+      // 假 db 一律返回空行，所以这条链路走的是「未绑定凭据」，匿名看前站
+      credentials: new EhCredentialStore({ db, ehClient }),
+      imageLocator: new EhImageLocator(ehClient),
       attachmentSigner: new AttachmentSigner({ secret: "子密钥", ttlMs: 60_000 }),
     })
     const { app, mocks } = createTestApp({ ehService })
