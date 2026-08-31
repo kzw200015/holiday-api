@@ -1,12 +1,12 @@
 import { mock } from "bun:test"
 import path from "node:path"
-import { createApp } from "../app"
+import { App } from "../app"
 import type { User } from "../auth/authModels"
-import { createSessionCookie } from "../auth/sessionCookie"
+import { JwtAuth } from "../auth/jwtAuth"
 
-type AppOptions = Parameters<typeof createApp>[0]
+type AppOptions = ConstructorParameters<typeof App>[0]
 
-/** 假 service 的方法签名一律从 createApp 的依赖类型里推，用例配置返回值时才有类型约束。 */
+/** 假 service 的方法签名一律从 App 的依赖类型里推，用例配置返回值时才有类型约束。 */
 type Deps<K extends keyof AppOptions> = AppOptions[K]
 
 /** 三个接口测试共用的登录者。加一列时只改这一处。 */
@@ -21,7 +21,7 @@ export const testUser: User = {
 /**
  * 测试用的应用装配：所有依赖先补成空 mock，用例只管配置自己关心的那几个。
  *
- * 有这层是因为 createApp 的依赖会一直加，每个测试文件各自写全套的话，
+ * 有这层是因为 App 的依赖会一直加，每个测试文件各自写全套的话，
  * 加一个模块就要改所有测试文件，改动噪音比测试本身还大。返回 mocks 是同一个道理：
  * 用例直接拿这里建好的假对象去配置和断言，方法名单就不必在测试文件里再抄一遍。
  */
@@ -46,10 +46,9 @@ export function createTestApp(overrides: Partial<AppOptions> = {}) {
     },
   }
 
-  const app = createApp({
+  const app = new App({
     ...mocks,
-    sessionCookie: createSessionCookie({ secret: "test-secret", ttlMs: 60_000, secure: false }),
-    trustedOrigins: [],
+    jwtAuth: new JwtAuth({ secret: "test-secret", ttlMs: 60_000 }),
     // 指向一个不存在的目录，让所有非 /api 路径都落到 notFound
     staticDir: path.join(import.meta.dirname, "__no_static__"),
     ...overrides,
@@ -58,26 +57,22 @@ export function createTestApp(overrides: Partial<AppOptions> = {}) {
   return { app, mocks }
 }
 
-/** 用 JSON 发一个同源的 POST。跨站请求会被 csrf 中间件挡掉，所以 Origin 必须给。 */
-export function postJson(
-  app: ReturnType<typeof createApp>,
-  requestPath: string,
-  body: unknown,
-  headers: Record<string, string> = {},
-) {
+/** 发一个 JSON 的 POST。需要登录态时把 loginAsTestUser() 的结果并进 headers。 */
+export function postJson(app: App, requestPath: string, body: unknown, headers: Record<string, string> = {}) {
   return app.request(requestPath, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Origin: "http://localhost", ...headers },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   })
 }
 
-/** 登录一次，把会话 Cookie 原样切出来给后续请求复用。 */
+/** 登录一次，把令牌换成可以直接展开进 headers 的 Authorization 头。 */
 export async function loginAsTestUser(
-  app: ReturnType<typeof createApp>,
+  app: App,
   login: { mockResolvedValue: (value: { ok: true; user: User }) => unknown },
-): Promise<string> {
+): Promise<{ Authorization: string }> {
   login.mockResolvedValue({ ok: true, user: testUser })
   const res = await postJson(app, "/api/auth/login", { username: testUser.username, password: "password123" })
-  return (res.headers.get("set-cookie") ?? "").split(";")[0] ?? ""
+  const { data } = (await res.json()) as { data: { token: string } }
+  return { Authorization: `Bearer ${data.token}` }
 }

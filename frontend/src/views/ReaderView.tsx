@@ -3,7 +3,7 @@ import { useDebounceFn, useEventListener, useTimeoutFn } from "@vueuse/core"
 import { computed, defineComponent, onMounted, ref, watch } from "vue"
 import { useRoute, useRouter } from "vue-router"
 
-import { fetchGalleryDetail, galleryImageUrl, type GalleryDetail, saveProgress } from "@/api/eh"
+import { fetchGalleryDetail, galleryImageUrl, saveProgress } from "@/api/eh"
 import { errorText } from "@/api/httpClient"
 import ErrorAlert from "@/components/ErrorAlert"
 import { Button } from "@/components/ui/button"
@@ -57,7 +57,15 @@ export default defineComponent({
     const gid = Number(route.params.gid)
     const token = String(route.params.token)
 
-    const gallery = ref<GalleryDetail | null>(null)
+    /*
+     * 详情接口的那一次响应。图集元数据和后端签好的大图地址模板是同时到手的，
+     * 拆成两个 ref 各存一份的话，「详情还没到手」就有了两种表示，
+     * 哪天某条失败路径只清了其中一个，就会拿半截模板去拼地址
+     */
+    const detail = ref<Awaited<ReturnType<typeof fetchGalleryDetail>> | null>(null)
+    const gallery = computed(() => detail.value?.gallery ?? null)
+    /* 取到详情才有模板；在那之前拼不出任何一页的地址 */
+    const imageUrlTemplate = computed(() => detail.value?.imageUrlTemplate ?? "")
     const errorMessage = ref("")
     const imageFailed = ref(false)
     /* 换一个值就能让 img 重新发一次请求 */
@@ -72,10 +80,13 @@ export default defineComponent({
     const totalPages = computed(() => gallery.value?.fileCount ?? 0)
 
     /*
-     * 正常情况下不带任何查询参数，这样才能和 preload 预取的地址完全一致、命中同一份浏览器缓存。
-     * 只有重试时才挂上 nonce 去绕开缓存
+     * 正常情况下不额外挂参数，这样才能和 preload 预取的地址完全一致、命中同一份浏览器缓存。
+     * 只有重试时才挂上 nonce 去绕开缓存。
+     * 模板还没到手时给空串，img 不会去请求，骨架屏正好顶着
      */
-    const currentSrc = computed(() => galleryImageUrl(gid, token, page.value, { nonce: retryNonce.value }))
+    const currentSrc = computed(() =>
+      imageUrlTemplate.value ? galleryImageUrl(imageUrlTemplate.value, page.value, { nonce: retryNonce.value }) : "",
+    )
 
     const { start: scheduleHide } = useTimeoutFn(() => (chromeVisible.value = false), CHROME_HIDE_MS, {
       immediate: false,
@@ -104,6 +115,9 @@ export default defineComponent({
     const preloaded = new Set<number>()
 
     function preload() {
+      if (!imageUrlTemplate.value) {
+        return
+      }
       for (let offset = 1; offset <= PRELOAD_AHEAD; offset += 1) {
         const target = page.value + offset
         if (totalPages.value && target > totalPages.value) {
@@ -113,7 +127,7 @@ export default defineComponent({
           continue
         }
         preloaded.add(target)
-        new Image().src = galleryImageUrl(gid, token, target)
+        new Image().src = galleryImageUrl(imageUrlTemplate.value, target)
       }
     }
 
@@ -159,7 +173,7 @@ export default defineComponent({
     onMounted(async () => {
       showChrome()
       try {
-        gallery.value = (await fetchGalleryDetail(gid, token)).gallery
+        detail.value = await fetchGalleryDetail(gid, token)
         preload()
       } catch (error) {
         errorMessage.value = errorText(error, "加载失败")
@@ -207,7 +221,8 @@ export default defineComponent({
                   重试
                 </Button>
               </div>
-            ) : (
+            ) : currentSrc.value ? (
+              /* 地址空着时干脆不渲染 img：src="" 会让浏览器去请求当前页面地址 */
               <img
                 alt={`第 ${page.value} 页`}
                 class="max-h-svh max-w-full object-contain"
@@ -215,7 +230,7 @@ export default defineComponent({
                 src={currentSrc.value}
                 {...{ onError: () => (imageFailed.value = true) }}
               />
-            )}
+            ) : null}
 
             {!gallery.value && !imageFailed.value ? (
               <Skeleton class="absolute inset-x-1/4 inset-y-8 -z-10 rounded-lg" />

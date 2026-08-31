@@ -1,4 +1,4 @@
-import { API_BASE, HttpClient } from "@/api/httpClient"
+import { HttpClient } from "@/api/httpClient"
 
 /** 列表里一张卡片的内容，与后端 GalleryCard 对齐 */
 export interface GalleryCard {
@@ -105,11 +105,14 @@ export async function searchGalleries(params: { keyword: string; categories: str
   return response.data
 }
 
-/** 图集详情，顺带返回这个账号读到第几页 */
+/** 图集详情，顺带返回这个账号读到第几页，以及这本图集的大图地址模板 */
 export async function fetchGalleryDetail(gid: number, token: string) {
-  const response = await HttpClient.get<{ gallery: GalleryDetail; progress: number | null }>(
-    `/eh/galleries/${gid}/${token}`,
-  )
+  const response = await HttpClient.get<{
+    gallery: GalleryDetail
+    progress: number | null
+    /** 含 {page} 占位符的签名地址，交给 galleryImageUrl 用，别自己解析它 */
+    imageUrlTemplate: string
+  }>(`/eh/galleries/${gid}/${token}`)
   return response.data
 }
 
@@ -121,14 +124,17 @@ export async function fetchGalleryComments(gid: number, token: string) {
 
 /**
  * 某一页大图的地址，直接给 img 的 src 用。
- * 这里要自己带上前缀：它不走 axios，享受不到 baseURL。
  *
- * nonce 用来绕开浏览器缓存重取（取图失败后重试）。不传时地址里没有查询串，
- * 预取和正式显示才会命中同一份缓存——拼接规则留在这里，页面不该知道这个地址长什么样
+ * template 来自 fetchGalleryDetail：img 是浏览器自己发的请求，带不了 Authorization 头，
+ * 所以这条地址的身份由后端签在里面，前端只负责把 {page} 换成页码，不拼、也不改其它部分。
+ * 模板本身已经是可直接请求的完整路径，不需要再拼前缀。
+ *
+ * nonce 用来绕开浏览器缓存重取（取图失败后重试）。不传时地址和预取时完全一致，
+ * 两者才会命中同一份缓存
  */
-export function galleryImageUrl(gid: number, token: string, page: number, options: { nonce?: number } = {}) {
-  const url = `${API_BASE}/eh/galleries/${gid}/${token}/pages/${page}/image`
-  return options.nonce ? `${url}?r=${options.nonce}` : url
+export function galleryImageUrl(template: string, page: number, options: { nonce?: number } = {}) {
+  const url = template.replace("{page}", String(page))
+  return options.nonce ? `${url}&r=${options.nonce}` : url
 }
 
 export async function fetchCredentialStatus() {

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { createSecretBox, deriveSecret } from "./secretBox"
+import { deriveSecret, SecretBox } from "./secretBox"
 
 describe("secretBox", () => {
-  const box = createSecretBox("主密钥")
+  const box = new SecretBox(deriveSecret("主密钥", "eh-cookie-v1"))
 
   test("加密后能还原出原文", async () => {
     const plain = "ipb_member_id=123456; ipb_pass_hash=deadbeef; igneous=abcdef01"
@@ -23,7 +23,7 @@ describe("secretBox", () => {
   })
 
   test("换一把密钥解不开", async () => {
-    expect(createSecretBox("另一把密钥").open(await box.seal("原文"))).rejects.toThrow()
+    expect(new SecretBox(deriveSecret("另一把主密钥", "eh-cookie-v1")).open(await box.seal("原文"))).rejects.toThrow()
   })
 
   test("密文格式不对时给出明确提示", async () => {
@@ -33,13 +33,13 @@ describe("secretBox", () => {
   })
 
   test("同一主密钥下不同用途派生出不同子密钥", () => {
-    const forSession = deriveSecret("主密钥", "session-v1")
-    const forThumb = deriveSecret("主密钥", "thumb-v1")
+    const forToken = deriveSecret("主密钥", "jwt-v1")
+    const forAttachment = deriveSecret("主密钥", "attachment-v1")
 
-    expect(forSession).not.toBe(forThumb)
+    expect(forToken).not.toBe(forAttachment)
     // sha256 的十六进制表示固定 64 个字符
-    expect(forSession).toMatch(/^[0-9a-f]{64}$/)
-    // 同样的输入必须稳定，否则重启后所有会话失效
-    expect(deriveSecret("主密钥", "session-v1")).toBe(forSession)
+    expect(forToken).toMatch(/^[0-9a-f]{64}$/)
+    // 同样的输入必须稳定，否则重启后所有令牌失效
+    expect(deriveSecret("主密钥", "jwt-v1")).toBe(forToken)
   })
 })

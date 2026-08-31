@@ -2,6 +2,7 @@ import { defineStore } from "pinia"
 import { ref } from "vue"
 
 import * as authApi from "@/api/auth"
+import { hasToken } from "@/api/httpClient"
 
 export const useAuthStore = defineStore("AuthStore", () => {
   const user = ref<authApi.CurrentUser | null>(null)
@@ -11,6 +12,12 @@ export const useAuthStore = defineStore("AuthStore", () => {
 
   /* 刷新登录态。GET /auth/me 未登录时回 200 加 null，所以这里不会因为没登录而抛错 */
   async function refresh() {
+    /* 本地根本没有令牌就不必问了，问也只会得到 null */
+    if (!hasToken()) {
+      user.value = null
+      ready.value = true
+      return
+    }
     try {
       user.value = await authApi.fetchCurrentUser()
     } catch {
@@ -31,12 +38,13 @@ export const useAuthStore = defineStore("AuthStore", () => {
   const login = authenticate(authApi.login)
   const register = authenticate(authApi.register)
 
-  async function logout() {
-    await authApi.logout()
+  /* 退出登录只是把本地令牌丢掉，没有后端调用，所以不是异步的 */
+  function logout() {
+    authApi.logout()
     user.value = null
   }
 
-  /* 会话在使用过程中失效时调用，只清本地状态，跳转由 main.ts 注入的处理器负责 */
+  /* 令牌在使用过程中失效时调用，只清本地状态（令牌已由拦截器清掉），跳转由 main.ts 注入的处理器负责 */
   function clear() {
     user.value = null
   }

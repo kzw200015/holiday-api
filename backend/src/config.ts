@@ -53,10 +53,10 @@ export const config = {
 
   security: {
     /**
-     * 主密钥，会话 Cookie 签名与 e 站 Cookie 加密都由它派生出各自的子密钥（见 crypto/secretBox.ts）。
+     * 主密钥，JWT 签名、e 站 Cookie 加密、图片地址签名都由它派生出各自的子密钥（见 crypto/secretBox.ts）。
      *
      * 这一项故意没有可用的默认值：数据库口令泄露只影响这一个库，而签名密钥泄露意味着任何人
-     * 都能伪造任意用户的会话。为空时 index.ts 会拒绝启动。用 `openssl rand -hex 32` 生成。
+     * 都能伪造任意用户的令牌。为空时 index.ts 会拒绝启动。用 `openssl rand -hex 32` 生成。
      */
     secretKey: process.env.EH_SECRET_KEY ?? "",
 
@@ -66,18 +66,20 @@ export const config = {
      */
     allowRegistration: (process.env.ALLOW_REGISTRATION ?? "true") === "true",
 
-    /** 会话 Cookie 是否只在 HTTPS 下发送。本地开发走 http，默认关；部署到 HTTPS 后置 true。 */
-    cookieSecure: process.env.COOKIE_SECURE === "true",
-
-    /** 会话有效期（毫秒），默认 30 天。签名载荷里带过期时间，服务端不存会话。 */
-    sessionTtlMs: Number(process.env.SESSION_TTL_MS ?? 30 * 24 * 60 * 60 * 1000),
+    /**
+     * 登录令牌有效期（毫秒），默认 30 天。
+     * 令牌无状态，服务端不存已签发的令牌，所以过期时间只写在载荷里，也就没法提前作废。
+     */
+    tokenTtlMs: Number(process.env.TOKEN_TTL_MS ?? 30 * 24 * 60 * 60 * 1000),
 
     /**
-     * 除同源外还允许发起写请求的来源（CSRF 校验用），逗号分隔。
-     * 默认为空：开发时前端经 vite 代理访问，代理已经把 Origin 改写成后端自己的地址（见 vite.config.ts），
-     * 所以本来就是同源；只有把前端单独部署到别的域名下才需要配这一项。
+     * 签名图片地址的有效期（毫秒），默认 24 小时。
+     *
+     * 这类地址是 <img src> 用的，带不了 Authorization 头，只能靠签名认身份，
+     * 一旦被转发出去，在有效期内谁都能打开，所以别设太长。过期表现为图片裂开，
+     * 刷新页面重新取一次详情就会拿到新签的地址。
      */
-    trustedOrigins: (process.env.TRUSTED_ORIGINS ?? "").split(",").filter(Boolean),
+    attachmentTtlMs: Number(process.env.ATTACHMENT_TTL_MS ?? 24 * 60 * 60 * 1000),
   },
 
   eh: {
@@ -91,31 +93,5 @@ export const config = {
 
     /** 单次请求的总超时（毫秒）。e 站页面偶尔很慢，但超过 30 秒基本就是不通了。 */
     requestTimeoutMs: Number(process.env.EH_REQUEST_TIMEOUT_MS ?? 30_000),
-
-    /**
-     * HTML 通道（e-hentai.org / exhentai.org 页面）相邻请求的最小间隔与随机抖动（毫秒）。
-     * 抖动是为了不呈现出机器般规律的请求节奏。
-     */
-    htmlMinIntervalMs: Number(process.env.EH_HTML_MIN_INTERVAL_MS ?? 1000),
-    htmlJitterMs: Number(process.env.EH_HTML_JITTER_MS ?? 200),
-
-    /**
-     * API 通道（api.e-hentai.org）的令牌桶，对齐官方口径「连续 4-5 个请求后要等约 5 秒」。
-     */
-    apiBurst: Number(process.env.EH_API_BURST ?? 4),
-    apiWindowMs: Number(process.env.EH_API_WINDOW_MS ?? 5000),
-
-    /**
-     * 图片通道（*.hath.network / ehgt.org）的并发上限。
-     * H@H 是分布式 CDN，本就是给浏览器并发拉的，不参与上面两条节流，
-     * 否则一屏 20 张缩略图会排成 20 秒。
-     */
-    imageConcurrency: Number(process.env.EH_IMAGE_CONCURRENCY ?? 4),
-
-    /**
-     * 熔断冷却时长（毫秒）。一旦识别出 IP 被封或配额超限就整体停手这么久，
-     * 不然会继续以 1 req/s 敲门，把临时封禁续成长期封禁。
-     */
-    banCooldownMs: Number(process.env.EH_BAN_COOLDOWN_MS ?? 10 * 60 * 1000),
   },
 }

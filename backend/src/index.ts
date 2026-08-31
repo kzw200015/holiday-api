@@ -1,19 +1,19 @@
 import { SQL } from "bun"
 import { drizzle } from "drizzle-orm/bun-sql"
 import { migrate } from "drizzle-orm/bun-sql/migrator"
-import { createApp } from "./app"
-import { createAuthService } from "./auth/authService"
-import { createSessionCookie } from "./auth/sessionCookie"
+import { App } from "./app"
+import { AuthService } from "./auth/authService"
+import { JwtAuth } from "./auth/jwtAuth"
 import { config } from "./config"
-import { createSecretBox, deriveSecret } from "./crypto/secretBox"
-import { createEhClient } from "./eh/ehClient"
-import { createEhRateLimiter } from "./eh/ehRateLimiter"
-import { createEhService } from "./eh/ehService"
-import { createHolidayRemoteClient } from "./holiday/holidayRemoteClient"
-import { createHolidayService } from "./holiday/holidayService"
+import { deriveSecret, SecretBox } from "./crypto/secretBox"
+import { EhClient } from "./eh/ehClient"
+import { EhService } from "./eh/ehService"
+import { HolidayRemoteClient } from "./holiday/holidayRemoteClient"
+import { HolidayService } from "./holiday/holidayService"
 import { logger } from "./logger"
+import { AttachmentSigner } from "./web/attachmentSigner"
 
-// 密钥缺失就别启动了：留空意味着任何人都能伪造任意用户的会话，
+// 密钥缺失就别启动了：留空意味着任何人都能伪造任意用户的令牌，
 // 这种问题一旦上线就查不出来，不如在这里直接把容器拦停
 if (!config.security.secretKey) {
   throw new Error("缺少 EH_SECRET_KEY 环境变量，用 `openssl rand -hex 32` 生成一个再启动")
@@ -27,22 +27,22 @@ const db = drizzle({ client: new SQL({ url: config.database.url, ...config.datab
 await migrate(db, { migrationsFolder: config.database.migrationsDir })
 logger.info("数据库迁移已就绪")
 
-const holidayService = createHolidayService({ db, holidayRemoteClient: createHolidayRemoteClient() })
-const authService = createAuthService({ db, allowRegistration: config.security.allowRegistration })
-const sessionCookie = createSessionCookie({
-  secret: deriveSecret(config.security.secretKey, "session-v1"),
-  ttlMs: config.security.sessionTtlMs,
-  secure: config.security.cookieSecure,
+const holidayService = new HolidayService({ db, holidayRemoteClient: new HolidayRemoteClient() })
+const authService = new AuthService({ db, allowRegistration: config.security.allowRegistration })
+// 三个用途各派生一把子密钥，全都写在这里：摆在一起才看得出有没有谁直接拿了裸主密钥。
+// 用途标签是密钥的一部分，改标签等于换密钥——已签发的令牌和已发出去的图片地址会一起失效
+const jwtAuth = new JwtAuth({
+  secret: deriveSecret(config.security.secretKey, "jwt-v1"),
+  ttlMs: config.security.tokenTtlMs,
 })
-const ehService = createEhService({
+const ehService = new EhService({
   db,
-  ehClient: createEhClient({
-    rateLimiter: createEhRateLimiter(config.eh),
-    userAgent: config.eh.userAgent,
-    requestTimeoutMs: config.eh.requestTimeoutMs,
+  ehClient: new EhClient(config.eh),
+  secretBox: new SecretBox(deriveSecret(config.security.secretKey, "eh-cookie-v1")),
+  attachmentSigner: new AttachmentSigner({
+    secret: deriveSecret(config.security.secretKey, "attachment-v1"),
+    ttlMs: config.security.attachmentTtlMs,
   }),
-  secretBox: createSecretBox(config.security.secretKey),
-  thumbnailKey: deriveSecret(config.security.secretKey, "thumb-v1"),
 })
 
 // 先刷新当年和下一年的数据再监听端口：任一失败都会以未处理的 rejection 结束进程，容器随之退出
@@ -54,12 +54,11 @@ setInterval(() => {
   holidayService.refreshUpcomingYears().catch((err) => logger.error({ err }, "定时刷新节假日数据失败"))
 }, config.holiday.refreshIntervalMs)
 
-const app = createApp({
+const app = new App({
   holidayService,
   authService,
   ehService,
-  sessionCookie,
-  trustedOrigins: config.security.trustedOrigins,
+  jwtAuth,
   staticDir: config.staticDir,
 })
 

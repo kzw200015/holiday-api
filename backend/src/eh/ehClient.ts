@@ -1,8 +1,7 @@
 import { logger } from "../logger"
-import { ehFailure } from "./ehFailure"
+import { EhFailure, QUOTA_EXCEEDED_MSG } from "./ehFailure"
 import type { EhCookie, EhSite } from "./ehModels"
 import { classifyResponse } from "./ehParser"
-import type { EhRateLimiter } from "./ehRateLimiter"
 
 /** 前站与里站的页面地址。 */
 const PAGE_HOSTS: Record<EhSite, string> = {
@@ -31,111 +30,107 @@ const IMAGE_HOSTS = new Set(["ehgt.org"])
 const HATH_SUFFIX = ".hath.network"
 
 export interface EhRequestContext {
-  /** 只用于限速时的公平调度。 */
-  userId: number
   /** 用户绑定的 Cookie，没绑就是 null，此时匿名访问前站。 */
   credential: EhCookie | null
   site: EhSite
 }
 
-export type EhClient = ReturnType<typeof createEhClient>
-
 /**
- * 所有对 e 站的 HTTP 调用都从这里出去：拼地址、带 Cookie、排队限速、超时，
+ * 所有对 e 站的 HTTP 调用都从这里出去：拼地址、带 Cookie、超时，
  * 以及把「HTTP 200 但不是你要的东西」翻译成明确的失败。
  */
-export function createEhClient({
-  rateLimiter,
-  userAgent,
-  requestTimeoutMs,
-}: {
-  rateLimiter: EhRateLimiter
-  userAgent: string
-  requestTimeoutMs: number
-}) {
-  return {
-    /** 取一个页面的 HTML。pathAndQuery 要以 / 开头。 */
-    async fetchPage(ctx: EhRequestContext, pathAndQuery: string): Promise<string> {
-      const url = `${PAGE_HOSTS[ctx.site]}${pathAndQuery}`
-      return rateLimiter.run("html", ctx.userId, async () => {
-        // 排查「一次操作到底打了几个上游请求」时全靠这条，默认级别下不输出
-        logger.debug({ lane: "html", url }, "请求 e 站")
-        const response = await request(url, { credential: ctx.credential })
-        const body = await response.text()
-        assertUsable({ status: response.status, body, url })
-        return body
-      })
-    },
+export class EhClient {
+  private readonly userAgent: string
+  private readonly requestTimeoutMs: number
 
-    /** 调 JSON API（gdata / showpage）。 */
-    async callApi(ctx: EhRequestContext, body: unknown): Promise<unknown> {
-      const url = API_HOSTS[ctx.site]
-      return rateLimiter.run("api", ctx.userId, async () => {
-        logger.debug({ lane: "api", url, method: (body as { method?: string })?.method }, "请求 e 站")
-        const response = await request(url, {
-          // 前站 API 免登录，不带 Cookie 也就不会把用户身份漏给它
-          credential: ctx.site === "ex" ? ctx.credential : null,
-          method: "POST",
-          body: JSON.stringify(body),
-        })
-        const text = await response.text()
-        assertUsable({ status: response.status, body: text, url })
-        try {
-          return JSON.parse(text) as unknown
-        } catch (cause) {
-          throw ehFailure("unavailable", "e 站接口返回的不是 JSON", { cause })
-        }
-      })
-    },
+  constructor({ userAgent, requestTimeoutMs }: { userAgent: string; requestTimeoutMs: number }) {
+    this.userAgent = userAgent
+    this.requestTimeoutMs = requestTimeoutMs
+  }
 
-    /**
-     * 取一张图，返回上游响应本身以便流式转发，不把整张图读进内存。
-     * 主机白名单在这里再校一遍：这个方法是唯一会去拉任意地址的地方。
-     */
-    async openImage(userId: number, url: string): Promise<Response> {
-      if (!isAllowedImageUrl(url)) {
-        logger.warn({ url }, "图片地址不在白名单内，已拒绝")
-        throw ehFailure("unavailable", "图片地址不在允许的范围内")
+  /** 取一个页面的 HTML。pathAndQuery 要以 / 开头。 */
+  async fetchPage(ctx: EhRequestContext, pathAndQuery: string): Promise<string> {
+    const url = `${PAGE_HOSTS[ctx.site]}${pathAndQuery}`
+    // 排查「一次操作到底打了几个上游请求」时全靠这条，默认级别下不输出
+    logger.debug({ url }, "请求 e 站")
+    const response = await this.request(url, { credential: ctx.credential })
+    const body = await response.text()
+    this.assertUsable({ status: response.status, body, url })
+    return body
+  }
+
+  /** 调 JSON API（gdata / showpage）。 */
+  async callApi(ctx: EhRequestContext, body: unknown): Promise<unknown> {
+    const url = API_HOSTS[ctx.site]
+    logger.debug({ url, method: (body as { method?: string })?.method }, "请求 e 站")
+    const response = await this.request(url, {
+      // 前站 API 免登录，不带 Cookie 也就不会把用户身份漏给它
+      credential: ctx.site === "ex" ? ctx.credential : null,
+      method: "POST",
+      body: JSON.stringify(body),
+    })
+    const text = await response.text()
+    this.assertUsable({ status: response.status, body: text, url })
+    try {
+      return JSON.parse(text) as unknown
+    } catch (cause) {
+      throw new EhFailure("unavailable", "e 站接口返回的不是 JSON", { cause })
+    }
+  }
+
+  /**
+   * 取一张图，返回上游响应本身以便流式转发，不把整张图读进内存。
+   * 主机白名单在这里再校一遍：这个方法是唯一会去拉任意地址的地方。
+   */
+  async openImage(url: string): Promise<Response> {
+    if (!isAllowedImageUrl(url)) {
+      logger.warn({ url }, "图片地址不在白名单内，已拒绝")
+      throw new EhFailure("unavailable", "图片地址不在允许的范围内")
+    }
+    logger.debug({ url }, "请求 e 站")
+    // 图床不认 e 站的 Cookie，把凭据发给第三方主机没有必要；
+    // request 里的 redirect: "manual" 在这里还多挡一层——白名单主机若被诱导 302 到内网，
+    // 跟随重定向就等于绕过了白名单
+    const response = await this.request(url, { credential: null, withCookie: false })
+    if (!response.ok) {
+      // 失败响应的 body 调用方一律不读（只看状态码决定换源还是放弃），
+      // 不主动关掉的话这条连接要等 GC 跑到才归还。H@H 节点失效是常态，
+      // 一次阅读撞上几十个 403 就是几十条连接挂在那里
+      await response.body?.cancel()
+      if (response.status === 509) {
+        throw new EhFailure("quotaExceeded", QUOTA_EXCEEDED_MSG)
       }
-      return rateLimiter.run("image", userId, async () => {
-        logger.debug({ lane: "image", url }, "请求 e 站")
-        // 图床不认 e 站的 Cookie，把凭据发给第三方主机没有必要；
-        // request 里的 redirect: "manual" 在这里还多挡一层——白名单主机若被诱导 302 到内网，
-        // 跟随重定向就等于绕过了白名单
-        const response = await request(url, { credential: null, withCookie: false })
-        if (response.status === 509) {
-          rateLimiter.tripBreaker()
-          throw ehFailure("quotaExceeded", "e 站图片配额已用尽，等额度恢复后再看")
-        }
-        return response
-      })
-    },
+    }
+    return response
+  }
 
-    /**
-     * 验证一组 Cookie 是否可用，顺便看看有没有里站权限。
-     * 校验放在保存之前做，免得把一组用不了的 Cookie 存进库再让人一脸茫然。
-     */
-    async verifyCredential(userId: number, credential: EhCookie): Promise<{ valid: boolean; hasExAccess: boolean }> {
-      const valid = await rateLimiter.run("html", userId, async () => {
-        // 未登录时 home.php 会 302 到论坛登录页，登录成功才是 200
-        const response = await request(HOME_URL, { credential })
-        return response.status === 200
-      })
-      if (!valid) {
-        return { valid: false, hasExAccess: false }
-      }
+  /**
+   * 验证一组 Cookie 是否可用，顺便看看有没有里站权限。
+   * 校验放在保存之前做，免得把一组用不了的 Cookie 存进库再让人一脸茫然。
+   */
+  async verifyCredential(credential: EhCookie): Promise<{ valid: boolean; hasExAccess: boolean }> {
+    // 两个请求之间没有依赖，串起来只是白等一个跨境往返。
+    // 凭据无效这条路走得很少，先发后判不会浪费多少请求
+    const [home, ex] = await Promise.all([
+      // 未登录时 home.php 会 302 到论坛登录页，登录成功才是 200
+      this.request(HOME_URL, { credential }),
+      this.request(`${PAGE_HOSTS.ex}/`, { credential }),
+    ])
 
-      const hasExAccess = await rateLimiter.run("html", userId, async () => {
-        const response = await request(`${PAGE_HOSTS.ex}/`, { credential })
-        // 里站在账号没权限时回 200 加空 body（俗称 sad panda），不是 403
-        return response.status === 200 && (await response.text()).trim().length > 0
-      })
-      return { valid: true, hasExAccess }
-    },
+    // 只看状态码的那个响应，body 也得关掉，否则连接留在池子里等 GC
+    await home.body?.cancel()
+    if (home.status !== 200) {
+      await ex.body?.cancel()
+      return { valid: false, hasExAccess: false }
+    }
+
+    // 里站在账号没权限时回 200 加空 body（俗称 sad panda），不是 403
+    const hasExAccess = ex.status === 200 && (await ex.text()).trim().length > 0
+    return { valid: true, hasExAccess }
   }
 
   /** 统一的 fetch：伪装 UA、带上固定 Cookie、超时、不跟随重定向。 */
-  function request(
+  private request(
     url: string,
     {
       credential,
@@ -146,7 +141,7 @@ export function createEhClient({
   ): Promise<Response> {
     const headers: Record<string, string> = {
       // Bun 默认发 Bun/1.x，在一个明确禁止自动化抓取的站点上等于举手
-      "User-Agent": userAgent,
+      "User-Agent": this.userAgent,
     }
     if (withCookie) {
       headers.Cookie = buildCookieHeader(credential)
@@ -158,36 +153,34 @@ export function createEhClient({
       method,
       headers,
       body,
-      signal: AbortSignal.timeout(requestTimeoutMs),
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
       // 里站 Cookie 无效时会 302 回前站，跟随的话会拿到一个「看起来正常」的前站页面
       redirect: "manual",
     })
   }
 
-  /** 把上游那些「200 但不是内容」的响应翻译成明确的失败，顺便在必要时拉闸。 */
-  function assertUsable({ status, body, url }: { status: number; body: string; url: string }): void {
+  /** 把上游那些「200 但不是内容」的响应翻译成明确的失败。 */
+  private assertUsable({ status, body, url }: { status: number; body: string; url: string }): void {
     const kind = classifyResponse({ status, body })
 
     if (kind === "quotaExceeded") {
-      rateLimiter.tripBreaker()
-      throw ehFailure("quotaExceeded", "e 站图片配额已用尽，等额度恢复后再试")
+      throw new EhFailure("quotaExceeded", QUOTA_EXCEEDED_MSG)
     }
     if (kind === "ipBanned") {
-      rateLimiter.tripBreaker()
-      logger.warn({ url }, "出口 IP 被 e 站临时封禁，已触发熔断")
-      throw ehFailure("banned", "本机访问 e 站过于频繁已被临时限制，请过几分钟再试")
+      logger.warn({ url }, "出口 IP 被 e 站临时封禁")
+      throw new EhFailure("banned", "本机访问 e 站过于频繁已被临时限制，请过几分钟再试")
     }
     if (kind === "sadPanda") {
-      throw ehFailure("sadPanda", "里站没有放行这次请求，检查一下绑定的 Cookie 是否仍然有效")
+      throw new EhFailure("sadPanda", "里站没有放行这次请求，检查一下绑定的 Cookie 是否仍然有效")
     }
     if (kind === "contentWarning") {
       // 请求里固定带了 nw=1，还撞上插页说明 e 站改了这套机制
-      throw ehFailure("contentWarning", "e 站返回了内容警告页，nw cookie 可能已失效")
+      throw new EhFailure("contentWarning", "e 站返回了内容警告页，nw cookie 可能已失效")
     }
 
     // 3xx 在这里也是异常：正常的页面请求不会重定向，会重定向说明身份没被认下来
     if (status >= 300) {
-      throw ehFailure("unavailable", `e 站返回了 HTTP ${status}`)
+      throw new EhFailure("unavailable", `e 站返回了 HTTP ${status}`)
     }
   }
 }

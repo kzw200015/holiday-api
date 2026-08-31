@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { createTestApp, loginAsTestUser, postJson as post, testUser as user } from "../testing/testApp"
-import { ehFailure } from "./ehFailure"
+import { EhFailure, type EhFailureKind } from "./ehFailure"
 
 /**
  * e 站路由的回归测试：只覆盖鉴权、参数校验、失败翻译和响应结构，
@@ -11,11 +11,11 @@ describe("EhController", () => {
   const { ehService } = mocks
   const { login } = mocks.authService
 
-  /** eh 下的接口都要登录，POST 也得把会话 Cookie 带上。 */
-  const postJson = (requestPath: string, body: unknown) => post(app, requestPath, body, { Cookie: cookie })
+  /** 除两个图片接口外都要登录，POST 也得把令牌带上。 */
+  const postJson = (requestPath: string, body: unknown) => post(app, requestPath, body, auth)
 
-  /** 登录一次拿到会话 Cookie，后面的请求都带着它。 */
-  let cookie = ""
+  /** 登录一次拿到 Authorization 头，后面的请求都带着它。 */
+  let auth: Record<string, string> = {}
 
   /** 造一段可转发的图片流。 */
   function imageStream(bytes = [1, 2, 3]) {
@@ -28,25 +28,40 @@ describe("EhController", () => {
       fake.mockReset()
     }
     login.mockReset()
-    cookie = await loginAsTestUser(app, login)
+    auth = await loginAsTestUser(app, login)
   })
 
-  const get = (requestPath: string) => app.request(requestPath, { headers: { Cookie: cookie } })
+  const get = (requestPath: string) => app.request(requestPath, { headers: auth })
 
-  test("未登录时所有 eh 接口都回 401", async () => {
+  test("未登录时需要身份的 eh 接口都回 401", async () => {
     for (const requestPath of [
       "/api/eh/credential",
       "/api/eh/galleries",
       "/api/eh/galleries/2231376/a7584a5932",
       "/api/eh/galleries/2231376/a7584a5932/comments",
-      "/api/eh/galleries/2231376/a7584a5932/pages/1/image",
-      "/api/eh/thumbnail?u=abc&s=def",
     ]) {
       const res = await app.request(requestPath)
       expect(res.status).toBe(401)
       expect(await res.text()).toBe('{"code":401,"data":null,"msg":"请先登录"}')
     }
     expect(ehService.searchGalleries).not.toHaveBeenCalled()
+  })
+
+  test("两个图片接口不要求登录，但地址里必须带齐签名参数", async () => {
+    // <img src> 带不了 Authorization 头，所以这两条靠地址签名认身份，签名本身由 service 校验
+    const cases: [string, string][] = [
+      ["/api/eh/galleries/2231376/a7584a5932/pages/1/image", "用户标识不合法"],
+      ["/api/eh/galleries/2231376/a7584a5932/pages/1/image?uid=7&e=123", "缺少签名"],
+      ["/api/eh/thumbnail?u=abc", "缺少过期时间"],
+      ["/api/eh/thumbnail?e=123&s=deadbeef", "缺少缩略图地址"],
+    ]
+    for (const [requestPath, msg] of cases) {
+      const res = await app.request(requestPath)
+      expect(res.status).toBe(400)
+      expect(await res.text()).toBe(`{"code":400,"data":null,"msg":"${msg}"}`)
+    }
+    expect(ehService.openGalleryImage).not.toHaveBeenCalled()
+    expect(ehService.openThumbnail).not.toHaveBeenCalled()
   })
 
   test("图集编号或令牌不合法时返回 400", async () => {
@@ -67,7 +82,7 @@ describe("EhController", () => {
   })
 
   test("页码不合法时返回 400", async () => {
-    const res = await get("/api/eh/galleries/2231376/a7584a5932/pages/0/image")
+    const res = await get("/api/eh/galleries/2231376/a7584a5932/pages/0/image?uid=7&e=123&s=deadbeef")
     expect(res.status).toBe(400)
     expect(await res.text()).toBe('{"code":400,"data":null,"msg":"页码不合法"}')
   })
@@ -123,11 +138,19 @@ describe("EhController", () => {
         expunged: false,
       },
       progress: 12,
+      imageUrlTemplate: "/api/eh/galleries/2231376/a7584a5932/pages/{page}/image?uid=7&e=123&s=deadbeef",
     })
 
     const res = await get("/api/eh/galleries/2231376/a7584a5932")
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ code: 200, data: { progress: 12 } })
+    expect(await res.json()).toMatchObject({
+      code: 200,
+      data: {
+        progress: 12,
+        // 阅读时前端只把 {page} 换成页码，不自己拼地址，也就不需要知道签名怎么带
+        imageUrlTemplate: "/api/eh/galleries/2231376/a7584a5932/pages/{page}/image?uid=7&e=123&s=deadbeef",
+      },
+    })
     expect(ehService.getGalleryDetail).toHaveBeenCalledWith(7, { gid: 2231376, token: "a7584a5932" })
   })
 
@@ -159,35 +182,44 @@ describe("EhController", () => {
   test("大图流式返回并带上长缓存头", async () => {
     ehService.openGalleryImage.mockResolvedValue(imageStream())
 
-    const res = await get("/api/eh/galleries/2231376/a7584a5932/pages/3/image")
+    // 不带 Authorization：这条链路只认地址里的签名
+    const res = await app.request("/api/eh/galleries/2231376/a7584a5932/pages/3/image?uid=7&e=123&s=deadbeef")
     expect(res.status).toBe(200)
     expect(res.headers.get("content-type")).toBe("image/webp")
     // 图集内容不会变，缓存住之后来回翻页就不再回源，也就不再消耗 e 站配额
     expect(res.headers.get("cache-control")).toBe("private, max-age=2592000, immutable")
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
-    expect(ehService.openGalleryImage).toHaveBeenCalledWith(7, { gid: 2231376, token: "a7584a5932" }, 3)
+    // userId 只能来自签名过的参数，不能取当前登录者，否则等于拿别人的凭据取图
+    expect(ehService.openGalleryImage).toHaveBeenCalledWith({
+      userId: 7,
+      gid: 2231376,
+      token: "a7584a5932",
+      page: 3,
+      signature: { expiresAt: "123", signature: "deadbeef" },
+    })
   })
 
   test("缩略图把签名原样交给 service 校验", async () => {
     ehService.openThumbnail.mockResolvedValue(imageStream([9]))
 
-    const res = await get("/api/eh/thumbnail?u=aHR0cHM6Ly9laGd0Lm9yZy94LmpwZw&s=deadbeef")
+    const res = await app.request("/api/eh/thumbnail?u=aHR0cHM6Ly9laGd0Lm9yZy94LmpwZw&e=123&s=deadbeef")
     expect(res.status).toBe(200)
-    expect(ehService.openThumbnail).toHaveBeenCalledWith(7, "aHR0cHM6Ly9laGd0Lm9yZy94LmpwZw", "deadbeef")
+    expect(ehService.openThumbnail).toHaveBeenCalledWith("aHR0cHM6Ly9laGd0Lm9yZy94LmpwZw", { expiresAt: "123", signature: "deadbeef" })
   })
 
   test("可预期的失败被翻译成对应状态码而不是 500", async () => {
-    const cases: [Parameters<typeof ehFailure>[0], number][] = [
+    const cases: [EhFailureKind, number][] = [
       ["quotaExceeded", 429],
       ["banned", 429],
-      ["busy", 429],
       // Cookie 的问题要用户自己去处理，算请求方的错
       ["sadPanda", 400],
       ["unavailable", 502],
       ["contentWarning", 502],
+      // 签名过期是有效期到点后的日常现象，不是上游故障
+      ["badSignature", 403],
     ]
     for (const [kind, status] of cases) {
-      ehService.searchGalleries.mockRejectedValue(ehFailure(kind, `${kind} 的说明`))
+      ehService.searchGalleries.mockRejectedValue(new EhFailure(kind, `${kind} 的说明`))
 
       const res = await get("/api/eh/galleries")
       expect(res.status).toBe(status)

@@ -72,5 +72,6 @@ export const useGalleryListStore = defineStore("GalleryListStore", () => {
     await loadMore()
   }
 
-  return { items, cursor, hasMore, loading, errorMessage, signature, reset, loadMore, retry }
+  /* cursor 不导出：翻页全在 loadMore 里推进，外面读到它也没有用处 */
+  return { items, hasMore, loading, errorMessage, signature, reset, loadMore, retry }
 })

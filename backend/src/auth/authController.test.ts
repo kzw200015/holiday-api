@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, test } from "bun:test"
 import { createTestApp, loginAsTestUser, postJson as post, testUser as user } from "../testing/testApp"
 
 /**
- * 账号路由与会话 Cookie 的回归测试，不连数据库。
- * 断言比对完整 JSON 字符串，响应字段顺序变化会导致测试失败。
+ * 账号路由与令牌鉴权的回归测试，不连数据库。
+ * 除令牌本身（每次签出来都不一样）外，断言比对完整 JSON 字符串，字段顺序变化会导致测试失败。
  */
 describe("AuthController", () => {
   const { app, mocks } = createTestApp()
@@ -12,7 +12,8 @@ describe("AuthController", () => {
   const postJson = (requestPath: string, body: unknown, headers: Record<string, string> = {}) =>
     post(app, requestPath, body, headers)
 
-  const loginAndGetCookie = () => loginAsTestUser(app, login)
+  /** 登录一次拿到 Authorization 头。 */
+  const loginAndGetAuth = () => loginAsTestUser(app, login)
 
   beforeEach(() => {
     register.mockReset()
@@ -34,27 +35,25 @@ describe("AuthController", () => {
     expect(register).not.toHaveBeenCalled()
   })
 
-  test("注册成功后返回用户并下发 HttpOnly 会话 Cookie", async () => {
+  test("注册成功后返回令牌与用户", async () => {
     register.mockResolvedValue({ ok: true, user })
 
     const res = await postJson("/api/auth/register", { username: "alice", password: "password123" })
     expect(res.status).toBe(200)
-    expect(await res.text()).toBe('{"code":200,"data":{"id":7,"username":"alice"},"msg":"OK"}')
+    const body = (await res.json()) as { code: number; data: { token: string; user: unknown }; msg: string }
+    expect(body.code).toBe(200)
+    expect(body.data.user).toEqual({ id: 7, username: "alice" })
+    // 三段式的 JWT，具体内容由 JwtAuth 负责，这里只确认确实签了一个出来
+    expect(body.data.token.split(".")).toHaveLength(3)
     expect(register).toHaveBeenCalledWith("alice", "password123")
-
-    const setCookie = res.headers.get("set-cookie") ?? ""
-    expect(setCookie).toContain("myapi_session=")
-    expect(setCookie).toContain("HttpOnly")
-    expect(setCookie).toContain("SameSite=Lax")
   })
 
-  test("用户名被占用时返回 400 且不下发 Cookie", async () => {
+  test("用户名被占用时返回 400 且不签发令牌", async () => {
     register.mockResolvedValue({ ok: false, msg: "用户名已被占用" })
 
     const res = await postJson("/api/auth/register", { username: "alice", password: "password123" })
     expect(res.status).toBe(400)
     expect(await res.text()).toBe('{"code":400,"data":null,"msg":"用户名已被占用"}')
-    expect(res.headers.get("set-cookie")).toBeNull()
   })
 
   test("密码错误时返回 400", async () => {
@@ -73,59 +72,54 @@ describe("AuthController", () => {
     expect(findUserById).not.toHaveBeenCalled()
   })
 
-  test("带着会话 Cookie 时 me 返回当前用户", async () => {
-    const cookie = await loginAndGetCookie()
+  test("带着令牌时 me 返回当前用户", async () => {
+    const headers = await loginAndGetAuth()
     findUserById.mockResolvedValue(user)
 
-    const res = await app.request("/api/auth/me", { headers: { Cookie: cookie } })
+    const res = await app.request("/api/auth/me", { headers })
     expect(res.status).toBe(200)
     expect(await res.text()).toBe('{"code":200,"data":{"id":7,"username":"alice"},"msg":"OK"}')
     expect(findUserById).toHaveBeenCalledWith(7)
   })
 
-  test("会话有效但用户已被删除时按未登录处理", async () => {
-    const cookie = await loginAndGetCookie()
+  test("令牌有效但用户已被删除时按未登录处理", async () => {
+    const headers = await loginAndGetAuth()
     findUserById.mockResolvedValue(null)
 
-    const res = await app.request("/api/auth/me", { headers: { Cookie: cookie } })
+    const res = await app.request("/api/auth/me", { headers })
     expect(res.status).toBe(200)
     expect(await res.text()).toBe('{"code":200,"data":null,"msg":"OK"}')
   })
 
-  test("被篡改的会话 Cookie 不被承认", async () => {
-    const cookie = await loginAndGetCookie()
-    // 把签名部分改掉，验签应该失败
-    const forged = `${cookie.slice(0, -1)}${cookie.endsWith("A") ? "B" : "A"}`
+  test("被篡改的令牌不被承认", async () => {
+    const { Authorization } = await loginAndGetAuth()
+    // 改签名段的**第一个**字符。不能改最后一个：签名是 32 字节，base64url 编码成 43 个字符
+    // 共 258 位，末位有 2 位是填充，A~D 之间互换解出来的字节完全一样，验签照样通过
+    const [prefix, payload, signature = ""] = Authorization.split(".")
+    const forged = `${prefix}.${payload}.${signature.startsWith("A") ? "B" : "A"}${signature.slice(1)}`
 
-    const res = await app.request("/api/auth/me", { headers: { Cookie: forged } })
+    const res = await app.request("/api/auth/me", { headers: { Authorization: forged } })
     expect(await res.text()).toBe('{"code":200,"data":null,"msg":"OK"}')
     expect(findUserById).not.toHaveBeenCalled()
   })
 
-  test("退出登录会清掉 Cookie", async () => {
-    const res = await postJson("/api/auth/logout", {})
-    expect(res.status).toBe(200)
-    expect(await res.text()).toBe('{"code":200,"data":null,"msg":"OK"}')
-    expect(res.headers.get("set-cookie") ?? "").toContain("Max-Age=0")
+  test("Authorization 头格式不对时按未登录处理", async () => {
+    for (const Authorization of ["", "Bearer", "Basic abc", "Bearer not-a-jwt"]) {
+      const res = await app.request("/api/auth/me", { headers: { Authorization } })
+      expect(await res.text()).toBe('{"code":200,"data":null,"msg":"OK"}')
+    }
+    expect(findUserById).not.toHaveBeenCalled()
   })
 
-  test("跨站表单发起的写请求被 CSRF 中间件挡下", async () => {
-    // 浏览器能跨站直发的只有表单那几种 Content-Type，JSON 会先触发 CORS 预检、在浏览器侧就被拦住，
-    // 所以 csrf 中间件也只校验表单类请求。这里就按真实的攻击形态构造
-    const res = await app.request("/api/auth/login", {
+  test("跨站发起的写请求拿不到身份，所以不需要 CSRF 中间件", async () => {
+    // 浏览器能跨站直发的只有表单那几种 Content-Type。这类请求不会带上令牌
+    // （令牌存在前端、要主动塞进 Authorization 头），所以到了需要登录的接口就是 401
+    const res = await app.request("/api/eh/progress", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: "https://evil.example" },
-      body: "username=alice&password=password123",
+      body: "gid=1&token=a7584a5932&page=1",
     })
-    expect(res.status).toBe(403)
-    expect(await res.text()).toBe('{"code":403,"data":null,"msg":"Forbidden"}')
-    expect(login).not.toHaveBeenCalled()
-  })
-
-  test("同源发起的写请求不受 CSRF 影响", async () => {
-    login.mockResolvedValue({ ok: true, user })
-
-    const res = await postJson("/api/auth/login", { username: "alice", password: "password123" })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(401)
+    expect(await res.text()).toBe('{"code":401,"data":null,"msg":"请先登录"}')
   })
 })

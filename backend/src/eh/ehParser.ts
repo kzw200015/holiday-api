@@ -69,7 +69,7 @@ function detach(text: string): string {
 }
 
 /** 页面的实际含义。这几种情况 e 站都回 HTTP 200，只看状态码会把它们当成正常页面去解析。 */
-export type ResponseKind = "ok" | "empty" | "contentWarning" | "sadPanda" | "ipBanned" | "quotaExceeded"
+export type ResponseKind = "ok" | "contentWarning" | "sadPanda" | "ipBanned" | "quotaExceeded"
 
 /**
  * 判断一个响应到底是什么。
@@ -83,8 +83,9 @@ export function classifyResponse({ status, body }: { status: number; body: strin
   if (status === 509) {
     return "quotaExceeded"
   }
-  // 里站在 Cookie 无效或账号无权限时回 200 + 空 body，不是 403
-  if (body.trim().length === 0) {
+  // 里站在 Cookie 无效或账号无权限时回 200 + 空 body，不是 403。
+  // 用正则找第一个非空白字符，别用 trim()——那会把整页 74 KB 复制一遍才数长度
+  if (!/\S/.test(body)) {
     return "sadPanda"
   }
   if (/temporarily banned|excessive pageloads/i.test(body)) {
@@ -94,9 +95,8 @@ export function classifyResponse({ status, body }: { status: number; body: strin
   if (/Content Warning/i.test(body)) {
     return "contentWarning"
   }
-  if (/No hits found/i.test(body)) {
-    return "empty"
-  }
+  // 「No hits found」不单列一类：搜索没命中时 parseGalleryList 自然会返回空列表，
+  // 而这里多一个没人处理的分类，只会让读代码的人以为下游有对应逻辑
   return "ok"
 }
 

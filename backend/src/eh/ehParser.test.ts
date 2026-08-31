@@ -193,7 +193,8 @@ describe("ehParser", () => {
         [{ status: 200, body: "Your IP address has been temporarily banned" }, "ipBanned"],
         [{ status: 200, body: "detected excessive pageloads" }, "ipBanned"],
         [{ status: 200, body: "<h1>Content Warning</h1>" }, "contentWarning"],
-        [{ status: 200, body: "<p>No hits found</p>" }, "empty"],
+        // 搜索没命中是正常页面，交给 parseGalleryList 返回空列表即可
+        [{ status: 200, body: "<p>No hits found</p>" }, "ok"],
         [{ status: 200, body: '<table class="itg">...</table>' }, "ok"],
       ]
       for (const [input, expected] of cases) {

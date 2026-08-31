@@ -1,9 +1,10 @@
 import { getLocalTimeZone, parseDate, today, type DateValue } from "@internationalized/date"
-import { BriefcaseIcon, CircleAlertIcon, PartyPopperIcon } from "@lucide/vue"
+import { BriefcaseIcon, PartyPopperIcon } from "@lucide/vue"
 import { computed, defineComponent, onMounted, ref, shallowRef } from "vue"
 
 import { fetchHolidayDetail, type HolidayDetail } from "@/api/holiday"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { errorText } from "@/api/httpClient"
+import ErrorAlert from "@/components/ErrorAlert"
 import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -49,7 +50,7 @@ export default defineComponent({
         detail.value = await fetchHolidayDetail(date)
       } catch (error) {
         detail.value = null
-        errorMessage.value = error instanceof Error ? error.message : "查询失败"
+        errorMessage.value = errorText(error, "查询失败")
       } finally {
         loading.value = false
       }
@@ -98,11 +99,7 @@ export default defineComponent({
                 <Skeleton class="h-4 w-40" />
               </>
             ) : errorMessage.value ? (
-              <Alert variant="destructive">
-                <CircleAlertIcon />
-                <AlertTitle>查询失败</AlertTitle>
-                <AlertDescription>{errorMessage.value}</AlertDescription>
-              </Alert>
+              <ErrorAlert message={errorMessage.value} title="查询失败" />
             ) : detail.value ? (
               <>
                 <div class="flex flex-wrap items-center gap-3">

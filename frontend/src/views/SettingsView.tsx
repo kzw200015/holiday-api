@@ -79,7 +79,8 @@ export default defineComponent({
     }
 
     async function signOut() {
-      await authStore.logout()
+      /* 退出登录只是丢掉本地令牌，没有后端往返 */
+      authStore.logout()
       await router.replace({ name: "login" })
     }
 

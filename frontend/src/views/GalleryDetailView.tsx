@@ -1,9 +1,8 @@
-import { BookOpenIcon, StarIcon } from "@lucide/vue"
+import { BookOpenIcon } from "@lucide/vue"
 import { computed, defineComponent, ref, watch } from "vue"
 import { RouterLink, useRoute } from "vue-router"
 
 import {
-  categoryLabels,
   fetchGalleryComments,
   fetchGalleryDetail,
   type GalleryComment,
@@ -11,6 +10,7 @@ import {
 } from "@/api/eh"
 import { errorText } from "@/api/httpClient"
 import ErrorAlert from "@/components/ErrorAlert"
+import GalleryMeta from "@/components/gallery/GalleryMeta"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -128,11 +128,7 @@ export default defineComponent({
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2 text-sm">
-                  <Badge variant="secondary">{categoryLabels[gallery.value.category] ?? gallery.value.category}</Badge>
-                  <span class="text-muted-foreground flex items-center gap-1">
-                    <StarIcon class="size-3.5" />
-                    {gallery.value.rating.toFixed(2)}
-                  </span>
+                  <GalleryMeta category={gallery.value.category} rating={gallery.value.rating} />
                   {gallery.value.expunged ? <Badge variant="destructive">已删除</Badge> : null}
                 </div>
 

@@ -1,10 +1,11 @@
 import { useInfiniteScroll } from "@vueuse/core"
-import { SearchIcon, StarIcon } from "@lucide/vue"
+import { SearchIcon } from "@lucide/vue"
 import { defineComponent, ref, watch } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
 
-import { categoryLabels, galleryCategories, type GalleryCard } from "@/api/eh"
+import { galleryCategories, type GalleryCard } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert"
+import GalleryMeta from "@/components/gallery/GalleryMeta"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -174,11 +175,7 @@ const GalleryRow = defineComponent({
           <p class="line-clamp-2 text-sm leading-snug font-medium">{props.item.title}</p>
 
           <div class="flex flex-wrap items-center gap-2 text-xs">
-            <Badge variant="secondary">{categoryLabels[props.item.category] ?? props.item.category}</Badge>
-            <span class="text-muted-foreground flex items-center gap-1">
-              <StarIcon class="size-3" />
-              {props.item.rating.toFixed(2)}
-            </span>
+            <GalleryMeta category={props.item.category} compact rating={props.item.rating} />
             <span class="text-muted-foreground">{props.item.fileCount} 页</span>
           </div>
 

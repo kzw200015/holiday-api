@@ -1,10 +1,10 @@
 import { Hono } from "hono"
 import { z } from "zod"
-import { badRequest, ok } from "../apiresponse/apiResponse"
+import { type ApiResponse, badRequest, ok } from "../apiresponse/apiResponse"
 import { apiValidator } from "../web/apiValidator"
 import type { User } from "./authModels"
 import type { AuthService } from "./authService"
-import type { SessionCookie } from "./sessionCookie"
+import type { JwtAuth } from "./jwtAuth"
 
 /**
  * 注册与登录的入参。用户名限制成一眼能认的字符集，是因为它会出现在 URL 和日志里；
@@ -20,6 +20,12 @@ const credentialSchema = z.object({
 /** 当前登录者，未登录时为 null。 */
 type CurrentUser = { id: number; username: string } | null
 
+/** 登录与注册的响应：令牌交给前端自己保管，之后每个请求放进 Authorization 头。 */
+interface AuthenticatedUser {
+  token: string
+  user: NonNullable<CurrentUser>
+}
+
 /**
  * 挑出能给前端看的那两列。三个接口都经这里，既保证字段一致，
  * 也是「passwordHash 绝不出现在响应体里」的唯一关口。
@@ -33,54 +39,49 @@ function toCurrentUser(user: User): NonNullable<CurrentUser> {
  *
  * 这里不返回 e 站的绑定状态：那是 eh 模块的事，放在 GET /api/eh/credential，
  * 免得两个模块的类型互相缠住。
+ *
+ * 没有 logout 接口：令牌是无状态的，服务端不存已签发的令牌也就没法作废它，
+ * 退出登录就是前端把自己存的那份丢掉。留一个只回 200 的空接口反而会让人以为服务端真注销了。
  */
-export function createAuthController({
-  authService,
-  sessionCookie,
-}: {
-  authService: Pick<AuthService, "register" | "login" | "findUserById">
-  sessionCookie: SessionCookie
-}) {
-  return (
-    new Hono()
-      /** POST /api/auth/register，注册成功即登录。用户名被占用或站点关闭注册时返回 400。 */
-      .post("/register", apiValidator("json", credentialSchema), async (c) => {
-        const { username, password } = c.req.valid("json")
-        const result = await authService.register(username, password)
-        if (!result.ok) {
-          return c.json(badRequest(result.msg), 400)
-        }
-        await sessionCookie.issue(c, result.user.id)
-        return c.json(ok(toCurrentUser(result.user)))
-      })
-      /** POST /api/auth/login，成功后下发会话 Cookie。 */
-      .post("/login", apiValidator("json", credentialSchema), async (c) => {
-        const { username, password } = c.req.valid("json")
-        const result = await authService.login(username, password)
-        if (!result.ok) {
-          return c.json(badRequest(result.msg), 400)
-        }
-        await sessionCookie.issue(c, result.user.id)
-        return c.json(ok(toCurrentUser(result.user)))
-      })
-      /** POST /api/auth/logout，未登录时调用也返回成功。 */
-      .post("/logout", (c) => {
-        sessionCookie.clear(c)
-        return c.json(ok(null))
-      })
-      /**
-       * GET /api/auth/me，返回当前登录者，未登录返回 data 为 null 的 200。
-       * 这里刻意不回 401：前端的响应拦截器遇到 401 会跳登录页，而登录页自己也要问「我是谁」。
-       */
-      .get("/me", async (c) => {
-        const userId = await sessionCookie.read(c)
-        const user = userId === null ? null : await authService.findUserById(userId)
-        if (!user) {
-          // 会话有效但用户已被删除时，顺手把这张作废的 Cookie 清掉
-          sessionCookie.clear(c)
-          return c.json(ok<CurrentUser>(null))
-        }
-        return c.json(ok<CurrentUser>(toCurrentUser(user)))
-      })
-  )
+export class AuthController extends Hono {
+  constructor({
+    authService,
+    jwtAuth,
+  }: {
+    authService: Pick<AuthService, "register" | "login" | "findUserById">
+    jwtAuth: JwtAuth
+  }) {
+    super()
+
+    /**
+     * 注册和登录的成功响应必须长得一模一样，所以签令牌这一段只写一次。
+     * 只抽这半边而不抽整个处理器：处理器抽走的话 c.req.valid("json") 的类型推导就断了。
+     */
+    const authenticated = async (user: User): Promise<ApiResponse<AuthenticatedUser>> =>
+      ok({ token: await jwtAuth.issue(user.id), user: toCurrentUser(user) })
+
+    /** POST /api/auth/register，注册成功即登录。用户名被占用或站点关闭注册时返回 400。 */
+    this.post("/register", apiValidator("json", credentialSchema), async (c) => {
+      const { username, password } = c.req.valid("json")
+      const result = await authService.register(username, password)
+      return result.ok ? c.json(await authenticated(result.user)) : c.json(badRequest(result.msg), 400)
+    })
+
+    /** POST /api/auth/login，成功后下发令牌。 */
+    this.post("/login", apiValidator("json", credentialSchema), async (c) => {
+      const { username, password } = c.req.valid("json")
+      const result = await authService.login(username, password)
+      return result.ok ? c.json(await authenticated(result.user)) : c.json(badRequest(result.msg), 400)
+    })
+
+    /**
+     * GET /api/auth/me，返回当前登录者，未登录返回 data 为 null 的 200。
+     * 这里刻意不回 401：前端的响应拦截器遇到 401 会跳登录页，而登录页自己也要问「我是谁」。
+     */
+    this.get("/me", async (c) => {
+      const userId = await jwtAuth.read(c)
+      const user = userId === null ? null : await authService.findUserById(userId)
+      return c.json(ok<CurrentUser>(user ? toCurrentUser(user) : null))
+    })
+  }
 }
