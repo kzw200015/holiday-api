@@ -1,6 +1,9 @@
 package eh
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 // 解析器是这套东西里最脆的一层：e 站随时可能改版面。
 // 所以样本全是从真实页面裁下来的，见文件末尾那几个常量。
@@ -165,34 +168,6 @@ func TestParseShowPageFragment(t *testing.T) {
 	}
 }
 
-func TestClassifyResponse(t *testing.T) {
-	// 「200 但不是你要的东西」有好几种，全都必须识别出来：
-	// 只看状态码的话，IP 被封时会被当成正常页面解析出空列表，然后继续按原节奏请求
-	cases := []struct {
-		status int
-		body   string
-		want   responseKind
-	}{
-		{509, "whatever", responseQuotaExceeded},
-		// 509 的响应体也可能是空的，先判状态码才能给出准确的提示
-		{509, "", responseQuotaExceeded},
-		// 里站 Cookie 无效时回 200 加空 body，不是 403
-		{200, "", responseSadPanda},
-		{200, "   \n  ", responseSadPanda},
-		{200, "Your IP address has been temporarily banned", responseIPBanned},
-		{200, "detected excessive pageloads", responseIPBanned},
-		{200, "<h1>Content Warning</h1>", responseContentWarning},
-		// 搜索没命中是正常页面，交给 parseGalleryList 返回空列表即可
-		{200, "<p>No hits found</p>", responseOK},
-		{200, `<table class="itg">...</table>`, responseOK},
-	}
-	for _, each := range cases {
-		if got := classifyResponse(each.status, each.body); got != each.want {
-			t.Errorf("classifyResponse(%d, %q) = %v, 期望 %v", each.status, each.body, got, each.want)
-		}
-	}
-}
-
 func TestDecodeEntities(t *testing.T) {
 	cases := map[string]string{
 		// gdata 返回的标题就是转义过的，实测有 Arcueid &amp; Ciel x Goblin
@@ -210,12 +185,7 @@ func TestDecodeEntities(t *testing.T) {
 }
 
 func hasSegment(segments []CommentSegment, want CommentSegment) bool {
-	for _, segment := range segments {
-		if segment == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(segments, want)
 }
 
 // 下面几段是从真实页面裁下来的样本（2026-08-30）。留的是两类东西：解析器要认出来的结构，

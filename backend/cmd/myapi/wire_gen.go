@@ -30,6 +30,7 @@ func initApplication(ctx context.Context) (*application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	string2 := configConfig.StaticDir
 	logger := provideLogger(configConfig)
 	pool, cleanup, err := provideDatabase(ctx, configConfig, logger)
 	if err != nil {
@@ -45,7 +46,7 @@ func initApplication(ctx context.Context) (*application, func(), error) {
 	imageLocator := eh.NewImageLocator(client)
 	attachmentSigner := provideAttachmentSigner(configConfig)
 	ehService := eh.NewService(queries, client, credentialStore, imageLocator, attachmentSigner)
-	handler := app.NewRouter(configConfig, service, authService, tokens, ehService)
+	handler := app.NewRouter(string2, service, authService, tokens, ehService)
 	mainApplication := &application{
 		Config:  configConfig,
 		Router:  handler,

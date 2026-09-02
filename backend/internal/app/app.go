@@ -7,7 +7,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"myapi/internal/auth"
-	"myapi/internal/config"
 	"myapi/internal/eh"
 	"myapi/internal/holiday"
 	"myapi/internal/web"
@@ -21,7 +20,7 @@ import (
 //
 // 也没有 CSRF 中间件：跨站伪造之所以成立，是因为 Cookie 由浏览器自动带上；
 // 身份改走 Authorization 头之后，跨站页面既读不到令牌也就冒名不了。
-func NewRouter(cfg config.Config, holidayService *holiday.Service, authService *auth.Service,
+func NewRouter(staticDir string, holidayService *holiday.Service, authService *auth.Service,
 	tokens *auth.Tokens, ehService *eh.Service) http.Handler {
 	router := chi.NewRouter()
 
@@ -40,7 +39,7 @@ func NewRouter(cfg config.Config, holidayService *holiday.Service, authService *
 	})
 
 	// 前端产物兜底：非 /api 路径找不到静态文件时保持无响应体的 404
-	router.NotFound(web.Static(cfg.StaticDir).ServeHTTP)
+	router.NotFound(web.Static(staticDir).ServeHTTP)
 
 	return router
 }

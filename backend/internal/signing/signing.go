@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"net/url"
 	"strconv"
 	"time"
 )
@@ -22,10 +23,30 @@ func DeriveSecret(secretKey, purpose string) string {
 }
 
 // Signature 是签名地址上固定的两个查询参数。
+//
+// 参数名和它们在查询串里的形状都由这里的 Query / ParseQuery 定死——签发端和校验端
+// 各写一份字面量的话，改名时漏一处的表现是所有图片一起 403。
 type Signature struct {
 	// 毫秒时间戳的十进制字符串，原样出现在地址里。
 	ExpiresAt string
 	Value     string
+}
+
+const (
+	expiresParam   = "e"
+	signatureParam = "s"
+)
+
+// Query 把签名拼成可以直接接在地址后面的查询串（不带前导的 ? 或 &）。
+func (s Signature) Query() string {
+	return expiresParam + "=" + s.ExpiresAt + "&" + signatureParam + "=" + s.Value
+}
+
+// ParseQuery 从查询参数里取出签名。两项缺任何一项都算地址不完整，ok 为 false；
+// 签名对不对不在这里判，那是 AttachmentSigner.Verify 的事。
+func ParseQuery(query url.Values) (Signature, bool) {
+	sig := Signature{ExpiresAt: query.Get(expiresParam), Value: query.Get(signatureParam)}
+	return sig, sig.ExpiresAt != "" && sig.Value != ""
 }
 
 // AttachmentSigner 给附件地址签名。
@@ -66,6 +87,8 @@ func (s *AttachmentSigner) Verify(subject string, sig Signature) bool {
 
 func (s *AttachmentSigner) digest(subject string, expiresAt int64) string {
 	mac := hmac.New(sha256.New, s.secret)
-	mac.Write([]byte(subject + ":" + strconv.FormatInt(expiresAt, 10)))
-	return hex.EncodeToString(mac.Sum(nil))[:32]
+	mac.Write([]byte(subject))
+	mac.Write([]byte(":" + strconv.FormatInt(expiresAt, 10)))
+	// 截成 16 字节（128 位）再编码，正好是上面说的 32 个十六进制字符
+	return hex.EncodeToString(mac.Sum(nil)[:16])
 }

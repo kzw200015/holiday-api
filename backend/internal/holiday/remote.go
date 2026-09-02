@@ -47,7 +47,7 @@ func (c *RemoteClient) FetchYear(ctx context.Context, year int) ([]Day, error) {
 	}
 
 	for _, day := range payload.Days {
-		if _, err := time.Parse(dateLayout, day.Date); err != nil {
+		if _, err := time.Parse(time.DateOnly, day.Date); err != nil {
 			return nil, fmt.Errorf("%d 年节假日数据里有不合法的日期 %q", year, day.Date)
 		}
 	}

@@ -21,12 +21,18 @@ const accessLogKey ctxKey = iota
 // 哪条路由吵是那条路由自己的事，通用中间件不该认识具体业务路径。
 type accessLog struct{ quiet bool }
 
-// Quiet 把这次请求的访问日志降到 debug。一屏缩略图加一页阅读就是几十个请求，
+// Quiet 是中间件：罩住的路由，访问日志降到 debug。一屏缩略图加一页阅读就是几十个请求，
 // 不降级的话别的日志会被冲没。
-func Quiet(r *http.Request) {
-	if state, ok := r.Context().Value(accessLogKey).(*accessLog); ok {
-		state.quiet = true
-	}
+//
+// 做成中间件而不是让处理器在函数体里调一句，是因为「这条路由很吵」是路由的静态属性——
+// 挂在注册处才跟路由长在一起，日后加同类接口时漏写不了。
+func Quiet(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if state, ok := r.Context().Value(accessLogKey).(*accessLog); ok {
+			state.quiet = true
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // RequestLogger 每个请求记一行访问日志：方法、路径、状态码、耗时。
@@ -42,6 +48,10 @@ func RequestLogger(next http.Handler) http.Handler {
 		level := slog.LevelInfo
 		if state.quiet && wrapped.Status() < 400 {
 			level = slog.LevelDebug
+		}
+		// 图片接口降到 debug 后通常是不输出的，先问一句就省掉下面那串参数的装箱
+		if !slog.Default().Enabled(r.Context(), level) {
+			return
 		}
 		slog.Log(r.Context(), level, "请求完成",
 			"method", r.Method, "path", r.URL.Path,

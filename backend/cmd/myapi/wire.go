@@ -25,6 +25,8 @@ func initApplication(ctx context.Context) (*application, func(), error) {
 		// 配置和日志器都在图里：provideDatabase 收 *slog.Logger，
 		// 「日志先就绪、再连库」这个顺序因此由依赖关系保证
 		config.Load,
+		// app.NewRouter 只要一个 StaticDir，就别把整个 config 递给它
+		wire.FieldsOf(new(config.Config), "StaticDir"),
 		provideLogger,
 		provideDatabase,
 

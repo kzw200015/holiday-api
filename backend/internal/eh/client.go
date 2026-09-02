@@ -71,28 +71,15 @@ func NewClient(userAgent string, timeout time.Duration, transport http.RoundTrip
 
 // FetchPage 取一个页面的 HTML。pathAndQuery 要以 / 开头。
 func (c *Client) FetchPage(ctx context.Context, rc RequestContext, pathAndQuery string) (string, error) {
-	url := pageHosts[rc.Site] + pathAndQuery
-	// 排查「一次操作到底打了几个上游请求」时全靠这条，默认级别下不输出
-	slog.Debug("请求 e 站", "url", url)
-
-	response, err := c.do(ctx, http.MethodGet, url, buildCookieHeader(rc.Credential), nil)
+	body, err := c.fetch(ctx, http.MethodGet, pageHosts[rc.Site]+pathAndQuery, buildCookieHeader(rc.Credential), nil)
 	if err != nil {
 		return "", err
 	}
-	defer response.Body.Close()
-
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return "", errUnavailable("读取 e 站响应失败：%v", err)
-	}
-	return string(body), assertUsable(response.StatusCode, string(body), url)
+	return string(body), nil
 }
 
 // CallAPI 调 JSON API（gdata / showpage），把响应解进 out。
 func (c *Client) CallAPI(ctx context.Context, rc RequestContext, payload any, out any) error {
-	url := apiHosts[rc.Site]
-	slog.Debug("请求 e 站", "url", url)
-
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -103,23 +90,34 @@ func (c *Client) CallAPI(ctx context.Context, rc RequestContext, payload any, ou
 		credential = nil
 	}
 
-	response, err := c.do(ctx, http.MethodPost, url, buildCookieHeader(credential), body)
+	content, err := c.fetch(ctx, http.MethodPost, apiHosts[rc.Site], buildCookieHeader(credential), body)
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
-
-	text, err := io.ReadAll(response.Body)
-	if err != nil {
-		return errUnavailable("读取 e 站响应失败：%v", err)
-	}
-	if err := assertUsable(response.StatusCode, string(text), url); err != nil {
-		return err
-	}
-	if err := json.Unmarshal(text, out); err != nil {
+	if err := json.Unmarshal(content, out); err != nil {
 		return errUnavailable("e 站接口返回的不是预期的 JSON：%v", err)
 	}
 	return nil
+}
+
+// 发一次请求、读完响应体、判定它是不是真正的内容。页面和 JSON 两条路径只差编解码，
+// 剩下这六步是一样的。返回 []byte 而不是 string：JSON 那条路径直接喂给 Unmarshal，
+// 不必为一份几十 KB 的响应体多复制一遍。
+func (c *Client) fetch(ctx context.Context, method, target, cookieHeader string, body []byte) ([]byte, error) {
+	// 排查「一次操作到底打了几个上游请求」时全靠这条，默认级别下不输出
+	slog.Debug("请求 e 站", "url", target)
+
+	response, err := c.do(ctx, method, target, cookieHeader, body)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	content, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, errUnavailable("读取 e 站响应失败：%v", err)
+	}
+	return content, assertUsable(response.StatusCode, content, target)
 }
 
 // OpenImage 取一张图，返回上游响应本身以便流式转发，不把整张图读进内存。
@@ -211,16 +209,30 @@ func (c *Client) do(ctx context.Context, method, url, cookieHeader string, body 
 }
 
 // assertUsable 把上游那些「200 但不是内容」的响应翻译成明确的失败。
-func assertUsable(status int, body, url string) error {
-	switch classifyResponse(status, body) {
-	case responseQuotaExceeded:
+//
+// 这几种情况 e 站都回 HTTP 200，全都必须识别出来：只看状态码的话，
+// IP 被封时会被当成正常 HTML 解析出空列表，然后继续按原节奏请求，把临时封禁续成长期封禁。
+func assertUsable(status int, body []byte, url string) error {
+	// 509 是 e 站专门用来表示图片配额耗尽的状态码，先判它——509 的响应体也可能是空的
+	if status == 509 {
 		return errQuotaExceeded()
-	case responseIPBanned:
+	}
+	// 里站在 Cookie 无效或账号无权限时回 200 + 空 body（俗称 sad panda），不是 403
+	if len(bytes.TrimSpace(body)) == 0 {
+		return errSadPanda()
+	}
+
+	// 下面按字面量找，不用 (?i) 正则：那个在一页 74 KB 的 HTML 上要 2.6 毫秒（实测），
+	// 而每个上游响应都得走一次判定，字面量搜索只要 2 微秒，快三个数量级——
+	// 这跟当初为了躲开建 DOM 的开销、把详情页解析写成纯正则是同一个量级，白花掉就没意义了。
+	// 代价是 e 站改这两张页面的文案时这里会漏判，但正则也只挡得住「大小写变了」这一种改法，
+	// 换来的安全感是廉价的。下面的文案取自实测页面，改版后要重新采一次。
+	if bytes.Contains(body, []byte("temporarily banned")) || bytes.Contains(body, []byte("excessive pageloads")) {
 		slog.Warn("出口 IP 被 e 站临时封禁", "url", url)
 		return errBanned()
-	case responseSadPanda:
-		return errSadPanda()
-	case responseContentWarning:
+	}
+	// 被标记的图集在没有 nw cookie 时回一张插页，正文里既没有 #gdt 也没有 #cdiv
+	if bytes.Contains(body, []byte("Content Warning")) {
 		return errContentWarning()
 	}
 
@@ -228,6 +240,8 @@ func assertUsable(status int, body, url string) error {
 	if status >= 300 {
 		return errUnavailable("e 站返回了 HTTP %d", status)
 	}
+	// 「No hits found」不单列一类：搜索没命中时 parseGalleryList 自然会返回空列表，
+	// 而这里多一个没人处理的分类，只会让读代码的人以为下游有对应逻辑
 	return nil
 }
 

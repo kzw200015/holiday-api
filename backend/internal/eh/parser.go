@@ -1,7 +1,6 @@
 package eh
 
 import (
-	"fmt"
 	"html"
 	"net/url"
 	"regexp"
@@ -33,12 +32,9 @@ var (
 	showKeyRE     = regexp.MustCompile(`var\s+showkey\s*=\s*"([^"]+)"`)
 	reloadTokenRE = regexp.MustCompile(`nl\('([^']+)'\)`)
 	// 评论时间，形如 `28 May 2022, 01:53`，页面上写的是 UTC。
-	postedAtRE = regexp.MustCompile(`Posted on (\d{1,2}) (\w+) (\d{4}), (\d{2}):(\d{2})`)
+	postedAtRE = regexp.MustCompile(`Posted on (\d{1,2} \w+ \d{4}, \d{2}:\d{2})`)
 	// 严格形式的 HTML 实体：必须带分号。
 	entityRE = regexp.MustCompile(`&(#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);`)
-	// 下面两条都不区分大小写：漏判一次封禁就会继续按原节奏请求，把临时封禁续成长期封禁
-	bannedRE         = regexp.MustCompile(`(?i)temporarily banned|excessive pageloads`)
-	contentWarningRE = regexp.MustCompile(`(?i)content warning`)
 )
 
 // decodeEntities 解码 HTML 实体。
@@ -62,48 +58,10 @@ func decodeEntities(text string) string {
 	})
 }
 
-// responseKind 是页面的实际含义。这几种情况 e 站都回 HTTP 200，
-// 只看状态码会把它们当成正常页面去解析。
-type responseKind int
-
-const (
-	responseOK responseKind = iota
-	responseContentWarning
-	responseSadPanda
-	responseIPBanned
-	responseQuotaExceeded
-)
-
-// classifyResponse 判断一个响应到底是什么。
-//
-// 「200 但不是你要的东西」有好几种，全都必须识别出来：
-// 只看状态码的话，IP 被封时会被当成正常 HTML 解析出空列表，
-// 然后继续按原节奏请求，把临时封禁续成长期封禁。
-func classifyResponse(status int, body string) responseKind {
-	// 509 是 e 站专门用来表示图片配额耗尽的状态码，先判它——509 的响应体也可能是空的
-	if status == 509 {
-		return responseQuotaExceeded
-	}
-	// 里站在 Cookie 无效或账号无权限时回 200 + 空 body（俗称 sad panda），不是 403
-	if strings.TrimSpace(body) == "" {
-		return responseSadPanda
-	}
-	if bannedRE.MatchString(body) {
-		return responseIPBanned
-	}
-	// 被标记的图集在没有 nw cookie 时回一张插页，正文里既没有 #gdt 也没有 #cdiv
-	if contentWarningRE.MatchString(body) {
-		return responseContentWarning
-	}
-	// 「No hits found」不单列一类：搜索没命中时 parseGalleryList 自然会返回空列表，
-	// 而这里多一个没人处理的分类，只会让读代码的人以为下游有对应逻辑
-	return responseOK
-}
-
 // parseGalleryList 解析搜索结果页，只取图集序列和下一页游标。
 func parseGalleryList(page string) ([]GalleryRef, *string) {
 	seen := map[int64]bool{}
-	items := []GalleryRef{}
+	var items []GalleryRef
 
 	for _, match := range galleryLinkRE.FindAllStringSubmatch(page, -1) {
 		gid, err := strconv.ParseInt(match[1], 10, 64)
@@ -230,6 +188,9 @@ func parseGalleryComments(page string) ([]GalleryComment, error) {
 		return nil, err
 	}
 
+	// 下面三处（这里、parseSegments、mergeAdjacentText）都要空切片而不是 nil：
+	// 它们会被直接序列化成响应体，而 nil 切片编出来是 null 不是 []，前端照着数组遍历就炸。
+	// IDE 会建议改成 `var comments []GalleryComment`，别接受
 	comments := []GalleryComment{}
 	document.Find("#cdiv .c1").Each(func(_ int, block *goquery.Selection) {
 		meta := block.Find(".c3").First()
@@ -260,8 +221,7 @@ func parsePostedAt(text string) string {
 		return ""
 	}
 	// 页面上写的是 UTC
-	posted, err := time.Parse("2 January 2006 15:04",
-		fmt.Sprintf("%s %s %s %s:%s", match[1], match[2], match[3], match[4], match[5]))
+	posted, err := time.Parse("2 January 2006, 15:04", match[1])
 	if err != nil {
 		return ""
 	}
@@ -278,14 +238,14 @@ func parseSegments(body *goquery.Selection) []CommentSegment {
 	var walk func(selection *goquery.Selection)
 	walk = func(selection *goquery.Selection) {
 		selection.Contents().Each(func(_ int, node *goquery.Selection) {
-			switch {
-			case goquery.NodeName(node) == "#text":
+			switch goquery.NodeName(node) {
+			case "#text":
 				if text := node.Text(); text != "" {
 					segments = append(segments, CommentSegment{Type: "text", Text: text})
 				}
-			case goquery.NodeName(node) == "br":
+			case "br":
 				segments = append(segments, CommentSegment{Type: "break"})
-			case goquery.NodeName(node) == "a":
+			case "a":
 				href, _ := node.Attr("href")
 				// 只放行 http/https，javascript: 和 data: 一律降级成普通文字
 				if strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://") {

@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -47,7 +46,7 @@ func provideLogger(cfg config.Config) *slog.Logger {
 
 func parseLevel(name string) slog.Level {
 	var level slog.Level
-	if err := level.UnmarshalText([]byte(strings.ToUpper(name))); err != nil {
+	if err := level.UnmarshalText([]byte(name)); err != nil {
 		return slog.LevelInfo
 	}
 	return level

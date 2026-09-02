@@ -129,8 +129,8 @@ func authedRoutes(router chi.Router, service *Service) {
 		if err != nil {
 			return err
 		}
-		if body.Page <= 0 {
-			return web.BadRequest("页码不合法")
+		if _, err := parsePage(strconv.FormatInt(int64(body.Page), 10)); err != nil {
+			return err
 		}
 		if err := service.SaveProgress(r.Context(), auth.UserID(r.Context()), ref, body.Page); err != nil {
 			return err
@@ -149,16 +149,15 @@ func parseSearchQuery(r *http.Request) (SearchQuery, error) {
 		return SearchQuery{}, web.BadRequest("关键词太长了")
 	}
 
-	categories := []string{}
-	for _, name := range strings.Split(query.Get("categories"), ",") {
-		if name == "" {
-			continue
+	var categories []string
+	for name := range strings.SplitSeq(query.Get("categories"), ",") {
+		if name != "" {
+			categories = append(categories, name)
 		}
-		// 认不出的分类名不能默默忽略：那一位掩码会算成 0，表现是「筛选点了但结果没变」
-		if _, ok := categoryBits[name]; !ok {
-			return SearchQuery{}, web.BadRequest("分类名不合法")
-		}
-		categories = append(categories, name)
+	}
+	filter, err := toCategoryFilter(categories)
+	if err != nil {
+		return SearchQuery{}, err
 	}
 
 	cursor := query.Get("cursor")
@@ -171,7 +170,7 @@ func parseSearchQuery(r *http.Request) (SearchQuery, error) {
 	if query.Get("site") == string(SiteE) {
 		site = SiteE
 	}
-	return SearchQuery{Keyword: keyword, Categories: categories, Cursor: cursor, Site: site}, nil
+	return SearchQuery{Keyword: keyword, CategoryFilter: filter, Cursor: cursor, Site: site}, nil
 }
 
 func parseGalleryRef(r *http.Request) (GalleryRef, error) {
@@ -180,6 +179,16 @@ func parseGalleryRef(r *http.Request) (GalleryRef, error) {
 		return GalleryRef{}, web.BadRequest("图集编号不合法")
 	}
 	return newGalleryRef(gid, chi.URLParam(r, "token"))
+}
+
+// 页码必须是正整数。URL 参数和 JSON 字段两条入口共用这一份规则和文案——
+// 解析失败得到 0，正好落进同一个判断。
+func parsePage(value string) (int, error) {
+	page, _ := strconv.Atoi(value)
+	if page <= 0 {
+		return 0, web.BadRequest("页码不合法")
+	}
+	return page, nil
 }
 
 func newGalleryRef(gid int64, token string) (GalleryRef, error) {

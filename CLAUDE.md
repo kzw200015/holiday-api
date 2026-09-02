@@ -61,7 +61,7 @@ docker build -t myapi .
 
 **没有「失败种类 → 状态码」的映射表**：`web.Error` 直接带 `Status` 和给人看的 `Msg`，e 站那些可预期的失败在 `eh/failure.go` 里各写一个构造函数（`errBanned()` 回 429、`errSadPanda()` 回 400、`errBadSignature()` 回 403……），抛错的地方就说清楚回什么。
 
-**统一响应契约**：所有接口返回 `web.Response { code, data, msg }`，**结构体的字段声明顺序即 JSON 序列化顺序**。`/api` 子路由的 `NotFound` 和 `MethodNotAllowed` 都指向 `web.NotFound`，未匹配的 `/api` 路径统一回 JSON 404；其余路径找不到静态文件时保持空响应体的 404（前端是哈希路由，静态资源兜底逻辑依赖这一点）。后端 `internal/web/response.go` 与前端 `src/types/apiResponse.ts` 是一对，改一边要同步另一边。
+**统一响应契约**：所有接口返回 `web.Response { code, data, msg }`，**结构体的字段声明顺序即 JSON 序列化顺序**。**会进响应体的切片一律用 `[]T{}` 而不是 `var x []T`**——nil 切片序列化出来是 `null` 而不是 `[]`，前端照着数组遍历就炸；不进 JSON 的切片则相反，`var` 更好。IDE 会建议把前者也改成 `var`，别接受。`/api` 子路由的 `NotFound` 和 `MethodNotAllowed` 都指向 `web.NotFound`，未匹配的 `/api` 路径统一回 JSON 404；其余路径找不到静态文件时保持空响应体的 404（前端是哈希路由，静态资源兜底逻辑依赖这一点）。后端 `internal/web/response.go` 与前端 `src/types/apiResponse.ts` 是一对，改一边要同步另一边。
 
 **唯一的例外是两个图片接口**（`/api/eh/thumbnail` 和 `.../pages/{page}/image`），它们直接返回二进制流。
 
@@ -71,7 +71,7 @@ docker build -t myapi .
 
 **`/api/eh` 下分成两组路由**（`eh/handler.go` 与 `eh/handler_image.go`）：图片那两条用 `chi.Router.Group` 单独开一组、**不挂鉴权**，其余的那组挂 `Require`。分成两个文件而不是在一处挑几条豁免，是为了让「哪些接口不需要登录」一眼可见——混在一起的话，日后加接口时很容易顺手加到不设防的那一侧。
 
-**日志用标准库 `log/slog`**：`cmd/myapi/main.go` 建好 handler 后 `slog.SetDefault`，各包直接调 `slog.Info(...)`，不写 `fmt.Println`。写法固定为 `slog.Info("消息", "字段名", 值, ...)`，错误统一放在 `err` 键。格式默认按 stdout 是否终端自动选：终端 `text`，容器 `json`。`web.RequestLogger` 只挂在 `/api` 下记访问日志（方法、路径、状态码、耗时），静态资源不记；两个图片接口成功时降到 debug（由那两条路由自己调 `web.Quiet(r)` 声明，中间件不认识具体业务路径），否则一次阅读几十个请求就把日志冲没了。`eh.Client` 对每个上游请求也记一条 debug，排查「一次操作到底打了几个上游请求」全靠它。
+**日志用标准库 `log/slog`**：`cmd/myapi/main.go` 建好 handler 后 `slog.SetDefault`，各包直接调 `slog.Info(...)`，不写 `fmt.Println`。写法固定为 `slog.Info("消息", "字段名", 值, ...)`，错误统一放在 `err` 键。格式默认按 stdout 是否终端自动选：终端 `text`，容器 `json`。`web.RequestLogger` 只挂在 `/api` 下记访问日志（方法、路径、状态码、耗时），静态资源不记；两个图片接口成功时降到 debug（那一组路由挂了 `web.Quiet` 中间件，通用设施不认识具体业务路径），否则一次阅读几十个请求就把日志冲没了。`eh.Client` 对每个上游请求也记一条 debug，排查「一次操作到底打了几个上游请求」全靠它。
 
 **节假日模块分层**：`holiday/handler.go`（chi 子路由，`date` 参数省略或空串取当天，格式校验直接靠 `time.Parse("2006-01-02", ...)`——它对位数是严格的，也会拒绝日历上不存在的日期，不用再写一套校验）→ `holiday.Service`（业务判断，同时直接写查询条件与存储约定，没有单独的数据访问层）→ sqlc 生成的查询。
 
@@ -93,10 +93,12 @@ docker build -t myapi .
 
 **e 站模块（`eh`）分层**：`handler.go` / `handler_image.go`（校验 `gid` 正整数、`token` 为 10 位十六进制——这两项会被拼进上游地址）→ `Service`（对外门面：编排用例、元数据缓存、附件地址的签发与校验）→ `Client`（统一出网：伪装 UA、带固定 Cookie、超时、异常翻译）。
 
+`Service` 对外交出的是 `Attachment` 这样的值类型而不是 `*http.Response`——否则关连接、搬响应头这些事就得靠约定分摊到 handler。
+
 `Service` 底下还挂着两块自带状态的协作者，都由 wire `new` 好注入进去：
 
 - **`CredentialStore`（`credentials.go`）**：凭据入库、取出、按有没有里站权限决定这次请求走前站还是里站。它那三个方法在 `Service` 上只是原样转交——handler 只认门面一个依赖，模块内部怎么分工不往外泄。
-- **`ImageLocator`（`locator.go`）**：「第 N 页的图片地址是什么」这条链路，连同它那五张缓存表。对外只有两个方法：`Resolve(ctx, rc, ref, page, reload)` 拿地址（`reload` 用于图床失效后换源，它绕开所有缓存），`AbsorbGalleryPage` 收下详情页 HTML 里顺带带来的每页令牌。
+- **`ImageLocator`（`locator.go`）**：「第 N 页的图片地址是什么」这条链路，连同它那五张缓存表。对外三个方法：`Resolve(ctx, rc, ref, page, reload)` 拿地址（`reload` 用于图床失效后换源，它绕开所有缓存），`GalleryPage` 抓详情页的某一片（评论接口也走它，两边共用在途去重），`AbsorbGalleryPage` 收下 HTML 里顺带带来的每页令牌。
 
 **缓存和去重都用现成的**：进程内缓存一律是 `hashicorp/golang-lru/v2/expirable`（LRU + TTL，自带锁），并发请求合并用 `golang.org/x/sync/singleflight`。**一张缓存表都不建**：图集元数据在 `Service`，每页令牌、分片大小、showkey、换源令牌、解析出的图片地址在 `ImageLocator`，凭据在 `CredentialStore`。这些数据都能重新拉，为可重建的东西加表、加运维负担不值。
 
@@ -110,10 +112,11 @@ docker build -t myapi .
 - **HTML 实体只解码带分号的严格写法**（`decodeEntities`）。直接用 `html.UnescapeString` 不行：它按 HTML5 的历史兼容规则允许 `&not` 这类实体省掉分号，于是标题里的 `&notreal;` 字面量会被解成 `¬real;`。判据是「解出来的结果尾巴上还留着没被吃掉的分号」，`&semi;` 是唯一的例外。
 - **列表页用正则全文抓 `/g/<gid>/<token>/`**，不挑 `td.gl3c.glname` 这类选择器：搜索结果有 5 种显示模式且由账号设置决定，Thumbnail 模式下整个 `<table>` 都不存在。请求固定带 `sl=dm_2` 作为双保险。
 - **请求固定带 `nw=1`**。被标记的图集在没有这个 cookie 时会返回 HTTP 200 的内容警告插页，正文里既没有 `#gdt` 也没有 `#cdiv`，不设防会静默返回空数据。
-- **四种「200 但不是你要的东西」必须识别**（`classifyResponse`）：内容警告插页、sad panda（里站回 200 + 空 body）、IP 被封（200 的纯文本页）、509 配额超限。四种各自抛出对应的失败，由 `web.Handler` 翻成状态码。撞上封禁不会自动停手，因为出网没有熔断。
+- **四种「200 但不是你要的东西」必须识别**（`client.go` 的 `assertUsable`）：内容警告插页、sad panda（里站回 200 + 空 body）、IP 被封（200 的纯文本页）、509 配额超限。判定和翻译收在同一个函数里，由 `web.Handler` 转成状态码。封禁和内容警告按**字面量**匹配文案，不用 `(?i)` 正则——后者在一页 74 KB 的 HTML 上要 2.6 毫秒（实测），而每个上游响应都得走一次判定，字面量是 2 微秒。代价是 e 站改文案时会漏判，但正则也只挡得住「大小写变了」这一种改法。撞上封禁不会自动停手，因为出网没有熔断。
 - **出网不限速、不熔断**：请求节奏不受控，出口 IP 有被盯上的风险。要加的话，加在 `eh.Client.do` 外面一层，而不是散到各个调用点。
 - **不跟随重定向**（`http.Client.CheckRedirect` 直接返回 `ErrUseLastResponse`）：里站 Cookie 无效时会 302 回前站，跟随的话会拿到一个「看起来正常」的前站页面；图片那条链路上它还多挡一层，白名单主机若被诱导 302 到内网，跟随就等于绕过了白名单。
 - **取图链路**：每页令牌 → showkey → `showpage` 接口。**`showpage` 的响应里白送了下一页的令牌**，顺序阅读时顺手写回缓存，所以一本 300 页的图集只需要 2 次 HTML 请求（首页详情 + 首张 `/s/` 页），之后每页只有 1 次轻量 API 调用，只有跳页才会回头抓详情页分片。showkey 失效（`{"error":"Key mismatch"}`）时重抓 `/s/` 页换新的，**只重试一次**。图床节点失效表现为图片 403，用页面里的 `nl` 令牌换源重取一次。
+- **签名在地址上的形状（参数名 `e` / `s`）由 `signing.Signature` 的 `Query` / `ParseQuery` 定死**，签发端和校验端不各写一份字面量——改名时漏一处的表现是所有图片一起 403。
 - **缩略图代理用 HMAC 签名地址**，端点只认自己签发过的 URL，客户端指定不了主机。白名单（精确匹配 `ehgt.org`、后缀 `.hath.network`，注意那个点不能省）、不跟随重定向、`Content-Type` 必须 `image/` 是纵深防御，别放宽。
 - **`f_cats` 传的是要排除的分类位和**，方向极易写反；全不选和全选都要省略这个参数（按公式算全不选会得到 1023，那是「全部排除」）。换算封在 `category.go` 的 `toCategoryFilter` 里，接口和前端只用分类名。分类名的唯一来源是同文件的 `categoryBits`，handler 拿它做校验——不校验的话前端拼错名字只会让那一位算成 0，表现是「筛选点了但结果没变」，查不出来。
 - **e 站的 JSON 接口对数字的写法不统一**：`gid` 是数字，`filecount`、`rating` 这些是字符串（`"329"`、`"4.68"`）。两种都用 `flexNumber` 收（`models.go`），写死成数字类型会在字符串那一侧整片报错。

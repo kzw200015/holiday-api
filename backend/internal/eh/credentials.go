@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"strconv"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/jackc/pgx/v5"
-	"golang.org/x/sync/singleflight"
 
 	"myapi/internal/store"
 )
@@ -37,8 +35,6 @@ type CredentialStore struct {
 	// 已取出的凭据。图片代理是全系统请求最密集的接口，每张图都为它查一次库太浪费。
 	// 绑定解绑时手动失效，TTL 和容量上限只是兜底，免得离开的用户一直占着位置。
 	cache *expirable.LRU[int64, *boundCredential]
-	// 阅读器一进页面就并发发出四五个请求，不合并的话同一个用户会被查库四五遍。
-	loading singleflight.Group
 }
 
 func NewCredentialStore(queries *store.Queries, client *Client) *CredentialStore {
@@ -100,12 +96,12 @@ func (s *CredentialStore) RequestContext(ctx context.Context, userID int64, requ
 		return RequestContext{}, err
 	}
 
-	site := SiteE
-	if bound != nil && bound.hasExAccess && requested != SiteE {
-		site = SiteEx
-	}
 	if bound == nil {
-		return RequestContext{Site: site}, nil
+		return RequestContext{Site: SiteE}, nil
+	}
+	site := SiteE
+	if bound.hasExAccess && requested != SiteE {
+		site = SiteEx
 	}
 	return RequestContext{Credential: &bound.cookie, Site: site}, nil
 }
@@ -117,18 +113,12 @@ func (s *CredentialStore) load(ctx context.Context, userID int64) (*boundCredent
 		return cached, nil
 	}
 
-	loaded, err, _ := s.loading.Do(strconv.FormatInt(userID, 10), func() (any, error) {
-		bound, err := s.read(ctx, userID)
-		if err != nil {
-			return nil, err
-		}
-		s.cache.Add(userID, bound)
-		return bound, nil
-	})
+	bound, err := s.read(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	return loaded.(*boundCredential), nil
+	s.cache.Add(userID, bound)
+	return bound, nil
 }
 
 func (s *CredentialStore) read(ctx context.Context, userID int64) (*boundCredential, error) {

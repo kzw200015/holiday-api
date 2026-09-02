@@ -4,20 +4,19 @@ package holiday
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/errgroup"
 
 	"myapi/internal/store"
 )
 
-// 日期在库列、接口出入参和远程 JSON 里统一是 YYYY-MM-DD 字符串；
+// 日期在库列、接口出入参和远程 JSON 里统一是 YYYY-MM-DD 字符串（标准库的 time.DateOnly）；
 // 业务层按 time.Time 传递，只在边界上转换。time.Parse 用这个布局时位数是严格的
-// （拒绝 2024-1-1），也会拒绝日历上不存在的日期（2024-02-31），不用再另外校验。
-const dateLayout = "2006-01-02"
+//（拒绝 2024-1-1），也会拒绝日历上不存在的日期（2024-02-31），不用再另外校验。
 
 // Day 是单日的节假日数据：远程 JSON 里 days 数组的元素结构，也是 detail 接口的响应体。
 // 字段的声明顺序即 JSON 的序列化顺序。
@@ -42,7 +41,7 @@ func NewService(pool *pgxpool.Pool, queries *store.Queries, remote *RemoteClient
 
 // Query 查某一天是否休息及对应的节假日名称：先查库，无记录则按周末判断（此时名称为空）。
 func (s *Service) Query(ctx context.Context, date time.Time) (Day, error) {
-	text := date.Format(dateLayout)
+	text := date.Format(time.DateOnly)
 
 	// date 列有唯一索引（holiday_days_date_key），最多命中一行，所以查询里多取一行做校验：
 	// 真出现多行说明索引被人删了，报错比静默返回其中一行好
@@ -105,11 +104,11 @@ func (s *Service) RefreshYear(ctx context.Context, year int) error {
 // 年份每次重新计算，跨年后定时刷新会自动带上新的次年。
 func (s *Service) RefreshUpcomingYears(ctx context.Context) error {
 	year := time.Now().Year()
-	results := make(chan error, 2)
+	group, groupCtx := errgroup.WithContext(ctx)
 	for _, each := range [2]int{year, year + 1} {
-		go func() { results <- s.RefreshYear(ctx, each) }()
+		group.Go(func() error { return s.RefreshYear(groupCtx, each) })
 	}
-	return errors.Join(<-results, <-results)
+	return group.Wait()
 }
 
 // StartRefreshLoop 按固定间隔重复刷新，跟上数据源的更新（次年安排公布、临时调休）。

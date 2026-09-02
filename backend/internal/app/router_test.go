@@ -15,7 +15,6 @@ import (
 
 	"myapi/internal/app"
 	"myapi/internal/auth"
-	"myapi/internal/config"
 	"myapi/internal/eh"
 	"myapi/internal/holiday"
 	"myapi/internal/signing"
@@ -104,8 +103,7 @@ func newTestRouter(t *testing.T) (http.Handler, string) {
 		signing.NewAttachmentSigner("attachment-子密钥", time.Hour))
 
 	// 指向一个不存在的目录，让所有非 /api 路径都落到无响应体的 404
-	cfg := config.Config{StaticDir: t.TempDir() + "/no-static"}
-	router := app.NewRouter(cfg, holiday.NewService(nil, queries, nil),
+	router := app.NewRouter(t.TempDir()+"/no-static", holiday.NewService(nil, queries, nil),
 		auth.NewService(queries, false), tokens, ehService)
 
 	token, err := tokens.Issue(testUserID)

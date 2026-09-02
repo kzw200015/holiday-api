@@ -1,6 +1,12 @@
 package eh
 
-import "testing"
+import (
+	"errors"
+	"net/http"
+	"testing"
+
+	"myapi/internal/web"
+)
 
 // 图片主机白名单是图片代理唯一的 SSRF 防线，所以单独测。
 // 这里列的绕过手法都是真会被人试的，改实现时这些用例必须继续过。
@@ -39,6 +45,45 @@ func TestIsAllowedImageURL(t *testing.T) {
 	for _, url := range blocked {
 		if IsAllowedImageURL(url) {
 			t.Errorf("%q 应当拒绝", url)
+		}
+	}
+}
+
+// 「200 但不是你要的东西」有好几种，全都必须识别出来：只看状态码的话，
+// IP 被封时会被当成正常页面解析出空列表，然后继续按原节奏请求，把临时封禁续成长期封禁。
+func TestAssertUsable(t *testing.T) {
+	cases := []struct {
+		status int
+		body   string
+		want   int // 期望的 HTTP 状态码，0 表示这是一份正常内容
+	}{
+		{509, "whatever", http.StatusTooManyRequests},
+		// 509 的响应体也可能是空的，先判状态码才能给出准确的提示
+		{509, "", http.StatusTooManyRequests},
+		// 里站 Cookie 无效时回 200 加空 body，不是 403
+		{200, "", http.StatusBadRequest},
+		{200, "   \n  ", http.StatusBadRequest},
+		{200, "Your IP address has been temporarily banned", http.StatusTooManyRequests},
+		{200, "detected excessive pageloads", http.StatusTooManyRequests},
+		{200, "<h1>Content Warning</h1>", http.StatusBadGateway},
+		// 正常的页面请求不会重定向，会重定向说明身份没被认下来
+		{302, "<html>go away</html>", http.StatusBadGateway},
+		// 搜索没命中是正常页面，交给 parseGalleryList 返回空列表即可
+		{200, "<p>No hits found</p>", 0},
+		{200, `<table class="itg">...</table>`, 0},
+	}
+
+	for _, each := range cases {
+		err := assertUsable(each.status, []byte(each.body), "https://e-hentai.org/")
+		if each.want == 0 {
+			if err != nil {
+				t.Errorf("assertUsable(%d, %q) = %v, 期望放行", each.status, each.body, err)
+			}
+			continue
+		}
+		var apiErr *web.Error
+		if !errors.As(err, &apiErr) || apiErr.Status != each.want {
+			t.Errorf("assertUsable(%d, %q) = %v, 期望 %d", each.status, each.body, err, each.want)
 		}
 	}
 }

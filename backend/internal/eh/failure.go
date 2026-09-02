@@ -7,13 +7,11 @@ import (
 )
 
 // e 站这边可以预期的失败，每种都自带该回的状态码。
-//
-// 配额耗尽的文案单独提出来，是因为页面请求（509 落在 classifyResponse 里）和图片请求
-// （openImage 自己看状态码）是两条独立的路径，各写一句会越漂越远。
-const quotaExceededMsg = "e 站图片配额已用尽，等额度恢复后再试"
 
+// 图片配额耗尽。页面请求（assertUsable 里的 509）和图片请求（OpenImage 自己看状态码）
+// 是两条独立的路径，都回到这里，文案才不会各写一句、越漂越远。
 func errQuotaExceeded() error {
-	return web.Fail(http.StatusTooManyRequests, "%s", quotaExceededMsg)
+	return web.Fail(http.StatusTooManyRequests, "e 站图片配额已用尽，等额度恢复后再试")
 }
 
 // 出口 IP 被 e 站临时封了。
@@ -43,6 +41,11 @@ func errBadSignature(msg string) error {
 // 用户贴进来的那组 Cookie 拿去实际请求过一次，上游没认。
 func errCredentialRejected() error {
 	return web.BadRequest("这组 Cookie 用不了，确认一下是否复制完整、是否已经过期")
+}
+
+// 图片地址上少了签名参数。跟签名对不对是两回事，这里只说地址不完整。
+func errIncompleteSignature() error {
+	return web.BadRequest("图片地址缺少签名参数")
 }
 
 // 上游返回了意料之外的东西，通常是版面改了。
