@@ -1,0 +1,50 @@
+# 复制成 config.yml 再填。config.yml 已被 gitignore 挡住，不会入库。
+#
+# 三层来源，后面的盖前面的：代码里的默认值 → 这个文件 → 环境变量。
+# 所以容器部署可以完全不放这个文件，全用环境变量（名字见每项后面的注释）；
+# 本地开发则相反，写在这里省得往 shell 里塞一堆 export。
+#
+# 两条规矩：
+#   1. 在这里写出来的项就会生效，包括空值。不想覆盖默认值的项，注释掉，别留空串。
+#   2. 时长必须带单位（"720h" / "30s" / "1h30m"）。写成裸数字会被当成纳秒，
+#      差一百万倍而且不报错。单位只有 ns/us/ms/s/m/h，没有天，30 天要写 720h。
+
+security:
+  # 必填。登录令牌签名和图片地址签名都由它派生子密钥，缺了进程直接拒绝启动。
+  # 生成：openssl rand -hex 32              环境变量：EH_SECRET_KEY
+  secretKey: ""
+
+  # 注册默认关闭。要建第一个账号就临时改成 true，注册完改回来重启。
+  # 环境变量：ALLOW_REGISTRATION
+  # allowRegistration: false
+
+  # 登录令牌有效期，默认 30 天。       环境变量：TOKEN_TTL
+  # tokenTtl: "720h"
+  # 签名图片地址的有效期，默认 24 小时。环境变量：ATTACHMENT_TTL
+  # attachmentTtl: "24h"
+
+database:
+  # 环境变量：DATABASE_URL
+  url: postgres://postgres:postgres@localhost:5432/myapi
+  # 环境变量：DATABASE_MAX_CONNS / DATABASE_MAX_CONN_LIFETIME
+  # maxConns: 20
+  # maxConnLifetime: "1h"
+
+# 环境变量：PORT / STATIC_DIR
+# port: 8000
+# staticDir: ./public
+
+log:
+  # debug / info / warn / error       环境变量：LOG_LEVEL
+  # level: info
+  # json 或 text，默认看 stdout 是不是终端。环境变量：LOG_FORMAT
+  # format: text
+
+holiday:
+  # 定时刷新节假日数据的间隔，默认 24 小时。环境变量：HOLIDAY_REFRESH_INTERVAL
+  # refreshInterval: "24h"
+
+eh:
+  # 环境变量：EH_USER_AGENT / EH_REQUEST_TIMEOUT
+  # userAgent: "Mozilla/5.0 ..."
+  # requestTimeout: "30s"
