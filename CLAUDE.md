@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 功能上有三块：本站账号（`auth`）、E-Hentai / ExHentai 第三方只读客户端（`eh`，搜索 → 详情 → 阅读 → 看评论）、节假日查询（`holiday`，接口有外部调用方）。
 
-**启动前必须配好密钥**（`openssl rand -hex 32` 生成），否则进程直接拒绝启动——登录令牌签名和图片地址签名都由它派生。本地把 `backend/config.example.yml` 复制成 `config.yml` 填上 `security.secretKey` 即可，`config.yml` 已被 gitignore 挡住；容器里则用环境变量 `EH_SECRET_KEY`。表结构由人工维护：进程不碰 DDL，建表用 `backend/internal/store/schema.sql` 里的语句自己上库执行。
+**启动前必须配好密钥**（`openssl rand -hex 32` 生成），否则进程直接拒绝启动——登录令牌签名和图片地址签名都由它派生。本地把 `backend/config.example.yml` 复制成 `config.yml` 填上 `security.secretKey` 即可，`config.yml` 已被 gitignore 挡住；容器里则用环境变量 `SECRET_KEY`。表结构由人工维护：进程不碰 DDL，建表用 `backend/internal/store/schema.sql` 里的语句自己上库执行。
 
 **注册默认关闭**（`ALLOW_REGISTRATION`）。要建第一个账号就临时设成 `true`，注册完改回来重启。这条和「e 站凭据明文入库」是配套的取舍，见下面 `auth` 与 `eh` 两节。
 
@@ -129,7 +129,7 @@ docker build -t myapi .
 
 配置项清单是 `internal/config/config.go` 里的 `settings()`——一行写全「viper 的 key、环境变量名、默认值」三件事，加一项就是加一行，不会出现「加了默认值忘了绑环境变量」这种漏。几处约定：
 
-- **环境变量名是扁平的大写**：`EH_SECRET_KEY` / `DATABASE_URL` / `PORT` / `STATIC_DIR` / `ALLOW_REGISTRATION` / `TOKEN_TTL` / `ATTACHMENT_TTL` / `HOLIDAY_REFRESH_INTERVAL` / `LOG_LEVEL` / `LOG_FORMAT` / `EH_USER_AGENT` / `EH_REQUEST_TIMEOUT` / `DATABASE_MAX_CONNS` / `DATABASE_MAX_CONN_LIFETIME`。
+- **环境变量名是扁平的大写**：`SECRET_KEY` / `DATABASE_URL` / `PORT` / `STATIC_DIR` / `ALLOW_REGISTRATION` / `TOKEN_TTL` / `ATTACHMENT_TTL` / `HOLIDAY_REFRESH_INTERVAL` / `LOG_LEVEL` / `LOG_FORMAT` / `EH_USER_AGENT` / `EH_REQUEST_TIMEOUT` / `DATABASE_MAX_CONNS` / `DATABASE_MAX_CONN_LIFETIME`。
 - **逐条 `BindEnv`，不用 `AutomaticEnv`**：后者对 `Unmarshal` **根本不生效**，而且它按 key 反推变量名（`security.secretKey` → `SECURITY_SECRETKEY`），跟上面那些名字对不上。
 - **时长写成带单位的字符串**（`tokenTtl: "720h"`、`TOKEN_TTL=30s`），字段类型是 `time.Duration`，解析交给 viper 默认的 `StringToTimeDurationHookFunc`。`settings()` 里的默认值直接写 Go 常量（`30 * 24 * time.Hour`），比字符串好读。**不要设自定义 `DecodeHook`**——那会顶掉这个默认钩子，以后所有 `Duration` 字段就都不认字符串了。
 

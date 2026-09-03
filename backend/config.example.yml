@@ -11,7 +11,7 @@
 
 security:
   # 必填。登录令牌签名和图片地址签名都由它派生子密钥，缺了进程直接拒绝启动。
-  # 生成：openssl rand -hex 32              环境变量：EH_SECRET_KEY
+  # 生成：openssl rand -hex 32              环境变量：SECRET_KEY
   secretKey: ""
 
   # 注册默认关闭。要建第一个账号就临时改成 true，注册完改回来重启。

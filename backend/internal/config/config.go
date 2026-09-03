@@ -1,7 +1,7 @@
 // Package config 收拢全部运行配置。
 //
 // 三层来源，后面的盖前面的：结构体默认值 → 可选的 config.yml → 环境变量。
-// 环境变量名保持扁平的老写法（EH_SECRET_KEY、TOKEN_TTL_MS……），已有的部署配置不用改；
+// 环境变量名一律是扁平的大写（SECRET_KEY、TOKEN_TTL……），不按 key 分段；
 // yml 里则按 key 分段写，本地开发不必往 shell 里塞一堆 export。
 //
 // 时长写成带单位的字符串（"720h"、"30s"），由 viper 默认的 StringToTimeDurationHookFunc
@@ -112,7 +112,7 @@ func settings() []setting {
 
 		{"holiday.refreshInterval", "HOLIDAY_REFRESH_INTERVAL", 24 * time.Hour},
 
-		{"security.secretKey", "EH_SECRET_KEY", ""},
+		{"security.secretKey", "SECRET_KEY", ""},
 		{"security.allowRegistration", "ALLOW_REGISTRATION", false},
 		{"security.tokenTtl", "TOKEN_TTL", 30 * 24 * time.Hour},
 		{"security.attachmentTtl", "ATTACHMENT_TTL", 24 * time.Hour},
@@ -122,7 +122,7 @@ func settings() []setting {
 	}
 }
 
-// Load 拼出配置。缺 EH_SECRET_KEY 时返回错误——留空意味着任何人都能伪造任意用户的令牌，
+// Load 拼出配置。缺 SECRET_KEY 时返回错误——留空意味着任何人都能伪造任意用户的令牌，
 // 这种问题一旦上线就查不出来，不如在这里直接把容器拦停。
 func Load() (Config, error) {
 	v := viper.New()
@@ -151,7 +151,7 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("解析配置失败: %w", err)
 	}
 	if cfg.Security.SecretKey == "" {
-		return Config{}, errors.New("缺少 EH_SECRET_KEY（或 config.yml 里的 security.secretKey），" +
+		return Config{}, errors.New("缺少 SECRET_KEY（或 config.yml 里的 security.secretKey），" +
 			"用 `openssl rand -hex 32` 生成一个再启动")
 	}
 	return cfg, nil

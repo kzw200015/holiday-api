@@ -36,7 +36,7 @@ database:
 	}
 
 	// 环境变量盖过 yml，名字仍是扁平的老写法
-	t.Setenv("EH_SECRET_KEY", "from-env")
+	t.Setenv("SECRET_KEY", "from-env")
 	t.Setenv("TOKEN_TTL", "2s")
 	cfg, err = Load()
 	if err != nil {
@@ -66,5 +66,5 @@ func inTempDirWithConfig(t *testing.T, yaml string) {
 	}
 	t.Chdir(dir)
 	// 开发机上可能真设了这个变量，会盖过 yml 把用例弄花
-	t.Setenv("EH_SECRET_KEY", "")
+	t.Setenv("SECRET_KEY", "")
 }
