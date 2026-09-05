@@ -1,10 +1,14 @@
 import { createPinia, setActivePinia } from "pinia"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { effectScope, reactive, type EffectScope } from "vue"
 
 import * as authApi from "@/api/auth"
 import { searchGalleries, type GalleryCard, type GalleryPage } from "@/api/eh"
 import { useAuthStore } from "@/stores/AuthStore"
-import { useGalleryListStore } from "@/stores/GalleryListStore"
+import { useGalleryList } from "@/composables/useGalleryList"
+
+let scope: EffectScope
+const createList = () => scope.run(() => reactive(useGalleryList()))!
 
 vi.mock("@/api/eh", () => ({ searchGalleries: vi.fn() }))
 vi.mock("@/api/auth", () => ({ authenticate: vi.fn(), fetchCurrentUser: vi.fn() }))
@@ -37,14 +41,16 @@ function deferredPage() {
 }
 
 beforeEach(() => {
+  scope = effectScope()
   setActivePinia(createPinia())
   vi.resetAllMocks()
 })
+afterEach(() => scope.stop())
 
 describe("图库列表", () => {
   it("翻页携带原查询；错误暂停自动加载，手动重试沿用失败游标", async () => {
     search.mockResolvedValueOnce({ items: [card(1)], nextCursor: "next" })
-    const store = useGalleryListStore()
+    const store = createList()
     await store.search(query)
     search.mockRejectedValueOnce(new Error("上游限速"))
     await store.loadMore()
@@ -65,7 +71,7 @@ describe("图库列表", () => {
   it("切换搜索立即开始新请求，并丢弃旧响应", async () => {
     const old = deferredPage()
     search.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ items: [card(2)], nextCursor: null })
-    const store = useGalleryListStore()
+    const store = createList()
     const first = store.search(query)
     await store.search({ keyword: "new", categories: [] })
     expect(search.mock.calls[0][1]?.aborted).toBe(true)
@@ -79,7 +85,7 @@ describe("图库列表", () => {
     const old = deferredPage()
     const current = deferredPage()
     search.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise)
-    const store = useGalleryListStore()
+    const store = createList()
     const first = store.search(query)
     const second = store.search({ keyword: "new", categories: [] })
     old.reject(new Error("旧请求失败"))
@@ -93,7 +99,7 @@ describe("图库列表", () => {
 
   it("返回相同条件复用缓存，分类顺序与重复项不影响查询身份", async () => {
     search.mockResolvedValue({ items: [card(1)], nextCursor: null })
-    const store = useGalleryListStore()
+    const store = createList()
     await store.search({ keyword: "a|b", categories: ["manga", "doujinshi", "manga"] })
     await store.search({ keyword: "a|b", categories: ["doujinshi", "manga"] })
     expect(search).toHaveBeenCalledTimes(1)
@@ -103,7 +109,7 @@ describe("图库列表", () => {
   it("同一页加载期间再次触底不会重复请求", async () => {
     const pending = deferredPage()
     search.mockReturnValue(pending.promise)
-    const store = useGalleryListStore()
+    const store = createList()
     const first = store.search(query)
     await store.loadMore()
     expect(search).toHaveBeenCalledTimes(1)
@@ -111,12 +117,12 @@ describe("图库列表", () => {
     await first
   })
 
-  it("退出账号会取消在途请求，迟到响应不能恢复前一个账号的缓存", async () => {
+  it("组件销毁会取消在途请求，迟到响应不能恢复已清除的缓存", async () => {
     const pending = deferredPage()
     search.mockReturnValueOnce(pending.promise)
-    const store = useGalleryListStore()
+    const store = createList()
     const loading = store.search(query)
-    useAuthStore().logout()
+    scope.stop()
     pending.resolve({ items: [card(1)], nextCursor: "next" })
     await loading
     expect(store.items).toEqual([])
@@ -124,14 +130,17 @@ describe("图库列表", () => {
     expect(store.hasMore).toBe(false)
   })
 
-  it("新登录会话重新查询，即使筛选条件与前一账号相同", async () => {
-    search.mockResolvedValue({ items: [card(1)], nextCursor: null })
-    const store = useGalleryListStore()
-    await store.search(query)
+  it("登录、退出与凭据变化发出缓存失效信号", async () => {
+    const auth = useAuthStore()
     vi.mocked(authApi.authenticate).mockResolvedValue({ token: "new-token", user: { id: 2, username: "second" } })
-    await useAuthStore().authenticate("login", "second", "password")
-    expect(store.items).toEqual([])
-    await store.search(query)
-    expect(search).toHaveBeenCalledTimes(2)
+    await auth.authenticate("login", "second", "password")
+    expect(auth.sessionRevision).toBe(1)
+    expect(auth.galleryRevision).toBe(1)
+    auth.invalidateGalleries()
+    expect(auth.galleryRevision).toBe(2)
+    expect(auth.sessionRevision).toBe(1)
+    auth.logout()
+    expect(auth.galleryRevision).toBe(3)
+    expect(auth.sessionRevision).toBe(2)
   })
 })

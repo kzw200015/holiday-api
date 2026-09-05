@@ -1,6 +1,7 @@
 import { useEventListener, useTimeoutFn } from "@vueuse/core"
 import { computed, ref, watch } from "vue"
-import { useRoute, useRouter } from "vue-router"
+import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router"
+import { useGalleryNavigation } from "@/composables/galleryNavigation"
 
 import { fetchGalleryDetail, galleryImageUrl } from "@/api/eh"
 import { useQuery } from "@/composables/useQuery"
@@ -22,13 +23,18 @@ const PAGE_STEPS: Record<string, number> = {
 export function useReader(props: Readonly<{ gid: number; token: string }>) {
   const route = useRoute()
   const router = useRouter()
+  const navigation = useGalleryNavigation()
   const { data: detail, error, loading } = useQuery(
     () => `${props.gid}/${props.token}`,
     (_identity, signal) => fetchGalleryDetail(props.gid, props.token, signal),
   )
   const gallery = computed(() => detail.value?.gallery)
   const totalPages = computed(() => gallery.value?.fileCount ?? 0)
-  const requestedPage = computed(() => Math.max(1, Number(route.params.page ?? 1)))
+  const requestedPage = ref(Math.max(1, Number(route.params.page ?? 1)))
+  /* 离开路由后不能把详情页缺失的 page 当作第 1 页再上报。 */
+  watch(() => route.params.page, (value) => {
+    if (route.name === "reader") requestedPage.value = Math.max(1, Number(value ?? 1))
+  })
   /* 页码来自 URL，详情到达后才能按实际页数约束，避免手改地址请求越界图片。 */
   const page = computed(() => totalPages.value ? Math.min(requestedPage.value, totalPages.value) : requestedPage.value)
   const imageFailed = ref(false)
@@ -55,8 +61,19 @@ export function useReader(props: Readonly<{ gid: number; token: string }>) {
   }
 
   function exit() {
-    void router.push({ name: "gallery-detail", params: { gid: props.gid, token: props.token } })
+    const target = router.resolve({ name: "gallery-detail", params: { gid: props.gid, token: props.token } })
+    if (router.options.history.state.back === target.fullPath) {
+      router.back()
+    } else {
+      void router.replace(target.fullPath)
+    }
   }
+
+  onBeforeRouteLeave(() => {
+    if (detail.value && totalPages.value) {
+      navigation.publish({ gid: props.gid, token: props.token, page: page.value })
+    }
+  })
 
   function retryImage(event: MouseEvent) {
     event.stopPropagation()

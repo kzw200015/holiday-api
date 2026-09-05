@@ -44,8 +44,9 @@ const routes: RouteRecordRaw[] = [
 export const AppRouter = createRouter({
   history: createWebHashHistory(),
   routes,
-  /* 返回列表页时回到原来的位置，配合 GalleryListStore 留住的条目就能接着往下翻 */
-  scrollBehavior: (_to, _from, savedPosition) => savedPosition ?? { top: 0 },
+  /* 缓存页由组件恢复位置，也涵盖按钮主动返回；其余页面沿用浏览器历史位置。 */
+  scrollBehavior: (to, _from, savedPosition) =>
+    ["gallery-list", "gallery-detail"].includes(String(to.name)) ? false : savedPosition ?? { top: 0 },
 })
 
 AppRouter.beforeEach(async (to) => {

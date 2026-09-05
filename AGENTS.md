@@ -191,11 +191,15 @@ docker build -t myapi .
 
 `meta.requiresAuth` 决定 `beforeEach` 拦不拦；首页和节假日页保持公开。登录页和阅读视图是**顶层路由**（与 `/` 布局平级），因为它们要全屏、不套 `AppLayout`。
 
-**列表状态放 store 而不是 KeepAlive**：`stores/GalleryListStore.ts` 存已加载的条目和游标。不用 KeepAlive 是因为阅读视图是顶层路由，进去时整个 `AppLayout` 连同里面的 KeepAlive 一起卸载，缓存就没了；放 store 则无论从哪条路径回来都还在，配合路由的 `scrollBehavior`（`savedPosition`）就能接着往下翻。`search()` 自行比较查询条件并取消旧请求；分页失败保留游标，由错误状态暂停自动加载。登录、退出和 e 站凭据变更都要调用 `clear()`，防止跨账号或跨站点复用缓存。
+**列表与详情用组件级 KeepAlive，不用外部 store 模拟缓存**：`App.tsx` 缓存 `AppLayout`，保证进入顶层阅读路由时布局内的缓存仍存活；布局内保留一份列表和一份详情，不按查询条件或图集身份创建多份缓存。`composables/useGalleryList.ts` 的条目、游标与请求状态属于列表组件，`search()` 比较查询条件并取消旧请求；分页失败保留游标，由错误状态暂停自动加载。停用列表时禁止无限加载，销毁时取消请求。`usePageScroll` 保存组件的滚动位置，按钮返回和浏览器后退都能恢复，路由的 `scrollBehavior` 不覆盖这两个页面。登录、退出通过 `AuthStore.sessionRevision` 重建布局缓存，凭据变化调用 `invalidateGalleries()` 重建内层缓存；这些版本号只表达失效，不保存页面数据。
+
+**搜索条件不进 URL**：列表地址固定为 `/eh`，关键词与已加载结果属于列表组件，详情返回时靠 KeepAlive 恢复，不用路由历史状态保存搜索条件。当前关键词不持久化，新建组件或刷新页面时为空；`useSearchHistory` 按本站账号在本机保存提交过的非空关键词，最近 10 条、去重置顶，支持删除单条和确认清空。点击历史词按当前分类立即搜索。`useGalleryCategories` 按本站账号持久化已应用的分类，刷新后恢复；分类面板使用独立草稿，手机底部抽屉、桌面弹出面板，点击应用才保存并搜索，取消不影响已有选择。
 
 **HTTP 层**：`api/httpClient.ts` 的 `httpClient.get/post` 在边界解包 `{ code, data, msg }`，业务接口直接返回 `data`；错误拦截器统一转成携带后端 `msg` 的 `Error`，取消请求保留 Axios 的取消标识。业务侧只写 `api/xxx.ts` 里的具名函数，不要直接用 axios。401 的跳转处理由 `main.ts` 用 `onUnauthorized()` 注入，**不要在 httpClient 里直接 import router**——router 会加载各个页面、页面又 import httpClient，直接依赖就成环了。
 
 **页面查询**：`composables/useQuery.ts` 统一处理查询的加载、错误与取消；新参数到来或组件卸载时取消旧请求，迟到响应不能覆盖当前状态。详情与阅读页通过路由 props 接收图集身份，避免组件复用时保留旧参数。阅读行为集中在 `useReader`，进度由 `useReadingProgress` 按图集和页码快照防抖保存，离开时补报最后一页。业务页面通过动态 import 按路由加载。
+
+**阅读返回不重载详情**：`galleryNavigation` 是根组件提供的通知通道，不缓存页面数据；阅读器离开时发送页码，被缓存的详情组件只更新本图集的继续阅读进度，元信息、评论和滚动位置保持原样。阅读器不缓存，退出时优先回退到前一条详情历史，否则替换为详情，避免后退又进入阅读器。
 
 **登录令牌存 localStorage**（`api/httpClient.ts`）：请求拦截器统一加 `Authorization: Bearer`，只有当前令牌的 401 才清掉本地令牌并交给 `onUnauthorized()` 跳转，旧请求不能退出新会话。退出登录没有后端往返，统一走 `AuthStore.logout()` 清理令牌、账号和图库缓存。
 

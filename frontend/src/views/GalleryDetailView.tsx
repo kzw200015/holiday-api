@@ -1,6 +1,8 @@
-import { BookOpenIcon } from "@lucide/vue"
-import { computed, defineComponent } from "vue"
-import { RouterLink } from "vue-router"
+import { ArrowLeftIcon, BookOpenIcon } from "@lucide/vue"
+import { computed, defineComponent, onScopeDispose, ref, watch } from "vue"
+import { RouterLink, useRouter } from "vue-router"
+import { useGalleryNavigation } from "@/composables/galleryNavigation"
+import { usePageScroll } from "@/composables/usePageScroll"
 
 import {
   fetchGalleryComments,
@@ -27,11 +29,25 @@ export default defineComponent({
   setup(props) {
 
     const identity = () => `${props.gid}/${props.token}`
+    const router = useRouter()
+    const latestPage = ref<number | null>(null)
+    watch(identity, () => {
+      latestPage.value = null
+    }, { immediate: true })
+    usePageScroll(identity)
+    onScopeDispose(useGalleryNavigation().subscribe((position) => {
+      if (position.gid === props.gid && position.token === props.token) latestPage.value = position.page
+    }))
+    function returnToList() {
+      const target = router.resolve({ name: "gallery-list" }).fullPath
+      if (router.options.history.state.back === target) router.back()
+      else void router.replace(target)
+    }
     const { data: detail, error, loading } = useQuery(identity, (_identity, signal) =>
       fetchGalleryDetail(props.gid, props.token, signal),
     )
     const gallery = computed(() => detail.value?.gallery)
-    const progress = computed(() => detail.value?.progress)
+    const progress = computed(() => latestPage.value ?? detail.value?.progress)
     /* 评论需要抓取上游页面，独立加载，失败不阻塞元数据。 */
     const { data: comments, error: commentsError, loading: commentsLoading } = useQuery(identity, (_identity, signal) =>
       fetchGalleryComments(props.gid, props.token, signal),
@@ -55,6 +71,9 @@ export default defineComponent({
 
     return () => (
       <div class="flex flex-col gap-4">
+        <Button class="self-start" variant="ghost" {...{ onClick: returnToList }}>
+          <ArrowLeftIcon />返回列表
+        </Button>
         {loading.value ? (
           <div class="flex flex-col gap-4 sm:flex-row">
             <Skeleton class="h-72 w-52 shrink-0 rounded-lg" />

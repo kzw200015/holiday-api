@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useGalleryListStore } from "@/stores/GalleryListStore"
 import { useAuthStore } from "@/stores/AuthStore"
 
 /* 三个 Cookie 的说明文案，name 与 e 站的 Cookie 名一致 */
@@ -53,7 +52,7 @@ export default defineComponent({
       successMessage.value = ""
       try {
         status.value = await bindCredential({ ...form.value })
-        useGalleryListStore().clear()
+        authStore.invalidateGalleries()
         successMessage.value = status.value.hasExAccess
           ? "绑定成功，里站已解锁。"
           : "绑定成功。这个账号没有里站权限，只能浏览前站。"
@@ -71,7 +70,7 @@ export default defineComponent({
       successMessage.value = ""
       try {
         await unbindCredential()
-        useGalleryListStore().clear()
+        authStore.invalidateGalleries()
         status.value = { bound: false, memberId: "", hasExAccess: false }
       } catch (error) {
         errorMessage.value = (error as Error).message

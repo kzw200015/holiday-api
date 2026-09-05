@@ -1,17 +1,22 @@
 import { useInfiniteScroll } from "@vueuse/core"
-import { SearchIcon } from "@lucide/vue"
-import { defineComponent, ref, watch } from "vue"
-import { RouterLink, useRoute, useRouter } from "vue-router"
+import { SearchIcon, XIcon } from "@lucide/vue"
+import { defineComponent, onActivated, onDeactivated, reactive, ref } from "vue"
+import { RouterLink, useRoute } from "vue-router"
 
-import { galleryCategories, type GalleryCard } from "@/api/eh"
+import { type GalleryCard } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert"
 import GalleryMeta from "@/components/gallery/GalleryMeta"
+import CategoryFilter from "@/components/gallery/CategoryFilter"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatDateTime } from "@/lib/format"
-import { useGalleryListStore } from "@/stores/GalleryListStore"
+import { useGalleryList } from "@/composables/useGalleryList"
+import { useGalleryCategories } from "@/composables/useGalleryCategories"
+import { useSearchHistory } from "@/composables/useSearchHistory"
+import { usePageScroll } from "@/composables/usePageScroll"
+import { useAuthStore } from "@/stores/AuthStore"
 
 /* 触底前多少像素开始加载下一页 */
 const LOAD_AHEAD_PX = 600
@@ -19,71 +24,49 @@ const LOAD_AHEAD_PX = 600
 /*
  * 图库列表：上方搜索框，下方纵向无限加载。
  *
- * 已加载的条目存在 GalleryListStore 里，所以从详情页或阅读视图回来时不用重新翻；
- * 滚动位置由路由的 scrollBehavior 负责恢复。
+ * 条目与滚动位置属于组件，由 KeepAlive 保留；停用时不触发无限加载。
  */
 export default defineComponent({
   name: "GalleryListView",
   setup() {
     const route = useRoute()
-    const router = useRouter()
-    const listStore = useGalleryListStore()
+    const list = reactive(useGalleryList())
+    const userId = useAuthStore().user?.id
+    const history = reactive(useSearchHistory(userId))
+    const categories = reactive(useGalleryCategories(userId))
+    const active = ref(true)
+    onActivated(() => { active.value = true })
+    onDeactivated(() => { active.value = false })
+    const resetScroll = usePageScroll()
 
     const keyword = ref("")
-    const selected = ref<string[]>([])
+    /* 新组件只恢复分类；KeepAlive 激活不重新搜索，也不覆盖尚未提交的输入。 */
+    void list.search({ keyword: "", categories: categories.selected })
 
-    /* 条件变了才重来；原路返回时条件没变，直接沿用已加载的内容 */
-    function applyRoute() {
-      const nextKeyword = typeof route.query.keyword === "string" ? route.query.keyword : ""
-      const nextCategories = typeof route.query.categories === "string" ? route.query.categories.split(",") : []
-      keyword.value = nextKeyword
-      /* URL 是输入边界，只接受已登记的分类，同时去重并固定顺序。 */
-      selected.value = galleryCategories
-        .filter(({ value }) => nextCategories.includes(value))
-        .map(({ value }) => value)
-
-      void listStore.search({ keyword: nextKeyword, categories: selected.value })
-    }
-
-    /* 搜索条件写进地址栏：既能分享和刷新还原，也天然成了「重新搜索」的信号 */
     function submit(event: Event) {
       event.preventDefault()
-      void router.push({
-        name: "gallery-list",
-        query: {
-          keyword: keyword.value || undefined,
-          categories: selected.value.join(",") || undefined,
-        },
-      })
+      runSearch()
     }
 
-    function toggleCategory(value: string) {
-      selected.value = selected.value.includes(value)
-        ? selected.value.filter((item) => item !== value)
-        : [...selected.value, value]
+    function runSearch() {
+      keyword.value = keyword.value.trim()
+      history.record(keyword.value)
+      void list.search({ keyword: keyword.value, categories: categories.selected })
+      void resetScroll()
     }
 
-    watch(
-      () => route.fullPath,
-      () => {
-        if (route.name === "gallery-list") {
-          applyRoute()
-        }
-      },
-      { immediate: true },
-    )
-
-    useInfiniteScroll(() => window, () => void listStore.loadMore(), {
+    useInfiniteScroll(() => window, () => void list.loadMore(), {
       distance: LOAD_AHEAD_PX,
-      canLoadMore: () => listStore.hasMore && !listStore.loading && !listStore.errorMessage,
+      canLoadMore: () => active.value && route.name === "gallery-list" && list.hasMore && !list.loading && !list.errorMessage,
     })
 
     return () => (
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-3">
-          <form class="flex gap-2" onSubmit={submit}>
+          <form class="flex flex-wrap gap-2" onSubmit={submit}>
             {/* Input 只声明了 modelValue 一类的 props，原生属性经展开透传给根元素 */}
             <Input
+              class="min-w-0 flex-1 basis-40"
               modelValue={keyword.value}
               {...{
                 placeholder: "搜索标题或标签，例如 language:chinese",
@@ -95,31 +78,38 @@ export default defineComponent({
               <SearchIcon />
               搜索
             </Button>
+            <CategoryFilter selected={categories.selected} onApply={(selected) => {
+              categories.apply(selected)
+              runSearch()
+            }} />
           </form>
 
-          {/* 一个都不选等于不过滤，和全选是一回事 */}
-          <div class="flex flex-wrap gap-1.5">
-            {galleryCategories.map((category) => (
-              <Badge
-                as="button"
-                aria-pressed={selected.value.includes(category.value)}
-                class="cursor-pointer select-none"
-                key={category.value}
-                variant={selected.value.includes(category.value) ? "default" : "outline"}
-                {...{ onClick: () => toggleCategory(category.value) }}
-              >
-                {category.label}
-              </Badge>
-            ))}
+          <div class="flex flex-col gap-2" aria-label="搜索历史">
+            <div class="text-muted-foreground flex items-center justify-between text-xs">
+              <span>搜索历史</span>
+              {history.entries.length ? <Button variant="ghost" size="xs" class="cursor-pointer" {...{ type: "button", onClick: () => {
+                if (window.confirm("清空全部搜索历史？")) history.clear()
+              } }}>清空</Button> : null}
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              {history.entries.map((entry) => <Badge as="span" variant="secondary" class="h-auto max-w-full gap-0 rounded-md p-0" key={entry}>
+                <Button variant="ghost" size="xs" class="min-w-0 shrink cursor-pointer rounded-r-none" {...{
+                  type: "button", title: entry, onClick: () => { keyword.value = entry; runSearch() },
+                }}><span class="truncate">{entry}</span></Button>
+                <Button variant="ghost" size="icon-xs" class="cursor-pointer rounded-l-none" aria-label={`删除历史：${entry}`}
+                  {...{ type: "button", onClick: () => history.remove(entry) }}><XIcon class="size-3" /></Button>
+              </Badge>)}
+              {!history.entries.length ? <span class="text-muted-foreground text-xs">暂无搜索历史</span> : null}
+            </div>
           </div>
         </div>
 
         <div class="flex flex-col gap-3">
-          {listStore.items.map((item) => (
+          {list.items.map((item) => (
             <GalleryRow item={item} key={`${item.gid}-${item.token}`} />
           ))}
 
-          {listStore.loading ? (
+          {list.loading ? (
             <>
               {[0, 1, 2].map((index) => (
                 <div class="flex gap-3" key={index}>
@@ -134,19 +124,19 @@ export default defineComponent({
             </>
           ) : null}
 
-          {listStore.errorMessage ? (
-            <ErrorAlert message={listStore.errorMessage} title="加载失败">
-              <Button size="sm" variant="outline" {...{ onClick: () => void listStore.retry() }}>
+          {list.errorMessage ? (
+            <ErrorAlert message={list.errorMessage} title="加载失败">
+              <Button size="sm" variant="outline" {...{ onClick: () => void list.retry() }}>
                 重试
               </Button>
             </ErrorAlert>
           ) : null}
 
-          {!listStore.loading && !listStore.errorMessage && listStore.items.length === 0 ? (
+          {!list.loading && !list.errorMessage && list.items.length === 0 ? (
             <p class="text-muted-foreground py-12 text-center text-sm">没有找到符合条件的图集。</p>
           ) : null}
 
-          {!listStore.hasMore && !listStore.errorMessage && listStore.items.length > 0 ? (
+          {!list.hasMore && !list.errorMessage && list.items.length > 0 ? (
             <p class="text-muted-foreground py-6 text-center text-sm">已经到底了。</p>
           ) : null}
         </div>

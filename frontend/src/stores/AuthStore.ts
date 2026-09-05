@@ -3,13 +3,19 @@ import { ref } from "vue"
 
 import * as authApi from "@/api/auth"
 import { hasToken, setToken } from "@/api/httpClient"
-import { useGalleryListStore } from "@/stores/GalleryListStore"
 
 export const useAuthStore = defineStore("AuthStore", () => {
   const user = ref<authApi.CurrentUser | null>(null)
 
   /* 是否已经问过后端「我是谁」。路由守卫要等这一步完成才敢判断放不放行 */
   const ready = ref(false)
+  const sessionRevision = ref(0)
+  const galleryRevision = ref(0)
+
+  /* 只通知组件缓存失效，不在账号 store 保存任何图库页面数据。 */
+  function invalidateGalleries() {
+    galleryRevision.value += 1
+  }
 
   /* 刷新登录态。GET /auth/me 未登录时回 200 加 null，所以这里不会因为没登录而抛错 */
   async function refresh() {
@@ -31,7 +37,8 @@ export const useAuthStore = defineStore("AuthStore", () => {
 
   async function authenticate(action: authApi.AuthAction, username: string, password: string) {
     const session = await authApi.authenticate(action, username, password)
-    useGalleryListStore().clear()
+    sessionRevision.value += 1
+    invalidateGalleries()
     setToken(session.token)
     user.value = session.user
     ready.value = true
@@ -42,8 +49,9 @@ export const useAuthStore = defineStore("AuthStore", () => {
     setToken("")
     user.value = null
     ready.value = true
-    useGalleryListStore().clear()
+    sessionRevision.value += 1
+    invalidateGalleries()
   }
 
-  return { user, ready, refresh, authenticate, logout }
+  return { user, ready, sessionRevision, galleryRevision, invalidateGalleries, refresh, authenticate, logout }
 })

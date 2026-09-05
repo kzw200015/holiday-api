@@ -1,5 +1,4 @@
-import { defineStore } from "pinia"
-import { computed, ref, shallowRef, triggerRef } from "vue"
+import { computed, onScopeDispose, ref, shallowRef, triggerRef } from "vue"
 
 import { type GalleryCard, searchGalleries } from "@/api/eh"
 
@@ -9,8 +8,8 @@ interface GallerySearch {
   categories: string[]
 }
 
-/* 阅读页会卸载应用布局，因此列表缓存放在 store，返回时才能恢复内容与滚动位置。 */
-export const useGalleryListStore = defineStore("GalleryListStore", () => {
+/* 状态属于列表组件实例，离开时由 KeepAlive 保留，淘汰时取消在途请求。 */
+export function useGalleryList() {
   /* 卡片只追加，用浅引用避免给每张卡片及其标签创建 Proxy。 */
   const items = shallowRef<GalleryCard[]>([])
   const query = shallowRef<GallerySearch | null>(null)
@@ -76,5 +75,6 @@ export const useGalleryListStore = defineStore("GalleryListStore", () => {
     await loadMore()
   }
 
+  onScopeDispose(clear)
   return { items, hasMore, loading, errorMessage, search, clear, loadMore, retry }
-})
+}
