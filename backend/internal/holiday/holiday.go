@@ -4,10 +4,12 @@ package holiday
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 
@@ -43,21 +45,16 @@ func NewService(pool *pgxpool.Pool, queries *store.Queries, remote *RemoteClient
 func (s *Service) Query(ctx context.Context, date time.Time) (Day, error) {
 	text := date.Format(time.DateOnly)
 
-	// date 列有唯一索引（holiday_days_date_key），最多命中一行，所以查询里多取一行做校验：
-	// 真出现多行说明索引被人删了，报错比静默返回其中一行好
-	rows, err := s.queries.ListHolidayDaysByDate(ctx, text)
+	day, err := s.queries.GetHolidayDayByDate(ctx, text)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// 表中没有安排的日期按周末判断；数据库故障不能当成普通日期。
+		weekday := date.Weekday()
+		return Day{Date: text, IsOffDay: weekday == time.Saturday || weekday == time.Sunday}, nil
+	}
 	if err != nil {
 		return Day{}, err
 	}
-	if len(rows) > 1 {
-		return Day{}, fmt.Errorf("holiday_days 中 date=%s 命中多行，唯一索引 holiday_days_date_key 可能已失效", text)
-	}
-	if len(rows) == 1 {
-		return Day{Date: text, IsOffDay: rows[0].IsOffDay, Name: rows[0].Name}, nil
-	}
-
-	weekday := date.Weekday()
-	return Day{Date: text, IsOffDay: weekday == time.Saturday || weekday == time.Sunday}, nil
+	return Day{Date: text, IsOffDay: day.IsOffDay, Name: day.Name}, nil
 }
 
 // RefreshYear 刷新指定年份：远程拉取后以「先删后插」替换该年数据。

@@ -68,6 +68,23 @@ func (q *Queries) GetEhCredential(ctx context.Context, userID int64) (GetEhCrede
 	return i, err
 }
 
+const getHolidayDayByDate = `-- name: GetHolidayDayByDate :one
+SELECT name, date, is_off_day FROM holiday_days WHERE date = $1
+`
+
+type GetHolidayDayByDateRow struct {
+	Name     string
+	Date     string
+	IsOffDay bool
+}
+
+func (q *Queries) GetHolidayDayByDate(ctx context.Context, date string) (GetHolidayDayByDateRow, error) {
+	row := q.db.QueryRow(ctx, getHolidayDayByDate, date)
+	var i GetHolidayDayByDateRow
+	err := row.Scan(&i.Name, &i.Date, &i.IsOffDay)
+	return i, err
+}
+
 const getReadingProgress = `-- name: GetReadingProgress :one
 SELECT page FROM eh_reading_progress WHERE user_id = $1 AND gid = $2
 `
@@ -134,38 +151,6 @@ type InsertHolidayDaysParams struct {
 func (q *Queries) InsertHolidayDays(ctx context.Context, arg InsertHolidayDaysParams) error {
 	_, err := q.db.Exec(ctx, insertHolidayDays, arg.Names, arg.Dates, arg.IsOffDays)
 	return err
-}
-
-const listHolidayDaysByDate = `-- name: ListHolidayDaysByDate :many
-SELECT name, date, is_off_day FROM holiday_days WHERE date = $1 LIMIT 2
-`
-
-type ListHolidayDaysByDateRow struct {
-	Name     string
-	Date     string
-	IsOffDay bool
-}
-
-// date 列上有唯一索引，最多命中一行；这里刻意取两行，多出来说明索引被人删了，
-// 让调用方抛错比静默返回其中一行好查得多。
-func (q *Queries) ListHolidayDaysByDate(ctx context.Context, date string) ([]ListHolidayDaysByDateRow, error) {
-	rows, err := q.db.Query(ctx, listHolidayDaysByDate, date)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListHolidayDaysByDateRow{}
-	for rows.Next() {
-		var i ListHolidayDaysByDateRow
-		if err := rows.Scan(&i.Name, &i.Date, &i.IsOffDay); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const upsertEhCredential = `-- name: UpsertEhCredential :exec

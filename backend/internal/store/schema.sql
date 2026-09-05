@@ -61,5 +61,5 @@ CREATE TABLE IF NOT EXISTS holiday_days (
     updated_at timestamptz NOT NULL
 );
 
--- 这个唯一索引是 holiday.Service.Query 的前提：它只允许命中一行，多行会抛错。
+-- 每个日期只有一条安排，按日期查询由此保证最多命中一行。
 CREATE UNIQUE INDEX IF NOT EXISTS holiday_days_date_key ON holiday_days (date);

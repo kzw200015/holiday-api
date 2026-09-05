@@ -9,10 +9,8 @@ SELECT * FROM users WHERE username = $1;
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1;
 
--- date 列上有唯一索引，最多命中一行；这里刻意取两行，多出来说明索引被人删了，
--- 让调用方抛错比静默返回其中一行好查得多。
--- name: ListHolidayDaysByDate :many
-SELECT name, date, is_off_day FROM holiday_days WHERE date = $1 LIMIT 2;
+-- name: GetHolidayDayByDate :one
+SELECT name, date, is_off_day FROM holiday_days WHERE date = $1;
 
 -- name: DeleteHolidayDaysByYearPrefix :exec
 DELETE FROM holiday_days WHERE date LIKE $1;
