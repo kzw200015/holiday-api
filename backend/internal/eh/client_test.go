@@ -1,12 +1,82 @@
 package eh
 
 import (
+	"context"
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
+	"time"
 
 	"myapi/internal/web"
 )
+
+// 模拟上游在读正文时断流或超时，并记录资源是否被释放。
+type failingBody struct {
+	read   func() error
+	closed bool
+}
+
+func (b *failingBody) Read([]byte) (int, error) { return 0, b.read() }
+
+func (b *failingBody) Close() error {
+	b.closed = true
+	return nil
+}
+
+func TestBufferedRequestsReleaseFailedBody(t *testing.T) {
+	callers := []struct {
+		name string
+		call func(*Client) error
+	}{
+		{"页面", func(c *Client) error {
+			_, err := c.FetchPage(context.Background(), RequestContext{Site: SiteE}, "/")
+			return err
+		}},
+		{"元数据", func(c *Client) error {
+			var out gdataResponse
+			return c.CallAPI(context.Background(), RequestContext{Site: SiteE}, map[string]string{"method": "gdata"}, &out)
+		}},
+		{"凭据探测", func(c *Client) error {
+			_, err := c.VerifyCredential(context.Background(), Cookie{})
+			return err
+		}},
+	}
+	for _, caller := range callers {
+		for _, timeout := range []bool{false, true} {
+			name, cause := "断流", error(io.ErrUnexpectedEOF)
+			if timeout {
+				name, cause = "读取超时", context.DeadlineExceeded
+			}
+			t.Run(caller.name+"/"+name, func(t *testing.T) {
+				body := &failingBody{}
+				client := NewClient("test", 10*time.Millisecond, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+					// 里站探测失败不阻止绑定；本用例检查必须对外报告的前站读取故障。
+					if r.URL.Host == "exhentai.org" {
+						return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("ok"))}, nil
+					}
+					body.read = func() error {
+						if timeout {
+							<-r.Context().Done()
+							return r.Context().Err()
+						}
+						return io.ErrUnexpectedEOF
+					}
+					return &http.Response{StatusCode: http.StatusOK, Body: body}, nil
+				}))
+				err := caller.call(client)
+				var apiErr *web.Error
+				if !errors.Is(err, cause) || !errors.As(err, &apiErr) || apiErr.Status != http.StatusBadGateway {
+					t.Fatalf("读取失败 = %v，期望保留原因 %v 并返回 502", err, cause)
+				}
+				if !body.closed {
+					t.Fatal("失败响应体未关闭")
+				}
+			})
+		}
+	}
+}
 
 // 图片主机白名单是图片代理唯一的 SSRF 防线，所以单独测。
 // 这里列的绕过手法都是真会被人试的，改实现时这些用例必须继续过。

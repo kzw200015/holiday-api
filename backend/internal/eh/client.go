@@ -117,21 +117,11 @@ func (c *Client) CallAPI(ctx context.Context, rc RequestContext, payload any, ou
 // 剩下这六步是一样的。返回 []byte 而不是 string：JSON 那条路径直接喂给 Unmarshal，
 // 不必为一份几十 KB 的响应体多复制一遍。
 func (c *Client) fetch(ctx context.Context, method, target, cookieHeader string, body []byte) ([]byte, error) {
-	// 总超时盖住「连上、等头、读完」三段
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
-
-	response, err := c.do(ctx, method, target, cookieHeader, body)
+	response, err := c.readResponse(ctx, method, target, cookieHeader, body)
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
-
-	content, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, errUpstream(err, "读取 e 站响应失败")
-	}
-	return content, assertUsable(response.StatusCode, content, target)
+	return response.body, assertUsable(response.status, response.body, target)
 }
 
 // OpenImage 取一张图，返回上游响应本身以便流式转发，不把整张图读进内存。
@@ -168,16 +158,23 @@ func (c *Client) VerifyCredential(ctx context.Context, cookie Cookie) (hasExAcce
 	header := buildCookieHeader(&cookie)
 	// 两个请求之间没有依赖，串起来只是白等一个跨境往返。
 	// 凭据无效这条路走得很少，先发后判不会浪费多少请求
-	var home, ex probeResult
+	var home, ex bufferedResponse
+	var homeErr, exErr error
 	var wait sync.WaitGroup
 	wait.Add(2)
 	// 未登录时 home.php 会 302 到论坛登录页，登录成功才是 200
-	go func() { defer wait.Done(); home = c.probe(ctx, homeURL, header) }()
-	go func() { defer wait.Done(); ex = c.probe(ctx, pageHosts[SiteEx]+"/", header) }()
+	go func() {
+		defer wait.Done()
+		home, homeErr = c.readResponse(ctx, http.MethodGet, homeURL, header, nil)
+	}()
+	go func() {
+		defer wait.Done()
+		ex, exErr = c.readResponse(ctx, http.MethodGet, pageHosts[SiteEx]+"/", header, nil)
+	}()
 	wait.Wait()
 
-	if home.err != nil {
-		return false, home.err
+	if homeErr != nil {
+		return false, homeErr
 	}
 	if home.status != http.StatusOK {
 		return false, errCredentialRejected()
@@ -188,30 +185,30 @@ func (c *Client) VerifyCredential(ctx context.Context, cookie Cookie) (hasExAcce
 	}
 	// 里站在账号没权限时回 200 加空 body（俗称 sad panda），不是 403。
 	// 里站那一探连不上就当没有权限，不拦绑定：前站已经证明凭据是好的
-	return ex.err == nil && ex.status == http.StatusOK && len(bytes.TrimSpace(ex.body)) > 0, nil
+	return exErr == nil && ex.status == http.StatusOK && len(bytes.TrimSpace(ex.body)) > 0, nil
 }
 
-type probeResult struct {
+// bufferedResponse 保留完整正文与状态码，让页面读取和凭据探测各自判断业务结果。
+type bufferedResponse struct {
 	status int
 	body   []byte
-	err    error
 }
 
-// 发一次带总超时的请求，读完正文原样交回，不做「200 但不是内容」的判定——由调用方按需判。
-func (c *Client) probe(ctx context.Context, url, cookieHeader string) probeResult {
+// 页面、JSON 和凭据探测共用总超时及 Body 关闭逻辑；图片流不走这里，避免传输中途超时。
+func (c *Client) readResponse(ctx context.Context, method, target, cookieHeader string, payload []byte) (bufferedResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	response, err := c.do(ctx, http.MethodGet, url, cookieHeader, nil)
+	response, err := c.do(ctx, method, target, cookieHeader, payload)
 	if err != nil {
-		return probeResult{err: err}
+		return bufferedResponse{}, err
 	}
 	defer response.Body.Close()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return probeResult{err: errUpstream(err, "读取 e 站响应失败")}
+		return bufferedResponse{}, errUpstream(err, "读取 e 站响应失败")
 	}
-	return probeResult{status: response.StatusCode, body: body}
+	return bufferedResponse{status: response.StatusCode, body: body}, nil
 }
 
 // 统一的请求：伪装 UA、带上调用方给的 Cookie 头、不跟随重定向（在 Client 上配好了）。

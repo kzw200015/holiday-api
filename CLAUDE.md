@@ -96,13 +96,15 @@ docker build -t myapi .
 
 **签名地址的过期时间对齐到窗口**（`signing.AttachmentSigner.Sign`）：不是精确的 now + ttl，而是往后对齐到 ttl/4 的整数倍，同一窗口里对同一个 subject 签出的地址一模一样。图片接口靠 URL 命中浏览器缓存，每次列表、每次进详情都签出毫秒级不同的地址的话，缩略图和大图永远缓存不上，翻回去看一眼也要再消耗一次 e 站配额。代价是实际有效期比配置的最多长四分之一，只会长不会短。
 
-**图片走签名地址而不是令牌**（`signing/signing.go`）：`<img src>` 是浏览器自己发的请求，带不了 `Authorization` 头。所以两个图片接口不鉴权，只认地址里的签名——签名覆盖「这是哪一份附件」加过期时间，两者任一被改就对不上。缩略图签的是上游地址，大图签的是 `userId:gid:token`：**页码刻意不参与签名**，一本图集一张通行证，否则 300 页的详情就得回传 300 条签好的地址；地址模板由 `GET /api/eh/galleries/{gid}/{token}` 随详情下发，形如 `.../pages/{page}/image?uid=&e=&s=`，前端只把 `{page}` 换成页码。**大图的 userId 只能取自签名过的 `uid` 参数**，不能取当前登录者——那条链路根本没有登录者。有效期由 `security.attachmentTtl` 控制（默认 24 小时），过期表现为图片裂开，重新取一次详情即可；签名不对或过期回 **403** 而不是 502——过期是有效期到点后的日常现象，混进 502 会把「e 站真的挂了」的信号淹掉。缩略图地址在**组装响应时**才签名，不进图集元数据缓存，否则缓存 TTL 就得永远短于附件有效期。`internal/app/router_test.go` 专门测这个闭环：地址在「签发」（`eh/service.go` 拼模板）和「校验」（`eh/handler_image.go` 读参数 + 路由模式）两处各拼一次，两边不一致的话所有图片会一起打不开，而各自的单元测试都是绿的。
+**图片走签名地址而不是令牌**（`signing/signing.go`）：`<img src>` 是浏览器自己发的请求，带不了 `Authorization` 头。所以两个图片接口不鉴权，只认地址里的签名——签名覆盖「这是哪一份附件」加过期时间，两者任一被改就对不上。缩略图签的是上游地址，大图签的是 `userId:gid:token`：**页码刻意不参与签名**，一本图集一张通行证，否则 300 页的详情就得回传 300 条签好的地址；地址模板由 `GET /api/eh/galleries/{gid}/{token}` 随详情下发，形如 `.../pages/{page}/image?uid=&e=&s=`，前端只把 `{page}` 换成页码。**大图的 userId 只能取自签名过的 `uid` 参数**，不能取当前登录者——那条链路根本没有登录者。有效期由 `security.attachmentTtl` 控制（默认 24 小时），过期表现为图片裂开，重新取一次详情即可；签名不对或过期回 **403** 而不是 502——过期是有效期到点后的日常现象，混进 502 会把「e 站真的挂了」的信号淹掉。缩略图地址在**组装响应时**才签名，不进图集元数据缓存，否则缓存 TTL 就得永远短于附件有效期。`internal/app/router_test.go` 专门测这个闭环：地址在「签发」（`eh/service_image.go` 拼模板）和「校验」（`eh/handler_image.go` 读参数 + 路由模式）两处各拼一次，两边不一致的话所有图片会一起打不开，而各自的单元测试都是绿的。
 
-**e 站模块（`eh`）分层**：`handler.go` / `handler_image.go`（校验 `gid` 正整数、`token` 为 10 位十六进制——这两项会被拼进上游地址；绑定时三个 Cookie 值按 RFC 6265 的 cookie-octet 校验，分号、空格、引号一律拒绝，它们会被原样拼进 Cookie 头）→ `Service`（对外门面：编排用例、元数据缓存、附件地址的签发与校验）→ `Client`（统一出网：伪装 UA、带固定 Cookie、超时、异常翻译）。
+**e 站模块（`eh`）分层**：`handler.go` / `handler_image.go`（校验 `gid` 正整数、`token` 为 10 位十六进制——这两项会被拼进上游地址；绑定时三个 Cookie 值按 RFC 6265 的 cookie-octet 校验，分号、空格、引号一律拒绝，它们会被原样拼进 Cookie 头）→ `Service`（对外门面：`service.go` 编排浏览用例与元数据缓存，`service_image.go` 处理附件签名与取图）→ `Client`（统一出网：伪装 UA、带固定 Cookie、超时、异常翻译）。
 
-**`eh.Client` 的超时分两种**：页面和 JSON 是「读完整个响应体」的总超时，写在 `fetch` / `probe` 的 ctx 上；图片只限「等到响应头」，走 transport 的 `ResponseHeaderTimeout`，响应体是流式转发给浏览器的，读多久由请求 ctx 决定。**不要给 `http.Client` 设 `Timeout`**——它把读响应体的时间一起算，从慢的 H@H 节点转发一张大图会在传到一半时被掐断，跟 `http.Server` 那边刻意不设 `WriteTimeout` 的用意正好相反。
+`eh.Client` 的页面、JSON 和凭据探测统一由 `readResponse` 读取和关闭响应体，各调用方分别判断业务结果。**超时分两种**：页面、JSON 和凭据探测是「读完整个响应体」的总超时，写在 `readResponse` 的 ctx 上；图片只限「等到响应头」，走 transport 的 `ResponseHeaderTimeout`，响应体是流式转发给浏览器的，读多久由请求 ctx 决定。**不要给 `http.Client` 设 `Timeout`**——它把读响应体的时间一起算，从慢的 H@H 节点转发一张大图会在传到一半时被掐断，跟 `http.Server` 那边刻意不设 `WriteTimeout` 的用意正好相反。
 
 `Service` 对外交出的是 `Attachment` 这样的值类型而不是 `*http.Response`——否则关连接、搬响应头这些事就得靠约定分摊到 handler。
+
+元数据批量读取在请求内保存已命中及新获取的结果，再按输入顺序组装响应，避免后续批次或并发请求淘汰 LRU 条目后丢失结果。详情分片用 `singleflight.DoChan` 合并请求：上游调用断开单个读者的取消信号并由客户端超时约束，读者取消时立即退出等待，其他读者仍可接收共享结果。
 
 `Service` 底下还挂着两块自带状态的协作者，都由 wire `new` 好注入进去：
 
@@ -170,7 +172,8 @@ docker build -t myapi .
 **测试**：`go test`，测试文件与源码同目录（`*_test.go`），用例名直接写中文（`t.Run("换一个 subject 就通不过", ...)`）。只留这几类值得单独测的东西，别再往回加那些只是在复述框架行为的用例：
 
 - `eh/parser_test.go`——最容易被 e 站改版打破的一层。样本是文件末尾那几个 HTML 常量，从真实页面裁下来，留的是解析器要认的结构加上会干扰它的噪声（同一行里其它形式的 gid/token 链接、分页导航里 `unext` 之外的 id），纯展示用的属性删掉了。重新采样时保持同样的裁剪方式：结构特征要真实，体积要小。
-- `eh/client_test.go` 的 `IsAllowedImageURL`——图片代理唯一的 SSRF 防线，列的都是真会被人试的绕过手法。
+- `eh/service_test.go` 与 `eh/locator_test.go`——缓存淘汰不能丢失本次批量结果，单个读者取消不能阻塞退出或中断共享请求。
+- `eh/client_test.go` 同时覆盖页面、JSON、凭据探测的正文超时与断流错误翻译及资源释放。其 `IsAllowedImageURL`——图片代理唯一的 SSRF 防线，列的都是真会被人试的绕过手法。
 - `signing/signing_test.go`——签名地址是图片接口唯一的鉴权手段，每个用例对应一种「本不该放行却放行了」的后果；外加一条锁住「同一窗口签出的地址一致」，否则浏览器缓存失效是无声的。
 - `web/response_test.go`——错误翻译的三条对外契约：没预料到的错误只回固定文案、panic 也按统一结构回 JSON 500、客户端已断开时不写响应。
 - `config/config_test.go`——三层来源的优先级，写错了表现是「配置改了但没生效」，很难当场看出来。

@@ -2,15 +2,9 @@ package eh
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
-	"fmt"
-	"io"
-	"log/slog"
-	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
@@ -23,9 +17,6 @@ import (
 
 // gdata 单次最多 25 条，这是 e 站定的。
 const metadataBatchSize = 25
-
-// 大图地址模板里的页码占位符，前端替换成实际页码。
-const pagePlaceholder = "{page}"
 
 // Service 是 e 站模块对外的门面：handler 只认这一个类型，模块内部的分工不外泄。
 //
@@ -197,9 +188,13 @@ func (s *Service) SaveProgress(ctx context.Context, userID int64, ref GalleryRef
 // 不收请求上下文：gdata 一律走前站——免登录、返回的封面也落在 ehgt.org 上，
 // 不用把用户身份带过去，所以谁在看跟这里无关。
 func (s *Service) loadGalleries(ctx context.Context, refs []GalleryRef) ([]GalleryDetail, error) {
-	missing := make([]GalleryRef, 0, len(refs))
+	// 本次结果独立保存：后续批次或并发请求可能淘汰 LRU 条目，不能再靠回读缓存组装响应。
+	loaded := make(map[int64]GalleryDetail, len(refs))
+	var missing []GalleryRef
 	for _, ref := range refs {
-		if _, ok := s.galleries.Get(ref.GID); !ok {
+		if gallery, ok := s.galleries.Get(ref.GID); ok {
+			loaded[ref.GID] = gallery
+		} else {
 			missing = append(missing, ref)
 		}
 	}
@@ -226,139 +221,19 @@ func (s *Service) loadGalleries(ctx context.Context, refs []GalleryRef) ([]Galle
 			if entry.Error != "" {
 				continue
 			}
-			s.galleries.Add(int64(entry.GID), toGallery(entry))
+			gallery := toGallery(entry)
+			loaded[gallery.GID] = gallery
+			s.galleries.Add(gallery.GID, gallery)
 		}
 	}
 
 	found := make([]GalleryDetail, 0, len(refs))
 	for _, ref := range refs {
-		if gallery, ok := s.galleries.Get(ref.GID); ok {
+		if gallery, ok := loaded[ref.GID]; ok {
 			found = append(found, gallery)
 		}
 	}
 	return found, nil
-}
-
-// ---------------------------------------------------------------------------
-// 图片。签名既在这里签发也在这里校验，两处共用同一个 subject 拼法，
-// 分开写的话哪天不一致，表现是所有图片一起打不开，而各自的单测都是绿的
-// ---------------------------------------------------------------------------
-
-// OpenGalleryImage 取某一页的大图，返回可直接转发的响应，调用方负责关掉 Body。
-//
-// 地址由 GalleryDetailOf 签发，签名覆盖「谁看哪个图集」但不覆盖页码——一本图集一张通行证，
-// 否则 300 页的图集要回传 300 条签好的地址。userID 只能从签名过的参数里来，
-// 不能信客户端随便给的值，否则等于拿别人的 e 站凭据取图。
-// 图床节点会失效（表现为 403），所以拿不到时用换源令牌重试一次。
-func (s *Service) OpenGalleryImage(ctx context.Context, userID int64, ref GalleryRef, page int,
-	sig signing.Signature) (*Attachment, error) {
-	if !s.signer.Verify(imageSubject(userID, ref), sig) {
-		return nil, errBadSignature("图片地址签名不正确或已过期，回到详情页重进一次")
-	}
-
-	rc, err := s.credentials.RequestContext(ctx, userID, "")
-	if err != nil {
-		return nil, err
-	}
-
-	response, err := s.openPage(ctx, rc, ref, page, false)
-	if err != nil {
-		return nil, err
-	}
-	if response.StatusCode != http.StatusOK {
-		slog.Info("图床节点取图失败，换源重试", "gid", ref.GID, "page", page, "status", response.StatusCode)
-		if response, err = s.openPage(ctx, rc, ref, page, true); err != nil {
-			return nil, err
-		}
-		// 换源也没成就到此为止（OpenImage 已经把失败响应的 body 关了）。
-		// 不能再往下交给 toAttachment：那边只看 Content-Type，错误页要是恰好带着 image/ 就会被当成图转发出去
-		if response.StatusCode != http.StatusOK {
-			return nil, errUnavailable("第 %d 页取不到（图床返回 HTTP %d），过一会儿再试", page, response.StatusCode)
-		}
-	}
-	return toAttachment(response, fmt.Sprintf("第 %d 页", page))
-}
-
-func (s *Service) openPage(ctx context.Context, rc RequestContext, ref GalleryRef, page int, reload bool) (*http.Response, error) {
-	target, err := s.locator.Resolve(ctx, rc, ref, page, reload)
-	if err != nil {
-		return nil, err
-	}
-	return s.client.OpenImage(ctx, target)
-}
-
-// OpenThumbnail 是缩略图代理，只接受本服务签发过的地址，客户端指定不了主机。
-// 不需要 userID：缩略图落在图床上，图床不认 e 站的 Cookie，取图与是谁在看无关。
-func (s *Service) OpenThumbnail(ctx context.Context, encoded string, sig signing.Signature) (*Attachment, error) {
-	// 解码失败也照样往下走：得到的只是一串乱码，挡住它的是随后的签名比对
-	raw, _ := base64.RawURLEncoding.DecodeString(encoded)
-	if !s.signer.Verify(string(raw), sig) {
-		return nil, errBadSignature("缩略图地址签名不正确或已过期")
-	}
-
-	response, err := s.client.OpenImage(ctx, string(raw))
-	if err != nil {
-		return nil, err
-	}
-	if response.StatusCode != http.StatusOK {
-		response.Body.Close()
-		return nil, errUnavailable("缩略图取不到（HTTP %d）", response.StatusCode)
-	}
-	return toAttachment(response, "缩略图")
-}
-
-// 把 e 站的缩略图地址换成本站的代理地址，并签上名。
-// 端点只认自己签发过的地址，客户端因此完全指定不了要去请求哪台主机，SSRF 面积归零。
-func (s *Service) withThumbnail(gallery GalleryDetail) GalleryDetail {
-	// 缓存里存的是上游原始地址，这里就地换成代理地址
-	raw := gallery.Thumbnail
-	encoded := base64.RawURLEncoding.EncodeToString([]byte(raw))
-	gallery.Thumbnail = fmt.Sprintf("/api/eh/thumbnail?u=%s&%s", encoded, s.signer.Sign(raw).Query())
-	return gallery
-}
-
-// 大图地址的模板，{page} 由前端替换成实际页码。
-// 签名覆盖「谁看哪个图集」，页码不参与——一本图集签一张通行证，
-// 不然 300 页的图集详情就得回传 300 条签好的地址。
-func (s *Service) imageURLTemplate(userID int64, ref GalleryRef) string {
-	return fmt.Sprintf("/api/eh/galleries/%d/%s/pages/%s/image?uid=%d&%s",
-		ref.GID, ref.Token, pagePlaceholder, userID, s.signer.Sign(imageSubject(userID, ref)).Query())
-}
-
-// 大图通行证签的是「谁能看哪个图集」，页码不在里面。
-func imageSubject(userID int64, ref GalleryRef) string {
-	return fmt.Sprintf("%d:%d:%s", userID, ref.GID, ref.Token)
-}
-
-// Attachment 是可以直接转发给浏览器的图片流。
-//
-// Service 交出值类型而不是 *http.Response，是为了不把「我内部是拿 net/http 去取的」
-// 泄露给 handler——否则关连接、搬响应头这些事就得靠约定分摊到最外层。
-type Attachment struct {
-	ContentType string
-	// 上游给的长度，可能为空（分块传输）。
-	ContentLength string
-	// 上游地址，只用于转发中断时的日志。
-	Source string
-	Body   io.ReadCloser
-}
-
-// 上游出错时回的是 HTML 错误页，原样转发会让浏览器显示一张裂图，日志里也查不出原因。
-func toAttachment(response *http.Response, what string) (*Attachment, error) {
-	contentType := response.Header.Get("Content-Type")
-	if !strings.HasPrefix(contentType, "image/") {
-		response.Body.Close()
-		if contentType == "" {
-			contentType = "无类型"
-		}
-		return nil, errUnavailable("%s返回的不是图片（%s）", what, contentType)
-	}
-	return &Attachment{
-		ContentType:   contentType,
-		ContentLength: response.Header.Get("Content-Length"),
-		Source:        response.Request.URL.String(),
-		Body:          response.Body,
-	}, nil
 }
 
 // gdata 的一条记录 → 领域类型。Thumbnail 这里放的还是上游原始地址，见 withThumbnail。
