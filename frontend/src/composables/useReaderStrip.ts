@@ -1,7 +1,8 @@
 import { clamp, useResizeObserver, useTimeoutFn } from "@vueuse/core"
 import { computed, nextTick, onScopeDispose, ref, shallowRef, watch } from "vue"
 
-const LOAD_DELAY = 300
+const LOAD_DELAY = 200
+const PRELOAD_PAGES = 2
 
 /** 只在滚动停稳后挂载附近图片；远处保留已知宽度，避免长图集占满解码内存。 */
 export function useReaderStrip(
@@ -51,9 +52,9 @@ export function useReaderStrip(
     const first = pageAt(left)
     let last = first
     while (last < props.total && offsets.value[last] < right) last++
-    /* 可见页加左右各一页，其余一律卸载。 */
+    /* 可见页加左右各两页，其余一律卸载。 */
     const next = new Set<number>()
-    for (let page = Math.max(1, first - 1); page <= Math.min(props.total, last + 1); page++) next.add(page)
+    for (let page = Math.max(1, first - PRELOAD_PAGES); page <= Math.min(props.total, last + PRELOAD_PAGES); page++) next.add(page)
     loaded.value = next
   }
   const { start, stop: cancelLoad } = useTimeoutFn(loadVisible, LOAD_DELAY, { immediate: false })

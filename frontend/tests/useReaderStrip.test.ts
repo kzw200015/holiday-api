@@ -27,12 +27,12 @@ async function setup(page = 1) {
 }
 
 describe("横向阅读延迟加载", () => {
-  it("停留300毫秒后才加载可见页和两侧邻页，长图集不一次加载全部", async () => {
+  it("停留200毫秒后才加载可见页和两侧各两页，长图集不一次加载全部", async () => {
     const { strip } = await setup(20)
-    await vi.advanceTimersByTimeAsync(299)
+    await vi.advanceTimersByTimeAsync(199)
     expect(strip.loaded.value.size).toBe(0)
     await vi.advanceTimersByTimeAsync(1)
-    expect([...strip.loaded.value]).toEqual([19, 20, 21])
+    expect([...strip.loaded.value]).toEqual([18, 19, 20, 21, 22])
     expect(strip.widths.value).toHaveLength(100)
   })
 
@@ -46,25 +46,25 @@ describe("横向阅读延迟加载", () => {
     props.page = 80
     props.seeking = false
     await nextTick()
-    await vi.advanceTimersByTimeAsync(299)
+    await vi.advanceTimersByTimeAsync(199)
     expect(strip.loaded.value.size).toBe(0)
     await vi.advanceTimersByTimeAsync(1)
-    expect([...strip.loaded.value]).toEqual([79, 80, 81])
+    expect([...strip.loaded.value]).toEqual([78, 79, 80, 81, 82])
   })
 
   it("鼠标拖动不吸附，暂停期间不加载，停稳后释放远处图片", async () => {
     const { strip, element, change } = await setup()
-    await vi.advanceTimersByTimeAsync(300)
+    await vi.advanceTimersByTimeAsync(200)
     strip.onPointerDown(new PointerEvent("pointerdown", { button: 0, pointerId: 1, pointerType: "mouse", clientX: 500 }))
     strip.onPointerMove(new PointerEvent("pointermove", { pointerId: 1, clientX: -6550 }))
     strip.onScroll()
     expect(element.scrollLeft).toBe(7050)
     expect(change).toHaveBeenLastCalledWith(11)
     await vi.advanceTimersByTimeAsync(1000)
-    expect([...strip.loaded.value]).toEqual([1, 2])
+    expect([...strip.loaded.value]).toEqual([1, 2, 3])
     strip.onPointerEnd()
-    await vi.advanceTimersByTimeAsync(300)
-    expect([...strip.loaded.value]).toEqual([10, 11, 12, 13])
+    await vi.advanceTimersByTimeAsync(200)
+    expect([...strip.loaded.value]).toEqual([9, 10, 11, 12, 13, 14])
     expect(element.scrollLeft).toBe(7050)
   })
 
@@ -81,13 +81,13 @@ describe("横向阅读延迟加载", () => {
     strip.onPointerEnd()
     element.scrollLeft = 700
     strip.onScroll()
-    await vi.advanceTimersByTimeAsync(200)
+    await vi.advanceTimersByTimeAsync(50)
     element.scrollLeft = 1400
     strip.onScroll()
-    await vi.advanceTimersByTimeAsync(299)
+    await vi.advanceTimersByTimeAsync(199)
     expect(strip.loaded.value.size).toBe(0)
     await vi.advanceTimersByTimeAsync(1)
-    expect([...strip.loaded.value]).toEqual([2, 3, 4])
+    expect([...strip.loaded.value]).toEqual([1, 2, 3, 4, 5])
   })
 
   it("同批图片变成真实宽度时保留视口锚点，横屏调整仍定位当前页", async () => {
@@ -127,12 +127,12 @@ describe("横向阅读延迟加载", () => {
 
   it("卸载时取消尚未触发的延迟加载", async () => {
     const { props, strip } = await setup(70)
-    await vi.advanceTimersByTimeAsync(300)
-    expect([...strip.loaded.value]).toEqual([69, 70, 71])
+    await vi.advanceTimersByTimeAsync(200)
+    expect([...strip.loaded.value]).toEqual([68, 69, 70, 71, 72])
     props.page = 80
     await nextTick()
     scope.stop()
-    await vi.advanceTimersByTimeAsync(300)
-    expect([...strip.loaded.value]).toEqual([69, 70, 71])
+    await vi.advanceTimersByTimeAsync(200)
+    expect([...strip.loaded.value]).toEqual([68, 69, 70, 71, 72])
   })
 })
