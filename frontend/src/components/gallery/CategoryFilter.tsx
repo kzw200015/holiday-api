@@ -1,10 +1,10 @@
 import { useMediaQuery } from "@vueuse/core"
 import { SlidersHorizontalIcon } from "@lucide/vue"
-import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from "reka-ui"
 import { defineComponent, onDeactivated, ref, type PropType } from "vue"
 
 import { galleryCategories } from "@/api/eh"
 import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 export default defineComponent({
@@ -47,12 +47,12 @@ export default defineComponent({
         <SheetHeader class="p-0"><SheetTitle>分类筛选</SheetTitle><SheetDescription>选择分类后点击应用。</SheetDescription></SheetHeader>
         {choices()}
       </SheetContent>
-    </Sheet> : <PopoverRoot open={open.value} onUpdate:open={setOpen}>
+    </Sheet> : <Popover open={open.value} onUpdate:open={setOpen}>
       <PopoverTrigger asChild>{trigger()}</PopoverTrigger>
-      <PopoverPortal><PopoverContent align="end" sideOffset={8} aria-label="分类筛选"
-        class="bg-popover text-popover-foreground z-50 w-80 rounded-xl border p-4 shadow-lg">
-        <h2 class="mb-3 text-sm font-medium">分类筛选</h2>{choices()}
-      </PopoverContent></PopoverPortal>
-    </PopoverRoot>
+      <PopoverContent align="end" sideOffset={8} class="w-80 p-4" aria-label="分类筛选">
+        <PopoverHeader><PopoverTitle>分类筛选</PopoverTitle></PopoverHeader>
+        {choices()}
+      </PopoverContent>
+    </Popover>
   },
 })

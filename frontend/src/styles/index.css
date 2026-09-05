@@ -106,6 +106,49 @@
   --sidebar-ring: oklch(0.705 0.015 286.067);
 }
 
+/* 原生 range 会在悬停时自行加深颜色；显式绘制轨道与滑块，只保留键盘焦点提示。 */
+.reader-progress {
+  appearance: none;
+  background: linear-gradient(to right, #a78bfa var(--reader-progress), #71717a var(--reader-progress)) center / 100% 4px no-repeat;
+  outline: none;
+}
+
+.reader-progress:focus-visible {
+  outline: 2px solid #c4b5fd;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.reader-progress::-webkit-slider-runnable-track {
+  height: 4px;
+  background: transparent;
+}
+
+.reader-progress::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border: 0;
+  border-radius: 50%;
+  background: #a78bfa;
+  box-shadow: none;
+}
+
+.reader-progress::-moz-range-track {
+  height: 4px;
+  background: transparent;
+}
+
+.reader-progress::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: #a78bfa;
+  box-shadow: none;
+}
+
 .dark {
   --background: oklch(0.141 0.005 285.823);
   --foreground: oklch(0.985 0 0);

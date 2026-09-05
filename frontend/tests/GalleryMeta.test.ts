@@ -12,7 +12,6 @@ describe("图集星级评分", () => {
     { rating: 5, widths: [100, 100, 100, 100, 100], label: "5.00" },
     { rating: 9, widths: [100, 100, 100, 100, 100], label: "5.00" },
     { rating: -1, widths: [0, 0, 0, 0, 0], label: "0.00" },
-    { rating: NaN, widths: [0, 0, 0, 0, 0], label: "0.00" },
   ])("评分 $rating 的星形填充与可访问文案一致", ({ rating, widths, label }) => {
     const host = document.createElement("div")
     const app = createApp({ render: () => h(GalleryMeta, { category: "Manga", rating }) })

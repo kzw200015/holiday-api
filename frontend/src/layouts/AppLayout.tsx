@@ -9,6 +9,9 @@ import AppSidebar from "@/layouts/AppSidebar"
 import { useAppStore } from "@/stores/AppStore"
 import { useAuthStore } from "@/stores/AuthStore"
 
+/* 列表与详情各保留一份；换账号或换凭据时由 galleryRevision 整体重建 */
+const CACHED_VIEWS = ["GalleryListView", "GalleryDetailView"]
+
 /* 应用外壳：侧边栏 + 主内容区，折叠与移动端抽屉由 SidebarProvider 托管 */
 export default defineComponent({
   name: "AppLayout",
@@ -45,7 +48,7 @@ export default defineComponent({
 
           <div class="flex flex-1 flex-col gap-4 p-4">
             <RouterView>{({ Component }: { Component: VNode | undefined }) => (
-              <KeepAlive include={["GalleryListView", "GalleryDetailView"]} max={2} key={auth.galleryRevision}>
+              <KeepAlive include={CACHED_VIEWS} max={2} key={auth.galleryRevision}>
                 {Component}
               </KeepAlive>
             )}</RouterView>

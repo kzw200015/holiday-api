@@ -1,7 +1,7 @@
 import { useInfiniteScroll } from "@vueuse/core"
 import { SearchIcon, XIcon } from "@lucide/vue"
 import { defineComponent, onActivated, onDeactivated, reactive, ref } from "vue"
-import { RouterLink, useRoute } from "vue-router"
+import { RouterLink } from "vue-router"
 
 import { type GalleryCard } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert"
@@ -29,7 +29,6 @@ const LOAD_AHEAD_PX = 600
 export default defineComponent({
   name: "GalleryListView",
   setup() {
-    const route = useRoute()
     const list = reactive(useGalleryList())
     const userId = useAuthStore().user?.id
     const history = reactive(useSearchHistory(userId))
@@ -55,9 +54,10 @@ export default defineComponent({
       void resetScroll()
     }
 
-    useInfiniteScroll(() => window, () => void list.loadMore(), {
+    /* 停用时把目标换成 null：滚动监听整体拆掉，别的页面滚动不会再进到这里。 */
+    useInfiniteScroll(() => active.value ? window : null, () => void list.loadMore(), {
       distance: LOAD_AHEAD_PX,
-      canLoadMore: () => active.value && route.name === "gallery-list" && list.hasMore && !list.loading && !list.errorMessage,
+      canLoadMore: () => list.hasMore && !list.loading && !list.errorMessage,
     })
 
     return () => (

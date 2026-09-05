@@ -1,14 +1,14 @@
 import { ArrowLeftIcon, BookOpenIcon } from "@lucide/vue"
-import { computed, defineComponent, onScopeDispose, ref, watch } from "vue"
+import { computed, defineComponent } from "vue"
 import { RouterLink, useRouter } from "vue-router"
-import { useGalleryNavigation } from "@/composables/galleryNavigation"
-import { usePageScroll } from "@/composables/usePageScroll"
 
 import {
   fetchGalleryComments,
   fetchGalleryDetail,
   type GalleryComment,
 } from "@/api/eh"
+import { useGalleryNavigation } from "@/composables/galleryNavigation"
+import { usePageScroll } from "@/composables/usePageScroll"
 import { useQuery } from "@/composables/useQuery"
 import ErrorAlert from "@/components/ErrorAlert"
 import GalleryMeta from "@/components/gallery/GalleryMeta"
@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatDateTime, formatFileSize, formatNamespace, splitTag } from "@/lib/format"
+import { backOrReplace } from "@/lib/navigation"
 
 /* 图集详情：元信息、标签、评论，以及进入阅读视图的入口 */
 export default defineComponent({
@@ -27,27 +28,19 @@ export default defineComponent({
     token: { type: String, required: true },
   },
   setup(props) {
-
     const identity = () => `${props.gid}/${props.token}`
     const router = useRouter()
-    const latestPage = ref<number | null>(null)
-    watch(identity, () => {
-      latestPage.value = null
-    }, { immediate: true })
     usePageScroll(identity)
-    onScopeDispose(useGalleryNavigation().subscribe((position) => {
-      if (position.gid === props.gid && position.token === props.token) latestPage.value = position.page
-    }))
-    function returnToList() {
-      const target = router.resolve({ name: "gallery-list" }).fullPath
-      if (router.options.history.state.back === target) router.back()
-      else void router.replace(target)
-    }
+    const returnToList = () => backOrReplace(router, { name: "gallery-list" })
     const { data: detail, error, loading } = useQuery(identity, (_identity, signal) =>
       fetchGalleryDetail(props.gid, props.token, signal),
     )
+    /* 阅读器离开时只改本图集的继续阅读页码，元信息与评论不重载。 */
+    useGalleryNavigation().on(({ gid, token, page }) => {
+      if (detail.value && gid === props.gid && token === props.token) detail.value = { ...detail.value, progress: page }
+    })
     const gallery = computed(() => detail.value?.gallery)
-    const progress = computed(() => latestPage.value ?? detail.value?.progress)
+    const progress = computed(() => detail.value?.progress)
     /* 评论需要抓取上游页面，独立加载，失败不阻塞元数据。 */
     const { data: comments, error: commentsError, loading: commentsLoading } = useQuery(identity, (_identity, signal) =>
       fetchGalleryComments(props.gid, props.token, signal),

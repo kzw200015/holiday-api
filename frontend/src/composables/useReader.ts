@@ -1,14 +1,13 @@
-import { useEventListener, useTimeoutFn } from "@vueuse/core"
+import { clamp, useEventListener, useTimeoutFn } from "@vueuse/core"
 import { computed, ref, watch } from "vue"
-import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router"
-import { useGalleryNavigation } from "@/composables/galleryNavigation"
+import { onBeforeRouteLeave, useRouter } from "vue-router"
 
-import { fetchGalleryDetail, galleryImageUrl } from "@/api/eh"
+import { fetchGalleryDetail } from "@/api/eh"
+import { useGalleryNavigation } from "@/composables/galleryNavigation"
 import { useQuery } from "@/composables/useQuery"
 import { useReadingProgress } from "@/composables/useReadingProgress"
+import { backOrReplace } from "@/lib/navigation"
 
-/* 预取会消耗上游请求限额与用户图片额度，仅提前两页。 */
-const PRELOAD_AHEAD = 2
 const PAGE_STEPS: Record<string, number> = {
   ArrowRight: 1,
   ArrowDown: 1,
@@ -19,9 +18,11 @@ const PAGE_STEPS: Record<string, number> = {
   PageUp: -1,
 }
 
-/** 阅读状态以图集参数和 URL 页码为来源，组件只渲染图片与操作栏。 */
-export function useReader(props: Readonly<{ gid: number; token: string }>) {
-  const route = useRoute()
+/**
+ * 阅读状态以路由 props 为来源。离开路由后旧组件的 props 保持不变，
+ * 不会像 useRoute 那样在卸载前变成详情页的参数，最后一页的上报因此不需要额外守卫。
+ */
+export function useReader(props: Readonly<{ gid: number; token: string; page: number }>) {
   const router = useRouter()
   const navigation = useGalleryNavigation()
   const { data: detail, error, loading } = useQuery(
@@ -30,20 +31,10 @@ export function useReader(props: Readonly<{ gid: number; token: string }>) {
   )
   const gallery = computed(() => detail.value?.gallery)
   const totalPages = computed(() => gallery.value?.fileCount ?? 0)
-  const requestedPage = ref(Math.max(1, Number(route.params.page ?? 1)))
-  /* 离开路由后不能把详情页缺失的 page 当作第 1 页再上报。 */
-  watch(() => route.params.page, (value) => {
-    if (route.name === "reader") requestedPage.value = Math.max(1, Number(value ?? 1))
-  })
   /* 页码来自 URL，详情到达后才能按实际页数约束，避免手改地址请求越界图片。 */
-  const page = computed(() => totalPages.value ? Math.min(requestedPage.value, totalPages.value) : requestedPage.value)
-  const imageFailed = ref(false)
-  const retryNonce = ref(0)
+  const page = computed(() => totalPages.value ? clamp(props.page, 1, totalPages.value) : Math.max(1, props.page))
   const chromeVisible = ref(true)
-  const currentSrc = computed(() => detail.value && totalPages.value
-    ? galleryImageUrl(detail.value.imageUrlTemplate, page.value, { nonce: retryNonce.value })
-    : "",
-  )
+  const imageUrlTemplate = computed(() => detail.value?.imageUrlTemplate ?? "")
   const { start: scheduleHide } = useTimeoutFn(() => (chromeVisible.value = false), 2500, { immediate: false })
 
   function showChrome() {
@@ -55,43 +46,25 @@ export function useReader(props: Readonly<{ gid: number; token: string }>) {
     if (!totalPages.value) {
       return
     }
-    const clamped = Math.min(Math.max(1, next), totalPages.value)
+    const clamped = clamp(next, 1, totalPages.value)
+    if (clamped === props.page) return
     /* 用 replace 让浏览器后退直接离开阅读，而非逐页回退。 */
     void router.replace({ name: "reader", params: { gid: props.gid, token: props.token, page: clamped } })
   }
 
   function exit() {
-    const target = router.resolve({ name: "gallery-detail", params: { gid: props.gid, token: props.token } })
-    if (router.options.history.state.back === target.fullPath) {
-      router.back()
-    } else {
-      void router.replace(target.fullPath)
-    }
+    backOrReplace(router, { name: "gallery-detail", params: { gid: props.gid, token: props.token } })
   }
 
+  /* 有效进度：详情到达且页数已知。进度上报与离开通知共用这一份判断。 */
+  const position = computed(() => detail.value && totalPages.value
+    ? { gid: props.gid, token: props.token, page: page.value }
+    : null,
+  )
   onBeforeRouteLeave(() => {
-    if (detail.value && totalPages.value) {
-      navigation.publish({ gid: props.gid, token: props.token, page: page.value })
-    }
+    if (position.value) void navigation.trigger(position.value)
   })
-
-  function retryImage(event: MouseEvent) {
-    event.stopPropagation()
-    imageFailed.value = false
-    retryNonce.value += 1
-  }
-
-  function onClick(event: MouseEvent) {
-    const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect()
-    const position = (event.clientX - bounds.left) / bounds.width
-    if (position < 1 / 3) {
-      goTo(page.value - 1)
-    } else if (position > 2 / 3) {
-      goTo(page.value + 1)
-    } else {
-      showChrome()
-    }
-  }
+  useReadingProgress(position)
 
   useEventListener(window, "keydown", (event: KeyboardEvent) => {
     /* 焦点位于操作按钮时，空格和回车应保留原生激活行为。 */
@@ -111,31 +84,11 @@ export function useReader(props: Readonly<{ gid: number; token: string }>) {
     }
   })
 
-  const preloaded = new Set<number>()
-  watch(detail, () => preloaded.clear())
+  /* 换页或详情到达时重新露出操作栏；URL 越界时由 goTo 把地址收敛到实际页数。 */
   watch([detail, page], () => {
-    imageFailed.value = false
-    retryNonce.value = 0
     showChrome()
-    if (!detail.value) {
-      return
-    }
-    if (Number(route.params.page ?? 1) !== page.value) {
-      goTo(page.value)
-    }
-    /* 与正式图片保持同一签名地址，浏览器才能复用预取缓存。换图集时清空记录。 */
-    for (let target = page.value + 1; target <= Math.min(page.value + PRELOAD_AHEAD, totalPages.value); target += 1) {
-      if (!preloaded.has(target)) {
-        preloaded.add(target)
-        new Image().src = galleryImageUrl(detail.value.imageUrlTemplate, target)
-      }
-    }
+    if (detail.value) goTo(page.value)
   }, { immediate: true })
 
-  useReadingProgress(() => detail.value && totalPages.value
-    ? { gid: props.gid, token: props.token, page: page.value }
-    : null,
-  )
-
-  return { gallery, error, loading, page, totalPages, imageFailed, chromeVisible, currentSrc, goTo, exit, retryImage, onClick }
+  return { gallery, error, loading, page, totalPages, imageUrlTemplate, chromeVisible, showChrome, goTo, exit }
 }

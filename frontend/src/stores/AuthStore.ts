@@ -9,10 +9,8 @@ export const useAuthStore = defineStore("AuthStore", () => {
 
   /* 是否已经问过后端「我是谁」。路由守卫要等这一步完成才敢判断放不放行 */
   const ready = ref(false)
-  const sessionRevision = ref(0)
+  /* 只通知布局内的页面缓存失效，不在账号 store 保存任何图库页面数据。布局本身没有按账号变化的状态，不必重建。 */
   const galleryRevision = ref(0)
-
-  /* 只通知组件缓存失效，不在账号 store 保存任何图库页面数据。 */
   function invalidateGalleries() {
     galleryRevision.value += 1
   }
@@ -37,7 +35,6 @@ export const useAuthStore = defineStore("AuthStore", () => {
 
   async function authenticate(action: authApi.AuthAction, username: string, password: string) {
     const session = await authApi.authenticate(action, username, password)
-    sessionRevision.value += 1
     invalidateGalleries()
     setToken(session.token)
     user.value = session.user
@@ -49,9 +46,8 @@ export const useAuthStore = defineStore("AuthStore", () => {
     setToken("")
     user.value = null
     ready.value = true
-    sessionRevision.value += 1
     invalidateGalleries()
   }
 
-  return { user, ready, sessionRevision, galleryRevision, invalidateGalleries, refresh, authenticate, logout }
+  return { user, ready, galleryRevision, invalidateGalleries, refresh, authenticate, logout }
 })

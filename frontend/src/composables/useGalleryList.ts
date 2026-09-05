@@ -20,7 +20,7 @@ export function useGalleryList() {
   let activeRequest: AbortController | undefined
 
   function clear() {
-    /* 搜索条件、账号或 e 站凭据变化后，未完成的响应同样属于旧缓存。 */
+    /* 换搜索条件或组件销毁后，未完成的响应同样属于旧缓存。 */
     activeRequest?.abort()
     activeRequest = undefined
     query.value = null
@@ -76,5 +76,5 @@ export function useGalleryList() {
   }
 
   onScopeDispose(clear)
-  return { items, hasMore, loading, errorMessage, search, clear, loadMore, retry }
+  return { items, hasMore, loading, errorMessage, search, loadMore, retry }
 }

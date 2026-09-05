@@ -1,33 +1,25 @@
-import { ref } from "vue"
+import { usePersistedValue } from "@/composables/usePersistedValue"
 
-/* 浏览器存储可能被禁用或损坏，历史不可用不能阻断搜索。 */
+const LIMIT = 10
+
+/* 去空、去重、截断：读盘与记录共用同一条规则，两边才不会各自漂移。 */
+function normalize(raw: unknown) {
+  if (!Array.isArray(raw)) return []
+  const values = raw.filter((value): value is string => typeof value === "string").map((value) => value.trim()).filter(Boolean)
+  return [...new Set(values)].slice(0, LIMIT)
+}
+
+/* 按本站账号记录提交过的关键词，最近的排最前。 */
 export function useSearchHistory(userId: number | undefined) {
-  const key = `myapi.search-history.${userId}`
-  const entries = ref<string[]>([])
-  try {
-    const stored: unknown = JSON.parse(localStorage.getItem(key) ?? "[]")
-    if (Array.isArray(stored)) {
-      entries.value = [...new Set(stored.filter((value): value is string => typeof value === "string" && !!value.trim()))].slice(0, 10)
-    }
-  } catch { /* 仅丢弃损坏的历史。 */ }
-
-  function persist() {
-    if (userId === undefined) return
-    try { localStorage.setItem(key, JSON.stringify(entries.value)) } catch { /* 保留本次页面内的历史。 */ }
-  }
+  const { value: entries, set } = usePersistedValue("search-history", userId, normalize)
   function record(keyword: string) {
-    const value = keyword.trim()
-    if (!value) return
-    entries.value = [value, ...entries.value.filter((item) => item !== value)].slice(0, 10)
-    persist()
+    if (keyword.trim()) set([keyword, ...entries.value])
   }
   function remove(keyword: string) {
-    entries.value = entries.value.filter((item) => item !== keyword)
-    persist()
+    set(entries.value.filter((item) => item !== keyword))
   }
   function clear() {
-    entries.value = []
-    persist()
+    set([])
   }
   return { entries, record, remove, clear }
 }

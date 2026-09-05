@@ -1,30 +1,33 @@
 import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "@lucide/vue"
-import { defineComponent } from "vue"
+import { defineComponent, ref } from "vue"
 
 import ErrorAlert from "@/components/ErrorAlert"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useReader } from "@/composables/useReader"
+import ReaderStrip from "@/components/gallery/ReaderStrip"
 
 /* 操作栏上的按钮共用一套外观 */
 const chromeButton = {
-  class: "pointer-events-auto text-white hover:bg-white/10 hover:text-white",
+  class: "pointer-events-auto cursor-pointer text-white hover:bg-white/10 hover:text-white",
   size: "icon-sm",
   variant: "ghost",
 } as const
 
-/* 阅读视图逐页全屏展示，避免一次加载整本图集消耗上游图片额度。 */
+/* 图片区连续横向滚动，底部导航始终可用，不跟随顶栏自动隐藏。 */
 export default defineComponent({
   name: "ReaderView",
   props: {
     gid: { type: Number, required: true },
     token: { type: String, required: true },
+    page: { type: Number, required: true },
   },
   setup(props) {
     const {
-      gallery, error, loading, page, totalPages, imageFailed,
-      chromeVisible, currentSrc, goTo, exit, retryImage, onClick,
+      gallery, error, loading, page, totalPages, imageUrlTemplate,
+      chromeVisible, showChrome, goTo, exit,
     } = useReader(props)
+    const seeking = ref(false)
 
     return () => (
       <div class="fixed inset-0 flex flex-col bg-black">
@@ -39,28 +42,11 @@ export default defineComponent({
             </div>
           </div>
         ) : (
-          <div class="relative flex flex-1 items-center justify-center overflow-hidden" {...{ onClick }}>
-            {imageFailed.value ? (
-              <div class="flex flex-col items-center gap-3 p-4 text-center">
-                <p class="text-sm text-white/80">第 {page.value} 页没能加载出来。</p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  {...{ onClick: retryImage }}
-                >
-                  重试
-                </Button>
-              </div>
-            ) : currentSrc.value ? (
-              /* 地址空着时干脆不渲染 img：src="" 会让浏览器去请求当前页面地址 */
-              <img
-                alt={`第 ${page.value} 页`}
-                class="max-h-svh max-w-full object-contain"
-                key={currentSrc.value}
-                src={currentSrc.value}
-                {...{ onError: () => (imageFailed.value = true) }}
-              />
-            ) : null}
+          <div class="relative flex min-h-0 flex-1 overflow-hidden" onPointerdown={showChrome} onMousemove={showChrome}>
+            {imageUrlTemplate.value && totalPages.value ? <ReaderStrip
+              key={`${props.gid}/${props.token}`}
+              page={page.value} total={totalPages.value} template={imageUrlTemplate.value}
+              seeking={seeking.value} onPageChange={goTo} /> : null}
 
             {loading.value ? (
               <Skeleton class="absolute inset-x-1/4 inset-y-8 rounded-lg" />
@@ -86,13 +72,7 @@ export default defineComponent({
           <p class="min-w-0 flex-1 truncate text-sm text-white/90">{gallery.value?.title ?? "加载中…"}</p>
         </div>
 
-        <div
-          inert={!chromeVisible.value}
-          class={[
-            "pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center gap-4 bg-gradient-to-t from-black/70 to-transparent p-3 transition-opacity",
-            chromeVisible.value ? "opacity-100" : "opacity-0",
-          ]}
-        >
+        <div class="flex shrink-0 items-center gap-3 bg-zinc-950 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Button
             aria-label="上一页"
             {...chromeButton}
@@ -101,9 +81,16 @@ export default defineComponent({
             <ChevronLeftIcon />
           </Button>
 
-          <span class="text-sm text-white/90 tabular-nums">
-            {page.value} / {totalPages.value || "…"}
-          </span>
+          <span class="min-w-6 text-center text-sm text-white/90 tabular-nums">{page.value}</span>
+          <input type="range" min={1} max={totalPages.value || 1} step={1} value={page.value}
+            disabled={!totalPages.value} aria-label="阅读进度" aria-valuetext={`第 ${page.value} 页，共 ${totalPages.value} 页`}
+            class="reader-progress h-8 min-w-0 flex-1 cursor-pointer"
+            style={{ "--reader-progress": `${totalPages.value > 1 ? (page.value - 1) / (totalPages.value - 1) * 100 : 0}%` }}
+            onPointerdown={(event) => { seeking.value = true; (event.currentTarget as HTMLInputElement).setPointerCapture(event.pointerId) }}
+            onPointerup={() => { seeking.value = false }} onPointercancel={() => { seeking.value = false }}
+            onLostpointercapture={() => { seeking.value = false }}
+            onInput={(event) => goTo(Number((event.currentTarget as HTMLInputElement).value))} />
+          <span class="text-sm text-white/90 tabular-nums">{totalPages.value || "…"}</span>
 
           <Button
             aria-label="下一页"

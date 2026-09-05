@@ -1,4 +1,5 @@
 import { StarIcon } from "@lucide/vue"
+import { clamp } from "@vueuse/core"
 import { computed, defineComponent } from "vue"
 
 import { categoryLabels } from "@/api/eh"
@@ -18,7 +19,8 @@ export default defineComponent({
     compact: { type: Boolean, default: false },
   },
   setup(props) {
-    const rating = computed(() => Number.isFinite(props.rating) ? Math.min(5, Math.max(0, props.rating)) : 0)
+    /* 五星渲染的定义域是 [0, 5]，越界评分夹回来，文案与填充宽度才都合法。 */
+    const rating = computed(() => clamp(props.rating, 0, 5))
     const label = computed(() => `评分 ${rating.value.toFixed(2)} / 5`)
     return () => (
       <>
@@ -28,7 +30,7 @@ export default defineComponent({
             <span class={["relative block", props.compact ? "size-3" : "size-3.5"]} key={index} aria-hidden="true">
               <StarIcon class="text-muted-foreground/50 size-full" />
               <span class="absolute inset-y-0 left-0 overflow-hidden text-amber-500 dark:text-amber-400"
-                style={{ width: `${Math.round(Math.min(1, Math.max(0, rating.value - index)) * 10000) / 100}%` }}>
+                style={{ width: `${Math.round(clamp(rating.value - index, 0, 1) * 10000) / 100}%` }}>
                 <StarIcon class={props.compact ? "size-3" : "size-3.5"} fill="currentColor" />
               </span>
             </span>

@@ -35,6 +35,8 @@ async function enterKeyword(value: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }))
   await nextTick()
 }
+/* 分类面板挂在 body 下的 Portal 里，要从 document 找 */
+const category = (text: string) => [...document.querySelectorAll<HTMLElement>("button")].find((node) => node.textContent?.trim() === text)!
 async function click(text: string) {
   const button = [...host.querySelectorAll<HTMLElement>("button, a")].find((element) => element.textContent?.trim() === text)
   expect(button, `${text}: ${router.currentRoute.value.fullPath}\n${host.textContent}`).toBeDefined()
@@ -143,7 +145,6 @@ describe("图库组件缓存闭环", () => {
   it("分类草稿关闭不生效，应用才搜索；历史词沿用当前分类", async () => {
     await enterKeyword("cat")
     await click("分类")
-    const category = (text: string) => [...document.querySelectorAll<HTMLElement>("button")].find((node) => node.textContent?.trim() === text)!
     category("漫画").click()
     await settle()
     expect(searchGalleries).toHaveBeenCalledTimes(1)
@@ -222,13 +223,12 @@ describe("图库组件缓存闭环", () => {
   it("重建组件时恢复分类但清空当前关键词，历史仍可再次使用", async () => {
     await enterKeyword("cat")
     await click("分类")
-    const category = (text: string) => [...document.querySelectorAll<HTMLElement>("button")].find((node) => node.textContent?.trim() === text)!
     category("漫画").click()
     await settle()
     category("应用").click()
     await settle()
     // 模拟刷新后的全新页面实例，而非 KeepAlive 激活。
-    useAuthStore().sessionRevision += 1
+    useAuthStore().invalidateGalleries()
     await settle()
     expect(host.querySelector("input")?.value).toBe("")
     expect(host.textContent).toContain("分类 (1)")

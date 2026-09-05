@@ -130,17 +130,13 @@ describe("图库列表", () => {
     expect(store.hasMore).toBe(false)
   })
 
-  it("登录、退出与凭据变化发出缓存失效信号", async () => {
+  it("登录、退出与凭据变化都让图库缓存失效", async () => {
     const auth = useAuthStore()
     vi.mocked(authApi.authenticate).mockResolvedValue({ token: "new-token", user: { id: 2, username: "second" } })
+    const before = auth.galleryRevision
     await auth.authenticate("login", "second", "password")
-    expect(auth.sessionRevision).toBe(1)
-    expect(auth.galleryRevision).toBe(1)
     auth.invalidateGalleries()
-    expect(auth.galleryRevision).toBe(2)
-    expect(auth.sessionRevision).toBe(1)
     auth.logout()
-    expect(auth.galleryRevision).toBe(3)
-    expect(auth.sessionRevision).toBe(2)
+    expect(auth.galleryRevision).toBe(before + 3)
   })
 })

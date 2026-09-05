@@ -9,6 +9,8 @@ declare module "vue-router" {
     title?: string
     /* 需要登录才能进。首页和节假日页保持公开：节假日接口本来就允许匿名访问 */
     requiresAuth?: boolean
+    /* 页面被 KeepAlive 保留并用 usePageScroll 自管滚动位置，路由器不再按历史位置滚动 */
+    ownScroll?: boolean
   }
 }
 
@@ -19,7 +21,7 @@ const routes: RouteRecordRaw[] = [
     path: "/eh/read/:gid(\\d+)/:token/:page(\\d+)?",
     name: "reader",
     component: () => import("@/views/ReaderView"),
-    props: (route) => ({ gid: Number(route.params.gid), token: String(route.params.token) }),
+    props: (route) => ({ gid: Number(route.params.gid), token: String(route.params.token), page: Number(route.params.page ?? 1) }),
     meta: { title: "阅读", requiresAuth: true },
   },
   {
@@ -28,13 +30,13 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: "", name: "home", component: () => import("@/views/HomeView"), meta: { title: "首页" } },
       { path: "holiday", name: "holiday", component: () => import("@/views/HolidayView"), meta: { title: "节假日查询" } },
-      { path: "eh", name: "gallery-list", component: () => import("@/views/GalleryListView"), meta: { title: "图库", requiresAuth: true } },
+      { path: "eh", name: "gallery-list", component: () => import("@/views/GalleryListView"), meta: { title: "图库", requiresAuth: true, ownScroll: true } },
       {
         path: "eh/g/:gid(\\d+)/:token",
         name: "gallery-detail",
         component: () => import("@/views/GalleryDetailView"),
         props: (route) => ({ gid: Number(route.params.gid), token: String(route.params.token) }),
-        meta: { title: "图集详情", requiresAuth: true },
+        meta: { title: "图集详情", requiresAuth: true, ownScroll: true },
       },
       { path: "settings", name: "settings", component: () => import("@/views/SettingsView"), meta: { title: "设置", requiresAuth: true } },
     ],
@@ -44,9 +46,8 @@ const routes: RouteRecordRaw[] = [
 export const AppRouter = createRouter({
   history: createWebHashHistory(),
   routes,
-  /* 缓存页由组件恢复位置，也涵盖按钮主动返回；其余页面沿用浏览器历史位置。 */
-  scrollBehavior: (to, _from, savedPosition) =>
-    ["gallery-list", "gallery-detail"].includes(String(to.name)) ? false : savedPosition ?? { top: 0 },
+  /* 自管滚动的缓存页由组件恢复位置，也涵盖按钮主动返回；其余页面沿用浏览器历史位置。 */
+  scrollBehavior: (to, _from, savedPosition) => to.meta.ownScroll ? false : savedPosition ?? { top: 0 },
 })
 
 AppRouter.beforeEach(async (to) => {
