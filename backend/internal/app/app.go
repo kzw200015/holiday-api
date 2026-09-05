@@ -20,8 +20,8 @@ import (
 //
 // 也没有 CSRF 中间件：跨站伪造之所以成立，是因为 Cookie 由浏览器自动带上；
 // 身份改走 Authorization 头之后，跨站页面既读不到令牌也就冒名不了。
-func NewRouter(staticDir string, holidayService *holiday.Service, authService *auth.Service,
-	tokens *auth.Tokens, ehService *eh.Service) http.Handler {
+func NewRouter(staticDir string, holidayHandler *holiday.Handler, authHandler *auth.Handler,
+	ehHandler *eh.Handler) http.Handler {
 	router := chi.NewRouter()
 
 	router.Route("/api", func(api chi.Router) {
@@ -29,9 +29,9 @@ func NewRouter(staticDir string, holidayService *holiday.Service, authService *a
 		// Recover 在它里面：panic 被翻成 JSON 500 之后，访问日志才记得到这个状态码
 		api.Use(web.RequestLogger, web.Recover)
 
-		api.Mount("/holiday", holiday.Routes(holidayService))
-		api.Mount("/auth", auth.Routes(authService, tokens))
-		api.Mount("/eh", eh.Routes(ehService, tokens))
+		api.Mount("/holiday", holidayHandler.Routes())
+		api.Mount("/auth", authHandler.Routes())
+		api.Mount("/eh", ehHandler.Routes())
 
 		// 其余 /api 路径统一返回 JSON 格式的 404，方法不匹配也归到这里：
 		// /api 下的响应体一律是 ApiResponse，前端的拦截器按这个结构取 msg

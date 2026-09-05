@@ -9,8 +9,17 @@ import (
 	"myapi/internal/web"
 )
 
+// Handler 把 HTTP 入参和响应转换留在这里，Service 可独立用于后台刷新。
+type Handler struct {
+	service *Service
+}
+
+func NewHandler(service *Service) *Handler {
+	return &Handler{service: service}
+}
+
 // Routes 挂在 /api/holiday 下。
-func Routes(service *Service) http.Handler {
+func (h *Handler) Routes() http.Handler {
 	router := chi.NewRouter()
 
 	query := func(r *http.Request) (Day, error) {
@@ -18,7 +27,7 @@ func Routes(service *Service) http.Handler {
 		if err != nil {
 			return Day{}, err
 		}
-		return service.Query(r.Context(), date)
+		return h.service.Query(r.Context(), date)
 	}
 
 	// GET /api/holiday/is-holiday?date=YYYY-MM-DD，仅返回是否休息。

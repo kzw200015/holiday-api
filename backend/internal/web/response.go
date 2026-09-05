@@ -5,10 +5,11 @@ package web
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+
+	"myapi/internal/apperr"
 )
 
 // Response 是所有接口的统一响应体，与前端 src/types/apiResponse.ts 保持一致。
@@ -21,38 +22,34 @@ type Response struct {
 	Msg  string `json:"msg"`
 }
 
-// Error 是能直接回给客户端的失败：Status 决定 HTTP 状态码，Msg 原样进响应体的 msg 字段，
-// 所以它要写成给人看的话。Err 挂原始错误，只进日志。
-type Error struct {
-	Status int
-	Msg    string
-	Err    error
-}
-
-func (e *Error) Error() string { return e.Msg }
-
-func (e *Error) Unwrap() error { return e.Err }
-
-// WithCause 挂上原始错误。Msg 照旧是给人看的那句话，原始错误只进日志——
-// 把 err 用 %v 拼进 Msg 的话，`dial tcp ...: i/o timeout` 这种东西会原样出现在前端弹窗里。
-func (e *Error) WithCause(err error) *Error {
-	e.Err = err
-	return e
-}
-
-// Fail 构造任意状态码的失败。
-func Fail(status int, format string, args ...any) *Error {
-	return &Error{Status: status, Msg: fmt.Sprintf(format, args...)}
-}
-
-// BadRequest 构造参数错误，用于校验不过的入参。
-func BadRequest(format string, args ...any) *Error {
-	return Fail(http.StatusBadRequest, format, args...)
+// BadRequest 供 HTTP 入参校验使用，业务代码直接使用 apperr。
+func BadRequest(format string, args ...any) *apperr.Error {
+	return apperr.New(apperr.InvalidArgument, format, args...)
 }
 
 // Unauthorized 构造未登录（或令牌已过期）。
-func Unauthorized(msg string) *Error {
-	return Fail(http.StatusUnauthorized, "%s", msg)
+func Unauthorized(msg string) *apperr.Error {
+	return apperr.New(apperr.Unauthenticated, "%s", msg)
+}
+
+// 失败种类到 HTTP 状态码的唯一映射。未登记的种类按未知故障处理，不能泄露文案。
+func errorStatus(kind apperr.Kind) int {
+	switch kind {
+	case apperr.InvalidArgument:
+		return http.StatusBadRequest
+	case apperr.Unauthenticated:
+		return http.StatusUnauthorized
+	case apperr.PermissionDenied:
+		return http.StatusForbidden
+	case apperr.NotFound:
+		return http.StatusNotFound
+	case apperr.ResourceExhausted:
+		return http.StatusTooManyRequests
+	case apperr.UpstreamFailure:
+		return http.StatusBadGateway
+	default:
+		return http.StatusInternalServerError
+	}
 }
 
 // Handler 是本项目的处理器形态：返回 error 就行，翻译成响应体的事统一交给 ServeHTTP。
@@ -77,18 +74,19 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 可预期的失败（配额用尽、Cookie 失效、签名过期）各有各的状态码，
 	// 一律转成 500 的话，「额度没了」和「服务器崩了」在前端就分不出来。
 	// 4xx 是调用方的问题，记 info 就够；5xx 说明上游或本站出了状况，升到 warn
-	var apiErr *Error
-	if errors.As(err, &apiErr) {
+	var apiErr *apperr.Error
+	if errors.As(err, &apiErr) && errorStatus(apiErr.Kind) != http.StatusInternalServerError {
+		status := errorStatus(apiErr.Kind)
 		level := slog.LevelInfo
-		if apiErr.Status >= 500 {
+		if status >= 500 {
 			level = slog.LevelWarn
 		}
-		attrs := []any{"method", r.Method, "path", r.URL.Path, "status", apiErr.Status, "msg", apiErr.Msg}
+		attrs := []any{"method", r.Method, "path", r.URL.Path, "status", status, "msg", apiErr.Msg}
 		if apiErr.Err != nil {
 			attrs = append(attrs, "err", apiErr.Err)
 		}
 		slog.Log(r.Context(), level, "请求失败", attrs...)
-		WriteJSON(w, apiErr.Status, Response{Code: apiErr.Status, Msg: apiErr.Msg})
+		WriteJSON(w, status, Response{Code: status, Msg: apiErr.Msg})
 		return
 	}
 
@@ -132,7 +130,7 @@ func DecodeJSON(r *http.Request, dst any) error {
 	// 多余字段直接报错而不是忽略：前端字段名拼错时，静默忽略的表现是「传了但没生效」
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(dst); err != nil {
-		return &Error{Status: http.StatusBadRequest, Msg: "请求体格式错误", Err: err}
+		return BadRequest("请求体格式错误").WithCause(err)
 	}
 	return nil
 }

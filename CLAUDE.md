@@ -58,21 +58,23 @@ docker build -t myapi .
 - **连接池的关闭走 wire 的 cleanup**（`provideDatabase` 返回 `(*pgxpool.Pool, func(), error)`）。wire 把图里所有 cleanup 串成 injector 交出来的那一个，后面哪个 provider 失败也会被调到，池子不会漏。
 - **`provideLogger` 会 `slog.SetDefault`，并且 `provideDatabase` 收一个 `*slog.Logger` 参数**。那个参数是真用（连接池就绪时打一条日志），顺带让「日志先就绪、再连库」由依赖关系保证，而不是靠 `main` 里的语句先后——这比制造一个假依赖去排顺序干净。
 
-**处理器返回 error，翻译统一在一处**（`web/response.go`）：路由注册的是 `web.Handler`（`func(http.ResponseWriter, *http.Request) error`），它的 `ServeHTTP` 把 `*web.Error` 翻成对应状态码的 `ApiResponse`，其余错误一律 500 且**只回固定文案「服务器内部错误」**——SQL 报错、路径这类原文只进日志。业务代码因此可以放心地把错误一路 `return` 上来，不用在每个处理器里各写一遍 `http.Error`。
+**处理器返回 error，翻译统一在一处**（`web/response.go`）：路由注册的是 `web.Handler`（`func(http.ResponseWriter, *http.Request) error`），它的 `ServeHTTP` 用 `errors.As` 识别错误链中的 `*apperr.Error`，按失败种类统一映射 HTTP 状态码。普通错误与未登记的失败种类一律 500 且**只回固定文案「服务器内部错误」**——SQL 报错、路径这类原文只进日志。业务代码因此可以放心地把错误一路 `return` 上来，不用在每个处理器里各写一遍 `http.Error`。
 
-**`web.Error` 的 `Msg` 给人看，`Err` 只进日志**：包装上游或系统错误时用 `web.Fail(...).WithCause(err)`（`eh/failure.go` 里的 `errUpstream` 就是这么写的），不要把 `err` 用 `%v` 拼进 `Msg`——那样 `dial tcp: i/o timeout` 会原样出现在前端弹窗里。`ServeHTTP` 按状态码定日志级别（4xx 记 info、5xx 记 warn）；请求上下文已取消（浏览器中止了请求）时只记 debug、不写响应，阅读器快速翻页成批中止图片请求时日志才不会被假故障刷满。
+**`apperr.Error` 的 `Msg` 给人看，`Err` 只进日志**：包装上游或系统错误时用 `apperr.New(...).WithCause(err)`（`eh/failure.go` 里的 `errUpstream` 就是这么写的），不要把 `err` 用 `%v` 拼进 `Msg`——那样 `dial tcp: i/o timeout` 会原样出现在前端弹窗里。`ServeHTTP` 按状态码定日志级别（4xx 记 info、5xx 记 warn）；请求上下文已取消（浏览器中止了请求）时只记 debug、不写响应，阅读器快速翻页成批中止图片请求时日志才不会被假故障刷满。
 
 **panic 由 `web.Recover` 兜住**：记一条带调用栈的 error 日志，再按统一契约回 JSON 500；头已经发出去（图片转到一半）就只记日志。不用 chi 自带的 `Recoverer`，它把栈打到 stderr 绕开 slog。`http.Server` 的 `ErrorLog` 也接到了 slog 上，容器里不会混进非 JSON 的行。
 
-**没有「失败种类 → 状态码」的映射表**：`web.Error` 直接带 `Status` 和给人看的 `Msg`，e 站那些可预期的失败在 `eh/failure.go` 里各写一个构造函数（`errBanned()` 回 429、`errSadPanda()` 回 400、`errBadSignature()` 回 403……），抛错的地方就说清楚回什么。
+**业务错误不耦合 HTTP**：`internal/apperr` 只定义失败种类、公开文案和原始原因，不依赖 `web` 或 `net/http`。业务代码使用 `apperr.New`，不构造状态码；`web/response.go` 的 `errorStatus` 是唯一映射：`InvalidArgument → 400`、`Unauthenticated → 401`、`PermissionDenied → 403`、`NotFound → 404`、`ResourceExhausted → 429`、`UpstreamFailure → 502`。e 站的具名错误构造函数仍留在 `eh/failure.go`，但只表达失败种类。`web.BadRequest` / `web.Unauthorized` 是 HTTP 层的便捷函数，业务层不要引用它们。
 
 **统一响应契约**：所有接口返回 `web.Response { code, data, msg }`，**结构体的字段声明顺序即 JSON 序列化顺序**。**会进响应体的切片一律用 `[]T{}` 而不是 `var x []T`**——nil 切片序列化出来是 `null` 而不是 `[]`，前端照着数组遍历就炸；不进 JSON 的切片则相反，`var` 更好。IDE 会建议把前者也改成 `var`，别接受。`/api` 子路由的 `NotFound` 和 `MethodNotAllowed` 都指向 `web.NotFound`，未匹配的 `/api` 路径统一回 JSON 404；其余路径找不到静态文件时保持空响应体的 404（前端是哈希路由，静态资源兜底逻辑依赖这一点）。后端 `internal/web/response.go` 与前端 `src/types/apiResponse.ts` 是一对，改一边要同步另一边。
 
 **唯一的例外是两个图片接口**（`/api/eh/thumbnail` 和 `.../pages/{page}/image`），它们直接返回二进制流。
 
-**路由组装在 `internal/app/app.go`**：`/api` 子路由挂访问日志和 `web.Recover`（Recover 在里面，访问日志才记得到 panic 翻出来的 500），底下 `Mount` 三个模块。**鉴权绝不能挂在整个 `/api` 上**——`GET /api/holiday/is-holiday` 有外部调用方、两个图片接口靠地址签名认身份，挂全局会把这两类一起挡掉；需要登录的接口在各自模块的子路由里挂 `auth.Tokens.Require`。
+**路由组装在 `internal/app/app.go`**：`NewRouter` 只接收静态目录和各模块的 Handler，通过 `holidayHandler.Routes()`、`authHandler.Routes()`、`ehHandler.Routes()` 获取 `http.Handler` 并挂载，不直接接收 Service 或 Tokens，也不额外引入路由集合或 provider。`/api` 子路由挂访问日志和 `web.Recover`（Recover 在里面，访问日志才记得到 panic 翻出来的 500），底下 `Mount` 三个模块。**鉴权绝不能挂在整个 `/api` 上**——`GET /api/holiday/is-holiday` 有外部调用方、两个图片接口靠地址签名认身份，挂全局会把这两类一起挡掉；需要登录的接口在各自模块的子路由里挂 `auth.Tokens.Require`。
 
 **没有 CSRF 中间件**：跨站伪造之所以成立，是因为 Cookie 由浏览器自动带上；身份改走 `Authorization` 头之后，跨站页面既读不到令牌也就冒名不了。`frontend/vite.config.ts` 的代理因此也不需要改写 `Origin`。
+
+**Handler 与 Service 分离**：各业务包的 `handler.go` 定义 `Handler`、`NewHandler` 和无参 `h.Routes()`；Handler 持有 Service，负责入参、HTTP 响应和路由。账号与 e 站 Handler 还持有构造时注入的同一个 `Tokens`，用于令牌签发、身份读取与路由鉴权，Service 不保存 Tokens，也不提供 Routes。Wire 组装顺序是依赖 → Service → Handler → app；后台节假日刷新仍直接使用 Service。两种类型保留在同一业务包，这是职责分离而非 Go 包级隔离。Service 接收器统一命名为 `s`，Handler 为 `h`。
 
 **`/api/eh` 下分成两组路由**（`eh/handler.go` 与 `eh/handler_image.go`）：图片那两条用 `chi.Router.Group` 单独开一组、**不挂鉴权**，其余的那组挂 `Require`。分成两个文件而不是在一处挑几条豁免，是为了让「哪些接口不需要登录」一眼可见——混在一起的话，日后加接口时很容易顺手加到不设防的那一侧。
 
@@ -224,4 +226,3 @@ docker build -t myapi .
 ### Domain docs
 
 单上下文布局：根目录 `CONTEXT.md` + `docs/adr/`。详见 `docs/agents/domain.md`。
-

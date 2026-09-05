@@ -22,7 +22,7 @@ const imageCacheControl = "private, max-age=2592000, immutable"
 // 所以这两个接口靠地址里的签名认身份：签名由 service 签发，覆盖「这是哪一份附件、给谁看、什么时候过期」。
 //
 // 单独一个文件而不是在 handler.go 里挑几条路由豁免，是因为「哪些接口不需要登录」必须一眼看得出来。
-func imageRoutes(router chi.Router, service *Service) {
+func (h *Handler) imageRoutes(router chi.Router) {
 	// 这两条一次阅读就是几十个请求，访问日志统一降到 debug
 	router.Use(web.Quiet)
 
@@ -50,7 +50,7 @@ func imageRoutes(router chi.Router, service *Service) {
 				return errIncompleteSignature()
 			}
 
-			image, err := service.OpenGalleryImage(r.Context(), userID, ref, page, sig)
+			image, err := h.service.OpenGalleryImage(r.Context(), userID, ref, page, sig)
 			if err != nil {
 				return err
 			}
@@ -69,7 +69,7 @@ func imageRoutes(router chi.Router, service *Service) {
 			return errIncompleteSignature()
 		}
 
-		thumbnail, err := service.OpenThumbnail(r.Context(), encoded, sig)
+		thumbnail, err := h.service.OpenThumbnail(r.Context(), encoded, sig)
 		if err != nil {
 			return err
 		}

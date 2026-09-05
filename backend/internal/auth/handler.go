@@ -12,6 +12,16 @@ import (
 	"myapi/internal/web"
 )
 
+// Handler 持有 HTTP 用例需要的依赖，Service 不承担路由和令牌传递。
+type Handler struct {
+	service *Service
+	tokens  *Tokens
+}
+
+func NewHandler(service *Service, tokens *Tokens) *Handler {
+	return &Handler{service: service, tokens: tokens}
+}
+
 // 用户名限制成一眼能认的字符集，是因为它会出现在 URL 和日志里；
 // 密码只卡长度，不强制复杂度——强制复杂度反而会逼出「Passw0rd!」这种可预测的密码。
 var usernamePattern = regexp.MustCompile(`^[0-9A-Za-z_-]{3,32}$`)
@@ -52,7 +62,7 @@ type authenticated struct {
 //
 // 这里不返回 e 站的绑定状态：那是 eh 模块的事，放在 GET /api/eh/credential，
 // 免得两个模块的类型互相缠住。
-func Routes(service *Service, tokens *Tokens) http.Handler {
+func (h *Handler) Routes() http.Handler {
 	router := chi.NewRouter()
 
 	// 注册和登录的成功响应长得一模一样，读入参、签令牌这两段只写一次
@@ -70,7 +80,7 @@ func Routes(service *Service, tokens *Tokens) http.Handler {
 		if err != nil {
 			return err
 		}
-		token, err := tokens.Issue(user.ID)
+		token, err := h.tokens.Issue(user.ID)
 		if err != nil {
 			return err
 		}
@@ -79,22 +89,22 @@ func Routes(service *Service, tokens *Tokens) http.Handler {
 
 	// POST /api/auth/register，注册成功即登录。用户名被占用或站点关闭注册时返回 400
 	router.Method(http.MethodPost, "/register", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		return authenticate(w, r, service.Register)
+		return authenticate(w, r, h.service.Register)
 	}))
 
 	// POST /api/auth/login，成功后下发令牌
 	router.Method(http.MethodPost, "/login", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		return authenticate(w, r, service.Login)
+		return authenticate(w, r, h.service.Login)
 	}))
 
 	// GET /api/auth/me，返回当前登录者，未登录或账号已被删都返回 data 为 null 的 200。
 	// 刻意不回 401：前端的响应拦截器遇到 401 会跳登录页，而登录页自己也要问「我是谁」
 	router.Method(http.MethodGet, "/me", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		userID := tokens.Read(r)
+		userID := h.tokens.Read(r)
 		if userID == 0 {
 			return web.OK(w, nil)
 		}
-		user, err := service.FindByID(r.Context(), userID)
+		user, err := h.service.FindByID(r.Context(), userID)
 		if err != nil {
 			return err
 		}

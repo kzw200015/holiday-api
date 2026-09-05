@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"myapi/internal/app"
+	"myapi/internal/auth"
 	"myapi/internal/config"
 	"myapi/internal/eh"
 	"myapi/internal/holiday"
@@ -47,6 +48,9 @@ func initApplication(ctx context.Context) (*application, func(), error) {
 		holiday.NewRemoteClient,
 		holiday.NewService,
 
+		auth.NewHandler,
+		eh.NewHandler,
+		holiday.NewHandler,
 		app.NewRouter,
 		wire.Struct(new(application), "*"),
 	)

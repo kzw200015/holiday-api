@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"myapi/internal/web"
+	"myapi/internal/apperr"
 )
 
 // Site 是站点。里站需要有效的 igneous cookie 才进得去。
@@ -33,13 +33,13 @@ type Cookie struct {
 func (c Cookie) validate() error {
 	// igneous 可以为空（没有里站权限），另外两项不行
 	if c.IpbMemberID == "" || c.IpbPassHash == "" {
-		return web.BadRequest("ipb_member_id 和 ipb_pass_hash 都不能为空")
+		return apperr.New(apperr.InvalidArgument, "ipb_member_id 和 ipb_pass_hash 都不能为空")
 	}
 	// 三个值会被原样拼进 Cookie 请求头。分号能塞进额外的 cookie，空格和引号会把整个头弄坏，
 	// 用户从浏览器里复制时最容易带上的正是这些（多选了一段、连着 `; ` 一起粘）
 	for _, value := range []string{c.IpbMemberID, c.IpbPassHash, c.Igneous} {
 		if !isCookieValue(value) {
-			return web.BadRequest("Cookie 值里有不允许的字符，检查是不是多复制了分号、空格或引号")
+			return apperr.New(apperr.InvalidArgument, "Cookie 值里有不允许的字符，检查是不是多复制了分号、空格或引号")
 		}
 	}
 	return nil

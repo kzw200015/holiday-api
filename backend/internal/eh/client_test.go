@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"myapi/internal/web"
+	"myapi/internal/apperr"
 )
 
 // 模拟上游在读正文时断流或超时，并记录资源是否被释放。
@@ -66,9 +66,9 @@ func TestBufferedRequestsReleaseFailedBody(t *testing.T) {
 					return &http.Response{StatusCode: http.StatusOK, Body: body}, nil
 				}))
 				err := caller.call(client)
-				var apiErr *web.Error
-				if !errors.Is(err, cause) || !errors.As(err, &apiErr) || apiErr.Status != http.StatusBadGateway {
-					t.Fatalf("读取失败 = %v，期望保留原因 %v 并返回 502", err, cause)
+				var failure *apperr.Error
+				if !errors.Is(err, cause) || !errors.As(err, &failure) || failure.Kind != apperr.UpstreamFailure {
+					t.Fatalf("读取失败 = %v，期望保留原因 %v 并识别为上游故障", err, cause)
 				}
 				if !body.closed {
 					t.Fatal("失败响应体未关闭")
@@ -125,35 +125,35 @@ func TestAssertUsable(t *testing.T) {
 	cases := []struct {
 		status int
 		body   string
-		want   int // 期望的 HTTP 状态码，0 表示这是一份正常内容
+		want   apperr.Kind // 空串表示这是一份正常内容
 	}{
-		{509, "whatever", http.StatusTooManyRequests},
+		{509, "whatever", apperr.ResourceExhausted},
 		// 509 的响应体也可能是空的，先判状态码才能给出准确的提示
-		{509, "", http.StatusTooManyRequests},
+		{509, "", apperr.ResourceExhausted},
 		// 里站 Cookie 无效时回 200 加空 body，不是 403
-		{200, "", http.StatusBadRequest},
-		{200, "   \n  ", http.StatusBadRequest},
-		{200, "Your IP address has been temporarily banned", http.StatusTooManyRequests},
-		{200, "detected excessive pageloads", http.StatusTooManyRequests},
-		{200, "<h1>Content Warning</h1>", http.StatusBadGateway},
+		{200, "", apperr.InvalidArgument},
+		{200, "   \n  ", apperr.InvalidArgument},
+		{200, "Your IP address has been temporarily banned", apperr.ResourceExhausted},
+		{200, "detected excessive pageloads", apperr.ResourceExhausted},
+		{200, "<h1>Content Warning</h1>", apperr.UpstreamFailure},
 		// 正常的页面请求不会重定向，会重定向说明身份没被认下来
-		{302, "<html>go away</html>", http.StatusBadGateway},
+		{302, "<html>go away</html>", apperr.UpstreamFailure},
 		// 搜索没命中是正常页面，交给 parseGalleryList 返回空列表即可
-		{200, "<p>No hits found</p>", 0},
-		{200, `<table class="itg">...</table>`, 0},
+		{200, "<p>No hits found</p>", ""},
+		{200, `<table class="itg">...</table>`, ""},
 	}
 
 	for _, each := range cases {
 		err := assertUsable(each.status, []byte(each.body), "https://e-hentai.org/")
-		if each.want == 0 {
+		if each.want == "" {
 			if err != nil {
 				t.Errorf("assertUsable(%d, %q) = %v, 期望放行", each.status, each.body, err)
 			}
 			continue
 		}
-		var apiErr *web.Error
-		if !errors.As(err, &apiErr) || apiErr.Status != each.want {
-			t.Errorf("assertUsable(%d, %q) = %v, 期望 %d", each.status, each.body, err, each.want)
+		var failure *apperr.Error
+		if !errors.As(err, &failure) || failure.Kind != each.want {
+			t.Errorf("assertUsable(%d, %q) = %v, 期望 %s", each.status, each.body, err, each.want)
 		}
 	}
 }

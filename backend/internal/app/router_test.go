@@ -70,6 +70,22 @@ func TestSignedImageURLRejectsForgedUser(t *testing.T) {
 func TestApiContract(t *testing.T) {
 	router, _ := newTestRouter(t)
 
+	// 公开查询不能被模块组装时误挂上的鉴权挡住，参数错误也仍走统一翻译。
+	for _, each := range []struct {
+		path string
+		code int
+		body string
+	}{
+		{"/api/holiday/is-holiday?date=2026-01-04", 200, `{"code":200,"data":true,"msg":"OK"}`},
+		{"/api/holiday/is-holiday?date=invalid", 400, `{"code":400,"data":null,"msg":"日期格式错误，应为 YYYY-MM-DD"}`},
+		{"/api/auth/me", 200, `{"code":200,"data":null,"msg":"OK"}`},
+	} {
+		response := do(t, router, each.path, "")
+		if response.Code != each.code || response.Body.String() != each.body+"\n" {
+			t.Errorf("%s = %d %s", each.path, response.Code, response.Body)
+		}
+	}
+
 	// 需要登录的接口不带令牌就是 401，响应体仍然是统一结构
 	response := do(t, router, "/api/eh/galleries", "")
 	if response.Code != http.StatusUnauthorized ||
@@ -103,8 +119,10 @@ func newTestRouter(t *testing.T) (http.Handler, string) {
 		signing.NewAttachmentSigner("attachment-子密钥", time.Hour))
 
 	// 指向一个不存在的目录，让所有非 /api 路径都落到无响应体的 404
-	router := app.NewRouter(t.TempDir()+"/no-static", holiday.NewService(nil, queries, nil),
-		auth.NewService(queries, false), tokens, ehService)
+	router := app.NewRouter(t.TempDir()+"/no-static",
+		holiday.NewHandler(holiday.NewService(nil, queries, nil)),
+		auth.NewHandler(auth.NewService(queries, false), tokens),
+		eh.NewHandler(ehService, tokens))
 
 	token, err := tokens.Issue(testUserID)
 	if err != nil {

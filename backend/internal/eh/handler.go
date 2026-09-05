@@ -12,6 +12,16 @@ import (
 	"myapi/internal/web"
 )
 
+// Handler 负责 HTTP 与鉴权；取图、搜索等业务只经 Service 门面调用。
+type Handler struct {
+	service *Service
+	tokens  *auth.Tokens
+}
+
+func NewHandler(service *Service, tokens *auth.Tokens) *Handler {
+	return &Handler{service: service, tokens: tokens}
+}
+
 // token 固定 10 位十六进制。它和 gid 都会被拼进上游地址，不校验就等于把用户输入直接发给 e 站。
 var tokenPattern = regexp.MustCompile(`^[0-9a-f]{10}$`)
 
@@ -22,30 +32,30 @@ var cursorPattern = regexp.MustCompile(`^\d*$`)
 //
 // 两组分开写而不是在一处挑几条豁免，是为了让「哪些接口不需要登录」一眼可见：
 // 混在一起的话，日后加接口时很容易顺手加到不设防的那一侧。
-func Routes(service *Service, tokens *auth.Tokens) http.Handler {
+func (h *Handler) Routes() http.Handler {
 	router := chi.NewRouter()
 
 	// 不要求登录的两个图片接口。<img src> 是浏览器自己发的请求，带不了 Authorization 头，
 	// 所以它们靠地址里的签名认身份，签名由 service 签发和校验。
 	// 这两条也是统一 ApiResponse 契约的唯一例外，直接返回二进制流
 	router.Group(func(r chi.Router) {
-		imageRoutes(r, service)
+		h.imageRoutes(r)
 	})
 
 	// 其余接口一律要登录。鉴权挂在这里而不是整个 /api 上，
 	// 因为 GET /api/holiday/is-holiday 有外部调用方，挂全局会把它一起挡掉
 	router.Group(func(r chi.Router) {
-		r.Use(tokens.Require)
-		authedRoutes(r, service)
+		r.Use(h.tokens.Require)
+		h.authedRoutes(r)
 	})
 
 	return router
 }
 
-func authedRoutes(router chi.Router, service *Service) {
+func (h *Handler) authedRoutes(router chi.Router) {
 	// GET /api/eh/credential，返回绑定状态，不含明文 Cookie
 	router.Method(http.MethodGet, "/credential", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		status, err := service.CredentialStatus(r.Context(), auth.UserID(r.Context()))
+		status, err := h.service.CredentialStatus(r.Context(), auth.UserID(r.Context()))
 		if err != nil {
 			return err
 		}
@@ -61,7 +71,7 @@ func authedRoutes(router chi.Router, service *Service) {
 		if err := cookie.validate(); err != nil {
 			return err
 		}
-		status, err := service.BindCredential(r.Context(), auth.UserID(r.Context()), cookie)
+		status, err := h.service.BindCredential(r.Context(), auth.UserID(r.Context()), cookie)
 		if err != nil {
 			return err
 		}
@@ -70,7 +80,7 @@ func authedRoutes(router chi.Router, service *Service) {
 
 	// POST /api/eh/credential/unbind，解绑后退回匿名浏览前站
 	router.Method(http.MethodPost, "/credential/unbind", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := service.UnbindCredential(r.Context(), auth.UserID(r.Context())); err != nil {
+		if err := h.service.UnbindCredential(r.Context(), auth.UserID(r.Context())); err != nil {
 			return err
 		}
 		return web.OK(w, nil)
@@ -82,7 +92,7 @@ func authedRoutes(router chi.Router, service *Service) {
 		if err != nil {
 			return err
 		}
-		page, err := service.SearchGalleries(r.Context(), auth.UserID(r.Context()), search)
+		page, err := h.service.SearchGalleries(r.Context(), auth.UserID(r.Context()), search)
 		if err != nil {
 			return err
 		}
@@ -95,7 +105,7 @@ func authedRoutes(router chi.Router, service *Service) {
 		if err != nil {
 			return err
 		}
-		detail, err := service.GalleryDetailOf(r.Context(), auth.UserID(r.Context()), ref)
+		detail, err := h.service.GalleryDetailOf(r.Context(), auth.UserID(r.Context()), ref)
 		if err != nil {
 			return err
 		}
@@ -108,7 +118,7 @@ func authedRoutes(router chi.Router, service *Service) {
 		if err != nil {
 			return err
 		}
-		comments, err := service.GalleryComments(r.Context(), auth.UserID(r.Context()), ref)
+		comments, err := h.service.GalleryComments(r.Context(), auth.UserID(r.Context()), ref)
 		if err != nil {
 			return err
 		}
@@ -132,7 +142,7 @@ func authedRoutes(router chi.Router, service *Service) {
 		if err := checkPage(int(body.Page)); err != nil {
 			return err
 		}
-		if err := service.SaveProgress(r.Context(), auth.UserID(r.Context()), ref, body.Page); err != nil {
+		if err := h.service.SaveProgress(r.Context(), auth.UserID(r.Context()), ref, body.Page); err != nil {
 			return err
 		}
 		return web.OK(w, nil)

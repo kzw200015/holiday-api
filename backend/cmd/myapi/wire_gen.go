@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"myapi/internal/app"
+	"myapi/internal/auth"
 	"myapi/internal/config"
 	"myapi/internal/eh"
 	"myapi/internal/holiday"
@@ -39,17 +40,20 @@ func initApplication(ctx context.Context) (*application, func(), error) {
 	queries := store.New(pool)
 	remoteClient := holiday.NewRemoteClient()
 	service := holiday.NewService(pool, queries, remoteClient)
+	handler := holiday.NewHandler(service)
 	authService := provideAuthService(queries, configConfig)
 	tokens := provideTokens(configConfig)
+	authHandler := auth.NewHandler(authService, tokens)
 	client := provideEhClient(configConfig)
 	credentialStore := eh.NewCredentialStore(queries, client)
 	imageLocator := eh.NewImageLocator(client)
 	attachmentSigner := provideAttachmentSigner(configConfig)
 	ehService := eh.NewService(queries, client, credentialStore, imageLocator, attachmentSigner)
-	handler := app.NewRouter(string2, service, authService, tokens, ehService)
+	ehHandler := eh.NewHandler(ehService, tokens)
+	httpHandler := app.NewRouter(string2, handler, authHandler, ehHandler)
 	mainApplication := &application{
 		Config:  configConfig,
-		Router:  handler,
+		Router:  httpHandler,
 		Holiday: service,
 	}
 	return mainApplication, func() {

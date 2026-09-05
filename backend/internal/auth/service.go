@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"myapi/internal/apperr"
 	"myapi/internal/store"
-	"myapi/internal/web"
 )
 
 // 密码哈希参数，单次校验约 40 毫秒。
@@ -40,7 +40,7 @@ func NewService(queries *store.Queries, allowRegistration bool) *Service {
 // 先查再插在两个并发请求之间是有窗口的，而唯一索引本来就在那儿。
 func (s *Service) Register(ctx context.Context, username, password string) (store.User, error) {
 	if !s.allowRegistration {
-		return store.User{}, web.BadRequest("本站已关闭注册")
+		return store.User{}, apperr.New(apperr.InvalidArgument, "本站已关闭注册")
 	}
 
 	hash, err := argon2id.CreateHash(password, hashParams)
@@ -50,7 +50,7 @@ func (s *Service) Register(ctx context.Context, username, password string) (stor
 
 	user, err := s.queries.CreateUser(ctx, store.CreateUserParams{Username: username, PasswordHash: hash})
 	if isUniqueViolation(err) {
-		return store.User{}, web.BadRequest("用户名已被占用")
+		return store.User{}, apperr.New(apperr.InvalidArgument, "用户名已被占用")
 	}
 	if err != nil {
 		return store.User{}, err
@@ -71,7 +71,7 @@ func (s *Service) Login(ctx context.Context, username, password string) (store.U
 	// 文案同理，两种情况回同一句话
 	match, hashErr := argon2id.ComparePasswordAndHash(password, orDummyHash(user.PasswordHash))
 	if err != nil || hashErr != nil || !match {
-		return store.User{}, web.BadRequest("用户名或密码错误")
+		return store.User{}, apperr.New(apperr.InvalidArgument, "用户名或密码错误")
 	}
 	return user, nil
 }

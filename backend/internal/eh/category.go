@@ -1,6 +1,6 @@
 package eh
 
-import "myapi/internal/web"
+import "myapi/internal/apperr"
 
 // 图集分类与 e 站搜索参数 f_cats 的换算。
 //
@@ -40,7 +40,7 @@ func toCategoryFilter(categories []string) (int, error) {
 	for _, name := range categories {
 		bit, ok := categoryBits[name]
 		if !ok {
-			return 0, web.BadRequest("分类名不合法")
+			return 0, apperr.New(apperr.InvalidArgument, "分类名不合法")
 		}
 		selected |= bit
 	}
