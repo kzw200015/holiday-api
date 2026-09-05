@@ -2,7 +2,8 @@ import { defineStore } from "pinia"
 import { ref } from "vue"
 
 import * as authApi from "@/api/auth"
-import { hasToken } from "@/api/httpClient"
+import { hasToken, setToken } from "@/api/httpClient"
+import { useGalleryListStore } from "@/stores/GalleryListStore"
 
 export const useAuthStore = defineStore("AuthStore", () => {
   const user = ref<authApi.CurrentUser | null>(null)
@@ -21,33 +22,28 @@ export const useAuthStore = defineStore("AuthStore", () => {
     try {
       user.value = await authApi.fetchCurrentUser()
     } catch {
-      /* 后端不可达时按未登录处理，页面自己会显示错误 */
+      /* 无法恢复会话时回到登录流程，不带着未确认的账号进入受保护页面。 */
       user.value = null
     } finally {
       ready.value = true
     }
   }
 
-  /* 登录和注册都是「成功即认为已登录」，只差调哪个接口 */
-  const authenticate =
-    (call: typeof authApi.login) => async (username: string, password: string) => {
-      user.value = await call(username, password)
-      ready.value = true
-    }
+  async function authenticate(action: authApi.AuthAction, username: string, password: string) {
+    const session = await authApi.authenticate(action, username, password)
+    useGalleryListStore().clear()
+    setToken(session.token)
+    user.value = session.user
+    ready.value = true
+  }
 
-  const login = authenticate(authApi.login)
-  const register = authenticate(authApi.register)
-
-  /* 退出登录只是把本地令牌丢掉，没有后端调用，所以不是异步的 */
+  /* 退出与令牌失效共用清理入口，避免下一个账号复用前一个账号的图库。 */
   function logout() {
-    authApi.logout()
+    setToken("")
     user.value = null
+    ready.value = true
+    useGalleryListStore().clear()
   }
 
-  /* 令牌在使用过程中失效时调用，只清本地状态（令牌已由拦截器清掉），跳转由 main.ts 注入的处理器负责 */
-  function clear() {
-    user.value = null
-  }
-
-  return { user, ready, refresh, login, register, logout, clear }
+  return { user, ready, refresh, authenticate, logout }
 })

@@ -34,21 +34,20 @@ export default defineComponent({
 
     /* 条件变了才重来；原路返回时条件没变，直接沿用已加载的内容 */
     function applyRoute() {
-      const nextKeyword = String(route.query.keyword ?? "")
-      const nextCategories = String(route.query.categories ?? "")
+      const nextKeyword = typeof route.query.keyword === "string" ? route.query.keyword : ""
+      const nextCategories = typeof route.query.categories === "string" ? route.query.categories.split(",") : []
       keyword.value = nextKeyword
-      selected.value = nextCategories.split(",").filter(Boolean)
+      /* URL 是输入边界，只接受已登记的分类，同时去重并固定顺序。 */
+      selected.value = galleryCategories
+        .filter(({ value }) => nextCategories.includes(value))
+        .map(({ value }) => value)
 
-      const signature = `${nextKeyword}|${nextCategories}`
-      if (signature === listStore.signature) {
-        return
-      }
-      listStore.reset(signature, { keyword: nextKeyword, categories: selected.value })
-      void listStore.loadMore()
+      void listStore.search({ keyword: nextKeyword, categories: selected.value })
     }
 
     /* 搜索条件写进地址栏：既能分享和刷新还原，也天然成了「重新搜索」的信号 */
-    function submit() {
+    function submit(event: Event) {
+      event.preventDefault()
       void router.push({
         name: "gallery-list",
         query: {
@@ -82,26 +81,28 @@ export default defineComponent({
     return () => (
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-3">
-          <div class="flex gap-2">
+          <form class="flex gap-2" onSubmit={submit}>
             {/* Input 只声明了 modelValue 一类的 props，原生属性经展开透传给根元素 */}
             <Input
               modelValue={keyword.value}
               {...{
                 placeholder: "搜索标题或标签，例如 language:chinese",
                 "onUpdate:modelValue": (value: string | number) => (keyword.value = String(value)),
-                onKeydown: (event: KeyboardEvent) => event.key === "Enter" && submit(),
+                "aria-label": "搜索图集",
               }}
             />
-            <Button {...{ onClick: submit }}>
+            <Button {...{ type: "submit" }}>
               <SearchIcon />
               搜索
             </Button>
-          </div>
+          </form>
 
           {/* 一个都不选等于不过滤，和全选是一回事 */}
           <div class="flex flex-wrap gap-1.5">
             {galleryCategories.map((category) => (
               <Badge
+                as="button"
+                aria-pressed={selected.value.includes(category.value)}
                 class="cursor-pointer select-none"
                 key={category.value}
                 variant={selected.value.includes(category.value) ? "default" : "outline"}

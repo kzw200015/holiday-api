@@ -2,13 +2,6 @@ import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-rou
 
 import AppLayout from "@/layouts/AppLayout"
 import { useAuthStore } from "@/stores/AuthStore"
-import GalleryDetailView from "@/views/GalleryDetailView"
-import GalleryListView from "@/views/GalleryListView"
-import HolidayView from "@/views/HolidayView"
-import HomeView from "@/views/HomeView"
-import LoginView from "@/views/LoginView"
-import ReaderView from "@/views/ReaderView"
-import SettingsView from "@/views/SettingsView"
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -21,27 +14,29 @@ declare module "vue-router" {
 
 /* 路由表：业务页面作为布局的子路由登记，需要全屏的页面（登录、阅读）与布局平级 */
 const routes: RouteRecordRaw[] = [
-  { path: "/login", name: "login", component: LoginView, meta: { title: "登录" } },
+  { path: "/login", name: "login", component: () => import("@/views/LoginView"), meta: { title: "登录" } },
   {
     path: "/eh/read/:gid(\\d+)/:token/:page(\\d+)?",
     name: "reader",
-    component: ReaderView,
+    component: () => import("@/views/ReaderView"),
+    props: (route) => ({ gid: Number(route.params.gid), token: String(route.params.token) }),
     meta: { title: "阅读", requiresAuth: true },
   },
   {
     path: "/",
     component: AppLayout,
     children: [
-      { path: "", name: "home", component: HomeView, meta: { title: "首页" } },
-      { path: "holiday", name: "holiday", component: HolidayView, meta: { title: "节假日查询" } },
-      { path: "eh", name: "gallery-list", component: GalleryListView, meta: { title: "图库", requiresAuth: true } },
+      { path: "", name: "home", component: () => import("@/views/HomeView"), meta: { title: "首页" } },
+      { path: "holiday", name: "holiday", component: () => import("@/views/HolidayView"), meta: { title: "节假日查询" } },
+      { path: "eh", name: "gallery-list", component: () => import("@/views/GalleryListView"), meta: { title: "图库", requiresAuth: true } },
       {
         path: "eh/g/:gid(\\d+)/:token",
         name: "gallery-detail",
-        component: GalleryDetailView,
+        component: () => import("@/views/GalleryDetailView"),
+        props: (route) => ({ gid: Number(route.params.gid), token: String(route.params.token) }),
         meta: { title: "图集详情", requiresAuth: true },
       },
-      { path: "settings", name: "settings", component: SettingsView, meta: { title: "设置", requiresAuth: true } },
+      { path: "settings", name: "settings", component: () => import("@/views/SettingsView"), meta: { title: "设置", requiresAuth: true } },
     ],
   },
 ]

@@ -1,14 +1,13 @@
 import { BookOpenIcon } from "@lucide/vue"
-import { computed, defineComponent, ref, watch } from "vue"
-import { RouterLink, useRoute } from "vue-router"
+import { computed, defineComponent } from "vue"
+import { RouterLink } from "vue-router"
 
 import {
   fetchGalleryComments,
   fetchGalleryDetail,
   type GalleryComment,
-  type GalleryDetail,
 } from "@/api/eh"
-import { errorText } from "@/api/httpClient"
+import { useQuery } from "@/composables/useQuery"
 import ErrorAlert from "@/components/ErrorAlert"
 import GalleryMeta from "@/components/gallery/GalleryMeta"
 import { Badge } from "@/components/ui/badge"
@@ -21,17 +20,22 @@ import { formatDateTime, formatFileSize, formatNamespace, splitTag } from "@/lib
 /* 图集详情：元信息、标签、评论，以及进入阅读视图的入口 */
 export default defineComponent({
   name: "GalleryDetailView",
-  setup() {
-    const route = useRoute()
+  props: {
+    gid: { type: Number, required: true },
+    token: { type: String, required: true },
+  },
+  setup(props) {
 
-    const gallery = ref<GalleryDetail | null>(null)
-    const progress = ref<number | null>(null)
-    const errorMessage = ref("")
-    const loading = ref(false)
-
-    const comments = ref<GalleryComment[]>([])
-    const commentsError = ref("")
-    const commentsLoading = ref(false)
+    const identity = () => `${props.gid}/${props.token}`
+    const { data: detail, error, loading } = useQuery(identity, (_identity, signal) =>
+      fetchGalleryDetail(props.gid, props.token, signal),
+    )
+    const gallery = computed(() => detail.value?.gallery)
+    const progress = computed(() => detail.value?.progress)
+    /* 评论需要抓取上游页面，独立加载，失败不阻塞元数据。 */
+    const { data: comments, error: commentsError, loading: commentsLoading } = useQuery(identity, (_identity, signal) =>
+      fetchGalleryComments(props.gid, props.token, signal),
+    )
 
     /* 标签按命名空间归并，和 e 站页面上的排布一致 */
     const groupedTags = computed(() => {
@@ -49,53 +53,6 @@ export default defineComponent({
       return [...groups.entries()]
     })
 
-    async function load(gid: number, token: string) {
-      loading.value = true
-      errorMessage.value = ""
-      try {
-        const detail = await fetchGalleryDetail(gid, token)
-        gallery.value = detail.gallery
-        progress.value = detail.progress
-      } catch (error) {
-        gallery.value = null
-        errorMessage.value = errorText(error, "加载失败")
-      } finally {
-        loading.value = false
-      }
-    }
-
-    /* 评论要抓一次 e 站页面，比元数据慢，所以单独加载，失败也不影响上面的内容 */
-    async function loadComments(gid: number, token: string) {
-      commentsLoading.value = true
-      commentsError.value = ""
-      try {
-        comments.value = await fetchGalleryComments(gid, token)
-      } catch (error) {
-        comments.value = []
-        commentsError.value = errorText(error, "评论加载失败")
-      } finally {
-        commentsLoading.value = false
-      }
-    }
-
-    /*
-     * source 要返回原始值而不是数组：返回数组的话每次求值都是个新对象，
-     * Object.is 永远判为「变了」，任何留在本路由上的地址变化都会重新拉一次详情加一次评论
-     */
-    watch(
-      () => `${route.params.gid}/${route.params.token}`,
-      () => {
-        if (route.name !== "gallery-detail") {
-          return
-        }
-        const gid = Number(route.params.gid)
-        const token = String(route.params.token)
-        void load(gid, token)
-        void loadComments(gid, token)
-      },
-      { immediate: true },
-    )
-
     return () => (
       <div class="flex flex-col gap-4">
         {loading.value ? (
@@ -108,8 +65,8 @@ export default defineComponent({
               <Skeleton class="h-20 w-full" />
             </div>
           </div>
-        ) : errorMessage.value ? (
-          <ErrorAlert message={errorMessage.value} title="加载失败" />
+        ) : error.value ? (
+          <ErrorAlert message={error.value.message} title="加载失败" />
         ) : gallery.value ? (
           <>
             <div class="flex flex-col gap-4 sm:flex-row">
@@ -211,11 +168,11 @@ export default defineComponent({
                     <Skeleton class="h-12 w-full" />
                   </>
                 ) : commentsError.value ? (
-                  <ErrorAlert message={commentsError.value} title="评论加载失败" />
-                ) : comments.value.length === 0 ? (
+                  <ErrorAlert message={commentsError.value.message} title="评论加载失败" />
+                ) : comments.value?.length === 0 ? (
                   <p class="text-muted-foreground text-sm">还没有评论。</p>
                 ) : (
-                  comments.value.map((comment, index) => (
+                  comments.value?.map((comment, index) => (
                     <div class="flex flex-col gap-2" key={comment.id}>
                       {index > 0 ? <Separator /> : null}
                       <div class="flex flex-wrap items-center gap-2 text-xs">

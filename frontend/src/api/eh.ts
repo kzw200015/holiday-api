@@ -1,4 +1,4 @@
-import { HttpClient } from "@/api/httpClient"
+import { httpClient } from "@/api/httpClient"
 
 /** 列表里一张卡片的内容，与后端 GalleryCard 对齐 */
 export interface GalleryCard {
@@ -98,28 +98,26 @@ export const categoryLabels: Record<string, string> = {
 export const galleryCategories = CATEGORIES.map(({ value, label }) => ({ value, label }))
 
 /** 搜索图集。cursor 为空表示第一页，翻页时关键词和分类要一起带上 */
-export async function searchGalleries(params: { keyword: string; categories: string[]; cursor: string }) {
-  const response = await HttpClient.get<GalleryPage>("/eh/galleries", {
+export function searchGalleries(params: { keyword: string; categories: string[]; cursor: string }, signal?: AbortSignal) {
+  return httpClient.get<GalleryPage>("/eh/galleries", {
     params: { keyword: params.keyword, categories: params.categories.join(","), cursor: params.cursor },
+    signal,
   })
-  return response.data
 }
 
 /** 图集详情，顺带返回这个账号读到第几页，以及这本图集的大图地址模板 */
-export async function fetchGalleryDetail(gid: number, token: string) {
-  const response = await HttpClient.get<{
+export function fetchGalleryDetail(gid: number, token: string, signal?: AbortSignal) {
+  return httpClient.get<{
     gallery: GalleryDetail
     progress: number | null
     /** 含 {page} 占位符的签名地址，交给 galleryImageUrl 用，别自己解析它 */
     imageUrlTemplate: string
-  }>(`/eh/galleries/${gid}/${token}`)
-  return response.data
+  }>(`/eh/galleries/${gid}/${token}`, { signal })
 }
 
 /** 评论单独取，不拖慢详情页首屏 */
-export async function fetchGalleryComments(gid: number, token: string) {
-  const response = await HttpClient.get<GalleryComment[]>(`/eh/galleries/${gid}/${token}/comments`)
-  return response.data
+export function fetchGalleryComments(gid: number, token: string, signal?: AbortSignal) {
+  return httpClient.get<GalleryComment[]>(`/eh/galleries/${gid}/${token}/comments`, { signal })
 }
 
 /**
@@ -137,22 +135,20 @@ export function galleryImageUrl(template: string, page: number, options: { nonce
   return options.nonce ? `${url}&r=${options.nonce}` : url
 }
 
-export async function fetchCredentialStatus() {
-  const response = await HttpClient.get<CredentialStatus>("/eh/credential")
-  return response.data
+export function fetchCredentialStatus() {
+  return httpClient.get<CredentialStatus>("/eh/credential")
 }
 
 /** 绑定 e 站 Cookie。后端会先拿它实际请求一次，无效就不入库 */
-export async function bindCredential(cookie: EhCookie) {
-  const response = await HttpClient.post<CredentialStatus>("/eh/credential", cookie)
-  return response.data
+export function bindCredential(cookie: EhCookie) {
+  return httpClient.post<CredentialStatus>("/eh/credential", cookie)
 }
 
-export async function unbindCredential() {
-  await HttpClient.post<null>("/eh/credential/unbind")
+export function unbindCredential() {
+  return httpClient.post<null>("/eh/credential/unbind")
 }
 
 /** 上报读到第几页 */
-export async function saveProgress(gid: number, token: string, page: number) {
-  await HttpClient.post<null>("/eh/progress", { gid, token, page })
+export function saveProgress(gid: number, token: string, page: number) {
+  return httpClient.post<null>("/eh/progress", { gid, token, page })
 }

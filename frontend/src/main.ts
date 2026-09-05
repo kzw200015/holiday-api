@@ -24,7 +24,7 @@ useAppStore(pinia).initializeTheme()
  * 页面又会 import httpClient，直接依赖就成环了
  */
 onUnauthorized(() => {
-  useAuthStore(pinia).clear()
+  useAuthStore(pinia).logout()
   const current = AppRouter.currentRoute.value
   if (current.name !== "login") {
     void AppRouter.replace({ name: "login", query: { redirect: current.fullPath } })

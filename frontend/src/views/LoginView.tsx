@@ -2,7 +2,6 @@ import { LibraryIcon } from "@lucide/vue"
 import { computed, defineComponent, ref } from "vue"
 import { useRoute, useRouter } from "vue-router"
 
-import { errorText } from "@/api/httpClient"
 import ErrorAlert from "@/components/ErrorAlert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,16 +30,12 @@ export default defineComponent({
       loading.value = true
       errorMessage.value = ""
       try {
-        if (registering.value) {
-          await authStore.register(username.value, password.value)
-        } else {
-          await authStore.login(username.value, password.value)
-        }
+        await authStore.authenticate(registering.value ? "register" : "login", username.value, password.value)
         /* 被守卫拦下来时带了原来要去的地方，登录后送回去 */
         const redirect = route.query.redirect
         await router.replace(typeof redirect === "string" && redirect ? redirect : { name: "gallery-list" })
       } catch (error) {
-        errorMessage.value = errorText(error, "登录失败")
+        errorMessage.value = (error as Error).message
       } finally {
         loading.value = false
       }
@@ -106,6 +101,7 @@ export default defineComponent({
                 variant="ghost"
                 {...{
                   type: "button",
+                  disabled: loading.value,
                   onClick: () => {
                     registering.value = !registering.value
                     errorMessage.value = ""

@@ -36,6 +36,7 @@ wire ./cmd/myapi            # 改完依赖图（cmd/myapi/wire.go）后重新生
 pnpm install
 pnpm dev      # 开发服务器，/api 反向代理到 http://localhost:8000
 pnpm build    # vue-tsc 类型检查 + vite 构建，产物在 dist/
+pnpm test     # Vitest：请求竞态、会话缓存与阅读进度回归
 ```
 
 整体镜像构建（多阶段：前端 `pnpm build` → `go build` 出静态二进制 → alpine 运行时，前端产物拷到 `/app/public`）：
@@ -163,19 +164,21 @@ docker build -t myapi .
 
 ## 前端架构
 
-**组件一律用 TSX 写**（`defineComponent` + `setup` 返回渲染函数），不写 `.vue` 单文件组件 —— `src/components/ui/` 下的 `.vue` 是 shadcn-vue 生成的产物，属于可直接修改的项目源码，但新增业务组件请沿用 TSX。JSX 支持来自 `@vitejs/plugin-vue-jsx`。
+**组件一律用 TSX 写**（`defineComponent` + `setup` 返回渲染函数），不写 `.vue` 单文件组件 —— `src/components/ui/` 是 shadcn-vue CLI 生成的基础组件目录，重构和代码清理时不得修改或删除其中的源码，包括未引用组件及 `index.ts` 导出；新增业务组件请沿用 TSX。JSX 支持来自 `@vitejs/plugin-vue-jsx`。
 
 目录职责：`views/`（页面）、`layouts/`（应用外壳与侧边栏）、`api/`（接口封装）、`stores/`（Pinia）、`components/ui/`（shadcn-vue 组件）。`@` 别名指向 `src`。
 
-**路由与导航的单一来源**：路由表 `router/index.ts` 的 `meta.title` 是页面名称的唯一定义处，顶栏标题与侧边栏文案都从这里取；`layouts/navigation.ts` 只声明「哪些路由进侧边栏、用什么图标」。新增页面 = 加一条路由记录（含 `meta.title`），需要进侧边栏再往 `navigationItems` 追加一项。使用哈希路由（`createWebHashHistory`）。
+**路由与导航的单一来源**：路由表 `router/index.ts` 的 `meta.title` 是页面名称的唯一定义处，顶栏标题与侧边栏文案都从这里取；`layouts/navigation.ts` 声明导航路由、图标和简介，首页与侧边栏共用 `getNavigationItems()`。新增页面 = 加一条路由记录（含 `meta.title`），需要进侧边栏再往 `navigationItems` 追加一项。使用哈希路由（`createWebHashHistory`）。
 
 `meta.requiresAuth` 决定 `beforeEach` 拦不拦；首页和节假日页保持公开。登录页和阅读视图是**顶层路由**（与 `/` 布局平级），因为它们要全屏、不套 `AppLayout`。
 
-**列表状态放 store 而不是 KeepAlive**：`stores/GalleryListStore.ts` 存已加载的条目和游标。不用 KeepAlive 是因为阅读视图是顶层路由，进去时整个 `AppLayout` 连同里面的 KeepAlive 一起卸载，缓存就没了；放 store 则无论从哪条路径回来都还在，配合路由的 `scrollBehavior`（`savedPosition`）就能接着往下翻。
+**列表状态放 store 而不是 KeepAlive**：`stores/GalleryListStore.ts` 存已加载的条目和游标。不用 KeepAlive 是因为阅读视图是顶层路由，进去时整个 `AppLayout` 连同里面的 KeepAlive 一起卸载，缓存就没了；放 store 则无论从哪条路径回来都还在，配合路由的 `scrollBehavior`（`savedPosition`）就能接着往下翻。`search()` 自行比较查询条件并取消旧请求；分页失败保留游标，由错误状态暂停自动加载。登录、退出和 e 站凭据变更都要调用 `clear()`，防止跨账号或跨站点复用缓存。
 
-**HTTP 层**：`api/httpClient.ts` 的 axios 响应拦截器已把 `response.data` 解包，并把错误统一转成携带后端 `msg` 的 `Error`。业务侧只写 `api/xxx.ts` 里的具名函数，不要直接用 axios。401 的跳转处理由 `main.ts` 用 `onUnauthorized()` 注入，**不要在 httpClient 里直接 import router**——router 会加载各个页面、页面又 import httpClient，直接依赖就成环了。
+**HTTP 层**：`api/httpClient.ts` 的 `httpClient.get/post` 在边界解包 `{ code, data, msg }`，业务接口直接返回 `data`；错误拦截器统一转成携带后端 `msg` 的 `Error`，取消请求保留 Axios 的取消标识。业务侧只写 `api/xxx.ts` 里的具名函数，不要直接用 axios。401 的跳转处理由 `main.ts` 用 `onUnauthorized()` 注入，**不要在 httpClient 里直接 import router**——router 会加载各个页面、页面又 import httpClient，直接依赖就成环了。
 
-**登录令牌存 localStorage**（`api/httpClient.ts`）：请求拦截器统一加 `Authorization: Bearer`，401 时顺手清掉本地令牌再交给 `onUnauthorized()` 跳转。退出登录没有后端往返，就是 `setToken("")`。
+**页面查询**：`composables/useQuery.ts` 统一处理查询的加载、错误与取消；新参数到来或组件卸载时取消旧请求，迟到响应不能覆盖当前状态。详情与阅读页通过路由 props 接收图集身份，避免组件复用时保留旧参数。阅读行为集中在 `useReader`，进度由 `useReadingProgress` 按图集和页码快照防抖保存，离开时补报最后一页。业务页面通过动态 import 按路由加载。
+
+**登录令牌存 localStorage**（`api/httpClient.ts`）：请求拦截器统一加 `Authorization: Bearer`，只有当前令牌的 401 才清掉本地令牌并交给 `onUnauthorized()` 跳转，旧请求不能退出新会话。退出登录没有后端往返，统一走 `AuthStore.logout()` 清理令牌、账号和图库缓存。
 
 **图片地址不要自己拼**：缩略图地址由后端签好放在 `thumbnail` 字段里；大图要先从 `fetchGalleryDetail` 拿 `imageUrlTemplate`，再交给 `galleryImageUrl(template, page)` 把 `{page}` 换掉——这两条地址的身份都签在里面，前端改动其中任何一部分都会让签名失效。预取和正式显示必须拼出完全一样的地址，否则命不中同一份浏览器缓存。
 

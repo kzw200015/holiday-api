@@ -1,5 +1,5 @@
 import { ZapIcon } from "@lucide/vue"
-import { defineComponent } from "vue"
+import { defineComponent, watch } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
 
 import {
@@ -13,8 +13,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar"
-import { navigationItems } from "@/layouts/navigation"
+import { getNavigationItems } from "@/layouts/navigation"
 
 /* 侧边栏内容：桌面端收窄为图标栏，移动端由 Sidebar 自动切换为抽屉 */
 export default defineComponent({
@@ -23,11 +24,10 @@ export default defineComponent({
     const router = useRouter()
     const route = useRoute()
 
-    /* 名称来自路由的 meta.title，路由表不变则无需重算 */
-    const items = navigationItems.map((item) => ({
-      ...item,
-      label: router.resolve({ name: item.name }).meta.title ?? "",
-    }))
+    const items = getNavigationItems(router)
+    const { setOpenMobile } = useSidebar()
+    /* 移动端选中目标页面后收起抽屉，让内容可见。 */
+    watch(() => route.fullPath, () => setOpenMobile(false))
 
     /* 选中态交给 router 的匹配结果，子路由与动态段都能正确命中 */
     function isActive(name: string) {

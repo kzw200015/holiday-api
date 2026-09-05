@@ -1,9 +1,9 @@
 import { getLocalTimeZone, parseDate, today, type DateValue } from "@internationalized/date"
 import { BriefcaseIcon, PartyPopperIcon } from "@lucide/vue"
-import { computed, defineComponent, onMounted, ref, shallowRef } from "vue"
+import { computed, defineComponent, shallowRef } from "vue"
 
-import { fetchHolidayDetail, type HolidayDetail } from "@/api/holiday"
-import { errorText } from "@/api/httpClient"
+import { fetchHolidayDetail } from "@/api/holiday"
+import { useQuery } from "@/composables/useQuery"
 import ErrorAlert from "@/components/ErrorAlert"
 import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
@@ -19,9 +19,7 @@ export default defineComponent({
   setup() {
     /* DateValue 是带私有字段的不可变对象，用 shallowRef 避免 ref 深度解包丢失类型 */
     const selected = shallowRef<DateValue>(today(getLocalTimeZone()))
-    const detail = ref<HolidayDetail | null>(null)
-    const errorMessage = ref("")
-    const loading = ref(false)
+    const { data: detail, error, loading } = useQuery(() => selected.value.toString(), fetchHolidayDetail)
 
     /* 结论文案：区分法定假期、普通周末、调休上班与普通工作日 */
     const summary = computed(() => {
@@ -42,31 +40,13 @@ export default defineComponent({
         : "",
     )
 
-    /* 查询指定日期，失败时清空上一次结果 */
-    async function query(date: string) {
-      loading.value = true
-      errorMessage.value = ""
-      try {
-        detail.value = await fetchHolidayDetail(date)
-      } catch (error) {
-        detail.value = null
-        errorMessage.value = errorText(error, "查询失败")
-      } finally {
-        loading.value = false
-      }
-    }
-
     /* 日历选中变化即查询；点击已选中的日期时 reka-ui 会传出 undefined，此时保持原选中 */
     function onSelect(value: DateValue | DateValue[] | undefined) {
       if (!value || Array.isArray(value)) {
         return
       }
       selected.value = value
-      void query(value.toString())
     }
-
-    /* 进入页面先查询当天 */
-    onMounted(() => query(selected.value.toString()))
 
     return () => (
       <div class="grid gap-4 lg:grid-cols-[auto_1fr] lg:items-start">
@@ -98,8 +78,8 @@ export default defineComponent({
                 <Skeleton class="h-4 w-64" />
                 <Skeleton class="h-4 w-40" />
               </>
-            ) : errorMessage.value ? (
-              <ErrorAlert message={errorMessage.value} title="查询失败" />
+            ) : error.value ? (
+              <ErrorAlert message={error.value.message} title="查询失败" />
             ) : detail.value ? (
               <>
                 <div class="flex flex-wrap items-center gap-3">

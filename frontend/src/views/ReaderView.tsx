@@ -1,38 +1,10 @@
 import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "@lucide/vue"
-import { useDebounceFn, useEventListener, useTimeoutFn } from "@vueuse/core"
-import { computed, defineComponent, onMounted, ref, watch } from "vue"
-import { useRoute, useRouter } from "vue-router"
+import { defineComponent } from "vue"
 
-import { fetchGalleryDetail, galleryImageUrl, saveProgress } from "@/api/eh"
-import { errorText } from "@/api/httpClient"
 import ErrorAlert from "@/components/ErrorAlert"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-
-/*
- * 往后预取几页。
- *
- * 每张图都要后端跟 e 站换一次地址，而那条通道是限速的（约 4 次 / 5 秒，全站共用），
- * 而且每张都算在用户 e 站账号的每日图片额度里，所以预取要克制。
- */
-const PRELOAD_AHEAD = 2
-
-/* 操作栏静置多久自动隐藏 */
-const CHROME_HIDE_MS = 2500
-
-/* 进度上报压一压：连续翻页时只报最后停下的那一页 */
-const PROGRESS_DEBOUNCE_MS = 1200
-
-/* 翻页键与它对应的方向。剩下几个键各干各的，在 onKeydown 里单独判 */
-const PAGE_STEPS: Record<string, number> = {
-  ArrowRight: 1,
-  ArrowDown: 1,
-  PageDown: 1,
-  " ": 1,
-  ArrowLeft: -1,
-  ArrowUp: -1,
-  PageUp: -1,
-}
+import { useReader } from "@/composables/useReader"
 
 /* 操作栏上的按钮共用一套外观 */
 const chromeButton = {
@@ -41,162 +13,26 @@ const chromeButton = {
   variant: "ghost",
 } as const
 
-/*
- * 阅读视图：一次一页，全屏。
- *
- * 走顶层路由不套 AppLayout，所以没有侧边栏和顶栏。
- * 用翻页而不是连续纵向滚动，是因为图片高度事先不知道，
- * 连续滚动要么用占位高度猜、猜错就跳动，要么一次性加载全部、把取图额度耗光。
- */
+/* 阅读视图逐页全屏展示，避免一次加载整本图集消耗上游图片额度。 */
 export default defineComponent({
   name: "ReaderView",
-  setup() {
-    const route = useRoute()
-    const router = useRouter()
-
-    const gid = Number(route.params.gid)
-    const token = String(route.params.token)
-
-    /*
-     * 详情接口的那一次响应。图集元数据和后端签好的大图地址模板是同时到手的，
-     * 拆成两个 ref 各存一份的话，「详情还没到手」就有了两种表示，
-     * 哪天某条失败路径只清了其中一个，就会拿半截模板去拼地址
-     */
-    const detail = ref<Awaited<ReturnType<typeof fetchGalleryDetail>> | null>(null)
-    const gallery = computed(() => detail.value?.gallery ?? null)
-    /* 取到详情才有模板；在那之前拼不出任何一页的地址 */
-    const imageUrlTemplate = computed(() => detail.value?.imageUrlTemplate ?? "")
-    const errorMessage = ref("")
-    const imageFailed = ref(false)
-    /* 换一个值就能让 img 重新发一次请求 */
-    const retryNonce = ref(0)
-    const chromeVisible = ref(true)
-
-    /*
-     * 当前页码只有地址栏这一个来源。
-     * 单独存一份 ref 再手工跟 router.replace 同步的话，浏览器前进后退和手改地址都会失效
-     */
-    const page = computed(() => Math.max(1, Number(route.params.page) || 1))
-    const totalPages = computed(() => gallery.value?.fileCount ?? 0)
-
-    /*
-     * 正常情况下不额外挂参数，这样才能和 preload 预取的地址完全一致、命中同一份浏览器缓存。
-     * 只有重试时才挂上 nonce 去绕开缓存。
-     * 模板还没到手时给空串，img 不会去请求，骨架屏正好顶着
-     */
-    const currentSrc = computed(() =>
-      imageUrlTemplate.value ? galleryImageUrl(imageUrlTemplate.value, page.value, { nonce: retryNonce.value }) : "",
-    )
-
-    const { start: scheduleHide } = useTimeoutFn(() => (chromeVisible.value = false), CHROME_HIDE_MS, {
-      immediate: false,
-    })
-
-    function showChrome() {
-      chromeVisible.value = true
-      /* start 会把上一次的计时重新开始，不用自己 clearTimeout */
-      scheduleHide()
-    }
-
-    function goTo(next: number) {
-      const clamped = Math.min(Math.max(1, next), totalPages.value || next)
-      if (clamped === page.value) {
-        return
-      }
-      /* 地址栏跟着走，刷新或分享都能回到这一页；用 replace 免得把每页都堆进历史 */
-      void router.replace({ name: "reader", params: { gid, token, page: clamped } })
-    }
-
-    /*
-     * 预取后面几页：浏览器缓存住之后翻过去就是瞬开。
-     * 记下预取过哪些页，否则 1→2→3 会把第 3、4 页各预取两遍，快速翻页时更明显。
-     * 图片响应头是 immutable 的，同一页永远不需要重取，所以这个集合不用清
-     */
-    const preloaded = new Set<number>()
-
-    function preload() {
-      if (!imageUrlTemplate.value) {
-        return
-      }
-      for (let offset = 1; offset <= PRELOAD_AHEAD; offset += 1) {
-        const target = page.value + offset
-        if (totalPages.value && target > totalPages.value) {
-          return
-        }
-        if (preloaded.has(target)) {
-          continue
-        }
-        preloaded.add(target)
-        new Image().src = galleryImageUrl(imageUrlTemplate.value, target)
-      }
-    }
-
-    const reportProgress = useDebounceFn(() => {
-      void saveProgress(gid, token, page.value).catch(() => undefined)
-    }, PROGRESS_DEBOUNCE_MS)
-
-    function onKeydown(event: KeyboardEvent) {
-      const step = PAGE_STEPS[event.key]
-      if (step) {
-        event.preventDefault()
-        goTo(page.value + step)
-        return
-      }
-      if (event.key === "Home") {
-        event.preventDefault()
-        goTo(1)
-      } else if (event.key === "End") {
-        event.preventDefault()
-        goTo(totalPages.value)
-      } else if (event.key === "Escape") {
-        event.preventDefault()
-        void router.push({ name: "gallery-detail", params: { gid, token } })
-      }
-    }
-
-    /* 按点击位置分三段：左边上一页，右边下一页，中间只是唤出操作栏 */
-    function onClick(event: MouseEvent) {
-      const { clientX, currentTarget } = event
-      const width = (currentTarget as HTMLElement).clientWidth
-      if (clientX < width / 3) {
-        goTo(page.value - 1)
-      } else if (clientX > (width * 2) / 3) {
-        goTo(page.value + 1)
-      } else {
-        showChrome()
-      }
-    }
-
-    /* useEventListener 在组件卸载时自动摘掉监听 */
-    useEventListener(window, "keydown", onKeydown)
-
-    onMounted(async () => {
-      showChrome()
-      try {
-        detail.value = await fetchGalleryDetail(gid, token)
-        preload()
-      } catch (error) {
-        errorMessage.value = errorText(error, "加载失败")
-      }
-    })
-
-    /* 翻页的全部副作用集中在这里，goTo 只管改地址 */
-    watch(page, () => {
-      imageFailed.value = false
-      /* 让地址回到预取用的那个形式 */
-      retryNonce.value = 0
-      showChrome()
-      preload()
-      void reportProgress()
-    })
+  props: {
+    gid: { type: Number, required: true },
+    token: { type: String, required: true },
+  },
+  setup(props) {
+    const {
+      gallery, error, loading, page, totalPages, imageFailed,
+      chromeVisible, currentSrc, goTo, exit, retryImage, onClick,
+    } = useReader(props)
 
     return () => (
       <div class="fixed inset-0 flex flex-col bg-black">
-        {errorMessage.value ? (
+        {error.value ? (
           <div class="flex flex-1 items-center justify-center p-4">
             <div class="max-w-md">
-              <ErrorAlert message={errorMessage.value} title="打不开这个图集">
-                <Button size="sm" variant="outline" {...{ onClick: () => router.back() }}>
+              <ErrorAlert message={error.value.message} title="打不开这个图集">
+                <Button size="sm" variant="outline" {...{ onClick: exit }}>
                   返回
                 </Button>
               </ErrorAlert>
@@ -210,13 +46,7 @@ export default defineComponent({
                 <Button
                   size="sm"
                   variant="outline"
-                  {...{
-                    onClick: (event: MouseEvent) => {
-                      event.stopPropagation()
-                      imageFailed.value = false
-                      retryNonce.value += 1
-                    },
-                  }}
+                  {...{ onClick: retryImage }}
                 >
                   重试
                 </Button>
@@ -232,14 +62,15 @@ export default defineComponent({
               />
             ) : null}
 
-            {!gallery.value && !imageFailed.value ? (
-              <Skeleton class="absolute inset-x-1/4 inset-y-8 -z-10 rounded-lg" />
+            {loading.value ? (
+              <Skeleton class="absolute inset-x-1/4 inset-y-8 rounded-lg" />
             ) : null}
           </div>
         )}
 
-        {/* 操作栏浮在图片上方，静置几秒后淡出，不挡画面 */}
+        {/* 隐藏后用 inert 停止接收焦点和点击，图片区域才能继续翻页。 */}
         <div
+          inert={!chromeVisible.value}
           class={[
             "pointer-events-none absolute inset-x-0 top-0 flex items-center gap-3 bg-gradient-to-b from-black/70 to-transparent p-3 transition-opacity",
             chromeVisible.value ? "opacity-100" : "opacity-0",
@@ -248,7 +79,7 @@ export default defineComponent({
           <Button
             aria-label="退出阅读"
             {...chromeButton}
-            {...{ onClick: () => router.push({ name: "gallery-detail", params: { gid, token } }) }}
+            {...{ onClick: exit }}
           >
             <XIcon />
           </Button>
@@ -256,6 +87,7 @@ export default defineComponent({
         </div>
 
         <div
+          inert={!chromeVisible.value}
           class={[
             "pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center gap-4 bg-gradient-to-t from-black/70 to-transparent p-3 transition-opacity",
             chromeVisible.value ? "opacity-100" : "opacity-0",
@@ -264,7 +96,7 @@ export default defineComponent({
           <Button
             aria-label="上一页"
             {...chromeButton}
-            {...{ disabled: page.value <= 1, onClick: () => goTo(page.value - 1) }}
+            {...{ disabled: !totalPages.value || page.value <= 1, onClick: () => goTo(page.value - 1) }}
           >
             <ChevronLeftIcon />
           </Button>
@@ -277,7 +109,7 @@ export default defineComponent({
             aria-label="下一页"
             {...chromeButton}
             {...{
-              disabled: totalPages.value > 0 && page.value >= totalPages.value,
+              disabled: !totalPages.value || page.value >= totalPages.value,
               onClick: () => goTo(page.value + 1),
             }}
           >

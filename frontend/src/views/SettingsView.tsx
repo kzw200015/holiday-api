@@ -3,7 +3,6 @@ import { defineComponent, onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 
 import { bindCredential, type CredentialStatus, fetchCredentialStatus, unbindCredential } from "@/api/eh"
-import { errorText } from "@/api/httpClient"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import ErrorAlert from "@/components/ErrorAlert"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useGalleryListStore } from "@/stores/GalleryListStore"
 import { useAuthStore } from "@/stores/AuthStore"
 
 /* 三个 Cookie 的说明文案，name 与 e 站的 Cookie 名一致 */
@@ -40,7 +40,7 @@ export default defineComponent({
       try {
         status.value = await fetchCredentialStatus()
       } catch (error) {
-        errorMessage.value = errorText(error, "加载失败")
+        errorMessage.value = (error as Error).message
       } finally {
         loading.value = false
       }
@@ -53,12 +53,13 @@ export default defineComponent({
       successMessage.value = ""
       try {
         status.value = await bindCredential({ ...form.value })
+        useGalleryListStore().clear()
         successMessage.value = status.value.hasExAccess
           ? "绑定成功，里站已解锁。"
           : "绑定成功。这个账号没有里站权限，只能浏览前站。"
         form.value = { ipbMemberId: "", ipbPassHash: "", igneous: "" }
       } catch (error) {
-        errorMessage.value = errorText(error, "绑定失败")
+        errorMessage.value = (error as Error).message
       } finally {
         saving.value = false
       }
@@ -70,9 +71,10 @@ export default defineComponent({
       successMessage.value = ""
       try {
         await unbindCredential()
+        useGalleryListStore().clear()
         status.value = { bound: false, memberId: "", hasExAccess: false }
       } catch (error) {
-        errorMessage.value = errorText(error, "解绑失败")
+        errorMessage.value = (error as Error).message
       } finally {
         saving.value = false
       }
@@ -115,8 +117,10 @@ export default defineComponent({
                         <Badge variant="outline">仅前站</Badge>
                       )}
                     </>
-                  ) : (
+                  ) : status.value ? (
                     <Badge variant="outline">未绑定</Badge>
+                  ) : (
+                    <Badge variant="outline">状态未获取</Badge>
                   )}
                 </div>
 
@@ -146,7 +150,7 @@ export default defineComponent({
                           id: field.name,
                           placeholder: field.hint,
                           "onUpdate:modelValue": (value: string | number) =>
-                            (form.value = { ...form.value, [field.name]: String(value) }),
+                            (form.value[field.name] = String(value)),
                         }}
                       />
                     </div>
