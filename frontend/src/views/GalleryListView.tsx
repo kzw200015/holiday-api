@@ -5,6 +5,7 @@ import { RouterLink } from "vue-router"
 
 import { type GalleryCard } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert"
+import ConfirmDialog from "@/components/ConfirmDialog"
 import GalleryMeta from "@/components/gallery/GalleryMeta"
 import CategoryFilter from "@/components/gallery/CategoryFilter"
 import { Badge } from "@/components/ui/badge"
@@ -87,9 +88,10 @@ export default defineComponent({
           <div class="flex flex-col gap-2" aria-label="搜索历史">
             <div class="text-muted-foreground flex items-center justify-between text-xs">
               <span>搜索历史</span>
-              {history.entries.length ? <Button variant="ghost" size="xs" class="cursor-pointer" {...{ type: "button", onClick: () => {
-                if (window.confirm("清空全部搜索历史？")) history.clear()
-              } }}>清空</Button> : null}
+              {history.entries.length ? <ConfirmDialog title="清空搜索历史？"
+                description="清空后无法恢复，确定要删除全部搜索历史吗？" confirmText="清空历史" onConfirm={() => history.clear()}>
+                <Button variant="ghost" size="xs" class="cursor-pointer" {...{ type: "button" }}>清空</Button>
+              </ConfirmDialog> : null}
             </div>
             <div class="flex flex-wrap gap-1.5">
               {history.entries.map((entry) => <Badge as="span" variant="secondary" class="h-auto max-w-full gap-0 rounded-md p-0" key={entry}>
