@@ -108,6 +108,7 @@
 
 /* 原生 range 会在悬停时自行加深颜色；显式绘制轨道与滑块，只保留键盘焦点提示。 */
 .reader-progress {
+  --reader-progress: 0%;
   appearance: none;
   background: linear-gradient(to right, #a78bfa var(--reader-progress), #71717a var(--reader-progress)) center / 100% 4px no-repeat;
   outline: none;
