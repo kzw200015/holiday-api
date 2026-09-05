@@ -19,7 +19,9 @@ export function useReaderStrip(
   const dragging = ref(false)
   let pointer: { id: number; x: number; left: number } | undefined
   let pendingAnchor: { page: number; relative: number } | undefined
-  const widths = computed(() => Array.from({ length: props.total }, (_, index) => height.value * (ratios.value[index + 1] ?? 0.7)))
+  // 图片等比缩放到阅读区内，宽高都不能超出可用空间。
+  const widths = computed(() => Array.from({ length: props.total }, (_, index) =>
+    Math.min(width.value, height.value * (ratios.value[index + 1] ?? 0.7))))
   const offsets = computed(() => {
     const result = [0]
     for (const item of widths.value) result.push(result[result.length - 1] + item)

@@ -17,7 +17,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const strip = useReaderStrip(props, (page) => emit("pageChange", page))
     return () => <div ref={strip.viewport} aria-label="横向阅读区域"
-      class={["no-scrollbar flex min-h-0 flex-1 touch-pan-x select-none overflow-x-auto overflow-y-hidden overscroll-x-contain",
+      class={["no-scrollbar flex min-h-0 min-w-0 flex-1 touch-pan-x select-none overflow-x-auto overflow-y-hidden overscroll-x-contain",
         strip.dragging.value ? "cursor-grabbing" : "cursor-grab"]}
       style={{ overflowAnchor: "none" }} onScroll={strip.onScroll} onWheel={strip.onWheel}
       onPointerdown={strip.onPointerDown} onPointermove={strip.onPointerMove}

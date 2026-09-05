@@ -27,6 +27,34 @@ async function setup(page = 1) {
 }
 
 describe("横向阅读延迟加载", () => {
+  it.each([
+    { width: 390, height: 800, ratio: 0.7 },
+    { width: 390, height: 800, ratio: 0.2 },
+    { width: 800, height: 390, ratio: 0.7 },
+    { width: 1200, height: 800, ratio: 2 },
+    { width: 1200, height: 800, ratio: 0.7 },
+  ])("阅读区 $width × $height、图片比例 $ratio 时完整容纳整页，跳到下一页仍完整可见", async ({ width, height, ratio }) => {
+    const { strip, element, props } = await setup(4)
+    resize([{ contentRect: { width, height } }])
+    await nextTick()
+    await strip.imageLoaded(5, { naturalWidth: ratio * 1000, naturalHeight: 1000 } as HTMLImageElement)
+    expect(strip.widths.value[4]).toBe(Math.min(width, height * ratio))
+    expect(strip.widths.value[4] / ratio).toBeLessThanOrEqual(height)
+    props.page = 5
+    await nextTick()
+    await nextTick()
+    const left = strip.widths.value.slice(0, 4).reduce((sum, value) => sum + value, 0)
+    expect(left).toBeGreaterThanOrEqual(element.scrollLeft)
+    expect(left + strip.widths.value[4]).toBeLessThanOrEqual(element.scrollLeft + width)
+    strip.onScroll()
+    expect(props.page).toBe(5)
+    resize([{ contentRect: { width: height, height: width } }])
+    await nextTick()
+    strip.onScroll()
+    expect(props.page).toBe(5)
+    expect(strip.widths.value[4]).toBe(Math.min(height, width * ratio))
+  })
+
   it("停留200毫秒后才加载可见页和两侧各两页，长图集不一次加载全部", async () => {
     const { strip } = await setup(20)
     await vi.advanceTimersByTimeAsync(199)
@@ -96,7 +124,7 @@ describe("横向阅读延迟加载", () => {
       strip.imageLoaded(2, { naturalWidth: 1000, naturalHeight: 1000 } as HTMLImageElement),
       strip.imageLoaded(3, { naturalWidth: 500, naturalHeight: 1000 } as HTMLImageElement),
     ])
-    expect(element.scrollLeft).toBe(2200)
+    expect(element.scrollLeft).toBe(1900)
     resize([{ contentRect: { width: 700, height: 500 } }])
     await nextTick()
     expect(element.scrollLeft).toBe(925)
