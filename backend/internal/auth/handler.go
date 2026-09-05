@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"regexp"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 
@@ -24,10 +25,11 @@ func (c credentials) validate() error {
 	if !usernamePattern.MatchString(c.Username) {
 		return web.BadRequest("用户名只能是 3 到 32 位的字母、数字、下划线或连字符")
 	}
-	switch {
-	case len(c.Password) < 8:
+	// 按字符数而不是字节数：文案里的「位」用户理解成字符，3 个汉字（9 字节）不该算够 8 位
+	switch length := utf8.RuneCountInString(c.Password); {
+	case length < 8:
 		return web.BadRequest("密码至少 8 位")
-	case len(c.Password) > 128:
+	case length > 128:
 		return web.BadRequest("密码最长 128 位")
 	}
 	return nil

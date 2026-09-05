@@ -48,7 +48,18 @@ func errIncompleteSignature() error {
 	return web.BadRequest("图片地址缺少签名参数")
 }
 
+// 图集在 gdata 里查不到：被删、转私有，或者 gid/token 对不上。
+func errGalleryMissing() error {
+	return web.Fail(http.StatusNotFound, "这个图集取不到，可能已被删除或转为私有")
+}
+
 // 上游返回了意料之外的东西，通常是版面改了。
 func errUnavailable(format string, args ...any) error {
 	return web.Fail(http.StatusBadGateway, format, args...)
+}
+
+// 出网这一步本身失败了：连不上、超时、响应读到一半断了。
+// 原始错误挂在 Err 上只进日志，msg 才是给人看的——`dial tcp: i/o timeout` 这种不该出现在前端弹窗里。
+func errUpstream(err error, msg string) error {
+	return web.Fail(http.StatusBadGateway, "%s", msg).WithCause(err)
 }

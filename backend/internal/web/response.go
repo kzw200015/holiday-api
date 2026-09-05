@@ -33,6 +33,13 @@ func (e *Error) Error() string { return e.Msg }
 
 func (e *Error) Unwrap() error { return e.Err }
 
+// WithCause 挂上原始错误。Msg 照旧是给人看的那句话，原始错误只进日志——
+// 把 err 用 %v 拼进 Msg 的话，`dial tcp ...: i/o timeout` 这种东西会原样出现在前端弹窗里。
+func (e *Error) WithCause(err error) *Error {
+	e.Err = err
+	return e
+}
+
 // Fail 构造任意状态码的失败。
 func Fail(status int, format string, args ...any) *Error {
 	return &Error{Status: status, Msg: fmt.Sprintf(format, args...)}
@@ -60,19 +67,39 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 客户端已经走了（阅读器里快速翻页时浏览器会成批中止图片请求），此时上游调用被连带取消，
+	// 冒出来的错误既没人收也不该按故障记：写响应会失败，日志只留一条 debug
+	if r.Context().Err() != nil {
+		slog.Debug("客户端已断开，放弃响应", "method", r.Method, "path", r.URL.Path, "err", err)
+		return
+	}
+
 	// 可预期的失败（配额用尽、Cookie 失效、签名过期）各有各的状态码，
-	// 一律转成 500 的话，「额度没了」和「服务器崩了」在前端就分不出来
+	// 一律转成 500 的话，「额度没了」和「服务器崩了」在前端就分不出来。
+	// 4xx 是调用方的问题，记 info 就够；5xx 说明上游或本站出了状况，升到 warn
 	var apiErr *Error
 	if errors.As(err, &apiErr) {
-		slog.Warn("请求失败", "method", r.Method, "path", r.URL.Path, "status", apiErr.Status,
-			"msg", apiErr.Msg, "err", apiErr.Err)
+		level := slog.LevelInfo
+		if apiErr.Status >= 500 {
+			level = slog.LevelWarn
+		}
+		attrs := []any{"method", r.Method, "path", r.URL.Path, "status", apiErr.Status, "msg", apiErr.Msg}
+		if apiErr.Err != nil {
+			attrs = append(attrs, "err", apiErr.Err)
+		}
+		slog.Log(r.Context(), level, "请求失败", attrs...)
 		WriteJSON(w, apiErr.Status, Response{Code: apiErr.Status, Msg: apiErr.Msg})
 		return
 	}
 
+	// 其余错误是没预料到的：SQL 报错、解析失败之类。原文只进日志，
+	// 不回给客户端——那里面可能带着表名、文件路径这类不该外泄的细节
 	slog.Error("未捕获异常", "method", r.Method, "path", r.URL.Path, "err", err)
-	WriteJSON(w, http.StatusInternalServerError, Response{Code: 500, Msg: err.Error()})
+	WriteJSON(w, http.StatusInternalServerError, internalError)
 }
+
+// 500 的固定响应体。Handler 和 Recover 两处共用，客户端看到的永远是这一句。
+var internalError = Response{Code: http.StatusInternalServerError, Msg: "服务器内部错误"}
 
 // OK 写一个成功响应。返回 error 只是为了让处理器能写成 `return web.OK(...)`，它永远是 nil。
 func OK(w http.ResponseWriter, data any) error {

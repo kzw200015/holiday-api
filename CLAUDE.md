@@ -58,7 +58,11 @@ docker build -t myapi .
 - **连接池的关闭走 wire 的 cleanup**（`provideDatabase` 返回 `(*pgxpool.Pool, func(), error)`）。wire 把图里所有 cleanup 串成 injector 交出来的那一个，后面哪个 provider 失败也会被调到，池子不会漏。
 - **`provideLogger` 会 `slog.SetDefault`，并且 `provideDatabase` 收一个 `*slog.Logger` 参数**。那个参数是真用（连接池就绪时打一条日志），顺带让「日志先就绪、再连库」由依赖关系保证，而不是靠 `main` 里的语句先后——这比制造一个假依赖去排顺序干净。
 
-**处理器返回 error，翻译统一在一处**（`web/response.go`）：路由注册的是 `web.Handler`（`func(http.ResponseWriter, *http.Request) error`），它的 `ServeHTTP` 把 `*web.Error` 翻成对应状态码的 `ApiResponse`，其余错误一律 500。业务代码因此可以放心地把错误一路 `return` 上来，不用在每个处理器里各写一遍 `http.Error`。
+**处理器返回 error，翻译统一在一处**（`web/response.go`）：路由注册的是 `web.Handler`（`func(http.ResponseWriter, *http.Request) error`），它的 `ServeHTTP` 把 `*web.Error` 翻成对应状态码的 `ApiResponse`，其余错误一律 500 且**只回固定文案「服务器内部错误」**——SQL 报错、路径这类原文只进日志。业务代码因此可以放心地把错误一路 `return` 上来，不用在每个处理器里各写一遍 `http.Error`。
+
+**`web.Error` 的 `Msg` 给人看，`Err` 只进日志**：包装上游或系统错误时用 `web.Fail(...).WithCause(err)`（`eh/failure.go` 里的 `errUpstream` 就是这么写的），不要把 `err` 用 `%v` 拼进 `Msg`——那样 `dial tcp: i/o timeout` 会原样出现在前端弹窗里。`ServeHTTP` 按状态码定日志级别（4xx 记 info、5xx 记 warn）；请求上下文已取消（浏览器中止了请求）时只记 debug、不写响应，阅读器快速翻页成批中止图片请求时日志才不会被假故障刷满。
+
+**panic 由 `web.Recover` 兜住**：记一条带调用栈的 error 日志，再按统一契约回 JSON 500；头已经发出去（图片转到一半）就只记日志。不用 chi 自带的 `Recoverer`，它把栈打到 stderr 绕开 slog。`http.Server` 的 `ErrorLog` 也接到了 slog 上，容器里不会混进非 JSON 的行。
 
 **没有「失败种类 → 状态码」的映射表**：`web.Error` 直接带 `Status` 和给人看的 `Msg`，e 站那些可预期的失败在 `eh/failure.go` 里各写一个构造函数（`errBanned()` 回 429、`errSadPanda()` 回 400、`errBadSignature()` 回 403……），抛错的地方就说清楚回什么。
 
@@ -66,7 +70,7 @@ docker build -t myapi .
 
 **唯一的例外是两个图片接口**（`/api/eh/thumbnail` 和 `.../pages/{page}/image`），它们直接返回二进制流。
 
-**路由组装在 `internal/app/app.go`**：`/api` 子路由挂访问日志，底下 `Mount` 三个模块。**鉴权绝不能挂在整个 `/api` 上**——`GET /api/holiday/is-holiday` 有外部调用方、两个图片接口靠地址签名认身份，挂全局会把这两类一起挡掉；需要登录的接口在各自模块的子路由里挂 `auth.Tokens.Require`。
+**路由组装在 `internal/app/app.go`**：`/api` 子路由挂访问日志和 `web.Recover`（Recover 在里面，访问日志才记得到 panic 翻出来的 500），底下 `Mount` 三个模块。**鉴权绝不能挂在整个 `/api` 上**——`GET /api/holiday/is-holiday` 有外部调用方、两个图片接口靠地址签名认身份，挂全局会把这两类一起挡掉；需要登录的接口在各自模块的子路由里挂 `auth.Tokens.Require`。
 
 **没有 CSRF 中间件**：跨站伪造之所以成立，是因为 Cookie 由浏览器自动带上；身份改走 `Authorization` 头之后，跨站页面既读不到令牌也就冒名不了。`frontend/vite.config.ts` 的代理因此也不需要改写 `Origin`。
 
@@ -90,9 +94,13 @@ docker build -t myapi .
 
 **注册开关 `ALLOW_REGISTRATION` 默认关**，只有显式设成 `"true"` 才开。公网部署时任何人注册即可借这台机器代理 e 站流量，被封的是本机出口 IP；而且 e 站凭据现在是明文入库的，账号越少、越都是自己人，那个取舍才成立。没有留「第一个账号自动放行」之类的后门——建号就是临时开一下开关、注册、关回去重启。
 
+**签名地址的过期时间对齐到窗口**（`signing.AttachmentSigner.Sign`）：不是精确的 now + ttl，而是往后对齐到 ttl/4 的整数倍，同一窗口里对同一个 subject 签出的地址一模一样。图片接口靠 URL 命中浏览器缓存，每次列表、每次进详情都签出毫秒级不同的地址的话，缩略图和大图永远缓存不上，翻回去看一眼也要再消耗一次 e 站配额。代价是实际有效期比配置的最多长四分之一，只会长不会短。
+
 **图片走签名地址而不是令牌**（`signing/signing.go`）：`<img src>` 是浏览器自己发的请求，带不了 `Authorization` 头。所以两个图片接口不鉴权，只认地址里的签名——签名覆盖「这是哪一份附件」加过期时间，两者任一被改就对不上。缩略图签的是上游地址，大图签的是 `userId:gid:token`：**页码刻意不参与签名**，一本图集一张通行证，否则 300 页的详情就得回传 300 条签好的地址；地址模板由 `GET /api/eh/galleries/{gid}/{token}` 随详情下发，形如 `.../pages/{page}/image?uid=&e=&s=`，前端只把 `{page}` 换成页码。**大图的 userId 只能取自签名过的 `uid` 参数**，不能取当前登录者——那条链路根本没有登录者。有效期由 `security.attachmentTtl` 控制（默认 24 小时），过期表现为图片裂开，重新取一次详情即可；签名不对或过期回 **403** 而不是 502——过期是有效期到点后的日常现象，混进 502 会把「e 站真的挂了」的信号淹掉。缩略图地址在**组装响应时**才签名，不进图集元数据缓存，否则缓存 TTL 就得永远短于附件有效期。`internal/app/router_test.go` 专门测这个闭环：地址在「签发」（`eh/service.go` 拼模板）和「校验」（`eh/handler_image.go` 读参数 + 路由模式）两处各拼一次，两边不一致的话所有图片会一起打不开，而各自的单元测试都是绿的。
 
-**e 站模块（`eh`）分层**：`handler.go` / `handler_image.go`（校验 `gid` 正整数、`token` 为 10 位十六进制——这两项会被拼进上游地址）→ `Service`（对外门面：编排用例、元数据缓存、附件地址的签发与校验）→ `Client`（统一出网：伪装 UA、带固定 Cookie、超时、异常翻译）。
+**e 站模块（`eh`）分层**：`handler.go` / `handler_image.go`（校验 `gid` 正整数、`token` 为 10 位十六进制——这两项会被拼进上游地址；绑定时三个 Cookie 值按 RFC 6265 的 cookie-octet 校验，分号、空格、引号一律拒绝，它们会被原样拼进 Cookie 头）→ `Service`（对外门面：编排用例、元数据缓存、附件地址的签发与校验）→ `Client`（统一出网：伪装 UA、带固定 Cookie、超时、异常翻译）。
+
+**`eh.Client` 的超时分两种**：页面和 JSON 是「读完整个响应体」的总超时，写在 `fetch` / `probe` 的 ctx 上；图片只限「等到响应头」，走 transport 的 `ResponseHeaderTimeout`，响应体是流式转发给浏览器的，读多久由请求 ctx 决定。**不要给 `http.Client` 设 `Timeout`**——它把读响应体的时间一起算，从慢的 H@H 节点转发一张大图会在传到一半时被掐断，跟 `http.Server` 那边刻意不设 `WriteTimeout` 的用意正好相反。
 
 `Service` 对外交出的是 `Attachment` 这样的值类型而不是 `*http.Response`——否则关连接、搬响应头这些事就得靠约定分摊到 handler。
 
@@ -113,9 +121,12 @@ docker build -t myapi .
 - **HTML 实体只解码带分号的严格写法**（`decodeEntities`）。直接用 `html.UnescapeString` 不行：它按 HTML5 的历史兼容规则允许 `&not` 这类实体省掉分号，于是标题里的 `&notreal;` 字面量会被解成 `¬real;`。判据是「解出来的结果尾巴上还留着没被吃掉的分号」，`&semi;` 是唯一的例外。
 - **列表页用正则全文抓 `/g/<gid>/<token>/`**，不挑 `td.gl3c.glname` 这类选择器：搜索结果有 5 种显示模式且由账号设置决定，Thumbnail 模式下整个 `<table>` 都不存在。请求固定带 `sl=dm_2` 作为双保险。
 - **请求固定带 `nw=1`**。被标记的图集在没有这个 cookie 时会返回 HTTP 200 的内容警告插页，正文里既没有 `#gdt` 也没有 `#cdiv`，不设防会静默返回空数据。
+- **绑定凭据时分清「Cookie 不对」和「e 站没连上」**（`Client.VerifyCredential` 返回 `(hasExAccess, error)`）：前站 `home.php` 回 302 才是凭据被拒（400），连不上、超时、撞上封禁页各回各的 502 / 429。混成一句「这组 Cookie 用不了」会让人对着一组好好的 Cookie 反复重贴。里站那一探失败只当没有里站权限，不拦绑定。
 - **四种「200 但不是你要的东西」必须识别**（`client.go` 的 `assertUsable`）：内容警告插页、sad panda（里站回 200 + 空 body）、IP 被封（200 的纯文本页）、509 配额超限。判定和翻译收在同一个函数里，由 `web.Handler` 转成状态码。封禁和内容警告按**字面量**匹配文案，不用 `(?i)` 正则——后者在一页 74 KB 的 HTML 上要 2.6 毫秒（实测），而每个上游响应都得走一次判定，字面量是 2 微秒。代价是 e 站改文案时会漏判，但正则也只挡得住「大小写变了」这一种改法。撞上封禁不会自动停手，因为出网没有熔断。
 - **出网不限速、不熔断**：请求节奏不受控，出口 IP 有被盯上的风险。要加的话，加在 `eh.Client.do` 外面一层，而不是散到各个调用点。
 - **不跟随重定向**（`http.Client.CheckRedirect` 直接返回 `ErrUseLastResponse`）：里站 Cookie 无效时会 302 回前站，跟随的话会拿到一个「看起来正常」的前站页面；图片那条链路上它还多挡一层，白名单主机若被诱导 302 到内网，跟随就等于绕过了白名单。
+- **详情页分片的 singleflight 用 `context.WithoutCancel`**（`ImageLocator.GalleryPage`）：合并后的那次上游调用挂在第一个来的请求的 ctx 上，而阅读器预取时最先到的往往是用户已经翻过去的那页，浏览器一中止它，跟在后面的两页会一起收到 `context canceled`。断开取消只留超时（`fetch` 自己会加），其余不共享的调用照常用请求 ctx。
+- **换源重试后仍非 200 就直接回 502**（`Service.OpenGalleryImage`），不再交给 `toAttachment`——那边只看 `Content-Type`，错误页要是恰好带着 `image/` 就会被当成图转发出去。
 - **取图链路**：每页令牌 → showkey → `showpage` 接口。**`showpage` 的响应里白送了下一页的令牌**，顺序阅读时顺手写回缓存，所以一本 300 页的图集只需要 2 次 HTML 请求（首页详情 + 首张 `/s/` 页），之后每页只有 1 次轻量 API 调用，只有跳页才会回头抓详情页分片。showkey 失效（`{"error":"Key mismatch"}`）时重抓 `/s/` 页换新的，**只重试一次**。图床节点失效表现为图片 403，用页面里的 `nl` 令牌换源重取一次。
 - **签名在地址上的形状（参数名 `e` / `s`）由 `signing.Signature` 的 `Query` / `ParseQuery` 定死**，签发端和校验端不各写一份字面量——改名时漏一处的表现是所有图片一起 403。
 - **缩略图代理用 HMAC 签名地址**，端点只认自己签发过的 URL，客户端指定不了主机。白名单（精确匹配 `ehgt.org`、后缀 `.hath.network`，注意那个点不能省）、不跟随重定向、`Content-Type` 必须 `image/` 是纵深防御，别放宽。
@@ -125,6 +136,8 @@ docker build -t myapi .
 - 主密钥按用途派生子密钥（`signing.DeriveSecret`）：JWT 签名（`jwt-v1`）和图片地址签名（`attachment-v1`）各用各的，不共用裸密钥。两处派生都写在 `cmd/myapi/providers.go` 里，摆在一起才看得出有没有谁直接拿了裸主密钥。改用途标签等于换密钥，已签发的令牌和已发出去的图片地址会一起失效。
 
 **启动顺序**（`cmd/myapi/main.go`）：wire 组装（读配置 → 建日志器 → 建连接池 → 各层构造器）→ 并行拉取当年和次年的节假日数据 → 监听端口。前两步任一失败即退出进程，不带着不完整的状态对外服务。连接池是惰性建连的，库连不通会在那次节假日刷新时暴露出来，所以本地跑后端需要能连上 PostgreSQL 且能访问 `raw.githubusercontent.com`。启动后按 `holiday.refreshInterval`（默认 24 小时）重复同一刷新，年份每次重新计算所以跨年不用重启；定时刷新失败只记日志不退出，库里已有数据可继续服务。收到 `SIGINT` / `SIGTERM` 时给在途请求 10 秒收尾，正在传的图片不至于半途断掉。
+
+**配置在启动时校验**（`config.Config.validate`）：密钥非空、端口范围、日志级别与格式、连接数、所有时长至少 1 秒。这些错在运行期都不会自己冒出来——级别拼错只是悄悄退回 info，有效期写成 0 的表现是「登录立刻掉线」。时长的 1 秒下限顺带拦住了 yml 里写裸数字被当成纳秒那种错法。
 
 **配置用 viper，三层来源后面盖前面**：结构体默认值 → 可选的 `config.yml` → 环境变量。容器部署可以完全不放配置文件、全用环境变量；本地开发反过来，写进 `config.yml` 省得往 shell 里塞一堆 `export`。文件先找工作目录、再找可执行文件旁边（镜像里可以挂到 `/app/config.yml`），**没有这个文件是正常情况**，不报错。
 
@@ -141,7 +154,7 @@ docker build -t myapi .
 
 改配置项时 `config.example.yml` 要跟着改，那是给人看的唯一一份清单。
 
-`http.Server` 刻意**不设 `WriteTimeout`**：从慢的 H@H 节点流式转发一张大图可能要几十秒，设了就会传到一半被掐断；慢速攻击由 `ReadHeaderTimeout` 挡。
+`http.Server` 刻意**不设 `WriteTimeout`**：从慢的 H@H 节点流式转发一张大图可能要几十秒，设了就会传到一半被掐断；慢速攻击由 `ReadHeaderTimeout`（头）和 `ReadTimeout`（整个请求含请求体）挡，两者只约束读，不影响往外写图片。
 
 **数据库：不引迁移工具，进程也不碰 DDL**。`internal/store/schema.sql` 是表结构的唯一真相，sqlc 靠它推导查询的出入参类型；建表、改列、加索引都由人工上库执行。语句写成 `CREATE TABLE IF NOT EXISTS` / `CREATE UNIQUE INDEX IF NOT EXISTS` 的幂等形式，重跑一遍不会报错。
 
@@ -154,11 +167,12 @@ docker build -t myapi .
 - **业务上的唯一性用 unique 索引表达，不占主键位置**：主键统一是 `id`。`eh_credentials.user_id`、`eh_reading_progress.(user_id, gid)` 都是唯一索引，同时也是各自 upsert 的冲突目标。
 - **用户名大小写敏感**：`Alice` 和 `alice` 是两个账号，登录要求完全一致。`users_username_key` 因此是建在 `username` 上的普通唯一索引，查询用 `=` 即可。（真要改成大小写不敏感，索引和查询必须用同一个表达式，否则查询走不到索引、退化成全表扫。）
 
-**测试**：`go test`，测试文件与源码同目录（`*_test.go`），用例名直接写中文（`t.Run("换一个 subject 就通不过", ...)`）。只留四类值得单独测的东西，别再往回加那些只是在复述框架行为的用例：
+**测试**：`go test`，测试文件与源码同目录（`*_test.go`），用例名直接写中文（`t.Run("换一个 subject 就通不过", ...)`）。只留这几类值得单独测的东西，别再往回加那些只是在复述框架行为的用例：
 
 - `eh/parser_test.go`——最容易被 e 站改版打破的一层。样本是文件末尾那几个 HTML 常量，从真实页面裁下来，留的是解析器要认的结构加上会干扰它的噪声（同一行里其它形式的 gid/token 链接、分页导航里 `unext` 之外的 id），纯展示用的属性删掉了。重新采样时保持同样的裁剪方式：结构特征要真实，体积要小。
 - `eh/client_test.go` 的 `IsAllowedImageURL`——图片代理唯一的 SSRF 防线，列的都是真会被人试的绕过手法。
-- `signing/signing_test.go`——签名地址是图片接口唯一的鉴权手段，每个用例对应一种「本不该放行却放行了」的后果。
+- `signing/signing_test.go`——签名地址是图片接口唯一的鉴权手段，每个用例对应一种「本不该放行却放行了」的后果；外加一条锁住「同一窗口签出的地址一致」，否则浏览器缓存失效是无声的。
+- `web/response_test.go`——错误翻译的三条对外契约：没预料到的错误只回固定文案、panic 也按统一结构回 JSON 500、客户端已断开时不写响应。
 - `config/config_test.go`——三层来源的优先级，写错了表现是「配置改了但没生效」，很难当场看出来。
 - `app/router_test.go`——签名地址的闭环（详情签发的地址，图片接口必须认得出来；改 `uid` 冒充别人必须失败），顺带锁住「未登录回 401」「未匹配的 `/api` 路径回 JSON 404」「其余路径回空响应体的 404」这三条全局契约。它用真实的服务组装一次应用，只把数据库（假 `DBTX`，一律返回「没有这一行」）和出网（假 `http.RoundTripper`）换成假的，所以请求仍然走完整的拼地址、带 Cookie、判响应这条链路。
 

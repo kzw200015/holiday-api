@@ -12,6 +12,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -150,11 +151,52 @@ func Load() (Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return Config{}, fmt.Errorf("解析配置失败: %w", err)
 	}
-	if cfg.Security.SecretKey == "" {
-		return Config{}, errors.New("缺少 SECRET_KEY（或 config.yml 里的 security.secretKey），" +
-			"用 `openssl rand -hex 32` 生成一个再启动")
+	if err := cfg.validate(); err != nil {
+		return Config{}, fmt.Errorf("配置不合法: %w", err)
 	}
 	return cfg, nil
+}
+
+// validate 把写错的配置拦在启动之前。
+//
+// 这些错误在运行期都不会自己冒出来：日志级别拼错只是悄悄退回 info，
+// 有效期写成 0 的表现是「登录立刻掉线」或「图片一张都打不开」，到那时再回头查配置就晚了。
+func (c Config) validate() error {
+	if c.Security.SecretKey == "" {
+		return errors.New("缺少 SECRET_KEY（或 config.yml 里的 security.secretKey），" +
+			"用 `openssl rand -hex 32` 生成一个再启动")
+	}
+	if c.Port < 1 || c.Port > 65535 {
+		return fmt.Errorf("port 必须在 1 到 65535 之间，现在是 %d", c.Port)
+	}
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(c.Log.Level)); err != nil {
+		return fmt.Errorf("log.level 只能是 debug / info / warn / error，现在是 %q", c.Log.Level)
+	}
+	if c.Log.Format != "json" && c.Log.Format != "text" {
+		return fmt.Errorf("log.format 只能是 json 或 text，现在是 %q", c.Log.Format)
+	}
+	if c.Database.MaxConns < 1 {
+		return fmt.Errorf("database.maxConns 至少为 1，现在是 %d", c.Database.MaxConns)
+	}
+
+	durations := []struct {
+		name  string
+		value time.Duration
+	}{
+		{"database.maxConnLifetime", c.Database.MaxConnLifetime},
+		{"holiday.refreshInterval", c.Holiday.RefreshInterval},
+		{"security.tokenTtl", c.Security.TokenTTL},
+		{"security.attachmentTtl", c.Security.AttachmentTTL},
+		{"eh.requestTimeout", c.EH.RequestTimeout},
+	}
+	for _, each := range durations {
+		// 在 yml 里写裸数字会被当成纳秒（见包注释），这里顺带把那种写法也拦住：720 纳秒过不了 1 秒这道线
+		if each.value < time.Second {
+			return fmt.Errorf("%s 至少为 1s，现在是 %v（时长要带单位，如 \"720h\"）", each.name, each.value)
+		}
+	}
+	return nil
 }
 
 // 静态资源默认落在可执行文件旁边的 public/：镜像里二进制在 /app/myapi、前端产物在 /app/public。

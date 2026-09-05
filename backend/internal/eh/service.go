@@ -42,8 +42,8 @@ type Service struct {
 	// 带上站点的话，有里站权限的用户和没有的用户看同一批图集要各打一次 gdata，缓存名额也白占一倍。
 	//
 	// 存的是上游的原始缩略图地址而不是签好名的代理地址：后者带有效期，
-	// 烤进一份 TTL 与它无关的缓存等于要求「这里的 TTL 必须永远短于 ATTACHMENT_TTL_MS」，
-	// 那是一条没人写下来的约束。签名因此放到组装响应时才做，见 thumbnailURL。
+	// 烤进一份 TTL 与它无关的缓存等于要求「这里的 TTL 必须永远短于 ATTACHMENT_TTL」，
+	// 那是一条没人写下来的约束。签名因此放到组装响应时才做，见 withThumbnail。
 	galleries *expirable.LRU[int64, GalleryDetail]
 }
 
@@ -154,7 +154,7 @@ func (s *Service) GalleryDetailOf(ctx context.Context, userID int64, ref Gallery
 			return err
 		}
 		if len(galleries) == 0 {
-			return errUnavailable("这个图集取不到，可能已被删除或转为私有")
+			return errGalleryMissing()
 		}
 		gallery = galleries[0]
 		return nil
@@ -216,6 +216,10 @@ func (s *Service) loadGalleries(ctx context.Context, refs []GalleryRef) ([]Galle
 		if err := s.client.CallAPI(ctx, RequestContext{Site: SiteE}, payload, &response); err != nil {
 			return nil, err
 		}
+		// 整批被拒（gidlist 格式不对、条数超限）时没有 gmetadata，不报出来的话表现是「搜索结果永远为空」
+		if response.Error != "" {
+			return nil, errUnavailable("e 站元数据接口拒绝了请求：%s", response.Error)
+		}
 
 		for _, entry := range response.Gmetadata {
 			// 被删或转私有的图集单条会变成 { error }，跳过它，别让一条坏数据废掉整批
@@ -265,6 +269,11 @@ func (s *Service) OpenGalleryImage(ctx context.Context, userID int64, ref Galler
 		slog.Info("图床节点取图失败，换源重试", "gid", ref.GID, "page", page, "status", response.StatusCode)
 		if response, err = s.openPage(ctx, rc, ref, page, true); err != nil {
 			return nil, err
+		}
+		// 换源也没成就到此为止（OpenImage 已经把失败响应的 body 关了）。
+		// 不能再往下交给 toAttachment：那边只看 Content-Type，错误页要是恰好带着 image/ 就会被当成图转发出去
+		if response.StatusCode != http.StatusOK {
+			return nil, errUnavailable("第 %d 页取不到（图床返回 HTTP %d），过一会儿再试", page, response.StatusCode)
 		}
 	}
 	return toAttachment(response, fmt.Sprintf("第 %d 页", page))

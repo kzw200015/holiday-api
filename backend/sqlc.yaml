@@ -1,4 +1,4 @@
-# sqlc 从 db/schema.sql 的表结构 + db/query.sql 的语句生成 internal/store 下的类型和方法。
+# sqlc 从 internal/store/schema.sql 的表结构 + query.sql 的语句生成同目录下的类型和方法。
 # 改完 SQL 跑 `sqlc generate`，生成的代码要入库、不要手改。
 version: "2"
 sql:

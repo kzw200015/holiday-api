@@ -35,7 +35,25 @@ func (c Cookie) validate() error {
 	if c.IpbMemberID == "" || c.IpbPassHash == "" {
 		return web.BadRequest("ipb_member_id 和 ipb_pass_hash 都不能为空")
 	}
+	// 三个值会被原样拼进 Cookie 请求头。分号能塞进额外的 cookie，空格和引号会把整个头弄坏，
+	// 用户从浏览器里复制时最容易带上的正是这些（多选了一段、连着 `; ` 一起粘）
+	for _, value := range []string{c.IpbMemberID, c.IpbPassHash, c.Igneous} {
+		if !isCookieValue(value) {
+			return web.BadRequest("Cookie 值里有不允许的字符，检查是不是多复制了分号、空格或引号")
+		}
+	}
 	return nil
+}
+
+// RFC 6265 允许的 cookie-octet：可见 ASCII，去掉空格、双引号、逗号、分号和反斜杠。
+func isCookieValue(value string) bool {
+	for i := 0; i < len(value); i++ {
+		switch c := value[i]; {
+		case c <= 0x20, c >= 0x7F, c == '"', c == ',', c == ';', c == '\\':
+			return false
+		}
+	}
+	return true
 }
 
 // CredentialStatus 是绑定状态，不含明文 Cookie。
@@ -122,7 +140,13 @@ type GalleryComment struct {
 type flexNumber float64
 
 func (n *flexNumber) UnmarshalJSON(data []byte) error {
-	value, err := strconv.ParseFloat(strings.Trim(string(data), `"`), 64)
+	text := strings.Trim(string(data), `"`)
+	// 缺省值也照单全收：null 和空串都算 0，别让一个没填的字段废掉整批元数据
+	if text == "" || text == "null" {
+		*n = 0
+		return nil
+	}
+	value, err := strconv.ParseFloat(text, 64)
 	if err != nil {
 		return err
 	}
@@ -152,8 +176,10 @@ type gdataEntry struct {
 	Error        string     `json:"error"`
 }
 
+// 整个请求被拒时（gidlist 格式不对、条数超限）没有 gmetadata，只有一个顶层的 error。
 type gdataResponse struct {
 	Gmetadata []gdataEntry `json:"gmetadata"`
+	Error     string       `json:"error"`
 }
 
 // showpage 的响应。成功时 i3 里是 `<img id="img" src=...>` 加上指向下一页的链接，

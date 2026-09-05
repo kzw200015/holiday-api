@@ -52,6 +52,26 @@ func TestAttachmentSigner(t *testing.T) {
 		}
 	})
 
+	t.Run("同一窗口里签出的地址一模一样", func(t *testing.T) {
+		// 否则浏览器永远命不中缓存，翻回去看一眼缩略图也要再消耗一次 e 站配额
+		signer := NewAttachmentSigner("子密钥", time.Hour)
+		// 窗口是有效期的四分之一（15 分钟）。起点刻意不落在整刻上：正好压在窗口边界的时刻
+		// 本来就属于前一个窗口，从它往后挪一步自然会换窗口，那不是这条用例要验的事
+		base := time.Date(2026, 9, 5, 10, 1, 0, 0, time.UTC)
+		signer.now = func() time.Time { return base }
+		first := signer.Sign("原文")
+		// 往后挪 10 分钟还在同一个窗口里
+		signer.now = func() time.Time { return base.Add(10 * time.Minute) }
+		if second := signer.Sign("原文"); second != first {
+			t.Errorf("同一窗口签出了不同的地址: %+v 与 %+v", first, second)
+		}
+		// 对齐只会把过期时间往后推，实际有效期绝不短于配置值
+		expires, _ := strconv.ParseInt(first.ExpiresAt, 10, 64)
+		if expires < base.Add(time.Hour).UnixMilli() {
+			t.Errorf("对齐后的有效期短于配置值: %d", expires)
+		}
+	})
+
 	t.Run("垃圾输入返回 false 而不是崩掉", func(t *testing.T) {
 		future := strconv.FormatInt(time.Now().Add(time.Minute).UnixMilli(), 10)
 		cases := []Signature{

@@ -129,7 +129,7 @@ func authedRoutes(router chi.Router, service *Service) {
 		if err != nil {
 			return err
 		}
-		if _, err := parsePage(strconv.FormatInt(int64(body.Page), 10)); err != nil {
+		if err := checkPage(int(body.Page)); err != nil {
 			return err
 		}
 		if err := service.SaveProgress(r.Context(), auth.UserID(r.Context()), ref, body.Page); err != nil {
@@ -181,14 +181,18 @@ func parseGalleryRef(r *http.Request) (GalleryRef, error) {
 	return newGalleryRef(gid, chi.URLParam(r, "token"))
 }
 
-// 页码必须是正整数。URL 参数和 JSON 字段两条入口共用这一份规则和文案——
+// 页码必须是正整数。URL 参数和 JSON 字段两条入口共用 checkPage 这一份规则和文案——
 // 解析失败得到 0，正好落进同一个判断。
 func parsePage(value string) (int, error) {
 	page, _ := strconv.Atoi(value)
+	return page, checkPage(page)
+}
+
+func checkPage(page int) error {
 	if page <= 0 {
-		return 0, web.BadRequest("页码不合法")
+		return web.BadRequest("页码不合法")
 	}
-	return page, nil
+	return nil
 }
 
 func newGalleryRef(gid int64, token string) (GalleryRef, error) {

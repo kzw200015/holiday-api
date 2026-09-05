@@ -25,8 +25,9 @@ func NewRouter(staticDir string, holidayService *holiday.Service, authService *a
 	router := chi.NewRouter()
 
 	router.Route("/api", func(api chi.Router) {
-		// 访问日志只挂在 /api 下，静态资源不记，否则前端一次刷新就刷屏
-		api.Use(web.RequestLogger)
+		// 访问日志只挂在 /api 下，静态资源不记，否则前端一次刷新就刷屏。
+		// Recover 在它里面：panic 被翻成 JSON 500 之后，访问日志才记得到这个状态码
+		api.Use(web.RequestLogger, web.Recover)
 
 		api.Mount("/holiday", holiday.Routes(holidayService))
 		api.Mount("/auth", auth.Routes(authService, tokens))

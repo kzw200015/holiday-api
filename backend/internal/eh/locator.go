@@ -196,8 +196,13 @@ func (l *ImageLocator) ensurePageToken(ctx context.Context, rc RequestContext, r
 // 同一片的并发请求合并成一次上游调用——评论接口要的正是首片，跟取图链路是同一个页面。
 func (l *ImageLocator) GalleryPage(ctx context.Context, rc RequestContext, ref GalleryRef, slice int) (string, error) {
 	page, err, _ := l.slices.Do(fmt.Sprintf("%s:%d", metaKey(rc.Site, ref.GID), slice), func() (any, error) {
+		// 合并后的那一次上游调用挂在第一个来的请求的 ctx 上。阅读器预取时最先到的往往是
+		// 用户已经翻过去的那页，浏览器一中止它，跟在后面的两页会一起收到 context canceled——
+		// 所以这里把取消断开，只留超时（fetch 自己会加）。
+		// 断开后 ctx 上的值（没有）也一并丢掉，这次调用不依赖任何请求级上下文
+		detached := context.WithoutCancel(ctx)
 		// ?p= 是 0 基的，?p=0 就是第一片
-		body, err := l.client.FetchPage(ctx, rc, fmt.Sprintf("/g/%d/%s/?p=%d", ref.GID, ref.Token, slice))
+		body, err := l.client.FetchPage(detached, rc, fmt.Sprintf("/g/%d/%s/?p=%d", ref.GID, ref.Token, slice))
 		if err != nil {
 			return "", err
 		}

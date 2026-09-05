@@ -44,6 +44,7 @@ func provideLogger(cfg config.Config) *slog.Logger {
 	return logger
 }
 
+// 级别名在 config.Load 里已经校验过，这里解析不会失败；万一失败也只是退回 info。
 func parseLevel(name string) slog.Level {
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(name)); err != nil {

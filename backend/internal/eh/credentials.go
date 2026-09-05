@@ -56,9 +56,9 @@ func (s *CredentialStore) Status(ctx context.Context, userID int64) (CredentialS
 
 // Bind 保存凭据。存之前先拿这组 Cookie 实际请求一次，无效就别入库，免得事后一脸茫然。
 func (s *CredentialStore) Bind(ctx context.Context, userID int64, cookie Cookie) (CredentialStatus, error) {
-	valid, hasExAccess := s.client.VerifyCredential(ctx, cookie)
-	if !valid {
-		return CredentialStatus{}, errCredentialRejected()
+	hasExAccess, err := s.client.VerifyCredential(ctx, cookie)
+	if err != nil {
+		return CredentialStatus{}, err
 	}
 
 	serialized, err := json.Marshal(cookie)

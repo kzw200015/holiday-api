@@ -52,20 +52,33 @@ type RequestContext struct {
 type Client struct {
 	http      *http.Client
 	userAgent string
+	// 页面与 JSON 请求的总超时。图片不受它管，见 NewClient。
+	timeout time.Duration
 }
 
 // NewClient 建一个出网客户端。transport 传 nil 就用 Go 的默认实现，
 // 测试拿它造上游响应——请求仍然走完整的拼地址、带 Cookie、判「200 但不是内容」这条链路。
+//
+// 超时分两种：页面和 JSON 是「拿到整个响应体」为止，用 ctx 上的 deadline 管；
+// 图片只限「等到响应头」，交给 transport 的 ResponseHeaderTimeout。
+// 不用 http.Client.Timeout，它连读响应体的时间一起算——从慢的 H@H 节点流式转发一张大图
+// 可能要几十秒，按 30 秒一刀切就会在传到一半时把图掐断，跟 http.Server 那边刻意不设
+// WriteTimeout 的用意正好相反。
 func NewClient(userAgent string, timeout time.Duration, transport http.RoundTripper) *Client {
+	if transport == nil {
+		defaults := http.DefaultTransport.(*http.Transport).Clone()
+		defaults.ResponseHeaderTimeout = timeout
+		transport = defaults
+	}
 	return &Client{
 		http: &http.Client{
-			Timeout:   timeout,
 			Transport: transport,
 			// 里站 Cookie 无效时会 302 回前站，跟随的话会拿到一个「看起来正常」的前站页面。
 			// 图片那条链路上它还多挡一层：白名单主机若被诱导 302 到内网，跟随就等于绕过了白名单
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 		userAgent: userAgent,
+		timeout:   timeout,
 	}
 }
 
@@ -95,7 +108,7 @@ func (c *Client) CallAPI(ctx context.Context, rc RequestContext, payload any, ou
 		return err
 	}
 	if err := json.Unmarshal(content, out); err != nil {
-		return errUnavailable("e 站接口返回的不是预期的 JSON：%v", err)
+		return errUpstream(err, "e 站接口返回的不是预期的 JSON")
 	}
 	return nil
 }
@@ -104,8 +117,9 @@ func (c *Client) CallAPI(ctx context.Context, rc RequestContext, payload any, ou
 // 剩下这六步是一样的。返回 []byte 而不是 string：JSON 那条路径直接喂给 Unmarshal，
 // 不必为一份几十 KB 的响应体多复制一遍。
 func (c *Client) fetch(ctx context.Context, method, target, cookieHeader string, body []byte) ([]byte, error) {
-	// 排查「一次操作到底打了几个上游请求」时全靠这条，默认级别下不输出
-	slog.Debug("请求 e 站", "url", target)
+	// 总超时盖住「连上、等头、读完」三段
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
 
 	response, err := c.do(ctx, method, target, cookieHeader, body)
 	if err != nil {
@@ -115,7 +129,7 @@ func (c *Client) fetch(ctx context.Context, method, target, cookieHeader string,
 
 	content, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, errUnavailable("读取 e 站响应失败：%v", err)
+		return nil, errUpstream(err, "读取 e 站响应失败")
 	}
 	return content, assertUsable(response.StatusCode, content, target)
 }
@@ -127,9 +141,9 @@ func (c *Client) OpenImage(ctx context.Context, url string) (*http.Response, err
 		slog.Warn("图片地址不在白名单内，已拒绝", "url", url)
 		return nil, errUnavailable("图片地址不在允许的范围内")
 	}
-	slog.Debug("请求 e 站", "url", url)
 
-	// 一个 Cookie 都不带：图床不认 e 站的身份，发过去只是白白泄露给第三方主机
+	// 一个 Cookie 都不带：图床不认 e 站的身份，发过去只是白白泄露给第三方主机。
+	// 也不套总超时：响应体是流式转发给浏览器的，读多久由 ctx（浏览器还在不在）决定
 	response, err := c.do(ctx, http.MethodGet, url, "", nil)
 	if err != nil {
 		return nil, err
@@ -145,51 +159,75 @@ func (c *Client) OpenImage(ctx context.Context, url string) (*http.Response, err
 	return response, nil
 }
 
-// VerifyCredential 验证一组 Cookie 是否可用，顺便看看有没有里站权限。
+// VerifyCredential 验证一组 Cookie 是否可用，能用就顺便回答有没有里站权限。
 // 校验放在保存之前做，免得把一组用不了的 Cookie 存进库再让人一脸茫然。
-func (c *Client) VerifyCredential(ctx context.Context, cookie Cookie) (valid, hasExAccess bool) {
+//
+// 「Cookie 不对」和「e 站没连上」是两种错：前者回 400 让用户重新复制，后者是 502 或 429，
+// 混成一句「这组 Cookie 用不了」会让人对着一组好好的 Cookie 反复重贴。
+func (c *Client) VerifyCredential(ctx context.Context, cookie Cookie) (hasExAccess bool, err error) {
 	header := buildCookieHeader(&cookie)
 	// 两个请求之间没有依赖，串起来只是白等一个跨境往返。
 	// 凭据无效这条路走得很少，先发后判不会浪费多少请求
-	var home, ex struct {
-		status int
-		body   string
-	}
+	var home, ex probeResult
 	var wait sync.WaitGroup
 	wait.Add(2)
 	// 未登录时 home.php 会 302 到论坛登录页，登录成功才是 200
-	go func() { defer wait.Done(); home.status, home.body = c.probe(ctx, homeURL, header) }()
-	go func() { defer wait.Done(); ex.status, ex.body = c.probe(ctx, pageHosts[SiteEx]+"/", header) }()
+	go func() { defer wait.Done(); home = c.probe(ctx, homeURL, header) }()
+	go func() { defer wait.Done(); ex = c.probe(ctx, pageHosts[SiteEx]+"/", header) }()
 	wait.Wait()
 
-	if home.status != http.StatusOK {
-		return false, false
+	if home.err != nil {
+		return false, home.err
 	}
-	// 里站在账号没权限时回 200 加空 body（俗称 sad panda），不是 403
-	return true, ex.status == http.StatusOK && strings.TrimSpace(ex.body) != ""
+	if home.status != http.StatusOK {
+		return false, errCredentialRejected()
+	}
+	// 200 也可能是封禁页：那时 Cookie 本身没问题，报成「Cookie 用不了」会误导
+	if err := assertUsable(home.status, home.body, homeURL); err != nil {
+		return false, err
+	}
+	// 里站在账号没权限时回 200 加空 body（俗称 sad panda），不是 403。
+	// 里站那一探连不上就当没有权限，不拦绑定：前站已经证明凭据是好的
+	return ex.err == nil && ex.status == http.StatusOK && len(bytes.TrimSpace(ex.body)) > 0, nil
 }
 
-// 发一次请求，只关心状态码和正文，出错时状态码为 0。
-func (c *Client) probe(ctx context.Context, url, cookieHeader string) (int, string) {
+type probeResult struct {
+	status int
+	body   []byte
+	err    error
+}
+
+// 发一次带总超时的请求，读完正文原样交回，不做「200 但不是内容」的判定——由调用方按需判。
+func (c *Client) probe(ctx context.Context, url, cookieHeader string) probeResult {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
 	response, err := c.do(ctx, http.MethodGet, url, cookieHeader, nil)
 	if err != nil {
-		return 0, ""
+		return probeResult{err: err}
 	}
 	defer response.Body.Close()
-	body, _ := io.ReadAll(response.Body)
-	return response.StatusCode, string(body)
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return probeResult{err: errUpstream(err, "读取 e 站响应失败")}
+	}
+	return probeResult{status: response.StatusCode, body: body}
 }
 
 // 统一的请求：伪装 UA、带上调用方给的 Cookie 头、不跟随重定向（在 Client 上配好了）。
 // cookieHeader 为空串就一个 Cookie 都不发，取图走的就是这条。
 func (c *Client) do(ctx context.Context, method, url, cookieHeader string, body []byte) (*http.Response, error) {
+	// 排查「一次操作到底打了几个上游请求」时全靠这条，默认级别下不输出。
+	// 所有出网都经过这里，日志也就只记这一处
+	slog.Debug("请求 e 站", "method", method, "url", url)
+
 	var reader io.Reader
 	if body != nil {
 		reader = bytes.NewReader(body)
 	}
 	request, err := http.NewRequestWithContext(ctx, method, url, reader)
 	if err != nil {
-		return nil, errUnavailable("拼不出 e 站的请求地址：%v", err)
+		return nil, errUpstream(err, "拼不出 e 站的请求地址")
 	}
 
 	// Go 默认发 Go-http-client/2.0，在一个明确禁止自动化抓取的站点上等于举手
@@ -203,7 +241,7 @@ func (c *Client) do(ctx context.Context, method, url, cookieHeader string, body 
 
 	response, err := c.http.Do(request)
 	if err != nil {
-		return nil, errUnavailable("请求 e 站失败：%v", err)
+		return nil, errUpstream(err, "请求 e 站失败，可能是网络不通或超时")
 	}
 	return response, nil
 }

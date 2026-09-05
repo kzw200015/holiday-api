@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -31,6 +32,34 @@ func Quiet(next http.Handler) http.Handler {
 		if state, ok := r.Context().Value(accessLogKey).(*accessLog); ok {
 			state.quiet = true
 		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Recover 兜住处理器里的 panic：记一条带调用栈的 error 日志，再按统一契约回 JSON 500。
+//
+// 不用 chi 自带的 Recoverer：它把栈打到 stderr、绕开 slog，容器里那一段就不是 JSON；
+// net/http 自己的兜底也一样，而且客户端只会看到连接被掐断，前端拦截器连 msg 都取不到。
+// 挂在 RequestLogger 里面，访问日志才能记到这次的 500。
+func Recover(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			value := recover()
+			if value == nil {
+				return
+			}
+			// 这是 net/http 约定的「静默放弃这次响应」，不是故障，照原样往上抛
+			if value == http.ErrAbortHandler {
+				panic(value)
+			}
+			slog.Error("处理器 panic", "method", r.Method, "path", r.URL.Path,
+				"panic", value, "stack", string(debug.Stack()))
+			// 头已经发出去的话（比如转发图片转到一半）就没法再改成 500 了
+			if wrapped, ok := w.(middleware.WrapResponseWriter); ok && wrapped.Status() != 0 {
+				return
+			}
+			WriteJSON(w, http.StatusInternalServerError, internalError)
+		}()
 		next.ServeHTTP(w, r)
 	})
 }

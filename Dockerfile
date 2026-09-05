@@ -21,8 +21,8 @@ COPY backend/go.mod backend/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY backend/ ./
-# CGO 关掉换一个纯静态的二进制，运行镜像里不需要 libc 之外的任何东西；
-# 建表用的 schema.sql 由 go:embed 打进二进制，不用单独往镜像里拷
+# CGO 关掉换一个纯静态的二进制，运行镜像里不需要 libc 之外的任何东西。
+# 进程不碰 DDL，建表用 backend/internal/store/schema.sql 由人工上库执行，镜像里不带它
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/myapi ./cmd/myapi
 

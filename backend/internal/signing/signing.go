@@ -60,10 +60,20 @@ func ParseQuery(query url.Values) (Signature, bool) {
 type AttachmentSigner struct {
 	secret []byte
 	ttl    time.Duration
+	// 过期时间对齐到的粒度，见 Sign。
+	bucket time.Duration
+	// 测试用来固定时间，正常就是 time.Now。
+	now func() time.Time
 }
 
 func NewAttachmentSigner(secret string, ttl time.Duration) *AttachmentSigner {
-	return &AttachmentSigner{secret: []byte(secret), ttl: ttl}
+	// 有效期的四分之一：24 小时的有效期对应 6 小时一个窗口。
+	// 测试会传很短甚至负的有效期，那时就退化成不对齐
+	bucket := ttl / 4
+	if bucket <= 0 {
+		bucket = 1
+	}
+	return &AttachmentSigner{secret: []byte(secret), ttl: ttl, bucket: bucket, now: time.Now}
 }
 
 // Sign 给一段业务标识签名。subject 由调用方决定要保护什么：
@@ -71,15 +81,25 @@ func NewAttachmentSigner(secret string, ttl time.Duration) *AttachmentSigner {
 //
 // 返回的是两个字段而不是拼好的查询串：拼地址是调用方的事，签发和校验收发同一种形状，
 // 两边才对得起来。
+//
+// 过期时间不是精确的 now + ttl，而是往后对齐到 bucket 的整数倍：同一个窗口里对同一个
+// subject 签出来的地址一模一样。图片接口靠 URL 命中浏览器缓存，要是每次列表、每次进详情
+// 都签出一个毫秒级不同的地址，缩略图和大图就永远缓存不上，翻回去看一眼也得再消耗一次
+// e 站配额。代价是实际有效期比配置的多出最多一个 bucket（四分之一），只会长不会短。
 func (s *AttachmentSigner) Sign(subject string) Signature {
-	expiresAt := time.Now().Add(s.ttl).UnixMilli()
-	return Signature{ExpiresAt: strconv.FormatInt(expiresAt, 10), Value: s.digest(subject, expiresAt)}
+	deadline := s.now().Add(s.ttl)
+	expiresAt := deadline.Truncate(s.bucket)
+	if expiresAt.Before(deadline) {
+		expiresAt = expiresAt.Add(s.bucket)
+	}
+	millis := expiresAt.UnixMilli()
+	return Signature{ExpiresAt: strconv.FormatInt(millis, 10), Value: s.digest(subject, millis)}
 }
 
 // Verify 校验签名与有效期，两者都过才算数。
 func (s *AttachmentSigner) Verify(subject string, sig Signature) bool {
 	expiresAt, err := strconv.ParseInt(sig.ExpiresAt, 10, 64)
-	if err != nil || expiresAt <= time.Now().UnixMilli() {
+	if err != nil || expiresAt <= s.now().UnixMilli() {
 		return false
 	}
 	return hmac.Equal([]byte(sig.Value), []byte(s.digest(subject, expiresAt)))

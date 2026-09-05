@@ -1,6 +1,7 @@
 package eh
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -53,7 +54,7 @@ func imageRoutes(router chi.Router, service *Service) {
 			if err != nil {
 				return err
 			}
-			return stream(w, image)
+			return stream(r.Context(), w, image)
 		}))
 
 	// GET /api/eh/thumbnail?u=&e=&s=，只接受本服务签发过的地址
@@ -72,12 +73,12 @@ func imageRoutes(router chi.Router, service *Service) {
 		if err != nil {
 			return err
 		}
-		return stream(w, thumbnail)
+		return stream(r.Context(), w, thumbnail)
 	}))
 }
 
 // 流式转发，不把整张图读进内存。
-func stream(w http.ResponseWriter, attachment *Attachment) error {
+func stream(ctx context.Context, w http.ResponseWriter, attachment *Attachment) error {
 	defer attachment.Body.Close()
 
 	w.Header().Set("Content-Type", attachment.ContentType)
@@ -87,9 +88,14 @@ func stream(w http.ResponseWriter, attachment *Attachment) error {
 	}
 	w.WriteHeader(http.StatusOK)
 
-	// 头已经发出去了，转发中途断了没法再改成错误响应，只能记一条日志
+	// 头已经发出去了，转发中途断了没法再改成错误响应，只能记一条日志。
+	// 浏览器自己中止的（快速翻页时成批发生）不算故障，降到 debug，免得淹掉真正的上游断流
 	if _, err := io.Copy(w, attachment.Body); err != nil {
-		slog.Warn("转发图片时中断", "url", attachment.Source, "err", err)
+		if ctx.Err() != nil {
+			slog.Debug("客户端中途放弃了图片", "url", attachment.Source)
+		} else {
+			slog.Warn("转发图片时中断", "url", attachment.Source, "err", err)
+		}
 	}
 	return nil
 }
