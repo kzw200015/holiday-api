@@ -4,8 +4,8 @@ import { effectScope, reactive, type EffectScope } from "vue"
 
 import * as authApi from "@/api/auth"
 import { searchGalleries, type GalleryCard, type GalleryPage } from "@/api/eh"
-import { useAuthStore } from "@/stores/AuthStore"
 import { useGalleryList } from "@/composables/useGalleryList"
+import { useAuthStore } from "@/stores/AuthStore"
 
 let scope: EffectScope
 const createList = () => scope.run(() => reactive(useGalleryList()))!

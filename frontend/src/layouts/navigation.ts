@@ -1,7 +1,5 @@
-import type { LucideIcon } from "@lucide/vue"
+import { CalendarDaysIcon, HouseIcon, LibraryIcon, SettingsIcon, type LucideIcon } from "@lucide/vue"
 import type { Router } from "vue-router"
-
-import { CalendarDaysIcon, HouseIcon, LibraryIcon, SettingsIcon } from "@lucide/vue"
 
 /* 侧边栏导航项：只声明展示哪些路由及其图标，名称与路径均取自路由表 */
 interface NavigationItem {

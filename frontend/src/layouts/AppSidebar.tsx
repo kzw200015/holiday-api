@@ -27,7 +27,10 @@ export default defineComponent({
     const items = getNavigationItems(router)
     const { setOpenMobile } = useSidebar()
     /* 移动端选中目标页面后收起抽屉，让内容可见。 */
-    watch(() => route.fullPath, () => setOpenMobile(false))
+    watch(
+      () => route.fullPath,
+      () => setOpenMobile(false),
+    )
 
     /* 选中态交给 router 的匹配结果，子路由与动态段都能正确命中 */
     function isActive(name: string) {
@@ -59,11 +62,7 @@ export default defineComponent({
                 {items.map((item) => (
                   <SidebarMenuItem key={item.name}>
                     {/* tooltip 仅在图标栏状态下展示 */}
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.name)}
-                      tooltip={item.label}
-                    >
+                    <SidebarMenuButton asChild isActive={isActive(item.name)} tooltip={item.label}>
                       <RouterLink to={{ name: item.name }}>
                         <item.icon />
                         <span>{item.label}</span>

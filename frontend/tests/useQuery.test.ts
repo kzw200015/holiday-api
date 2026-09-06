@@ -1,5 +1,5 @@
-import { effectScope, nextTick, ref } from "vue"
 import { describe, expect, it, vi } from "vitest"
+import { effectScope, nextTick, ref } from "vue"
 
 import { useQuery } from "@/composables/useQuery"
 
@@ -17,7 +17,8 @@ describe("页面查询", () => {
   it("快速切换参数时取消旧请求，迟到结果不能覆盖当前结果", async () => {
     const first = deferred<string>()
     const second = deferred<string>()
-    const request = vi.fn((_value: string, _signal: AbortSignal) => first.promise)
+    const request = vi
+      .fn((_value: string, _signal: AbortSignal) => first.promise)
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise)
     const selected = ref("first")

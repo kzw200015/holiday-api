@@ -110,7 +110,8 @@
 .reader-progress {
   --reader-progress: 0%;
   appearance: none;
-  background: linear-gradient(to right, #a78bfa var(--reader-progress), #71717a var(--reader-progress)) center / 100% 4px no-repeat;
+  background: linear-gradient(to right, #a78bfa var(--reader-progress), #71717a var(--reader-progress)) center / 100%
+    4px no-repeat;
   outline: none;
 }
 

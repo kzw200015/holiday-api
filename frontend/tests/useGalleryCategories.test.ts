@@ -1,8 +1,12 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from "vitest"
+
 import { useGalleryCategories } from "@/composables/useGalleryCategories"
 
-beforeEach(() => { localStorage.clear(); vi.restoreAllMocks() })
+beforeEach(() => {
+  localStorage.clear()
+  vi.restoreAllMocks()
+})
 
 describe("分类偏好", () => {
   it("按账号保存已应用的分类，空选择也覆盖之前的偏好", () => {
@@ -19,8 +23,12 @@ describe("分类偏好", () => {
     expect(useGalleryCategories(1).selected.value).toEqual(["manga"])
     localStorage.setItem("myapi.gallery-categories.1", "not json")
     expect(useGalleryCategories(1).selected.value).toEqual([])
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("不可读") })
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("不可写") })
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("不可读")
+    })
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("不可写")
+    })
     const categories = useGalleryCategories(1)
     expect(() => categories.apply(["manga"])).not.toThrow()
     expect(categories.selected.value).toEqual(["manga"])

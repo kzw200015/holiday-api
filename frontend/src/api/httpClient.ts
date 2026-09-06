@@ -1,6 +1,6 @@
+import axios, { type AxiosError, type AxiosRequestConfig } from "axios"
+
 import type { ApiResponse } from "@/types/apiResponse"
-import type { AxiosError, AxiosRequestConfig } from "axios"
-import axios from "axios"
 
 /* 令牌在 localStorage 里的键名 */
 const TOKEN_KEY = "myapi_token"
@@ -64,21 +64,18 @@ export function onUnauthorized(handler: () => void) {
   handleUnauthorized = handler
 }
 
-instance.interceptors.response.use(
-  undefined,
-  (error: AxiosError<ApiResponse<unknown>>) => {
-    /* 取消请求是页面切换的一部分，保留 Axios 的取消标识。 */
-    if (axios.isCancel(error)) {
-      return Promise.reject(error)
-    }
-    if (error.response?.status === 401 && token && error.config?.headers.Authorization === `Bearer ${token}`) {
-      /* 旧会话的迟到响应不能清掉刚登录的新会话。 */
-      setToken("")
-      handleUnauthorized?.()
-    }
-    return Promise.reject(new Error(error.response?.data.msg || error.message))
-  },
-)
+instance.interceptors.response.use(undefined, (error: AxiosError<ApiResponse<unknown>>) => {
+  /* 取消请求是页面切换的一部分，保留 Axios 的取消标识。 */
+  if (axios.isCancel(error)) {
+    return Promise.reject(error)
+  }
+  if (error.response?.status === 401 && token && error.config?.headers.Authorization === `Bearer ${token}`) {
+    /* 旧会话的迟到响应不能清掉刚登录的新会话。 */
+    setToken("")
+    handleUnauthorized?.()
+  }
+  return Promise.reject(new Error(error.response?.data.msg || error.message))
+})
 
 /** 在 HTTP 边界解包响应，业务接口只返回领域数据。 */
 export const httpClient = {

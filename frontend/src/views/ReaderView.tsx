@@ -2,10 +2,10 @@ import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "@lucide/vue"
 import { defineComponent, ref } from "vue"
 
 import ErrorAlert from "@/components/ErrorAlert"
+import ReaderStrip from "@/components/gallery/ReaderStrip"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useReader } from "@/composables/useReader"
-import ReaderStrip from "@/components/gallery/ReaderStrip"
 
 /* 操作栏上的按钮共用一套外观 */
 const chromeButton = {
@@ -23,10 +23,8 @@ export default defineComponent({
     page: { type: Number, required: true },
   },
   setup(props) {
-    const {
-      gallery, error, loading, page, totalPages, imageUrlTemplate,
-      chromeVisible, showChrome, goTo, exit,
-    } = useReader(props)
+    const { gallery, error, loading, page, totalPages, imageUrlTemplate, chromeVisible, showChrome, goTo, exit } =
+      useReader(props)
     const seeking = ref(false)
 
     return () => (
@@ -43,14 +41,18 @@ export default defineComponent({
           </div>
         ) : (
           <div class="relative flex min-h-0 flex-1 overflow-hidden" onPointerdown={showChrome} onMousemove={showChrome}>
-            {imageUrlTemplate.value && totalPages.value ? <ReaderStrip
-              key={`${props.gid}/${props.token}`}
-              page={page.value} total={totalPages.value} template={imageUrlTemplate.value}
-              seeking={seeking.value} onPageChange={goTo} /> : null}
-
-            {loading.value ? (
-              <Skeleton class="absolute inset-x-1/4 inset-y-8 rounded-lg" />
+            {imageUrlTemplate.value && totalPages.value ? (
+              <ReaderStrip
+                key={`${props.gid}/${props.token}`}
+                page={page.value}
+                total={totalPages.value}
+                template={imageUrlTemplate.value}
+                seeking={seeking.value}
+                onPageChange={goTo}
+              />
             ) : null}
+
+            {loading.value ? <Skeleton class="absolute inset-x-1/4 inset-y-8 rounded-lg" /> : null}
           </div>
         )}
 
@@ -62,11 +64,7 @@ export default defineComponent({
             chromeVisible.value ? "opacity-100" : "opacity-0",
           ]}
         >
-          <Button
-            aria-label="退出阅读"
-            {...chromeButton}
-            {...{ onClick: exit }}
-          >
+          <Button aria-label="退出阅读" {...chromeButton} {...{ onClick: exit }}>
             <XIcon />
           </Button>
           <p class="min-w-0 flex-1 truncate text-sm text-white/90">{gallery.value?.title ?? "加载中…"}</p>
@@ -82,14 +80,34 @@ export default defineComponent({
           </Button>
 
           <span class="min-w-6 text-center text-sm text-white/90 tabular-nums">{page.value}</span>
-          <input type="range" min={1} max={totalPages.value || 1} step={1} value={page.value}
-            disabled={!totalPages.value} aria-label="阅读进度" aria-valuetext={`第 ${page.value} 页，共 ${totalPages.value} 页`}
+          <input
+            type="range"
+            min={1}
+            max={totalPages.value || 1}
+            step={1}
+            value={page.value}
+            disabled={!totalPages.value}
+            aria-label="阅读进度"
+            aria-valuetext={`第 ${page.value} 页，共 ${totalPages.value} 页`}
             class="reader-progress h-8 min-w-0 flex-1 cursor-pointer"
-            style={{ "--reader-progress": `${totalPages.value > 1 ? (page.value - 1) / (totalPages.value - 1) * 100 : 0}%` }}
-            onPointerdown={(event) => { seeking.value = true; (event.currentTarget as HTMLInputElement).setPointerCapture(event.pointerId) }}
-            onPointerup={() => { seeking.value = false }} onPointercancel={() => { seeking.value = false }}
-            onLostpointercapture={() => { seeking.value = false }}
-            onInput={(event) => goTo(Number((event.currentTarget as HTMLInputElement).value))} />
+            style={{
+              "--reader-progress": `${totalPages.value > 1 ? ((page.value - 1) / (totalPages.value - 1)) * 100 : 0}%`,
+            }}
+            onPointerdown={(event) => {
+              seeking.value = true
+              ;(event.currentTarget as HTMLInputElement).setPointerCapture(event.pointerId)
+            }}
+            onPointerup={() => {
+              seeking.value = false
+            }}
+            onPointercancel={() => {
+              seeking.value = false
+            }}
+            onLostpointercapture={() => {
+              seeking.value = false
+            }}
+            onInput={(event) => goTo(Number((event.currentTarget as HTMLInputElement).value))}
+          />
           <span class="text-sm text-white/90 tabular-nums">{totalPages.value || "…"}</span>
 
           <Button

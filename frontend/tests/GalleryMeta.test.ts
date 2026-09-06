@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { createApp, h } from "vue"
 import { describe, expect, it } from "vitest"
+import { createApp, h } from "vue"
 
 import GalleryMeta from "@/components/gallery/GalleryMeta"
 
@@ -19,7 +19,9 @@ describe("图集星级评分", () => {
     try {
       const stars = host.querySelector('[role="img"]')!
       expect(stars.children).toHaveLength(5)
-      expect([...stars.querySelectorAll<HTMLElement>("span[style]")].map((star) => parseFloat(star.style.width))).toEqual(widths)
+      expect(
+        [...stars.querySelectorAll<HTMLElement>("span[style]")].map((star) => parseFloat(star.style.width)),
+      ).toEqual(widths)
       expect(stars.getAttribute("aria-label")).toBe(`评分 ${label} / 5`)
       expect(stars.getAttribute("title")).toBe(`评分 ${label} / 5`)
       expect(stars.textContent).toBe("")

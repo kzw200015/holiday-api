@@ -14,6 +14,8 @@ MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存�
 - `cd frontend && pnpm dev`：启动 Vite，`/api` 请求代理到 `localhost:8000`。
 - `cd frontend && pnpm build`：执行 TypeScript 类型检查并生成 `dist/`。
 - `cd frontend && pnpm test`：运行一次 Vitest 测试。
+- `cd frontend && pnpm lint`：运行 oxlint 检查，`pnpm lint:fix` 自动修复。
+- `cd frontend && pnpm format`：用 Prettier 格式化，`pnpm format:check` 只校验。
 - `cd backend && go run ./cmd/myapi`：启动后端服务。
 - `cd backend && go build ./cmd/myapi`：编译后端。
 - `cd backend && go test ./...`：运行后端测试。
@@ -23,11 +25,13 @@ MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存�
 
 遵循 `.editorconfig`：UTF-8 编码、LF 换行、文件末尾换行；前端使用两空格缩进，Go 使用制表符并通过 `gofmt` 格式化。组件文件名使用 PascalCase，TypeScript 标识符使用 camelCase，组合式函数使用 `useX` 命名。
 
-业务组件使用 TSX 和 `defineComponent`；清理代码时保留 `components/ui/` 中的生成源码。前端使用 `@/` 路径别名，通过 API 封装访问后端。目前未配置独立的前端 lint 脚本。注释、提交信息和文档使用简体中文。
+前端格式由 Prettier 统一（无分号、双引号、120 列），import 顺序由 `@ianvs/prettier-plugin-sort-imports` 自动排序（三方依赖 → `@/` 内部模块），不要手工调整；lint 规则见 `frontend/.oxlintrc.json`，其中 `curly` 要求所有 `if`/`for` 使用花括号。`src/components/ui/` 属于 shadcn-vue 生成源码，已在 `.prettierignore` 与 oxlint 的 `ignorePatterns` 中排除，清理代码时同样保留。
+
+业务组件使用 TSX 和 `defineComponent`，均声明 `name` 以便 KeepAlive 按名匹配。JSX 事件绑定的规则：原生元素以及已声明对应 props/emits 的组件直接写 `onClick={...}`、`onUpdate:modelValue={...}`；只有组件未声明的属性（如 `Button` 的 `onClick`、`Input` 的原生属性）才用 `{...{ ... }}` 展开透传。前端使用 `@/` 路径别名，通过 API 封装访问后端。注释统一用 `/* */`（导出 API 用 `/** */`），注释、提交信息和文档使用简体中文。
 
 ## 测试要求
 
-Go 测试命名为 `*_test.go`，Vitest 测试命名为 `*.test.ts`。重点验证可观察行为，尤其是鉴权、请求取消、缓存和导航回归。模拟外部服务，保证测试结果稳定。项目未配置数值化覆盖率门槛；提交评审前运行相关测试，前端改动还需通过构建检查。
+Go 测试命名为 `*_test.go`，Vitest 测试命名为 `*.test.ts`。重点验证可观察行为，尤其是鉴权、请求取消、缓存和导航回归。模拟外部服务，保证测试结果稳定。项目未配置数值化覆盖率门槛；提交评审前运行相关测试，前端改动还需通过 `pnpm lint`、`pnpm format:check` 与 `pnpm build`。
 
 ## 提交与 Pull Request 规范
 

@@ -1,22 +1,22 @@
-import { useInfiniteScroll } from "@vueuse/core"
 import { SearchIcon, XIcon } from "@lucide/vue"
+import { useInfiniteScroll } from "@vueuse/core"
 import { defineComponent, onActivated, onDeactivated, reactive, ref } from "vue"
 import { RouterLink } from "vue-router"
 
 import { type GalleryCard } from "@/api/eh"
-import ErrorAlert from "@/components/ErrorAlert"
 import ConfirmDialog from "@/components/ConfirmDialog"
-import GalleryMeta from "@/components/gallery/GalleryMeta"
+import ErrorAlert from "@/components/ErrorAlert"
 import CategoryFilter from "@/components/gallery/CategoryFilter"
+import GalleryMeta from "@/components/gallery/GalleryMeta"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatDateTime } from "@/lib/format"
-import { useGalleryList } from "@/composables/useGalleryList"
 import { useGalleryCategories } from "@/composables/useGalleryCategories"
-import { useSearchHistory } from "@/composables/useSearchHistory"
+import { useGalleryList } from "@/composables/useGalleryList"
 import { usePageScroll } from "@/composables/usePageScroll"
+import { useSearchHistory } from "@/composables/useSearchHistory"
+import { formatDateTime } from "@/lib/format"
 import { useAuthStore } from "@/stores/AuthStore"
 
 /* 触底前多少像素开始加载下一页 */
@@ -35,8 +35,12 @@ export default defineComponent({
     const history = reactive(useSearchHistory(userId))
     const categories = reactive(useGalleryCategories(userId))
     const active = ref(true)
-    onActivated(() => { active.value = true })
-    onDeactivated(() => { active.value = false })
+    onActivated(() => {
+      active.value = true
+    })
+    onDeactivated(() => {
+      active.value = false
+    })
     const resetScroll = usePageScroll()
 
     const keyword = ref("")
@@ -56,51 +60,84 @@ export default defineComponent({
     }
 
     /* 停用时把目标换成 null：滚动监听整体拆掉，别的页面滚动不会再进到这里。 */
-    useInfiniteScroll(() => active.value ? window : null, () => void list.loadMore(), {
-      distance: LOAD_AHEAD_PX,
-      canLoadMore: () => list.hasMore && !list.loading && !list.errorMessage,
-    })
+    useInfiniteScroll(
+      () => (active.value ? window : null),
+      () => void list.loadMore(),
+      {
+        distance: LOAD_AHEAD_PX,
+        canLoadMore: () => list.hasMore && !list.loading && !list.errorMessage,
+      },
+    )
 
     return () => (
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-3">
           <form class="flex flex-wrap gap-2" onSubmit={submit}>
-            {/* Input 只声明了 modelValue 一类的 props，原生属性经展开透传给根元素 */}
+            {/* Input 只声明了 modelValue 一类的 props，未声明的原生属性经展开透传给根元素 */}
             <Input
               class="min-w-0 flex-1 basis-40"
               modelValue={keyword.value}
-              {...{
-                placeholder: "搜索标题或标签，例如 language:chinese",
-                "onUpdate:modelValue": (value: string | number) => (keyword.value = String(value)),
-                "aria-label": "搜索图集",
-              }}
+              onUpdate:modelValue={(value) => (keyword.value = String(value))}
+              {...{ placeholder: "搜索标题或标签，例如 language:chinese", "aria-label": "搜索图集" }}
             />
             <Button {...{ type: "submit" }}>
               <SearchIcon />
               搜索
             </Button>
-            <CategoryFilter selected={categories.selected} onApply={(selected) => {
-              categories.apply(selected)
-              runSearch()
-            }} />
+            <CategoryFilter
+              selected={categories.selected}
+              onApply={(selected) => {
+                categories.apply(selected)
+                runSearch()
+              }}
+            />
           </form>
 
           <div class="flex flex-col gap-2" aria-label="搜索历史">
             <div class="text-muted-foreground flex items-center justify-between text-xs">
               <span>搜索历史</span>
-              {history.entries.length ? <ConfirmDialog title="清空搜索历史？"
-                description="清空后无法恢复，确定要删除全部搜索历史吗？" confirmText="清空历史" onConfirm={() => history.clear()}>
-                <Button variant="ghost" size="xs" class="cursor-pointer" {...{ type: "button" }}>清空</Button>
-              </ConfirmDialog> : null}
+              {history.entries.length ? (
+                <ConfirmDialog
+                  title="清空搜索历史？"
+                  description="清空后无法恢复，确定要删除全部搜索历史吗？"
+                  confirmText="清空历史"
+                  onConfirm={() => history.clear()}
+                >
+                  <Button variant="ghost" size="xs" class="cursor-pointer" {...{ type: "button" }}>
+                    清空
+                  </Button>
+                </ConfirmDialog>
+              ) : null}
             </div>
             <div class="flex flex-wrap gap-1.5">
-              {history.entries.map((entry) => <Badge as="span" variant="secondary" class="h-auto max-w-full gap-0 rounded-md p-0" key={entry}>
-                <Button variant="ghost" size="xs" class="min-w-0 shrink cursor-pointer rounded-r-none" {...{
-                  type: "button", title: entry, onClick: () => { keyword.value = entry; runSearch() },
-                }}><span class="truncate">{entry}</span></Button>
-                <Button variant="ghost" size="icon-xs" class="cursor-pointer rounded-l-none" aria-label={`删除历史：${entry}`}
-                  {...{ type: "button", onClick: () => history.remove(entry) }}><XIcon class="size-3" /></Button>
-              </Badge>)}
+              {history.entries.map((entry) => (
+                <Badge as="span" variant="secondary" class="h-auto max-w-full gap-0 rounded-md p-0" key={entry}>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    class="min-w-0 shrink cursor-pointer rounded-r-none"
+                    {...{
+                      type: "button",
+                      title: entry,
+                      onClick: () => {
+                        keyword.value = entry
+                        runSearch()
+                      },
+                    }}
+                  >
+                    <span class="truncate">{entry}</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    class="cursor-pointer rounded-l-none"
+                    aria-label={`删除历史：${entry}`}
+                    {...{ type: "button", onClick: () => history.remove(entry) }}
+                  >
+                    <XIcon class="size-3" />
+                  </Button>
+                </Badge>
+              ))}
               {!history.entries.length ? <span class="text-muted-foreground text-xs">暂无搜索历史</span> : null}
             </div>
           </div>

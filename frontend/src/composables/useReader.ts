@@ -25,14 +25,18 @@ const PAGE_STEPS: Record<string, number> = {
 export function useReader(props: Readonly<{ gid: number; token: string; page: number }>) {
   const router = useRouter()
   const navigation = useGalleryNavigation()
-  const { data: detail, error, loading } = useQuery(
+  const {
+    data: detail,
+    error,
+    loading,
+  } = useQuery(
     () => `${props.gid}/${props.token}`,
     (_identity, signal) => fetchGalleryDetail(props.gid, props.token, signal),
   )
   const gallery = computed(() => detail.value?.gallery)
   const totalPages = computed(() => gallery.value?.fileCount ?? 0)
   /* 页码来自 URL，详情到达后才能按实际页数约束，避免手改地址请求越界图片。 */
-  const page = computed(() => totalPages.value ? clamp(props.page, 1, totalPages.value) : Math.max(1, props.page))
+  const page = computed(() => (totalPages.value ? clamp(props.page, 1, totalPages.value) : Math.max(1, props.page)))
   const chromeVisible = ref(true)
   const imageUrlTemplate = computed(() => detail.value?.imageUrlTemplate ?? "")
   const { start: scheduleHide } = useTimeoutFn(() => (chromeVisible.value = false), 2500, { immediate: false })
@@ -47,7 +51,9 @@ export function useReader(props: Readonly<{ gid: number; token: string; page: nu
       return
     }
     const clamped = clamp(next, 1, totalPages.value)
-    if (clamped === props.page) return
+    if (clamped === props.page) {
+      return
+    }
     /* 用 replace 让浏览器后退直接离开阅读，而非逐页回退。 */
     void router.replace({ name: "reader", params: { gid: props.gid, token: props.token, page: clamped } })
   }
@@ -57,18 +63,22 @@ export function useReader(props: Readonly<{ gid: number; token: string; page: nu
   }
 
   /* 有效进度：详情到达且页数已知。进度上报与离开通知共用这一份判断。 */
-  const position = computed(() => detail.value && totalPages.value
-    ? { gid: props.gid, token: props.token, page: page.value }
-    : null,
+  const position = computed(() =>
+    detail.value && totalPages.value ? { gid: props.gid, token: props.token, page: page.value } : null,
   )
   onBeforeRouteLeave(() => {
-    if (position.value) void navigation.trigger(position.value)
+    if (position.value) {
+      void navigation.trigger(position.value)
+    }
   })
   useReadingProgress(position)
 
   useEventListener(window, "keydown", (event: KeyboardEvent) => {
     /* 焦点位于操作按钮时，空格和回车应保留原生激活行为。 */
-    if (event.target instanceof HTMLElement && event.target.closest("button, input, textarea, select, [contenteditable]")) {
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest("button, input, textarea, select, [contenteditable]")
+    ) {
       return
     }
     const step = PAGE_STEPS[event.key]
@@ -85,10 +95,16 @@ export function useReader(props: Readonly<{ gid: number; token: string; page: nu
   })
 
   /* 换页或详情到达时重新露出操作栏；URL 越界时由 goTo 把地址收敛到实际页数。 */
-  watch([detail, page], () => {
-    showChrome()
-    if (detail.value) goTo(page.value)
-  }, { immediate: true })
+  watch(
+    [detail, page],
+    () => {
+      showChrome()
+      if (detail.value) {
+        goTo(page.value)
+      }
+    },
+    { immediate: true },
+  )
 
   return { gallery, error, loading, page, totalPages, imageUrlTemplate, chromeVisible, showChrome, goTo, exit }
 }

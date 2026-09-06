@@ -11,14 +11,20 @@ export function usePersistedValue<T>(name: string, userId: number | undefined, n
   if (key) {
     try {
       value.value = normalize(JSON.parse(localStorage.getItem(key) ?? "null"))
-    } catch { /* 损坏或不可读的存储按空处理。 */ }
+    } catch {
+      /* 损坏或不可读的存储按空处理。 */
+    }
   }
   function set(next: T) {
     value.value = normalize(next)
-    if (!key) return
+    if (!key) {
+      return
+    }
     try {
       localStorage.setItem(key, JSON.stringify(value.value))
-    } catch { /* 存储不可写时，当前页面仍按新值工作。 */ }
+    } catch {
+      /* 存储不可写时，当前页面仍按新值工作。 */
+    }
   }
   return { value, set }
 }

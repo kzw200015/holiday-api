@@ -1,6 +1,6 @@
 import { computed, onScopeDispose, ref, shallowRef, triggerRef } from "vue"
 
-import { type GalleryCard, searchGalleries } from "@/api/eh"
+import { searchGalleries, type GalleryCard } from "@/api/eh"
 
 /** 游标不包含筛选条件，每次翻页都要重发同一份查询。 */
 interface GallerySearch {

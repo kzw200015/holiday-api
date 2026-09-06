@@ -29,8 +29,10 @@ export default defineComponent({
           {Array.from({ length: 5 }, (_, index) => (
             <span class={["relative block", props.compact ? "size-3" : "size-3.5"]} key={index} aria-hidden="true">
               <StarIcon class="text-muted-foreground/50 size-full" />
-              <span class="absolute inset-y-0 left-0 overflow-hidden text-amber-500 dark:text-amber-400"
-                style={{ width: `${Math.round(clamp(rating.value - index, 0, 1) * 10000) / 100}%` }}>
+              <span
+                class="absolute inset-y-0 left-0 overflow-hidden text-amber-500 dark:text-amber-400"
+                style={{ width: `${Math.round(clamp(rating.value - index, 0, 1) * 10000) / 100}%` }}
+              >
                 <StarIcon class={props.compact ? "size-3" : "size-3.5"} fill="currentColor" />
               </span>
             </span>

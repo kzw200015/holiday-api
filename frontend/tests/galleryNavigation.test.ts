@@ -1,23 +1,38 @@
 // @vitest-environment happy-dom
 import { createPinia } from "pinia"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, type App as VueApp } from "vue"
 import { createRouter, createWebHistory, type Router } from "vue-router"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type * as EhApi from "@/api/eh"
+import { fetchGalleryComments, fetchGalleryDetail, saveProgress, searchGalleries, type GalleryDetail } from "@/api/eh"
 import App from "@/App"
 import { AppRouter } from "@/router"
 import { useAuthStore } from "@/stores/AuthStore"
-import { fetchGalleryComments, fetchGalleryDetail, saveProgress, searchGalleries, type GalleryDetail } from "@/api/eh"
 
 vi.mock("@/api/eh", async (original) => ({
-  ...await original<typeof import("@/api/eh")>(),
-  fetchGalleryComments: vi.fn(), fetchGalleryDetail: vi.fn(), saveProgress: vi.fn(), searchGalleries: vi.fn(),
+  ...(await original<typeof EhApi>()),
+  fetchGalleryComments: vi.fn(),
+  fetchGalleryDetail: vi.fn(),
+  saveProgress: vi.fn(),
+  searchGalleries: vi.fn(),
 }))
 
 const gallery: GalleryDetail = {
-  gid: 1, token: "aaaaaaaaaa", title: "测试图集", titleJpn: "", category: "Manga", thumbnail: "/thumbnail",
-  uploader: "作者", postedAt: "2026-09-05T00:00:00Z", fileCount: 100, rating: 4, tags: [],
-  fileSize: 100, torrentCount: 0, expunged: false,
+  gid: 1,
+  token: "aaaaaaaaaa",
+  title: "测试图集",
+  titleJpn: "",
+  category: "Manga",
+  thumbnail: "/thumbnail",
+  uploader: "作者",
+  postedAt: "2026-09-05T00:00:00Z",
+  fileCount: 100,
+  rating: 4,
+  tags: [],
+  fileSize: 100,
+  torrentCount: 0,
+  expunged: false,
 }
 let app: VueApp
 let router: Router
@@ -28,7 +43,10 @@ async function settle() {
   await new Promise((resolve) => setTimeout(resolve, 20))
   await nextTick()
 }
-async function visit(path: string) { await router.push(path); await settle() }
+async function visit(path: string) {
+  await router.push(path)
+  await settle()
+}
 async function enterKeyword(value: string) {
   const input = host.querySelector("input")!
   input.value = value
@@ -36,9 +54,12 @@ async function enterKeyword(value: string) {
   await nextTick()
 }
 /* 分类面板挂在 body 下的 Portal 里，要从 document 找 */
-const category = (text: string) => [...document.querySelectorAll<HTMLElement>("button")].find((node) => node.textContent?.trim() === text)!
+const category = (text: string) =>
+  [...document.querySelectorAll<HTMLElement>("button")].find((node) => node.textContent?.trim() === text)!
 async function click(text: string) {
-  const button = [...host.querySelectorAll<HTMLElement>("button, a")].find((element) => element.textContent?.trim() === text)
+  const button = [...host.querySelectorAll<HTMLElement>("button, a")].find(
+    (element) => element.textContent?.trim() === text,
+  )
   expect(button, `${text}: ${router.currentRoute.value.fullPath}\n${host.textContent}`).toBeDefined()
   button!.dispatchEvent(new MouseEvent("click", { button: 0, bubbles: true, cancelable: true }))
   await settle()
@@ -50,11 +71,15 @@ beforeEach(async () => {
   window.history.replaceState({}, "", "/")
   Object.defineProperty(window, "scrollY", { value: 0, writable: true, configurable: true })
   vi.spyOn(window, "scrollTo").mockImplementation((options: ScrollToOptions | number = 0) => {
-    if (typeof options === "object") Object.defineProperty(window, "scrollY", { value: options.top ?? 0, writable: true, configurable: true })
+    if (typeof options === "object") {
+      Object.defineProperty(window, "scrollY", { value: options.top ?? 0, writable: true, configurable: true })
+    }
   })
   vi.mocked(searchGalleries).mockResolvedValue({ items: [gallery], nextCursor: null })
   vi.mocked(fetchGalleryDetail).mockImplementation(async (gid, token) => ({
-    gallery: { ...gallery, gid, token, title: `测试图集${gid}` }, progress: 3, imageUrlTemplate: "/image/{page}",
+    gallery: { ...gallery, gid, token, title: `测试图集${gid}` },
+    progress: 3,
+    imageUrlTemplate: "/image/{page}",
   }))
   vi.mocked(fetchGalleryComments).mockResolvedValue([])
   vi.mocked(saveProgress).mockResolvedValue(null)
@@ -62,7 +87,11 @@ beforeEach(async () => {
   const auth = useAuthStore(pinia)
   auth.user = { id: 1, username: "tester" }
   auth.ready = true
-  router = createRouter({ history: createWebHistory(), routes: AppRouter.options.routes, scrollBehavior: AppRouter.options.scrollBehavior })
+  router = createRouter({
+    history: createWebHistory(),
+    routes: AppRouter.options.routes,
+    scrollBehavior: AppRouter.options.scrollBehavior,
+  })
   host = document.createElement("div")
   document.body.append(host)
   app = createApp(App).use(pinia).use(router)
@@ -158,7 +187,10 @@ describe("图库组件缓存闭环", () => {
     category("应用").click()
     await settle()
     expect(router.currentRoute.value.fullPath).toBe("/eh")
-    expect(searchGalleries).toHaveBeenLastCalledWith({ keyword: "cat", categories: ["manga"], cursor: "" }, expect.any(AbortSignal))
+    expect(searchGalleries).toHaveBeenLastCalledWith(
+      { keyword: "cat", categories: ["manga"], cursor: "" },
+      expect.any(AbortSignal),
+    )
     expect(localStorage.getItem("myapi.gallery-categories.1")).toBe('["manga"]')
     expect(host.textContent).toContain("分类 (1)")
     expect(localStorage.getItem("myapi.search-history.1")).toBe('["cat"]')
@@ -166,7 +198,10 @@ describe("图库组件缓存闭环", () => {
     await click("搜索")
     await click("cat")
     expect(router.currentRoute.value.fullPath).toBe("/eh")
-    expect(searchGalleries).toHaveBeenLastCalledWith({ keyword: "cat", categories: ["manga"], cursor: "" }, expect.any(AbortSignal))
+    expect(searchGalleries).toHaveBeenLastCalledWith(
+      { keyword: "cat", categories: ["manga"], cursor: "" },
+      expect.any(AbortSignal),
+    )
   })
 
   it("同一详情从新搜索进入后，浏览器后退仍保留详情与最新搜索", async () => {
@@ -232,9 +267,15 @@ describe("图库组件缓存闭环", () => {
     await settle()
     expect(host.querySelector("input")?.value).toBe("")
     expect(host.textContent).toContain("分类 (1)")
-    expect(searchGalleries).toHaveBeenLastCalledWith({ keyword: "", categories: ["manga"], cursor: "" }, expect.any(AbortSignal))
+    expect(searchGalleries).toHaveBeenLastCalledWith(
+      { keyword: "", categories: ["manga"], cursor: "" },
+      expect.any(AbortSignal),
+    )
     await click("cat")
     expect(host.querySelector("input")?.value).toBe("cat")
-    expect(searchGalleries).toHaveBeenLastCalledWith({ keyword: "cat", categories: ["manga"], cursor: "" }, expect.any(AbortSignal))
+    expect(searchGalleries).toHaveBeenLastCalledWith(
+      { keyword: "cat", categories: ["manga"], cursor: "" },
+      expect.any(AbortSignal),
+    )
   })
 })

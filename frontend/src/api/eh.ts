@@ -31,9 +31,7 @@ export interface GalleryDetail extends GalleryCard {
 
 /** 评论正文的片段。后端拆好再给，前端不做 HTML 渲染，从根上避免 XSS */
 export type CommentSegment =
-  | { type: "text"; text: string }
-  | { type: "break" }
-  | { type: "link"; text: string; href: string }
+  { type: "text"; text: string } | { type: "break" } | { type: "link"; text: string; href: string }
 
 export interface GalleryComment {
   /** 上传者留言固定是 0 */
@@ -90,7 +88,7 @@ const CATEGORIES = [
 /** e 站返回的分类名到中文的映射。没收录的分类原样显示 */
 export const categoryLabels: Record<string, string> = {
   ...Object.fromEntries(CATEGORIES.map(({ name, label }) => [name, label])),
-  // 里站独有，只会出现在详情里，不作为筛选项
+  /* 里站独有，只会出现在详情里，不作为筛选项 */
   Private: "私有",
 }
 
@@ -98,7 +96,10 @@ export const categoryLabels: Record<string, string> = {
 export const galleryCategories = CATEGORIES.map(({ value, label }) => ({ value, label }))
 
 /** 搜索图集。cursor 为空表示第一页，翻页时关键词和分类要一起带上 */
-export function searchGalleries(params: { keyword: string; categories: string[]; cursor: string }, signal?: AbortSignal) {
+export function searchGalleries(
+  params: { keyword: string; categories: string[]; cursor: string },
+  signal?: AbortSignal,
+) {
   return httpClient.get<GalleryPage>("/eh/galleries", {
     params: { keyword: params.keyword, categories: params.categories.join(","), cursor: params.cursor },
     signal,

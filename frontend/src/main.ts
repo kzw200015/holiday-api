@@ -1,8 +1,8 @@
-import { createApp } from "vue"
 import { createPinia } from "pinia"
+import { createApp } from "vue"
 
-import AppRoot from "@/App"
 import { onUnauthorized } from "@/api/httpClient"
+import AppRoot from "@/App"
 import { AppRouter } from "@/router"
 import { useAppStore } from "@/stores/AppStore"
 import { useAuthStore } from "@/stores/AuthStore"

@@ -17,7 +17,7 @@ export default defineComponent({
   name: "AppLayout",
   setup() {
     const appStore = useAppStore()
-    const auth = useAuthStore()
+    const authStore = useAuthStore()
     const route = useRoute()
 
     /* 标题取自路由 meta，未登记进侧边栏的页面同样有标题 */
@@ -47,11 +47,13 @@ export default defineComponent({
           </header>
 
           <div class="flex flex-1 flex-col gap-4 p-4">
-            <RouterView>{({ Component }: { Component: VNode | undefined }) => (
-              <KeepAlive include={CACHED_VIEWS} max={2} key={auth.galleryRevision}>
-                {Component}
-              </KeepAlive>
-            )}</RouterView>
+            <RouterView>
+              {({ Component }: { Component: VNode | undefined }) => (
+                <KeepAlive include={CACHED_VIEWS} max={2} key={authStore.galleryRevision}>
+                  {Component}
+                </KeepAlive>
+              )}
+            </RouterView>
           </div>
         </SidebarInset>
       </SidebarProvider>

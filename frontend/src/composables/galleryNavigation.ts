@@ -8,7 +8,12 @@ export interface ReaderPosition {
 }
 
 /* 只传递离开阅读器的通知；详情数据与进度仍由被缓存的详情组件持有。监听随组件作用域自动解除。 */
-export const createGalleryNavigation = () => createEventHook<ReaderPosition>()
+export function createGalleryNavigation() {
+  return createEventHook<ReaderPosition>()
+}
 
-export const galleryNavigationKey: InjectionKey<ReturnType<typeof createGalleryNavigation>> = Symbol("galleryNavigation")
-export const useGalleryNavigation = () => inject(galleryNavigationKey)!
+export const galleryNavigationKey: InjectionKey<ReturnType<typeof createGalleryNavigation>> =
+  Symbol("galleryNavigation")
+export function useGalleryNavigation() {
+  return inject(galleryNavigationKey)!
+}

@@ -4,8 +4,13 @@ const LIMIT = 10
 
 /* 去空、去重、截断：读盘与记录共用同一条规则，两边才不会各自漂移。 */
 function normalize(raw: unknown) {
-  if (!Array.isArray(raw)) return []
-  const values = raw.filter((value): value is string => typeof value === "string").map((value) => value.trim()).filter(Boolean)
+  if (!Array.isArray(raw)) {
+    return []
+  }
+  const values = raw
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean)
   return [...new Set(values)].slice(0, LIMIT)
 }
 
@@ -13,7 +18,9 @@ function normalize(raw: unknown) {
 export function useSearchHistory(userId: number | undefined) {
   const { value: entries, set } = usePersistedValue("search-history", userId, normalize)
   function record(keyword: string) {
-    if (keyword.trim()) set([keyword, ...entries.value])
+    if (keyword.trim()) {
+      set([keyword, ...entries.value])
+    }
   }
   function remove(keyword: string) {
     set(entries.value.filter((item) => item !== keyword))

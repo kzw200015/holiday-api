@@ -2,9 +2,9 @@ import { CircleCheckIcon, LogOutIcon } from "@lucide/vue"
 import { defineComponent, onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 
-import { bindCredential, type CredentialStatus, fetchCredentialStatus, unbindCredential } from "@/api/eh"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { bindCredential, fetchCredentialStatus, unbindCredential, type CredentialStatus } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -131,26 +131,19 @@ export default defineComponent({
                   </Alert>
                 ) : null}
 
-                {errorMessage.value ? (
-                  <ErrorAlert message={errorMessage.value} title="出错了" />
-                ) : null}
+                {errorMessage.value ? <ErrorAlert message={errorMessage.value} title="出错了" /> : null}
 
-                <form class="flex flex-col gap-4" {...{ onSubmit: submit }}>
+                <form class="flex flex-col gap-4" onSubmit={submit}>
                   {cookieFields.map((field) => (
                     <div class="flex flex-col gap-2" key={field.name}>
                       <label class="font-mono text-sm font-medium" for={field.name}>
                         {field.label}
                       </label>
-                      {/* Input 只声明了 modelValue 一类的 props，原生属性经展开透传给根元素 */}
+                      {/* Input 只声明了 modelValue 一类的 props，未声明的原生属性经展开透传给根元素 */}
                       <Input
                         modelValue={form.value[field.name]}
-                        {...{
-                          autocomplete: "off",
-                          id: field.name,
-                          placeholder: field.hint,
-                          "onUpdate:modelValue": (value: string | number) =>
-                            (form.value[field.name] = String(value)),
-                        }}
+                        onUpdate:modelValue={(value) => (form.value[field.name] = String(value))}
+                        {...{ autocomplete: "off", id: field.name, placeholder: field.hint }}
                       />
                     </div>
                   ))}

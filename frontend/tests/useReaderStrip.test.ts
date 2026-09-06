@@ -1,21 +1,32 @@
 // @vitest-environment happy-dom
-import { effectScope, nextTick, reactive, type EffectScope } from "vue"
+import type * as VueUse from "@vueuse/core"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { effectScope, nextTick, reactive, type EffectScope } from "vue"
 
 import { useReaderStrip } from "@/composables/useReaderStrip"
 
 let resize: (entries: { contentRect: { width: number; height: number } }[]) => void
 vi.mock("@vueuse/core", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@vueuse/core")>(),
-  useResizeObserver: vi.fn((_target, callback) => { resize = callback }),
+  ...(await importOriginal<typeof VueUse>()),
+  useResizeObserver: vi.fn((_target, callback) => {
+    resize = callback
+  }),
 }))
 let scope: EffectScope
-beforeEach(() => { vi.useFakeTimers(); scope = effectScope() })
-afterEach(() => { scope.stop(); vi.useRealTimers() })
+beforeEach(() => {
+  vi.useFakeTimers()
+  scope = effectScope()
+})
+afterEach(() => {
+  scope.stop()
+  vi.useRealTimers()
+})
 
 async function setup(page = 1) {
   const props = reactive({ page, total: 100, seeking: false })
-  const change = vi.fn((page: number) => { props.page = page })
+  const change = vi.fn((next: number) => {
+    props.page = next
+  })
   const strip = scope.run(() => useReaderStrip(props, change))!
   const element = document.createElement("div")
   element.setPointerCapture = vi.fn()
@@ -33,27 +44,30 @@ describe("横向阅读延迟加载", () => {
     { width: 800, height: 390, ratio: 0.7 },
     { width: 1200, height: 800, ratio: 2 },
     { width: 1200, height: 800, ratio: 0.7 },
-  ])("阅读区 $width × $height、图片比例 $ratio 时完整容纳整页，跳到下一页仍完整可见", async ({ width, height, ratio }) => {
-    const { strip, element, props } = await setup(4)
-    resize([{ contentRect: { width, height } }])
-    await nextTick()
-    await strip.imageLoaded(5, { naturalWidth: ratio * 1000, naturalHeight: 1000 } as HTMLImageElement)
-    expect(strip.widths.value[4]).toBe(Math.min(width, height * ratio))
-    expect(strip.widths.value[4] / ratio).toBeLessThanOrEqual(height)
-    props.page = 5
-    await nextTick()
-    await nextTick()
-    const left = strip.widths.value.slice(0, 4).reduce((sum, value) => sum + value, 0)
-    expect(left).toBeGreaterThanOrEqual(element.scrollLeft)
-    expect(left + strip.widths.value[4]).toBeLessThanOrEqual(element.scrollLeft + width)
-    strip.onScroll()
-    expect(props.page).toBe(5)
-    resize([{ contentRect: { width: height, height: width } }])
-    await nextTick()
-    strip.onScroll()
-    expect(props.page).toBe(5)
-    expect(strip.widths.value[4]).toBe(Math.min(height, width * ratio))
-  })
+  ])(
+    "阅读区 $width × $height、图片比例 $ratio 时完整容纳整页，跳到下一页仍完整可见",
+    async ({ width, height, ratio }) => {
+      const { strip, element, props } = await setup(4)
+      resize([{ contentRect: { width, height } }])
+      await nextTick()
+      await strip.imageLoaded(5, { naturalWidth: ratio * 1000, naturalHeight: 1000 } as HTMLImageElement)
+      expect(strip.widths.value[4]).toBe(Math.min(width, height * ratio))
+      expect(strip.widths.value[4] / ratio).toBeLessThanOrEqual(height)
+      props.page = 5
+      await nextTick()
+      await nextTick()
+      const left = strip.widths.value.slice(0, 4).reduce((sum, value) => sum + value, 0)
+      expect(left).toBeGreaterThanOrEqual(element.scrollLeft)
+      expect(left + strip.widths.value[4]).toBeLessThanOrEqual(element.scrollLeft + width)
+      strip.onScroll()
+      expect(props.page).toBe(5)
+      resize([{ contentRect: { width: height, height: width } }])
+      await nextTick()
+      strip.onScroll()
+      expect(props.page).toBe(5)
+      expect(strip.widths.value[4]).toBe(Math.min(height, width * ratio))
+    },
+  )
 
   it("停留200毫秒后才加载可见页和两侧各两页，长图集不一次加载全部", async () => {
     const { strip } = await setup(20)
@@ -83,7 +97,9 @@ describe("横向阅读延迟加载", () => {
   it("鼠标拖动不吸附，暂停期间不加载，停稳后释放远处图片", async () => {
     const { strip, element, change } = await setup()
     await vi.advanceTimersByTimeAsync(200)
-    strip.onPointerDown(new PointerEvent("pointerdown", { button: 0, pointerId: 1, pointerType: "mouse", clientX: 500 }))
+    strip.onPointerDown(
+      new PointerEvent("pointerdown", { button: 0, pointerId: 1, pointerType: "mouse", clientX: 500 }),
+    )
     strip.onPointerMove(new PointerEvent("pointermove", { pointerId: 1, clientX: -6550 }))
     strip.onScroll()
     expect(element.scrollLeft).toBe(7050)
@@ -98,7 +114,13 @@ describe("横向阅读延迟加载", () => {
 
   it("触屏保留原生滚动与惯性，不抢占指针或模拟鼠标位移", async () => {
     const { strip, element } = await setup()
-    const event = new PointerEvent("pointerdown", { button: 0, pointerId: 2, pointerType: "touch", clientX: 500, cancelable: true })
+    const event = new PointerEvent("pointerdown", {
+      button: 0,
+      pointerId: 2,
+      pointerType: "touch",
+      clientX: 500,
+      cancelable: true,
+    })
     strip.onPointerDown(event)
     strip.onPointerMove(new PointerEvent("pointermove", { pointerId: 2, clientX: 100 }))
     expect(event.defaultPrevented).toBe(false)

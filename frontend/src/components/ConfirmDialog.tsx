@@ -1,8 +1,15 @@
 import { defineComponent, onDeactivated, ref } from "vue"
 
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
 export default defineComponent({
@@ -15,22 +22,26 @@ export default defineComponent({
   emits: { confirm: () => true },
   setup(props, { emit, slots }) {
     const open = ref(false)
-    onDeactivated(() => { open.value = false })
+    onDeactivated(() => {
+      open.value = false
+    })
 
-    return () => <AlertDialog open={open.value} {...{ "onUpdate:open": (value: boolean) => { open.value = value } }}>
-      <AlertDialogTrigger asChild>{slots.default?.()}</AlertDialogTrigger>
-      <AlertDialogContent class="w-[calc(100%-2rem)]">
-        <AlertDialogHeader>
-          <AlertDialogTitle>{props.title}</AlertDialogTitle>
-          <AlertDialogDescription>{props.description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel class="cursor-pointer">取消</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" class="cursor-pointer" {...{ onClick: () => emit("confirm") }}>
-            {props.confirmText}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    return () => (
+      <AlertDialog open={open.value} onUpdate:open={(value) => (open.value = value)}>
+        <AlertDialogTrigger asChild>{slots.default?.()}</AlertDialogTrigger>
+        <AlertDialogContent class="w-[calc(100%-2rem)]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{props.title}</AlertDialogTitle>
+            <AlertDialogDescription>{props.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel class="cursor-pointer">取消</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" class="cursor-pointer" {...{ onClick: () => emit("confirm") }}>
+              {props.confirmText}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    )
   },
 })

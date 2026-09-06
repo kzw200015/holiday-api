@@ -25,15 +25,19 @@ export function useReadingProgress(source: WatchSource<ReadingProgress | null>) 
     void saveProgress(gid, token, page).catch(() => {})
   }
 
-  watch(source, (progress) => {
-    if (pending && (!progress || progress.gid !== pending.gid || progress.token !== pending.token)) {
-      flush()
-    }
-    pending = progress
-    if (progress) {
-      start()
-    }
-  }, { immediate: true })
+  watch(
+    source,
+    (progress) => {
+      if (pending && (!progress || progress.gid !== pending.gid || progress.token !== pending.token)) {
+        flush()
+      }
+      pending = progress
+      if (progress) {
+        start()
+      }
+    },
+    { immediate: true },
+  )
 
   /* 离开阅读页时补报最后一页，不能等防抖计时结束后再读取其他页面的参数。 */
   onScopeDispose(flush)

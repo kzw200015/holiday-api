@@ -2,14 +2,7 @@ import { ArrowLeftIcon, BookOpenIcon } from "@lucide/vue"
 import { computed, defineComponent } from "vue"
 import { RouterLink, useRouter } from "vue-router"
 
-import {
-  fetchGalleryComments,
-  fetchGalleryDetail,
-  type GalleryComment,
-} from "@/api/eh"
-import { useGalleryNavigation } from "@/composables/galleryNavigation"
-import { usePageScroll } from "@/composables/usePageScroll"
-import { useQuery } from "@/composables/useQuery"
+import { fetchGalleryComments, fetchGalleryDetail, type GalleryComment } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert"
 import GalleryMeta from "@/components/gallery/GalleryMeta"
 import { Badge } from "@/components/ui/badge"
@@ -17,6 +10,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useGalleryNavigation } from "@/composables/galleryNavigation"
+import { usePageScroll } from "@/composables/usePageScroll"
+import { useQuery } from "@/composables/useQuery"
 import { formatDateTime, formatFileSize, formatNamespace, splitTag } from "@/lib/format"
 import { backOrReplace } from "@/lib/navigation"
 
@@ -32,19 +28,25 @@ export default defineComponent({
     const router = useRouter()
     usePageScroll(identity)
     const returnToList = () => backOrReplace(router, { name: "gallery-list" })
-    const { data: detail, error, loading } = useQuery(identity, (_identity, signal) =>
-      fetchGalleryDetail(props.gid, props.token, signal),
-    )
+    const {
+      data: detail,
+      error,
+      loading,
+    } = useQuery(identity, (_identity, signal) => fetchGalleryDetail(props.gid, props.token, signal))
     /* 阅读器离开时只改本图集的继续阅读页码，元信息与评论不重载。 */
     useGalleryNavigation().on(({ gid, token, page }) => {
-      if (detail.value && gid === props.gid && token === props.token) detail.value = { ...detail.value, progress: page }
+      if (detail.value && gid === props.gid && token === props.token) {
+        detail.value = { ...detail.value, progress: page }
+      }
     })
     const gallery = computed(() => detail.value?.gallery)
     const progress = computed(() => detail.value?.progress)
     /* 评论需要抓取上游页面，独立加载，失败不阻塞元数据。 */
-    const { data: comments, error: commentsError, loading: commentsLoading } = useQuery(identity, (_identity, signal) =>
-      fetchGalleryComments(props.gid, props.token, signal),
-    )
+    const {
+      data: comments,
+      error: commentsError,
+      loading: commentsLoading,
+    } = useQuery(identity, (_identity, signal) => fetchGalleryComments(props.gid, props.token, signal))
 
     /* 标签按命名空间归并，和 e 站页面上的排布一致 */
     const groupedTags = computed(() => {
@@ -65,7 +67,8 @@ export default defineComponent({
     return () => (
       <div class="flex flex-col gap-4">
         <Button class="self-start" variant="ghost" {...{ onClick: returnToList }}>
-          <ArrowLeftIcon />返回列表
+          <ArrowLeftIcon />
+          返回列表
         </Button>
         {loading.value ? (
           <div class="flex flex-col gap-4 sm:flex-row">

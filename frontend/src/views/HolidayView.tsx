@@ -3,12 +3,12 @@ import { BriefcaseIcon, PartyPopperIcon } from "@lucide/vue"
 import { computed, defineComponent, shallowRef } from "vue"
 
 import { fetchHolidayDetail } from "@/api/holiday"
-import { useQuery } from "@/composables/useQuery"
 import ErrorAlert from "@/components/ErrorAlert"
 import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useQuery } from "@/composables/useQuery"
 
 /* 星期名称，下标对应 Date.getDay() 的 0 至 6 */
 const weekdayNames = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
@@ -35,9 +35,7 @@ export default defineComponent({
 
     /* 后端返回的是 YYYY-MM-DD，先解析成日历日期再取星期，避免时区偏移导致差一天 */
     const weekday = computed(() =>
-      detail.value
-        ? weekdayNames[parseDate(detail.value.date).toDate(getLocalTimeZone()).getDay()]
-        : "",
+      detail.value ? weekdayNames[parseDate(detail.value.date).toDate(getLocalTimeZone()).getDay()] : "",
     )
 
     /* 日历选中变化即查询；点击已选中的日期时 reka-ui 会传出 undefined，此时保持原选中 */
@@ -62,7 +60,7 @@ export default defineComponent({
               locale="zh-CN"
               modelValue={selected.value}
               weekStartsOn={1}
-              {...{ "onUpdate:modelValue": onSelect }}
+              onUpdate:modelValue={onSelect}
             />
           </CardContent>
         </Card>
@@ -93,9 +91,7 @@ export default defineComponent({
 
                 <p class="text-sm">{summary.value}</p>
 
-                <p class="text-muted-foreground text-sm">
-                  对应节假日：{detail.value.name || "无（不在节假日安排中）"}
-                </p>
+                <p class="text-muted-foreground text-sm">对应节假日：{detail.value.name || "无（不在节假日安排中）"}</p>
               </>
             ) : null}
           </CardContent>
