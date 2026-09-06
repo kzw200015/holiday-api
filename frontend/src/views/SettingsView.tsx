@@ -1,8 +1,8 @@
 import { CircleCheckIcon, LogOutIcon } from "@lucide/vue"
-import { defineComponent, onMounted, ref } from "vue"
+import { defineComponent, ref } from "vue"
 import { useRouter } from "vue-router"
 
-import { bindCredential, fetchCredentialStatus, unbindCredential, type CredentialStatus } from "@/api/eh"
+import { bindCredential, fetchCredentialStatus, unbindCredential } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useQuery } from "@/composables/useQuery"
 import { useAuthStore } from "@/stores/AuthStore"
 
 /* 三个 Cookie 的说明文案，name 与 e 站的 Cookie 名一致 */
@@ -26,25 +27,22 @@ export default defineComponent({
     const router = useRouter()
     const authStore = useAuthStore()
 
-    const status = ref<CredentialStatus | null>(null)
+    /* 状态读取与其他页面的查询同源：加载态、报错与重试都由 useQuery 提供，
+       绑定和解绑是用户动作，仍在下面各自处理。 */
+    const {
+      data: status,
+      error: loadError,
+      loading,
+      retry,
+    } = useQuery(
+      () => null,
+      (_params, signal) => fetchCredentialStatus(signal),
+    )
+
     const form = ref({ ipbMemberId: "", ipbPassHash: "", igneous: "" })
     const errorMessage = ref("")
-    const loadError = ref("")
     const successMessage = ref("")
-    const loading = ref(false)
     const saving = ref(false)
-
-    async function load() {
-      loading.value = true
-      loadError.value = ""
-      try {
-        status.value = await fetchCredentialStatus()
-      } catch (error) {
-        loadError.value = (error as Error).message
-      } finally {
-        loading.value = false
-      }
-    }
 
     async function submit(event: Event) {
       event.preventDefault()
@@ -86,8 +84,6 @@ export default defineComponent({
       await router.replace({ name: "login" })
     }
 
-    onMounted(load)
-
     return () => (
       <div class="page-content page-content-form flex flex-col gap-4">
         <Card>
@@ -105,7 +101,7 @@ export default defineComponent({
                 <Skeleton class="h-20 w-full" />
               </>
             ) : loadError.value ? (
-              <ErrorAlert message={loadError.value} title="状态加载失败" retryable onRetry={() => void load()} />
+              <ErrorAlert message={loadError.value.message} title="状态加载失败" retryable onRetry={retry} />
             ) : (
               <>
                 <div class="flex flex-wrap items-center gap-2 text-sm">

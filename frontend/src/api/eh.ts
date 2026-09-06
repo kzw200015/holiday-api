@@ -136,8 +136,8 @@ export function galleryImageUrl(template: string, page: number, options: { nonce
   return options.nonce ? `${url}&r=${options.nonce}` : url
 }
 
-export function fetchCredentialStatus() {
-  return httpClient.get<CredentialStatus>("/eh/credential")
+export function fetchCredentialStatus(signal?: AbortSignal) {
+  return httpClient.get<CredentialStatus>("/eh/credential", { signal })
 }
 
 /** 绑定 e 站 Cookie。后端会先拿它实际请求一次，无效就不入库 */
