@@ -4,11 +4,11 @@ import { useRouter } from "vue-router"
 
 import { bindCredential, fetchCredentialStatus, unbindCredential } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert"
+import FormField from "@/components/FormField"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useQuery } from "@/composables/useQuery"
 import { useAuthStore } from "@/stores/AuthStore"
@@ -134,17 +134,15 @@ export default defineComponent({
 
                 <form class="flex flex-col gap-4" onSubmit={submit}>
                   {cookieFields.map((field) => (
-                    <div class="flex flex-col gap-2" key={field.name}>
-                      <label class="font-mono text-sm font-medium" for={field.name}>
-                        {field.label}
-                      </label>
-                      {/* Input 只声明了 modelValue 一类的 props，未声明的原生属性经展开透传给根元素 */}
-                      <Input
-                        modelValue={form.value[field.name]}
-                        onUpdate:modelValue={(value) => (form.value[field.name] = String(value))}
-                        {...{ autocomplete: "off", id: field.name, placeholder: field.hint }}
-                      />
-                    </div>
+                    <FormField
+                      id={field.name}
+                      key={field.name}
+                      label={field.label}
+                      labelClass="font-mono"
+                      modelValue={form.value[field.name]}
+                      placeholder={field.hint}
+                      onUpdate:modelValue={(value) => (form.value[field.name] = value)}
+                    />
                   ))}
 
                   <div class="flex flex-wrap gap-2">

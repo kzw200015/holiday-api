@@ -3,9 +3,9 @@ import { computed, defineComponent, ref } from "vue"
 import { useRoute, useRouter } from "vue-router"
 
 import ErrorAlert from "@/components/ErrorAlert"
+import FormField from "@/components/FormField"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { useAuthStore } from "@/stores/AuthStore"
 
 /* 登录 / 注册页。走顶层路由不套 AppLayout，所以没有侧边栏 */
@@ -56,37 +56,24 @@ export default defineComponent({
 
           <CardContent>
             <form class="flex flex-col gap-4" onSubmit={submit}>
-              <div class="flex flex-col gap-2">
-                <label class="text-sm font-medium" for="username">
-                  用户名
-                </label>
-                {/* Input 只声明了 modelValue 一类的 props，未声明的原生属性经展开透传给根元素 */}
-                <Input
-                  modelValue={username.value}
-                  onUpdate:modelValue={(value) => (username.value = String(value))}
-                  {...{
-                    autocomplete: "username",
-                    id: "username",
-                    placeholder: "3 到 32 位字母、数字、下划线或连字符",
-                  }}
-                />
-              </div>
+              <FormField
+                autocomplete="username"
+                id="username"
+                label="用户名"
+                modelValue={username.value}
+                placeholder="3 到 32 位字母、数字、下划线或连字符"
+                onUpdate:modelValue={(value) => (username.value = value)}
+              />
 
-              <div class="flex flex-col gap-2">
-                <label class="text-sm font-medium" for="password">
-                  密码
-                </label>
-                <Input
-                  modelValue={password.value}
-                  onUpdate:modelValue={(value) => (password.value = String(value))}
-                  {...{
-                    autocomplete: registering.value ? "new-password" : "current-password",
-                    id: "password",
-                    placeholder: "至少 8 位",
-                    type: "password",
-                  }}
-                />
-              </div>
+              <FormField
+                autocomplete={registering.value ? "new-password" : "current-password"}
+                id="password"
+                label="密码"
+                modelValue={password.value}
+                placeholder="至少 8 位"
+                type="password"
+                onUpdate:modelValue={(value) => (password.value = value)}
+              />
 
               {errorMessage.value ? (
                 <ErrorAlert message={errorMessage.value} title={registering.value ? "注册失败" : "登录失败"} />
