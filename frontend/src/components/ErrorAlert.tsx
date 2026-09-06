@@ -2,6 +2,7 @@ import { CircleAlertIcon } from "@lucide/vue"
 import { defineComponent } from "vue"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 
 /*
  * 页面级的报错提示。
@@ -14,14 +15,21 @@ export default defineComponent({
   props: {
     title: { type: String, required: true },
     message: { type: String, required: true },
+    retryable: { type: Boolean, default: false },
   },
-  setup(props, { slots }) {
+  emits: ["retry"],
+  setup(props, { slots, emit }) {
     return () => (
       <Alert variant="destructive">
         <CircleAlertIcon />
         <AlertTitle>{props.title}</AlertTitle>
         <AlertDescription class="flex flex-col items-start gap-2">
           <span>{props.message}</span>
+          {props.retryable ? (
+            <Button size="sm" variant="outline" {...{ type: "button", onClick: () => emit("retry") }}>
+              重试
+            </Button>
+          ) : null}
           {slots.default?.()}
         </AlertDescription>
       </Alert>

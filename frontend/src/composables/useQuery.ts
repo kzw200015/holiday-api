@@ -8,10 +8,11 @@ export function useQuery<Params, Data>(
   const data = shallowRef<Data | null>(null)
   const error = shallowRef<Error | null>(null)
   const loading = ref(true)
+  const revision = ref(0)
 
   watch(
-    source,
-    async (params, _previous, onCleanup) => {
+    [source, revision],
+    async ([params], _previous, onCleanup) => {
       const controller = new AbortController()
       onCleanup(() => controller.abort())
       data.value = null
@@ -37,5 +38,10 @@ export function useQuery<Params, Data>(
     { immediate: true },
   )
 
-  return { data, error, loading }
+  /* 重试复用同一 watch 的取消与过期响应保护，不另起请求通道。 */
+  const retry = () => {
+    revision.value += 1
+  }
+
+  return { data, error, loading, retry }
 }

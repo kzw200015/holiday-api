@@ -19,7 +19,7 @@ export default defineComponent({
   setup() {
     /* DateValue 是带私有字段的不可变对象，用 shallowRef 避免 ref 深度解包丢失类型 */
     const selected = shallowRef<DateValue>(today(getLocalTimeZone()))
-    const { data: detail, error, loading } = useQuery(() => selected.value.toString(), fetchHolidayDetail)
+    const { data: detail, error, loading, retry } = useQuery(() => selected.value.toString(), fetchHolidayDetail)
 
     /* 结论文案：区分法定假期、普通周末、调休上班与普通工作日 */
     const summary = computed(() => {
@@ -47,7 +47,7 @@ export default defineComponent({
     }
 
     return () => (
-      <div class="grid gap-4 lg:grid-cols-[auto_1fr] lg:items-start">
+      <div class="page-content grid gap-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start">
         <Card class="w-fit">
           <CardHeader>
             <CardTitle>选择日期</CardTitle>
@@ -77,7 +77,7 @@ export default defineComponent({
                 <Skeleton class="h-4 w-40" />
               </>
             ) : error.value ? (
-              <ErrorAlert message={error.value.message} title="查询失败" />
+              <ErrorAlert message={error.value.message} title="查询失败" retryable onRetry={retry} />
             ) : detail.value ? (
               <>
                 <div class="flex flex-wrap items-center gap-3">

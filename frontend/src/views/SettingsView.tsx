@@ -29,17 +29,18 @@ export default defineComponent({
     const status = ref<CredentialStatus | null>(null)
     const form = ref({ ipbMemberId: "", ipbPassHash: "", igneous: "" })
     const errorMessage = ref("")
+    const loadError = ref("")
     const successMessage = ref("")
     const loading = ref(false)
     const saving = ref(false)
 
     async function load() {
       loading.value = true
-      errorMessage.value = ""
+      loadError.value = ""
       try {
         status.value = await fetchCredentialStatus()
       } catch (error) {
-        errorMessage.value = (error as Error).message
+        loadError.value = (error as Error).message
       } finally {
         loading.value = false
       }
@@ -88,7 +89,7 @@ export default defineComponent({
     onMounted(load)
 
     return () => (
-      <div class="flex max-w-2xl flex-col gap-4">
+      <div class="page-content page-content-form flex flex-col gap-4">
         <Card>
           <CardHeader>
             <CardTitle>e 站账号</CardTitle>
@@ -103,6 +104,8 @@ export default defineComponent({
                 <Skeleton class="h-5 w-40" />
                 <Skeleton class="h-20 w-full" />
               </>
+            ) : loadError.value ? (
+              <ErrorAlert message={loadError.value} title="状态加载失败" retryable onRetry={() => void load()} />
             ) : (
               <>
                 <div class="flex flex-wrap items-center gap-2 text-sm">
@@ -131,7 +134,7 @@ export default defineComponent({
                   </Alert>
                 ) : null}
 
-                {errorMessage.value ? <ErrorAlert message={errorMessage.value} title="出错了" /> : null}
+                {errorMessage.value ? <ErrorAlert message={errorMessage.value} title="操作失败" /> : null}
 
                 <form class="flex flex-col gap-4" onSubmit={submit}>
                   {cookieFields.map((field) => (

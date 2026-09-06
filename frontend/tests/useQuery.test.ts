@@ -14,6 +14,45 @@ function deferred<T>() {
 }
 
 describe("页面查询", () => {
+  it("失败后使用当前参数重试，清除错误并恢复结果", async () => {
+    const request = vi.fn().mockRejectedValueOnce(new Error("查询失败")).mockResolvedValueOnce("恢复成功")
+    const scope = effectScope()
+    const state = scope.run(() => useQuery(() => "gallery", request))!
+    await nextTick()
+    expect(state.error.value?.message).toBe("查询失败")
+
+    state.retry()
+    await nextTick()
+    await nextTick()
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(request.mock.calls[1][0]).toBe("gallery")
+    expect(state.error.value).toBeNull()
+    expect(state.data.value).toBe("恢复成功")
+    expect(state.loading.value).toBe(false)
+    scope.stop()
+  })
+
+  it("重试取消旧请求，迟到结果不覆盖重试结果，卸载后不再请求", async () => {
+    const first = deferred<string>()
+    const second = deferred<string>()
+    const request = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const scope = effectScope()
+    const state = scope.run(() => useQuery(() => "gallery", request))!
+    state.retry()
+    await nextTick()
+    expect(request.mock.calls[0][1].aborted).toBe(true)
+    expect(state.loading.value).toBe(true)
+    second.resolve("重试结果")
+    await second.promise
+    first.resolve("旧结果")
+    await first.promise
+    expect(state.data.value).toBe("重试结果")
+    scope.stop()
+    state.retry()
+    await nextTick()
+    expect(request).toHaveBeenCalledTimes(2)
+  })
+
   it("快速切换参数时取消旧请求，迟到结果不能覆盖当前结果", async () => {
     const first = deferred<string>()
     const second = deferred<string>()

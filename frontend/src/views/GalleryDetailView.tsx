@@ -3,8 +3,10 @@ import { computed, defineComponent } from "vue"
 import { RouterLink, useRouter } from "vue-router"
 
 import { fetchGalleryComments, fetchGalleryDetail, type GalleryComment } from "@/api/eh"
+import EmptyState from "@/components/EmptyState"
 import ErrorAlert from "@/components/ErrorAlert"
 import GalleryMeta from "@/components/gallery/GalleryMeta"
+import GalleryTag from "@/components/gallery/GalleryTag"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,6 +34,7 @@ export default defineComponent({
       data: detail,
       error,
       loading,
+      retry,
     } = useQuery(identity, (_identity, signal) => fetchGalleryDetail(props.gid, props.token, signal))
     /* 阅读器离开时只改本图集的继续阅读页码，元信息与评论不重载。 */
     useGalleryNavigation().on(({ gid, token, page }) => {
@@ -46,6 +49,7 @@ export default defineComponent({
       data: comments,
       error: commentsError,
       loading: commentsLoading,
+      retry: retryComments,
     } = useQuery(identity, (_identity, signal) => fetchGalleryComments(props.gid, props.token, signal))
 
     /* 标签按命名空间归并，和 e 站页面上的排布一致 */
@@ -65,7 +69,7 @@ export default defineComponent({
     })
 
     return () => (
-      <div class="flex flex-col gap-4">
+      <div class="page-content flex flex-col gap-4">
         <Button class="self-start" variant="ghost" {...{ onClick: returnToList }}>
           <ArrowLeftIcon />
           返回列表
@@ -81,7 +85,7 @@ export default defineComponent({
             </div>
           </div>
         ) : error.value ? (
-          <ErrorAlert message={error.value.message} title="加载失败" />
+          <ErrorAlert message={error.value.message} title="加载失败" retryable onRetry={retry} />
         ) : gallery.value ? (
           <>
             <div class="flex flex-col gap-4 sm:flex-row">
@@ -154,16 +158,14 @@ export default defineComponent({
               </CardHeader>
               <CardContent class="flex flex-col gap-2">
                 {groupedTags.value.length === 0 ? (
-                  <p class="text-muted-foreground text-sm">这个图集还没有标签。</p>
+                  <EmptyState compact message="这个图集还没有标签。" />
                 ) : (
                   groupedTags.value.map(([namespace, values]) => (
-                    <div class="grid grid-cols-[5rem_1fr] items-baseline gap-2" key={namespace}>
+                    <div class="grid grid-cols-[5rem_minmax(0,1fr)] items-baseline gap-2" key={namespace}>
                       <span class="text-muted-foreground text-xs">{formatNamespace(namespace) || "未分类"}</span>
                       <div class="flex flex-wrap gap-1">
                         {values.map((value) => (
-                          <span class="bg-muted rounded px-1.5 py-0.5 text-xs" key={value}>
-                            {value}
-                          </span>
+                          <GalleryTag key={value}>{value}</GalleryTag>
                         ))}
                       </div>
                     </div>
@@ -183,9 +185,14 @@ export default defineComponent({
                     <Skeleton class="h-12 w-full" />
                   </>
                 ) : commentsError.value ? (
-                  <ErrorAlert message={commentsError.value.message} title="评论加载失败" />
+                  <ErrorAlert
+                    message={commentsError.value.message}
+                    title="评论加载失败"
+                    retryable
+                    onRetry={retryComments}
+                  />
                 ) : comments.value?.length === 0 ? (
-                  <p class="text-muted-foreground text-sm">还没有评论。</p>
+                  <EmptyState compact message="还没有评论。" />
                 ) : (
                   comments.value?.map((comment, index) => (
                     <div class="flex flex-col gap-2" key={comment.id}>

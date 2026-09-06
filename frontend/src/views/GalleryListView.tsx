@@ -5,9 +5,11 @@ import { RouterLink } from "vue-router"
 
 import { type GalleryCard } from "@/api/eh"
 import ConfirmDialog from "@/components/ConfirmDialog"
+import EmptyState from "@/components/EmptyState"
 import ErrorAlert from "@/components/ErrorAlert"
 import CategoryFilter from "@/components/gallery/CategoryFilter"
 import GalleryMeta from "@/components/gallery/GalleryMeta"
+import GalleryTag from "@/components/gallery/GalleryTag"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -70,7 +72,7 @@ export default defineComponent({
     )
 
     return () => (
-      <div class="flex flex-col gap-4">
+      <div class="page-content flex flex-col gap-4">
         <div class="flex flex-col gap-3">
           <form class="flex flex-wrap gap-2" onSubmit={submit}>
             {/* Input 只声明了 modelValue 一类的 props，未声明的原生属性经展开透传给根元素 */}
@@ -138,7 +140,7 @@ export default defineComponent({
                   </Button>
                 </Badge>
               ))}
-              {!history.entries.length ? <span class="text-muted-foreground text-xs">暂无搜索历史</span> : null}
+              {!history.entries.length ? <EmptyState compact message="暂无搜索历史" /> : null}
             </div>
           </div>
         </div>
@@ -164,15 +166,11 @@ export default defineComponent({
           ) : null}
 
           {list.errorMessage ? (
-            <ErrorAlert message={list.errorMessage} title="加载失败">
-              <Button size="sm" variant="outline" {...{ onClick: () => void list.retry() }}>
-                重试
-              </Button>
-            </ErrorAlert>
+            <ErrorAlert message={list.errorMessage} title="加载失败" retryable onRetry={() => void list.retry()} />
           ) : null}
 
           {!list.loading && !list.errorMessage && list.items.length === 0 ? (
-            <p class="text-muted-foreground py-12 text-center text-sm">没有找到符合条件的图集。</p>
+            <EmptyState message="没有找到符合条件的图集。" />
           ) : null}
 
           {!list.hasMore && !list.errorMessage && list.items.length > 0 ? (
@@ -216,9 +214,7 @@ const GalleryRow = defineComponent({
           {/* 标签只露前几个，全部标签在详情页看 */}
           <div class="flex flex-wrap gap-1">
             {props.item.tags.slice(0, 6).map((tag) => (
-              <span class="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[11px]" key={tag}>
-                {tag}
-              </span>
+              <GalleryTag key={tag}>{tag}</GalleryTag>
             ))}
           </div>
         </div>

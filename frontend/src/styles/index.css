@@ -12,6 +12,17 @@
   --font-sans: "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
+@layer components {
+  /* 普通页面统一左对齐与宽度上限；表单页面采用窄版，登录和阅读器不使用。 */
+  .page-content {
+    @apply w-full min-w-0 max-w-6xl;
+  }
+
+  .page-content-form {
+    @apply max-w-2xl;
+  }
+}
+
 @layer base {
   /* 边框与焦点环取默认语义色，来自 shadcn-vue 初始化 */
   * {

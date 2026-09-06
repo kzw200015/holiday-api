@@ -11,7 +11,7 @@ export default defineComponent({
     const items = getNavigationItems(useRouter()).filter((item) => item.name !== "home")
 
     return () => (
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="page-content grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item) => (
           <RouterLink class="rounded-lg outline-offset-4" key={item.name} to={{ name: item.name }}>
             <Card class="hover:bg-accent/50 h-full transition-colors">
