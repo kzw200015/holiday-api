@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/jackc/pgx/v5"
 
+	"myapi/internal/keylock"
 	"myapi/internal/store"
 )
 
@@ -35,13 +37,17 @@ type CredentialStore struct {
 	// 已取出的凭据。图片代理是全系统请求最密集的接口，每张图都为它查一次库太浪费。
 	// 绑定解绑时手动失效，TTL 和容量上限只是兜底，免得离开的用户一直占着位置。
 	cache *expirable.LRU[int64, *boundCredential]
+
+	// 同一用户的查库回填与凭据修改必须串行，防止失效后又写回旧凭据。
+	locks *keylock.Locker
 }
 
-func NewCredentialStore(queries *store.Queries, client *Client) *CredentialStore {
+func NewCredentialStore(queries *store.Queries, client *Client, locks *keylock.Locker) *CredentialStore {
 	return &CredentialStore{
 		queries: queries,
 		client:  client,
 		cache:   expirable.NewLRU[int64, *boundCredential](1000, nil, 30*time.Minute),
+		locks:   locks,
 	}
 }
 
@@ -65,6 +71,12 @@ func (s *CredentialStore) Bind(ctx context.Context, userID int64, cookie Cookie)
 	if err != nil {
 		return CredentialStatus{}, err
 	}
+	unlock, err := s.locks.Acquire(ctx, credentialLockKey(userID))
+	if err != nil {
+		return CredentialStatus{}, err
+	}
+	defer unlock()
+
 	err = s.queries.UpsertEhCredential(ctx, store.UpsertEhCredentialParams{
 		UserID:      userID,
 		MemberID:    cookie.IpbMemberID,
@@ -81,6 +93,12 @@ func (s *CredentialStore) Bind(ctx context.Context, userID int64, cookie Cookie)
 }
 
 func (s *CredentialStore) Unbind(ctx context.Context, userID int64) error {
+	unlock, err := s.locks.Acquire(ctx, credentialLockKey(userID))
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	if err := s.queries.DeleteEhCredential(ctx, userID); err != nil {
 		return err
 	}
@@ -112,6 +130,15 @@ func (s *CredentialStore) load(ctx context.Context, userID int64) (*boundCredent
 	if cached, ok := s.cache.Get(userID); ok {
 		return cached, nil
 	}
+	unlock, err := s.locks.Acquire(ctx, credentialLockKey(userID))
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+
+	if cached, ok := s.cache.Get(userID); ok {
+		return cached, nil
+	}
 
 	bound, err := s.read(ctx, userID)
 	if err != nil {
@@ -119,6 +146,11 @@ func (s *CredentialStore) load(ctx context.Context, userID int64) (*boundCredent
 	}
 	s.cache.Add(userID, bound)
 	return bound, nil
+}
+
+// 业务前缀隔离共用锁组件的资源，三个凭据操作使用同一份 key 规则。
+func credentialLockKey(userID int64) string {
+	return "eh:credential:" + strconv.FormatInt(userID, 10)
 }
 
 func (s *CredentialStore) read(ctx context.Context, userID int64) (*boundCredential, error) {

@@ -13,6 +13,7 @@ import (
 	"myapi/internal/config"
 	"myapi/internal/eh"
 	"myapi/internal/holiday"
+	"myapi/internal/keylock"
 	"myapi/internal/store"
 )
 
@@ -45,7 +46,8 @@ func initApplication(ctx context.Context) (*application, func(), error) {
 	tokens := provideTokens(configConfig)
 	authHandler := auth.NewHandler(authService, tokens)
 	client := provideEhClient(configConfig)
-	credentialStore := eh.NewCredentialStore(queries, client)
+	locker := keylock.New()
+	credentialStore := eh.NewCredentialStore(queries, client, locker)
 	imageLocator := eh.NewImageLocator(client)
 	attachmentSigner := provideAttachmentSigner(configConfig)
 	ehService := eh.NewService(queries, client, credentialStore, imageLocator, attachmentSigner)

@@ -17,6 +17,7 @@ import (
 	"myapi/internal/auth"
 	"myapi/internal/eh"
 	"myapi/internal/holiday"
+	"myapi/internal/keylock"
 	"myapi/internal/signing"
 	"myapi/internal/store"
 )
@@ -115,7 +116,7 @@ func newTestRouter(t *testing.T) (http.Handler, string) {
 	// 假 db 一律返回空行，所以这条链路走的是「未绑定凭据」，匿名看前站
 	client := eh.NewClient("test-agent", time.Second, upstream{})
 	ehService := eh.NewService(queries, client,
-		eh.NewCredentialStore(queries, client), eh.NewImageLocator(client),
+		eh.NewCredentialStore(queries, client, keylock.New()), eh.NewImageLocator(client),
 		signing.NewAttachmentSigner("attachment-子密钥", time.Hour))
 
 	// 指向一个不存在的目录，让所有非 /api 路径都落到无响应体的 404

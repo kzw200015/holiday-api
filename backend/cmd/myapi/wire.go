@@ -14,6 +14,7 @@ import (
 	"myapi/internal/config"
 	"myapi/internal/eh"
 	"myapi/internal/holiday"
+	"myapi/internal/keylock"
 	"myapi/internal/store"
 )
 
@@ -37,6 +38,7 @@ func initApplication(ctx context.Context) (*application, func(), error) {
 
 		provideTokens,
 		provideAttachmentSigner,
+		keylock.New,
 		provideEhClient,
 		provideAuthService,
 
