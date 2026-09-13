@@ -9,7 +9,7 @@ import (
 )
 
 // Locker 让同一个实例上的相同字符串 key 互斥，不同 key 可并行。
-// 零值可直接使用，首次使用后不得复制，也不支持对同一 key 重入加锁。
+// 必须通过 New 创建，创建后不得复制，也不支持对同一 key 重入加锁。
 type Locker struct {
 	mu      sync.Mutex
 	entries map[string]*entry
@@ -22,7 +22,7 @@ type entry struct {
 
 // New 创建独立的按 key 锁管理器。
 func New() *Locker {
-	return &Locker{}
+	return &Locker{entries: make(map[string]*entry)}
 }
 
 // Acquire 等待取得 key 的锁，等待期间可通过 ctx 取消。
@@ -30,9 +30,6 @@ func New() *Locker {
 // 锁条目在最后一个持有者或等待者离开后回收。
 func (l *Locker) Acquire(ctx context.Context, key string) (func(), error) {
 	l.mu.Lock()
-	if l.entries == nil {
-		l.entries = make(map[string]*entry)
-	}
 	lock := l.entries[key]
 	if lock == nil {
 		lock = &entry{semaphore: semaphore.NewWeighted(1)}
@@ -41,20 +38,21 @@ func (l *Locker) Acquire(ctx context.Context, key string) (func(), error) {
 	lock.references++
 	l.mu.Unlock()
 
-	releaseReference := func() {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		lock.references--
-		if lock.references == 0 {
-			delete(l.entries, key)
-		}
-	}
 	if err := lock.semaphore.Acquire(ctx, 1); err != nil {
-		releaseReference()
+		l.releaseReference(key, lock)
 		return nil, err
 	}
 	return func() {
 		lock.semaphore.Release(1)
-		releaseReference()
+		l.releaseReference(key, lock)
 	}, nil
+}
+
+func (l *Locker) releaseReference(key string, lock *entry) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	lock.references--
+	if lock.references == 0 {
+		delete(l.entries, key)
+	}
 }

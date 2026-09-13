@@ -9,7 +9,7 @@ import (
 
 func TestLockerWaitersAndCancellation(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		var locks Locker
+		locks := New()
 		unlock, err := locks.Acquire(context.Background(), "user")
 		if err != nil {
 			t.Fatal(err)
@@ -17,9 +17,9 @@ func TestLockerWaitersAndCancellation(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		canceled := acquireAsync(&locks, ctx, "user")
+		canceled := acquireAsync(locks, ctx, "user")
 		synctest.Wait()
-		waiting := acquireAsync(&locks, context.Background(), "user")
+		waiting := acquireAsync(locks, context.Background(), "user")
 		synctest.Wait()
 		cancel()
 		result := <-canceled
@@ -40,7 +40,7 @@ func TestLockerWaitersAndCancellation(t *testing.T) {
 		}
 
 		// 锁已交给等待者，新请求必须继续排队，不能因旧持有者离开而另建锁。
-		next := acquireAsync(&locks, context.Background(), "user")
+		next := acquireAsync(locks, context.Background(), "user")
 		synctest.Wait()
 		select {
 		case result := <-next:
@@ -62,12 +62,12 @@ func TestLockerWaitersAndCancellation(t *testing.T) {
 
 func TestLockerDistinctKeys(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		var locks Locker
+		locks := New()
 		unlock, err := locks.Acquire(context.Background(), "user:1")
 		if err != nil {
 			t.Fatal(err)
 		}
-		other := acquireAsync(&locks, context.Background(), "order:1")
+		other := acquireAsync(locks, context.Background(), "order:1")
 		synctest.Wait()
 		select {
 		case result := <-other:
@@ -83,7 +83,7 @@ func TestLockerDistinctKeys(t *testing.T) {
 }
 
 func TestLockerAlreadyCanceled(t *testing.T) {
-	var locks Locker
+	locks := New()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	unlock, err := locks.Acquire(ctx, "")
