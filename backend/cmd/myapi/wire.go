@@ -11,11 +11,13 @@ import (
 
 	"myapi/internal/app"
 	"myapi/internal/auth"
+	authstore "myapi/internal/auth/store"
 	"myapi/internal/config"
 	"myapi/internal/eh"
+	ehstore "myapi/internal/eh/store"
 	"myapi/internal/holiday"
+	holidaystore "myapi/internal/holiday/store"
 	"myapi/internal/keylock"
-	"myapi/internal/store"
 )
 
 // initApplication 从零装出整个应用：读配置、建日志器、建连接池、把各层 new 出来。
@@ -33,8 +35,12 @@ func initApplication(ctx context.Context) (*application, func(), error) {
 		provideDatabase,
 
 		// 连接池同时充当 sqlc 的 DBTX；事务由需要它的服务自己 Begin，见 holiday.Service.RefreshYear
-		wire.Bind(new(store.DBTX), new(*pgxpool.Pool)),
-		store.New,
+		wire.Bind(new(authstore.DBTX), new(*pgxpool.Pool)),
+		wire.Bind(new(ehstore.DBTX), new(*pgxpool.Pool)),
+		wire.Bind(new(holidaystore.DBTX), new(*pgxpool.Pool)),
+		authstore.New,
+		ehstore.New,
+		holidaystore.New,
 
 		provideTokens,
 		provideAttachmentSigner,

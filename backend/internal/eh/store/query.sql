@@ -1,26 +1,3 @@
--- name: CreateUser :one
-INSERT INTO users (username, password_hash, created_at, updated_at)
-VALUES ($1, $2, now(), now())
-RETURNING *;
-
--- name: GetUserByUsername :one
-SELECT * FROM users WHERE username = $1;
-
--- name: GetUserByID :one
-SELECT * FROM users WHERE id = $1;
-
--- name: GetHolidayDayByDate :one
-SELECT name, date, is_off_day FROM holiday_days WHERE date = $1;
-
--- name: DeleteHolidayDaysByYearPrefix :exec
-DELETE FROM holiday_days WHERE date LIKE $1;
-
--- 单条语句插入整年的数据。三个 unnest 并排展开，比拼多行 VALUES 省事，
--- 而且空数组自然插 0 行——2027 年安排还没发布时远程返回的就是空列表。
--- name: InsertHolidayDays :exec
-INSERT INTO holiday_days (name, date, is_off_day, created_at, updated_at)
-SELECT unnest(@names::text[]), unnest(@dates::text[]), unnest(@is_off_days::boolean[]), now(), now();
-
 -- name: GetEhCredential :one
 SELECT member_id, cookie, has_ex_access FROM eh_credentials WHERE user_id = $1;
 
@@ -46,6 +23,20 @@ ON CONFLICT (user_id, gid) DO UPDATE
 SET token = excluded.token,
     page = excluded.page,
     updated_at = now();
+
+-- 阅读历史与进度共用一张表；时间相同时用 gid 保证分页顺序稳定。
+-- name: ListReadingHistory :many
+SELECT gid, token, page, updated_at FROM eh_reading_progress
+WHERE user_id = @user_id
+  AND (NOT @has_cursor::boolean OR (updated_at, gid) < (@before_at::timestamptz, @before_gid::bigint))
+ORDER BY updated_at DESC, gid DESC
+LIMIT @page_limit;
+
+-- name: DeleteReadingProgress :exec
+DELETE FROM eh_reading_progress WHERE user_id = $1 AND gid = $2;
+
+-- name: ClearReadingProgress :exec
+DELETE FROM eh_reading_progress WHERE user_id = $1;
 
 -- name: GetEhPreferences :one
 SELECT categories, reader_interval FROM eh_preferences WHERE user_id = $1;

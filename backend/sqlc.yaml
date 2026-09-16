@@ -1,19 +1,43 @@
-# sqlc 从 internal/store/schema.sql 的表结构 + query.sql 的语句生成同目录下的类型和方法。
-# 改完 SQL 跑 `sqlc generate`，生成的代码要入库、不要手改。
+# 表结构集中维护，各模块只生成自己的查询与用到的模型。
+# 修改后运行 `sqlc generate`，生成代码入库，不要手改。
 version: "2"
 sql:
   - engine: postgresql
     schema: internal/store/schema.sql
-    queries: internal/store/query.sql
+    queries: internal/auth/store/query.sql
     gen:
       go:
         package: store
-        out: internal/store
-        # 走 pgx/v5：连接池、CopyFrom、数组参数都是它原生支持的
+        out: internal/auth/store
         sql_package: pgx/v5
-        # :many 没有命中时返回空切片而不是 nil，调用处就不必再判 nil
         emit_empty_slices: true
+        omit_unused_structs: true
         overrides:
-          # 默认会映射成 pgtype.Timestamptz，但这几列都是 NOT NULL，用 time.Time 更顺手
+          - db_type: "timestamptz"
+            go_type: "time.Time"
+  - engine: postgresql
+    schema: internal/store/schema.sql
+    queries: internal/eh/store/query.sql
+    gen:
+      go:
+        package: store
+        out: internal/eh/store
+        sql_package: pgx/v5
+        emit_empty_slices: true
+        omit_unused_structs: true
+        overrides:
+          - db_type: "timestamptz"
+            go_type: "time.Time"
+  - engine: postgresql
+    schema: internal/store/schema.sql
+    queries: internal/holiday/store/query.sql
+    gen:
+      go:
+        package: store
+        out: internal/holiday/store
+        sql_package: pgx/v5
+        emit_empty_slices: true
+        omit_unused_structs: true
+        overrides:
           - db_type: "timestamptz"
             go_type: "time.Time"

@@ -25,6 +25,8 @@ const routes: RouteRecordRaw[] = [
       gid: Number(route.params.gid),
       token: String(route.params.token),
       page: Number(route.params.page ?? 1),
+      fromHistory: route.query.source === "history",
+      returnToHistory: route.query.returnTo === "history",
     }),
     meta: { title: "阅读", requiresAuth: true },
   },
@@ -41,20 +43,31 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "eh",
+        name: "gallery",
         component: () => import("@/layouts/EhLayout.vue"),
-        meta: { requiresAuth: true },
+        meta: { title: "图库", requiresAuth: true },
         children: [
           {
             path: "",
             name: "gallery-list",
             component: () => import("@/views/GalleryListView.vue"),
-            meta: { title: "图库", ownScroll: true },
+            meta: { title: "图集搜索", ownScroll: true },
+          },
+          {
+            path: "history",
+            name: "gallery-history",
+            component: () => import("@/views/GalleryHistoryView.vue"),
+            meta: { title: "阅读历史", ownScroll: true },
           },
           {
             path: "g/:gid(\\d+)/:token",
             name: "gallery-detail",
             component: () => import("@/views/GalleryDetailView.vue"),
-            props: (route) => ({ gid: Number(route.params.gid), token: String(route.params.token) }),
+            props: (route) => ({
+              gid: Number(route.params.gid),
+              token: String(route.params.token),
+              fromHistory: route.query.source === "history",
+            }),
             meta: { title: "图集详情", ownScroll: true },
           },
         ],

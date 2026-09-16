@@ -7,6 +7,7 @@ package store
 
 import (
 	"context"
+	"time"
 )
 
 const clearEhSearchHistory = `-- name: ClearEhSearchHistory :exec
@@ -18,28 +19,13 @@ func (q *Queries) ClearEhSearchHistory(ctx context.Context, userID int64) error 
 	return err
 }
 
-const createUser = `-- name: CreateUser :one
-INSERT INTO users (username, password_hash, created_at, updated_at)
-VALUES ($1, $2, now(), now())
-RETURNING id, username, password_hash, created_at, updated_at
+const clearReadingProgress = `-- name: ClearReadingProgress :exec
+DELETE FROM eh_reading_progress WHERE user_id = $1
 `
 
-type CreateUserParams struct {
-	Username     string
-	PasswordHash string
-}
-
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Username, arg.PasswordHash)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Username,
-		&i.PasswordHash,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) ClearReadingProgress(ctx context.Context, userID int64) error {
+	_, err := q.db.Exec(ctx, clearReadingProgress, userID)
+	return err
 }
 
 const deleteEhCredential = `-- name: DeleteEhCredential :exec
@@ -51,12 +37,17 @@ func (q *Queries) DeleteEhCredential(ctx context.Context, userID int64) error {
 	return err
 }
 
-const deleteHolidayDaysByYearPrefix = `-- name: DeleteHolidayDaysByYearPrefix :exec
-DELETE FROM holiday_days WHERE date LIKE $1
+const deleteReadingProgress = `-- name: DeleteReadingProgress :exec
+DELETE FROM eh_reading_progress WHERE user_id = $1 AND gid = $2
 `
 
-func (q *Queries) DeleteHolidayDaysByYearPrefix(ctx context.Context, date string) error {
-	_, err := q.db.Exec(ctx, deleteHolidayDaysByYearPrefix, date)
+type DeleteReadingProgressParams struct {
+	UserID int64
+	Gid    int64
+}
+
+func (q *Queries) DeleteReadingProgress(ctx context.Context, arg DeleteReadingProgressParams) error {
+	_, err := q.db.Exec(ctx, deleteReadingProgress, arg.UserID, arg.Gid)
 	return err
 }
 
@@ -104,23 +95,6 @@ func (q *Queries) GetEhSearchHistory(ctx context.Context, userID int64) ([]strin
 	return search_history, err
 }
 
-const getHolidayDayByDate = `-- name: GetHolidayDayByDate :one
-SELECT name, date, is_off_day FROM holiday_days WHERE date = $1
-`
-
-type GetHolidayDayByDateRow struct {
-	Name     string
-	Date     string
-	IsOffDay bool
-}
-
-func (q *Queries) GetHolidayDayByDate(ctx context.Context, date string) (GetHolidayDayByDateRow, error) {
-	row := q.db.QueryRow(ctx, getHolidayDayByDate, date)
-	var i GetHolidayDayByDateRow
-	err := row.Scan(&i.Name, &i.Date, &i.IsOffDay)
-	return i, err
-}
-
 const getReadingProgress = `-- name: GetReadingProgress :one
 SELECT page FROM eh_reading_progress WHERE user_id = $1 AND gid = $2
 `
@@ -137,56 +111,59 @@ func (q *Queries) GetReadingProgress(ctx context.Context, arg GetReadingProgress
 	return page, err
 }
 
-const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, password_hash, created_at, updated_at FROM users WHERE id = $1
+const listReadingHistory = `-- name: ListReadingHistory :many
+SELECT gid, token, page, updated_at FROM eh_reading_progress
+WHERE user_id = $1
+  AND (NOT $2::boolean OR (updated_at, gid) < ($3::timestamptz, $4::bigint))
+ORDER BY updated_at DESC, gid DESC
+LIMIT $5
 `
 
-func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByID, id)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Username,
-		&i.PasswordHash,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+type ListReadingHistoryParams struct {
+	UserID    int64
+	HasCursor bool
+	BeforeAt  time.Time
+	BeforeGid int64
+	PageLimit int32
+}
+
+type ListReadingHistoryRow struct {
+	Gid       int64
+	Token     string
+	Page      int32
+	UpdatedAt time.Time
+}
+
+// 阅读历史与进度共用一张表；时间相同时用 gid 保证分页顺序稳定。
+func (q *Queries) ListReadingHistory(ctx context.Context, arg ListReadingHistoryParams) ([]ListReadingHistoryRow, error) {
+	rows, err := q.db.Query(ctx, listReadingHistory,
+		arg.UserID,
+		arg.HasCursor,
+		arg.BeforeAt,
+		arg.BeforeGid,
+		arg.PageLimit,
 	)
-	return i, err
-}
-
-const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, password_hash, created_at, updated_at FROM users WHERE username = $1
-`
-
-func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByUsername, username)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Username,
-		&i.PasswordHash,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const insertHolidayDays = `-- name: InsertHolidayDays :exec
-INSERT INTO holiday_days (name, date, is_off_day, created_at, updated_at)
-SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::boolean[]), now(), now()
-`
-
-type InsertHolidayDaysParams struct {
-	Names     []string
-	Dates     []string
-	IsOffDays []bool
-}
-
-// 单条语句插入整年的数据。三个 unnest 并排展开，比拼多行 VALUES 省事，
-// 而且空数组自然插 0 行——2027 年安排还没发布时远程返回的就是空列表。
-func (q *Queries) InsertHolidayDays(ctx context.Context, arg InsertHolidayDaysParams) error {
-	_, err := q.db.Exec(ctx, insertHolidayDays, arg.Names, arg.Dates, arg.IsOffDays)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReadingHistoryRow{}
+	for rows.Next() {
+		var i ListReadingHistoryRow
+		if err := rows.Scan(
+			&i.Gid,
+			&i.Token,
+			&i.Page,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const recordEhSearch = `-- name: RecordEhSearch :one

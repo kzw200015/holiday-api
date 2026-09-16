@@ -1,12 +1,11 @@
 /* @vitest-environment happy-dom */
-import { createPinia } from "pinia"
+import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, nextTick } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
 import type * as EhApi from "@/api/eh"
 import { saveProgress } from "@/api/eh"
-import { createGalleryNavigation, galleryNavigationKey } from "@/composables/galleryNavigation"
 import ReaderView from "@/views/ReaderView.vue"
 
 vi.mock("@/api/eh", async (importOriginal) => ({
@@ -20,6 +19,7 @@ vi.mock("@/api/eh", async (importOriginal) => ({
   saveReaderInterval: vi.fn().mockResolvedValue(null),
 }))
 
+let pinia: ReturnType<typeof createPinia>
 let app: ReturnType<typeof createApp> | undefined
 let host: HTMLDivElement
 let router: ReturnType<typeof createRouter>
@@ -49,8 +49,8 @@ beforeEach(async () => {
   document.body.append(host)
   app = createApp({ render: () => h(RouterView) })
   app.use(router)
-  app.use(createPinia())
-  app.provide(galleryNavigationKey, createGalleryNavigation())
+  pinia = createPinia()
+  app.use(pinia)
   app.mount(host)
   /* 越过 Vue 事件监听器的挂载时间戳，让冒泡点击被视为挂载后的用户事件。 */
   await vi.advanceTimersByTimeAsync(1)
@@ -58,6 +58,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   app?.unmount()
+  disposePinia(pinia)
   host.remove()
   vi.restoreAllMocks()
   vi.useRealTimers()
@@ -81,27 +82,50 @@ function controlsState() {
 }
 
 describe("阅读进度保存", () => {
-  it("连续翻页防抖保存最后一页，卸载立即补报并取消计时", async () => {
+  it("连续翻页防抖保存最后一页，卸载不补报但保留原定保存", async () => {
     await router.replace("/1/token/2")
     await vi.advanceTimersByTimeAsync(500)
     expect(saveProgress).not.toHaveBeenCalled()
     await router.replace("/1/token/3")
     await vi.advanceTimersByTimeAsync(1200)
-    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 3)
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 3, expect.any(AbortSignal))
     await router.replace("/1/token/4")
     app!.unmount()
     app = undefined
-    expect(saveProgress).toHaveBeenLastCalledWith(1, "token", 4)
-    await vi.advanceTimersByTimeAsync(2000)
+    expect(saveProgress).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1199)
+    expect(saveProgress).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(saveProgress).toHaveBeenLastCalledWith(1, "token", 4, expect.any(AbortSignal))
     expect(saveProgress).toHaveBeenCalledTimes(2)
   })
 
-  it("切换图集补报旧位置，新图集不会使用旧页码", async () => {
-    await router.replace("/1/token/8")
-    await router.replace("/2/second/1")
-    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 8)
+  it("保存较慢时按顺序提交，旧页码不会晚于新页码写入", async () => {
+    let finish!: (value: null) => void
+    vi.mocked(saveProgress).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    await router.replace("/1/token/2")
     await vi.advanceTimersByTimeAsync(1200)
-    expect(saveProgress).toHaveBeenNthCalledWith(2, 2, "second", 1)
+    await router.replace("/1/token/3")
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 2, expect.any(AbortSignal))
+    finish(null)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(saveProgress).toHaveBeenNthCalledWith(2, 1, "token", 3, expect.any(AbortSignal))
+  })
+
+  it("切换图集不提前补报，两本图集分别保存最后报告的位置", async () => {
+    await router.replace("/1/token/8")
+    await vi.advanceTimersByTimeAsync(500)
+    await router.replace("/2/second/1")
+    expect(saveProgress).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(700)
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 8, expect.any(AbortSignal))
+    await vi.advanceTimersByTimeAsync(500)
+    expect(saveProgress).toHaveBeenNthCalledWith(2, 2, "second", 1, expect.any(AbortSignal))
     app!.unmount()
     app = undefined
     expect(saveProgress).toHaveBeenCalledTimes(2)

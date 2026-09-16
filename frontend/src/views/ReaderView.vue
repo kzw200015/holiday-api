@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import { clamp, useEventListener, useTimeoutFn } from "@vueuse/core"
-import { computed, onScopeDispose, ref, watch } from "vue"
-import { onBeforeRouteLeave, useRouter } from "vue-router"
+import { clamp, useEventListener } from "@vueuse/core"
+import { computed, ref, watch } from "vue"
+import { useRouter } from "vue-router"
 
-import { fetchGalleryDetail, saveProgress } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert.vue"
 import ReaderControls from "@/components/gallery/ReaderControls.vue"
 import ReaderStrip from "@/components/gallery/ReaderStrip.vue"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useGalleryNavigation } from "@/composables/galleryNavigation"
 import { useQuery } from "@/composables/useQuery"
 import { backOrReplace } from "@/lib/navigation"
+import { useEhStore } from "@/stores/EhStore"
 
 const PAGE_STEPS: Record<string, number> = {
   ArrowRight: 1,
@@ -23,16 +22,22 @@ const PAGE_STEPS: Record<string, number> = {
   PageUp: -1,
 }
 
-/* 路由 props 在离开页面时仍保留本图集参数，进度补报不会读到下一页的路由。 */
-const props = defineProps<{ gid: number; token: string; page: number }>()
+/* 路由 props 随页面实例保留，缓存页面和阅读器各自使用自己的图集身份。 */
+const props = defineProps<{
+  gid: number
+  token: string
+  page: number
+  fromHistory?: boolean
+  returnToHistory?: boolean
+}>()
 const router = useRouter()
-const navigation = useGalleryNavigation()
+const ehStore = useEhStore()
 const identity = computed(() => `${props.gid}/${props.token}`)
 const {
   data: detail,
   error,
   loading,
-} = useQuery(identity, (_identity, signal) => fetchGalleryDetail(props.gid, props.token, signal))
+} = useQuery(identity, (_identity, signal) => ehStore.loadGalleryDetail(props.gid, props.token, signal))
 const gallery = computed(() => detail.value?.gallery)
 const totalPages = computed(() => gallery.value?.fileCount ?? 0)
 /* 页码来自 URL，详情到达后才能按实际页数约束，避免手改地址请求越界图片。 */
@@ -54,54 +59,38 @@ function goTo(next: number) {
     return
   }
   /* 用 replace 让浏览器后退直接离开阅读，而非逐页回退。 */
-  void router.replace({ name: "reader", params: { gid: props.gid, token: props.token, page: clamped } })
+  void router.replace({
+    name: "reader",
+    params: { gid: props.gid, token: props.token, page: clamped },
+    query: {
+      source: props.fromHistory ? "history" : undefined,
+      returnTo: props.returnToHistory ? "history" : undefined,
+    },
+  })
 }
 
 function exit() {
-  backOrReplace(router, { name: "gallery-detail", params: { gid: props.gid, token: props.token } })
-}
-
-/* 有效进度：详情到达且页数已知。进度上报与离开通知共用这一份判断。 */
-const position = computed(() =>
-  detail.value && totalPages.value ? { gid: props.gid, token: props.token, page: page.value } : null,
-)
-onBeforeRouteLeave(() => {
-  if (position.value) {
-    void navigation.trigger(position.value)
-  }
-})
-let pendingProgress: typeof position.value = null
-const { start: scheduleProgress, stop: cancelProgress } = useTimeoutFn(flushProgress, 1200, { immediate: false })
-
-function flushProgress() {
-  cancelProgress()
-  if (!pendingProgress) {
+  if (props.returnToHistory) {
+    backOrReplace(router, { name: "gallery-history" })
     return
   }
-  const { gid, token, page: progressPage } = pendingProgress
-  pendingProgress = null
-  /* 保存失败不阻断阅读，后续翻页会再次上报。 */
-  void saveProgress(gid, token, progressPage).catch(() => {})
+  backOrReplace(router, {
+    name: "gallery-detail",
+    params: { gid: props.gid, token: props.token },
+    query: props.fromHistory ? { source: "history" } : {},
+  })
 }
 
+/* 详情到达且页数已知后才报告位置，保存时机与请求顺序由 Store 负责。 */
 watch(
-  position,
-  (progress) => {
-    if (
-      pendingProgress &&
-      (!progress || progress.gid !== pendingProgress.gid || progress.token !== pendingProgress.token)
-    ) {
-      flushProgress()
-    }
-    pendingProgress = progress
-    if (progress) {
-      scheduleProgress()
+  () => (detail.value && totalPages.value ? { gid: props.gid, token: props.token, page: page.value } : null),
+  (position) => {
+    if (position) {
+      ehStore.scheduleProgress(position)
     }
   },
   { immediate: true },
 )
-/* 换图集与离开页面都按原位置快照补报，不读取下一页的路由参数。 */
-onScopeDispose(flushProgress)
 
 useEventListener(window, "keydown", (event: KeyboardEvent) => {
   /* 焦点位于操作按钮时，空格和回车应保留原生激活行为。 */

@@ -15,11 +15,13 @@ import (
 
 	"myapi/internal/app"
 	"myapi/internal/auth"
+	authstore "myapi/internal/auth/store"
 	"myapi/internal/eh"
+	ehstore "myapi/internal/eh/store"
 	"myapi/internal/holiday"
+	holidaystore "myapi/internal/holiday/store"
 	"myapi/internal/keylock"
 	"myapi/internal/signing"
-	"myapi/internal/store"
 )
 
 // 签名图片地址的闭环：详情接口签发的地址，图片接口必须认得出来。
@@ -111,7 +113,7 @@ func TestApiContract(t *testing.T) {
 func newTestRouter(t *testing.T) (http.Handler, string) {
 	t.Helper()
 
-	queries := store.New(emptyDB{})
+	queries := ehstore.New(emptyDB{})
 	tokens := auth.NewTokens("jwt-子密钥", time.Hour)
 	// 假 db 一律返回空行，所以这条链路走的是「未绑定凭据」，匿名看前站
 	client := eh.NewClient("test-agent", time.Second, upstream{})
@@ -121,8 +123,8 @@ func newTestRouter(t *testing.T) (http.Handler, string) {
 
 	// 指向一个不存在的目录，让所有非 /api 路径都落到无响应体的 404
 	router := app.NewRouter(t.TempDir()+"/no-static",
-		holiday.NewHandler(holiday.NewService(nil, queries, nil)),
-		auth.NewHandler(auth.NewService(queries, false), tokens),
+		holiday.NewHandler(holiday.NewService(nil, holidaystore.New(emptyDB{}), nil)),
+		auth.NewHandler(auth.NewService(authstore.New(emptyDB{}), false), tokens),
 		eh.NewHandler(ehService, tokens))
 
 	token, err := tokens.Issue(testUserID)

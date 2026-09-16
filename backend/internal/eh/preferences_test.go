@@ -15,7 +15,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"myapi/internal/auth"
-	"myapi/internal/store"
+	authstore "myapi/internal/auth/store"
+	"myapi/internal/eh/store"
 )
 
 func TestPreferenceRoutesRequireAuth(t *testing.T) {
@@ -92,11 +93,11 @@ func TestPreferencesPostgres(t *testing.T) {
 	}
 	queries := store.New(tx)
 	service := &Service{queries: queries}
-	user, err := queries.CreateUser(ctx, store.CreateUserParams{Username: fmt.Sprintf("preferences-%d", time.Now().UnixNano()), PasswordHash: "test"})
+	user, err := authstore.New(tx).CreateUser(ctx, authstore.CreateUserParams{Username: fmt.Sprintf("preferences-%d", time.Now().UnixNano()), PasswordHash: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := queries.CreateUser(ctx, store.CreateUserParams{Username: user.Username + "-other", PasswordHash: "test"})
+	other, err := authstore.New(tx).CreateUser(ctx, authstore.CreateUserParams{Username: user.Username + "-other", PasswordHash: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +197,7 @@ func TestPreferencesPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertPreferences(other.ID, []string{}, 3)
-	third, err := queries.CreateUser(ctx, store.CreateUserParams{Username: user.Username + "-third", PasswordHash: "test"})
+	third, err := authstore.New(tx).CreateUser(ctx, authstore.CreateUserParams{Username: user.Username + "-third", PasswordHash: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}

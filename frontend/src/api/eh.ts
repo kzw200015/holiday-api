@@ -184,7 +184,33 @@ export function clearSearchHistory() {
   return httpClient.post<null>("/eh/search-history/clear")
 }
 
+export interface ReadingHistoryItem {
+  gid: number
+  token: string
+  page: number
+  readAt: string
+  /** 元数据不可访问时为 null，仍保留记录和删除入口。 */
+  gallery: GalleryCard | null
+}
+
+export interface ReadingHistoryPage {
+  items: ReadingHistoryItem[]
+  nextCursor: string | null
+}
+
+export function fetchReadingHistory(cursor: string, signal?: AbortSignal) {
+  return httpClient.get<ReadingHistoryPage>("/eh/history", { params: { cursor }, signal })
+}
+
+export function removeReadingHistory(gid: number, signal?: AbortSignal) {
+  return httpClient.post<null>("/eh/history/remove", { gid }, { signal })
+}
+
+export function clearReadingHistory(signal?: AbortSignal) {
+  return httpClient.post<null>("/eh/history/clear", undefined, { signal })
+}
+
 /** 上报读到第几页 */
-export function saveProgress(gid: number, token: string, page: number) {
-  return httpClient.post<null>("/eh/progress", { gid, token, page })
+export function saveProgress(gid: number, token: string, page: number, signal?: AbortSignal) {
+  return httpClient.post<null>("/eh/progress", { gid, token, page }, { signal })
 }

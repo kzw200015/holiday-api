@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"myapi/internal/apperr"
-	"myapi/internal/store"
+	"myapi/internal/auth/store"
 )
 
 // 密码哈希参数，单次校验约 40 毫秒。

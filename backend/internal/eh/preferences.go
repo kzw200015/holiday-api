@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"myapi/internal/apperr"
-	"myapi/internal/store"
+	"myapi/internal/eh/store"
 )
 
 // Preferences 是跨设备共享的图集浏览偏好，不包含页面草稿或自动翻页开关。

@@ -3,7 +3,7 @@ import { ArrowLeftIcon, BookOpenIcon } from "@lucide/vue"
 import { computed } from "vue"
 import { RouterLink, useRouter } from "vue-router"
 
-import { fetchGalleryComments, fetchGalleryDetail } from "@/api/eh"
+import { fetchGalleryComments } from "@/api/eh"
 import EmptyState from "@/components/EmptyState.vue"
 import ErrorAlert from "@/components/ErrorAlert.vue"
 import CommentBody from "@/components/gallery/CommentBody.vue"
@@ -14,15 +14,16 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useGalleryNavigation } from "@/composables/galleryNavigation"
 import { usePageScroll } from "@/composables/usePageScroll"
 import { useQuery } from "@/composables/useQuery"
 import { formatDateTime, formatFileSize, formatNamespace, splitTag } from "@/lib/format"
 import { backOrReplace } from "@/lib/navigation"
+import { useEhStore } from "@/stores/EhStore"
 
-const props = defineProps<{ gid: number; token: string }>()
+const props = defineProps<{ gid: number; token: string; fromHistory?: boolean }>()
 const identity = () => `${props.gid}/${props.token}`
 const router = useRouter()
+const ehStore = useEhStore()
 usePageScroll(identity)
 
 const {
@@ -30,15 +31,9 @@ const {
   error,
   loading,
   retry,
-} = useQuery(identity, (_identity, signal) => fetchGalleryDetail(props.gid, props.token, signal))
-/* 阅读器离开时只改本图集的继续阅读页码，元信息与评论不重载。 */
-useGalleryNavigation().on(({ gid, token, page }) => {
-  if (detail.value && gid === props.gid && token === props.token) {
-    detail.value = { ...detail.value, progress: page }
-  }
-})
+} = useQuery(identity, (_identity, signal) => ehStore.loadGalleryDetail(props.gid, props.token, signal))
 const gallery = computed(() => detail.value?.gallery)
-const progress = computed(() => detail.value?.progress)
+const progress = computed(() => ehStore.readingProgress.get(props.gid) ?? null)
 const canContinue = computed(() => (progress.value ?? 0) > 1)
 /* 评论需要抓取上游页面，独立加载，失败不阻塞元数据。 */
 const {
@@ -62,7 +57,7 @@ const groupedTags = computed(() => {
 })
 
 function returnToList() {
-  backOrReplace(router, { name: "gallery-list" })
+  backOrReplace(router, { name: props.fromHistory ? "gallery-history" : "gallery-list" })
 }
 </script>
 
@@ -107,14 +102,24 @@ function returnToList() {
           <div class="flex flex-wrap gap-2">
             <Button as-child>
               <RouterLink
-                :to="{ name: 'reader', params: { gid: gallery.gid, token: gallery.token, page: progress ?? 1 } }"
+                :to="{
+                  name: 'reader',
+                  params: { gid: gallery.gid, token: gallery.token, page: progress ?? 1 },
+                  query: fromHistory ? { source: 'history' } : {},
+                }"
               >
                 <BookOpenIcon />
                 {{ canContinue ? `继续阅读（第 ${progress} 页）` : "开始阅读" }}
               </RouterLink>
             </Button>
             <Button v-if="canContinue" as-child variant="outline">
-              <RouterLink :to="{ name: 'reader', params: { gid: gallery.gid, token: gallery.token, page: 1 } }">
+              <RouterLink
+                :to="{
+                  name: 'reader',
+                  params: { gid: gallery.gid, token: gallery.token, page: 1 },
+                  query: fromHistory ? { source: 'history' } : {},
+                }"
+              >
                 从头开始
               </RouterLink>
             </Button>

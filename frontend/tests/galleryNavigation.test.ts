@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { createPinia } from "pinia"
+import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, type App as VueApp } from "vue"
 import { createRouter, createWebHistory, type Router } from "vue-router"
@@ -8,13 +8,16 @@ import { authenticate } from "@/api/auth"
 import type * as EhApi from "@/api/eh"
 import {
   bindCredential,
+  clearReadingHistory,
   clearSearchHistory,
   fetchCredentialStatus,
   fetchGalleryComments,
   fetchGalleryDetail,
   fetchGalleryPreferences,
+  fetchReadingHistory,
   fetchSearchHistory,
   recordSearch,
+  removeReadingHistory,
   removeSearch,
   saveGalleryCategories,
   saveProgress,
@@ -34,6 +37,9 @@ vi.mock("@/api/holiday", () => ({ fetchHolidayDetail: vi.fn() }))
 vi.mock("@/api/eh", async (original) => ({
   ...(await original<typeof EhApi>()),
   bindCredential: vi.fn(),
+  fetchReadingHistory: vi.fn(),
+  removeReadingHistory: vi.fn(),
+  clearReadingHistory: vi.fn(),
   fetchCredentialStatus: vi.fn(),
   unbindCredential: vi.fn(),
   fetchGalleryComments: vi.fn(),
@@ -65,6 +71,7 @@ const gallery: GalleryDetail = {
   torrentCount: 0,
   expunged: false,
 }
+let pinia: ReturnType<typeof createPinia>
 let app: VueApp
 let router: Router
 let host: HTMLElement
@@ -99,6 +106,7 @@ async function click(text: string) {
 beforeEach(async () => {
   vi.resetAllMocks()
   localStorage.clear()
+  document.cookie = "sidebar_state=true; path=/"
   window.history.replaceState({}, "", "/")
   Object.defineProperty(window, "scrollY", { value: 0, writable: true, configurable: true })
   vi.spyOn(window, "scrollTo").mockImplementation((options: ScrollToOptions | number = 0) => {
@@ -114,6 +122,12 @@ beforeEach(async () => {
   }))
   vi.mocked(fetchGalleryComments).mockResolvedValue([])
   vi.mocked(saveProgress).mockResolvedValue(null)
+  vi.mocked(fetchReadingHistory).mockResolvedValue({
+    items: [{ gid: gallery.gid, token: gallery.token, page: 3, readAt: gallery.postedAt, gallery }],
+    nextCursor: null,
+  })
+  vi.mocked(removeReadingHistory).mockResolvedValue(null)
+  vi.mocked(clearReadingHistory).mockResolvedValue(null)
   vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
   vi.mocked(fetchHolidayDetail).mockImplementation(async (date) => ({ date, name: "", isOffDay: false }))
   let preferences = { categories: [] as string[], readerInterval: 5 }
@@ -137,7 +151,7 @@ beforeEach(async () => {
     history = []
     return null
   })
-  const pinia = createPinia()
+  pinia = createPinia()
   const auth = useAuthStore(pinia)
   auth.user = { id: 1, username: "tester" }
   auth.ready = true
@@ -157,9 +171,174 @@ beforeEach(async () => {
 
 afterEach(() => {
   app.unmount()
+  disposePinia(pinia)
   router.options.history.destroy()
   host.remove()
   vi.restoreAllMocks()
+})
+
+describe("阅读历史与二级导航", () => {
+  it("历史、详情、阅读往返保留来源和滚动位置，搜索缓存不被挤掉", async () => {
+    const searchInput = host.querySelector("input")
+    await click("阅读历史")
+    expect(router.currentRoute.value.name).toBe("gallery-history")
+    window.scrollTo({ top: 600 })
+    const row = host.querySelector<HTMLElement>('a[href="/eh/g/1/aaaaaaaaaa?source=history"]')!
+    row.click()
+    await settle()
+    await click("继续阅读（第 3 页）")
+    host.querySelector<HTMLElement>('[aria-label="下一页"]')!.click()
+    await settle()
+    expect(router.currentRoute.value.query.source).toBe("history")
+    host.querySelector<HTMLElement>('[aria-label="退出阅读"]')!.click()
+    await settle()
+    expect(router.currentRoute.value.fullPath).toBe("/eh/g/1/aaaaaaaaaa?source=history")
+    await click("返回列表")
+    expect(router.currentRoute.value.name).toBe("gallery-history")
+    expect(window.scrollY).toBe(600)
+    expect(fetchReadingHistory).toHaveBeenCalledTimes(2)
+    await click("继续阅读")
+    host.querySelector<HTMLElement>('[aria-label="下一页"]')!.click()
+    await settle()
+    expect(router.currentRoute.value.query.returnTo).toBe("history")
+    host.querySelector<HTMLElement>('[aria-label="退出阅读"]')!.click()
+    await settle()
+    expect(router.currentRoute.value.name).toBe("gallery-history")
+    await click("图集搜索")
+    expect(host.querySelector("input")).toBe(searchInput)
+    expect(searchGalleries).toHaveBeenCalledTimes(1)
+  })
+
+  it("保存仍在进行时退出不等待，历史查询在 Store 中排队", async () => {
+    await visit("/eh/history")
+    let finish!: (value: null) => void
+    vi.mocked(saveProgress).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    await click("继续阅读")
+    await vi.waitFor(() => expect(saveProgress).toHaveBeenCalledWith(1, "aaaaaaaaaa", 3, expect.any(AbortSignal)), {
+      timeout: 2000,
+    })
+    await visit("/eh/history")
+    expect(router.currentRoute.value.name).toBe("gallery-history")
+    expect(fetchReadingHistory).toHaveBeenCalledTimes(1)
+    finish(null)
+    await settle()
+    expect(fetchReadingHistory).toHaveBeenCalledTimes(2)
+  })
+
+  it("删除失败保留条目，成功后清除缓存详情的继续阅读页码，清空必须确认", async () => {
+    await visit("/eh/g/1/aaaaaaaaaa")
+    await visit("/eh/history")
+    vi.mocked(removeReadingHistory).mockRejectedValueOnce(new Error("删除失败测试"))
+    host.querySelector<HTMLElement>('[aria-label="删除阅读记录：1"]')!.click()
+    await settle()
+    expect(host.textContent).toContain("删除失败测试")
+    expect(host.textContent).toContain("测试图集")
+    vi.mocked(fetchReadingHistory).mockResolvedValueOnce({ items: [], nextCursor: null })
+    host.querySelector<HTMLElement>('[aria-label="删除阅读记录：1"]')!.click()
+    await settle()
+    expect(host.textContent).toContain("还没有阅读记录")
+    await visit("/eh/g/1/aaaaaaaaaa")
+    expect(host.textContent).toContain("开始阅读")
+    expect(host.textContent).not.toContain("继续阅读（第 3 页）")
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(1)
+    await visit("/eh/history")
+    await click("清空全部")
+    expect(clearReadingHistory).not.toHaveBeenCalled()
+    const confirmation = [...document.querySelectorAll<HTMLElement>('[role="alertdialog"] button')].find(
+      (node) => node.textContent?.trim() === "清空",
+    )!
+    confirmation.click()
+    await settle()
+    expect(clearReadingHistory).toHaveBeenCalledTimes(1)
+    expect(host.textContent).toContain("还没有阅读记录")
+  })
+
+  it("详情和历史按序查询，删除后缓存详情直接读取 Store 的新进度", async () => {
+    let finish!: (value: Awaited<ReturnType<typeof fetchGalleryDetail>>) => void
+    vi.mocked(fetchGalleryDetail).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    await visit("/eh/g/1/aaaaaaaaaa")
+    await visit("/eh/history")
+    expect(fetchReadingHistory).not.toHaveBeenCalled()
+    finish({ gallery, progress: 17, imageUrlTemplate: "/image/{page}" })
+    await settle()
+    vi.mocked(fetchReadingHistory).mockResolvedValueOnce({ items: [], nextCursor: null })
+    host.querySelector<HTMLElement>('[aria-label="删除阅读记录：1"]')!.click()
+    await settle()
+    await visit("/eh/g/1/aaaaaaaaaa")
+    expect(host.textContent).toContain("开始阅读")
+    expect(host.textContent).not.toContain("继续阅读（第 17 页）")
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(1)
+  })
+
+  it("游标翻页失败可重试，失效记录仍显示进度并可删除", async () => {
+    vi.mocked(fetchReadingHistory).mockResolvedValueOnce({
+      items: [{ gid: 1, token: gallery.token, page: 7, readAt: gallery.postedAt, gallery: null }],
+      nextCursor: "next",
+    })
+    await visit("/eh/history")
+    expect(host.textContent).toContain("失效记录 · 图集 1")
+    expect(host.textContent).toContain("第 7 页")
+    expect(host.querySelector('a[href*="/eh/read/"]')).toBeNull()
+    vi.mocked(fetchReadingHistory).mockRejectedValueOnce(new Error("历史加载失败测试"))
+    await click("下一页")
+    expect(host.textContent).toContain("历史加载失败测试")
+    vi.mocked(fetchReadingHistory).mockResolvedValueOnce({ items: [], nextCursor: null })
+    await click("重试")
+    expect(fetchReadingHistory).toHaveBeenLastCalledWith("next", expect.any(AbortSignal))
+    expect(host.textContent).toContain("这一页已没有记录")
+    await click("上一页")
+    expect(fetchReadingHistory).toHaveBeenLastCalledWith("", expect.any(AbortSignal))
+    expect(host.textContent).toContain("测试图集")
+  })
+
+  it("离开历史取消请求，迟到响应不覆盖重新进入的结果", async () => {
+    let finish!: (value: Awaited<ReturnType<typeof fetchReadingHistory>>) => void
+    vi.mocked(fetchReadingHistory).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    await visit("/eh/history")
+    const signal = vi.mocked(fetchReadingHistory).mock.calls[0]![1]!
+    await visit("/eh")
+    expect(signal.aborted).toBe(true)
+    await visit("/eh/history")
+    finish({ items: [], nextCursor: null })
+    await settle()
+    expect(host.textContent).toContain("测试图集")
+    expect(host.textContent).not.toContain("还没有阅读记录")
+  })
+
+  it("图库父项只折叠菜单，详情只激活分组，图标模式也能进入历史", async () => {
+    const parent = host.querySelector<HTMLElement>('[aria-controls="navigation-gallery"]')!
+    expect(parent.getAttribute("aria-expanded")).toBe("true")
+    parent.click()
+    await settle()
+    expect(parent.getAttribute("aria-expanded")).toBe("false")
+    expect(router.currentRoute.value.name).toBe("gallery-list")
+    await visit("/eh/g/1/aaaaaaaaaa")
+    expect(parent.getAttribute("aria-expanded")).toBe("true")
+    expect(parent.getAttribute("data-active")).toBe("true")
+    expect(host.querySelector('[data-slot="sidebar-menu-sub-button"][data-active="true"]')).toBeNull()
+    host.querySelector<HTMLElement>('[data-slot="sidebar-trigger"]')!.click()
+    await settle()
+    host.querySelector<HTMLElement>('button[aria-label="图库"]')!.click()
+    await settle()
+    const link = document.querySelector<HTMLElement>('nav[aria-label="图库"] a[href="/eh/history"]')!
+    expect(link).not.toBeNull()
+    link.click()
+    await settle()
+    expect(router.currentRoute.value.name).toBe("gallery-history")
+    expect(document.querySelector('nav[aria-label="图库"]')).toBeNull()
+  })
 })
 
 describe("页面缓存与失效范围", () => {
@@ -259,6 +438,9 @@ describe("页面缓存与失效范围", () => {
     // 阅读器翻页不增加历史记录。
     await router.replace("/eh/read/1/aaaaaaaaaa/17")
     await router.replace("/eh/read/1/aaaaaaaaaa/18")
+    await vi.waitFor(() => expect(saveProgress).toHaveBeenCalledWith(1, "aaaaaaaaaa", 18, expect.any(AbortSignal)), {
+      timeout: 2000,
+    })
     await settle()
     host.querySelector<HTMLElement>('[aria-label="退出阅读"]')!.click()
     await settle()
@@ -267,7 +449,7 @@ describe("页面缓存与失效范围", () => {
     expect(window.scrollY).toBe(450)
     expect(fetchGalleryComments).toHaveBeenCalledTimes(1)
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
-    expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 18)
+    expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 18, expect.any(AbortSignal))
     await click("返回列表")
     expect(router.currentRoute.value.fullPath).toBe("/eh")
     expect(host.querySelector("input")).toBe(input)
@@ -475,7 +657,9 @@ describe("页面缓存与失效范围", () => {
     router.back()
     await settle()
     expect(host.querySelector("h2")).toBe(heading)
-    expect(host.textContent).toContain("继续阅读（第 29 页）")
+    /* 尚未到防抖时间，先显示上次确认的页码；退出不会立即补报。 */
+    expect(host.textContent).toContain("继续阅读（第 3 页）")
+    expect(saveProgress).not.toHaveBeenCalled()
     await click("返回列表")
     expect(router.currentRoute.value.fullPath).toBe("/eh")
     expect(host.querySelector("input")?.value).toBe("dog")

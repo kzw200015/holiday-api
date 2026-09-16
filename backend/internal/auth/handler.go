@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"myapi/internal/store"
+	"myapi/internal/auth/store"
 	"myapi/internal/web"
 )
 

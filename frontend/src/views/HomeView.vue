@@ -9,7 +9,12 @@ const items = getNavigationItems(useRouter()).filter((item) => item.name !== "ho
 
 <template>
   <div class="page-content grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-    <RouterLink v-for="item in items" :key="item.name" class="rounded-lg outline-offset-4" :to="{ name: item.name }">
+    <RouterLink
+      v-for="item in items"
+      :key="item.name"
+      class="rounded-lg outline-offset-4"
+      :to="{ name: item.entryName }"
+    >
       <Card class="hover:bg-accent/50 h-full transition-colors">
         <CardHeader>
           <component :is="item.icon" class="text-muted-foreground mb-2 size-6" />

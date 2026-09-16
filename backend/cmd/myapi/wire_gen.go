@@ -10,11 +10,13 @@ import (
 	"context"
 	"myapi/internal/app"
 	"myapi/internal/auth"
+	store2 "myapi/internal/auth/store"
 	"myapi/internal/config"
 	"myapi/internal/eh"
+	store3 "myapi/internal/eh/store"
 	"myapi/internal/holiday"
+	"myapi/internal/holiday/store"
 	"myapi/internal/keylock"
-	"myapi/internal/store"
 )
 
 import (
@@ -42,15 +44,17 @@ func initApplication(ctx context.Context) (*application, func(), error) {
 	remoteClient := holiday.NewRemoteClient()
 	service := holiday.NewService(pool, queries, remoteClient)
 	handler := holiday.NewHandler(service)
-	authService := provideAuthService(queries, configConfig)
+	storeQueries := store2.New(pool)
+	authService := provideAuthService(storeQueries, configConfig)
 	tokens := provideTokens(configConfig)
 	authHandler := auth.NewHandler(authService, tokens)
+	queries2 := store3.New(pool)
 	client := provideEhClient(configConfig)
 	locker := keylock.New()
-	credentialStore := eh.NewCredentialStore(queries, client, locker)
+	credentialStore := eh.NewCredentialStore(queries2, client, locker)
 	imageLocator := eh.NewImageLocator(client)
 	attachmentSigner := provideAttachmentSigner(configConfig)
-	ehService := eh.NewService(queries, client, credentialStore, imageLocator, attachmentSigner)
+	ehService := eh.NewService(queries2, client, credentialStore, imageLocator, attachmentSigner)
 	ehHandler := eh.NewHandler(ehService, tokens)
 	httpHandler := app.NewRouter(string2, handler, authHandler, ehHandler)
 	mainApplication := &application{

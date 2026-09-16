@@ -10,11 +10,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"myapi/internal/auth"
+	"myapi/internal/auth/store"
 	"myapi/internal/config"
 	"myapi/internal/eh"
 	"myapi/internal/holiday"
 	"myapi/internal/signing"
-	"myapi/internal/store"
 )
 
 // application 是 wire 组装出来的成品：一个可以挂到 http.Server 上的 handler、

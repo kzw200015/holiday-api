@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 
-	"myapi/internal/store"
+	"myapi/internal/holiday/store"
 )
 
 // 日期在库列、接口出入参和远程 JSON 里统一是 YYYY-MM-DD 字符串（标准库的 time.DateOnly）；

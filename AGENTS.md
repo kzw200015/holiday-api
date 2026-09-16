@@ -2,7 +2,7 @@
 
 ## 项目结构与模块划分
 
-MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存放 Go 入口与 Wire 依赖注入代码；`backend/internal/` 包含业务模块（`auth`、`eh`、`holiday`）、HTTP 基础设施、配置和 PostgreSQL 访问代码。HTTP Handler 与业务 Service 保持分离。SQL 源文件及 sqlc 生成代码位于 `backend/internal/store/`。
+MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存放 Go 入口与 Wire 依赖注入代码；`backend/internal/` 包含业务模块（`auth`、`eh`、`holiday`）、HTTP 基础设施、配置和 PostgreSQL 访问代码。HTTP Handler 与业务 Service 保持分离。表结构统一位于 `backend/internal/store/schema.sql`，查询 SQL 及 sqlc 生成代码位于各业务模块的 `store/` 子目录，由 `backend/sqlc.yaml` 统一配置。
 
 `frontend/src/` 存放 Vue 3/TypeScript 页面、布局、组件、组合式函数、API 封装和状态管理代码。静态资源放在 `frontend/public/`，前端测试放在 `frontend/tests/`，Go 测试与实现文件同目录。领域术语见 `CONTEXT.md`，辅助工作流见 `docs/agents/`。Docker 镜像由 Go 服务统一提供 API 和前端静态文件。
 

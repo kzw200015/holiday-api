@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS eh_reading_progress (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS eh_reading_progress_user_gid_key ON eh_reading_progress (user_id, gid);
+CREATE INDEX IF NOT EXISTS eh_reading_progress_user_recent_idx ON eh_reading_progress (user_id, updated_at DESC, gid DESC);
 
 -- 图集浏览的账号偏好与最近搜索词；各字段独立更新，不整行覆盖其他设备的修改。
 CREATE TABLE IF NOT EXISTS eh_preferences (

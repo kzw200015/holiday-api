@@ -16,8 +16,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"myapi/internal/eh/store"
 	"myapi/internal/keylock"
-	"myapi/internal/store"
 )
 
 var (
