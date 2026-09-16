@@ -28,22 +28,15 @@ var tokenPattern = regexp.MustCompile(`^[0-9a-f]{10}$`)
 // 分页游标是 e 站给的一串数字，同样会进上游地址。
 var cursorPattern = regexp.MustCompile(`^\d*$`)
 
-// Routes 挂在 /api/eh 下，同时包含要登录和不要登录的两组路由。
-//
-// 两组分开写而不是在一处挑几条豁免，是为了让「哪些接口不需要登录」一眼可见：
-// 混在一起的话，日后加接口时很容易顺手加到不设防的那一侧。
+// Routes 挂在 /api/eh 下：图片使用签名鉴权，其余接口使用登录令牌。
 func (h *Handler) Routes() http.Handler {
 	router := chi.NewRouter()
 
-	// 不要求登录的两个图片接口。<img src> 是浏览器自己发的请求，带不了 Authorization 头，
-	// 所以它们靠地址里的签名认身份，签名由 service 签发和校验。
-	// 这两条也是统一 ApiResponse 契约的唯一例外，直接返回二进制流
+	// 浏览器的 img 请求不能携带 Authorization 头，改用签名地址，直接返回图片流。
 	router.Group(func(r chi.Router) {
 		h.imageRoutes(r)
 	})
 
-	// 其余接口一律要登录。鉴权挂在这里而不是整个 /api 上，
-	// 因为 GET /api/holiday/is-holiday 有外部调用方，挂全局会把它一起挡掉
 	router.Group(func(r chi.Router) {
 		r.Use(h.tokens.Require)
 		h.authedRoutes(r)

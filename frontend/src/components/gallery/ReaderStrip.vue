@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 const LOAD_DELAY = 200
 const PRELOAD_PAGES = 2
 
-/* 换图集由父级以 key 整体重建，这里只管一本图集内的滚动与加载。 */
+/* 父级在页数已知且非零时挂载，换图集以 key 整体重建。 */
 const props = withDefaults(defineProps<{ total: number; template: string; seeking?: boolean }>(), {
   seeking: false,
 })
@@ -88,7 +88,7 @@ function loadVisible() {
 const { start, stop: cancelLoad } = useTimeoutFn(loadVisible, LOAD_DELAY, { immediate: false })
 function scheduleLoad() {
   cancelLoad()
-  if (dragging.value || props.seeking || scrollTarget !== undefined || !viewport.value || !props.total) {
+  if (dragging.value || props.seeking || scrollTarget !== undefined || !viewport.value) {
     return
   }
   start()
@@ -97,7 +97,7 @@ function scheduleLoad() {
 async function jump(targetPage: number, behavior: ScrollBehavior = "instant") {
   cancelLoad()
   await nextTick()
-  if (!viewport.value || !props.total) {
+  if (!viewport.value) {
     return
   }
   const left = offsets.value[targetPage - 1] + widths.value[targetPage - 1] / 2 - width.value / 2

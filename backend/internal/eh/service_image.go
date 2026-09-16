@@ -15,12 +15,8 @@ import (
 // 大图地址模板里的页码占位符，前端替换成实际页码。
 const pagePlaceholder = "{page}"
 
-// OpenGalleryImage 取某一页的大图，返回可直接转发的响应，调用方负责关掉 Body。
-//
-// 地址由 GalleryDetailOf 签发，签名覆盖「谁看哪个图集」但不覆盖页码——一本图集一张通行证，
-// 否则 300 页的图集要回传 300 条签好的地址。userID 只能从签名过的参数里来，
-// 不能信客户端随便给的值，否则等于拿别人的 e 站凭据取图。
-// 图床节点会失效（表现为 403），所以拿不到时用换源令牌重试一次。
+// OpenGalleryImage 校验签名后读取用户凭据并取图，节点失效时换源重试一次。
+// 返回可直接转发的图片流，调用方负责关闭 Body。
 func (s *Service) OpenGalleryImage(ctx context.Context, userID int64, ref GalleryRef, page int,
 	sig signing.Signature) (*Attachment, error) {
 	if !s.signer.Verify(imageSubject(userID, ref), sig) {
@@ -87,9 +83,7 @@ func (s *Service) withThumbnail(gallery GalleryDetail) GalleryDetail {
 	return gallery
 }
 
-// 大图地址的模板，{page} 由前端替换成实际页码。
-// 签名覆盖「谁看哪个图集」，页码不参与——一本图集签一张通行证，
-// 不然 300 页的图集详情就得回传 300 条签好的地址。
+// 大图地址模板，前端只需替换 {page}，无需逐页请求签名。
 func (s *Service) imageURLTemplate(userID int64, ref GalleryRef) string {
 	return fmt.Sprintf("/api/eh/galleries/%d/%s/pages/%s/image?uid=%d&%s",
 		ref.GID, ref.Token, pagePlaceholder, userID, s.signer.Sign(imageSubject(userID, ref)).Query())
@@ -100,10 +94,7 @@ func imageSubject(userID int64, ref GalleryRef) string {
 	return fmt.Sprintf("%d:%d:%s", userID, ref.GID, ref.Token)
 }
 
-// Attachment 是可以直接转发给浏览器的图片流。
-//
-// Service 交出值类型而不是 *http.Response，是为了不把「我内部是拿 net/http 去取的」
-// 泄露给 handler——否则关连接、搬响应头这些事就得靠约定分摊到最外层。
+// Attachment 包含已校验的图片流及转发所需的响应头。
 type Attachment struct {
 	ContentType string
 	// 上游给的长度，可能为空（分块传输）。

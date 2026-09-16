@@ -22,20 +22,13 @@ type boundCredential struct {
 	hasExAccess bool
 }
 
-// CredentialStore 管用户的 e 站凭据：入库、取出、以及据此决定一次请求走前站还是里站。
-//
-// 从 Service 里分出来是因为这件事有自己的一套关注点（缓存失效、站点降级），
-// 跟搜索、取图那些编排逻辑没有交集；分开之后 Service 只需要「给我一个请求上下文」。
-//
-// 凭据以 JSON 明文入库，不加密——理由和代价见 internal/store/schema.sql 里 eh_credentials 的说明。
-// 也因此读的时候没有任何「解析不出来就当未绑定」的兜底：那一列只由 Bind 写入，
-// 真解析不出来说明有人手工改过库，让错误抛出去比静默显示成「未绑定」好查得多。
+// CredentialStore 管理用户的 e 站凭据、缓存及请求站点选择。
+// 凭据以 JSON 明文入库，存储约束见 internal/store/schema.sql。
 type CredentialStore struct {
 	queries *store.Queries
 	client  *Client
 
-	// 已取出的凭据。图片代理是全系统请求最密集的接口，每张图都为它查一次库太浪费。
-	// 绑定解绑时手动失效，TTL 和容量上限只是兜底，免得离开的用户一直占着位置。
+	// 避免每张图片都查询凭据；绑定和解绑成功后失效。
 	cache *expirable.LRU[int64, *boundCredential]
 
 	// 同一用户的查库回填与凭据修改必须串行，防止失效后又写回旧凭据。
@@ -60,17 +53,15 @@ func (s *CredentialStore) Status(ctx context.Context, userID int64) (CredentialS
 	return CredentialStatus{Bound: true, MemberID: bound.memberID, HasExAccess: bound.hasExAccess}, nil
 }
 
-// Bind 保存凭据。存之前先拿这组 Cookie 实际请求一次，无效就别入库，免得事后一脸茫然。
+// Bind 验证凭据后入库。
 func (s *CredentialStore) Bind(ctx context.Context, userID int64, cookie Cookie) (CredentialStatus, error) {
 	hasExAccess, err := s.client.VerifyCredential(ctx, cookie)
 	if err != nil {
 		return CredentialStatus{}, err
 	}
 
-	serialized, err := json.Marshal(cookie)
-	if err != nil {
-		return CredentialStatus{}, err
-	}
+	// Cookie 只含字符串字段，JSON 编码不会失败。
+	serialized, _ := json.Marshal(cookie)
 	unlock, err := s.locks.Acquire(ctx, credentialLockKey(userID))
 	if err != nil {
 		return CredentialStatus{}, err

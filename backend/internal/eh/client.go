@@ -19,10 +19,7 @@ var pageHosts = map[Site]string{
 	SiteEx: "https://exhentai.org",
 }
 
-// JSON API 的地址。
-//
-// 前站这个免登录就能用，返回的封面也落在 ehgt.org 上、不需要 Cookie，
-// 所以取元数据一律走它；只有里站独占的图集才需要退到 s.exhentai.org 并带上 Cookie。
+// gdata 统一使用前站 API；showpage 使用图片所在站点的 API。
 var apiHosts = map[Site]string{
 	SiteE:  "https://api.e-hentai.org/api.php",
 	SiteEx: "https://s.exhentai.org/api.php",
@@ -44,11 +41,7 @@ type RequestContext struct {
 	Site       Site
 }
 
-// Client 是所有对 e 站的 HTTP 调用的唯一出口：拼地址、带 Cookie、超时，
-// 以及把「HTTP 200 但不是你要的东西」翻译成明确的失败。
-//
-// 出网不限速：请求节奏不受控，出口 IP 有被 e 站盯上的风险。
-// 要加的话，加在下面 do 外面一层，而不是散到各个调用点。
+// Client 统一处理 e 站请求的地址、Cookie、超时及上游错误。
 type Client struct {
 	http      *http.Client
 	userAgent string
@@ -113,9 +106,7 @@ func (c *Client) CallAPI(ctx context.Context, rc RequestContext, payload any, ou
 	return nil
 }
 
-// 发一次请求、读完响应体、判定它是不是真正的内容。页面和 JSON 两条路径只差编解码，
-// 剩下这六步是一样的。返回 []byte 而不是 string：JSON 那条路径直接喂给 Unmarshal，
-// 不必为一份几十 KB 的响应体多复制一遍。
+// 页面与 JSON 请求共用内容校验；返回字节以便 JSON 直接解码。
 func (c *Client) fetch(ctx context.Context, method, target, cookieHeader string, body []byte) ([]byte, error) {
 	response, err := c.readResponse(ctx, method, target, cookieHeader, body)
 	if err != nil {
@@ -257,11 +248,7 @@ func assertUsable(status int, body []byte, url string) error {
 		return errSadPanda()
 	}
 
-	// 下面按字面量找，不用 (?i) 正则：那个在一页 74 KB 的 HTML 上要 2.6 毫秒（实测），
-	// 而每个上游响应都得走一次判定，字面量搜索只要 2 微秒，快三个数量级——
-	// 这跟当初为了躲开建 DOM 的开销、把详情页解析写成纯正则是同一个量级，白花掉就没意义了。
-	// 代价是 e 站改这两张页面的文案时这里会漏判，但正则也只挡得住「大小写变了」这一种改法，
-	// 换来的安全感是廉价的。下面的文案取自实测页面，改版后要重新采一次。
+	// 按上游页面的固定文案识别异常，版面变更时需更新样本。
 	if bytes.Contains(body, []byte("temporarily banned")) || bytes.Contains(body, []byte("excessive pageloads")) {
 		slog.Warn("出口 IP 被 e 站临时封禁", "url", url)
 		return errBanned()
@@ -275,8 +262,6 @@ func assertUsable(status int, body []byte, url string) error {
 	if status >= 300 {
 		return errUnavailable("e 站返回了 HTTP %d", status)
 	}
-	// 「No hits found」不单列一类：搜索没命中时 parseGalleryList 自然会返回空列表，
-	// 而这里多一个没人处理的分类，只会让读代码的人以为下游有对应逻辑
 	return nil
 }
 

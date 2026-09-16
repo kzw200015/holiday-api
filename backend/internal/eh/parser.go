@@ -11,11 +11,8 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-// e 站页面的解析。全是纯函数：输入 HTML 字符串，输出结构化数据，不发请求、不碰缓存。
-// 这样最脆的一层能用真实页面裁下来的样本做单测（见 parser_test.go 末尾那几个常量）。
-//
-// 能走 JSON API 拿到的东西一律不在这里解析——标题、标签、分类、总页数都来自 gdata，
-// 剩下真正只有 HTML 才有的就三样：列表页的图集序列、详情页的每页 token 与评论、图片页的 showkey。
+// 解析仅由 HTML 提供的图集列表、图片定位信息和评论，不发请求、不修改缓存。
+// 正则捕获值用 strings.Clone 复制，避免缓存短字符串时持有整页 HTML。
 
 var (
 	// 图集链接。不挑 `td.gl3c.glname` 这类选择器是因为搜索结果有 5 种显示模式，
@@ -70,7 +67,7 @@ func parseGalleryList(page string) ([]GalleryRef, *string) {
 			continue
 		}
 		seen[gid] = true
-		items = append(items, GalleryRef{GID: gid, Token: detach(match[2])})
+		items = append(items, GalleryRef{GID: gid, Token: strings.Clone(match[2])})
 	}
 
 	return items, parseNextCursor(page)
@@ -104,11 +101,7 @@ type galleryPage struct {
 	RangeFrom, RangeTo int
 }
 
-// parseGalleryPage 解析详情页里的每页 token、总页数与分片区间。全是正则，不建 DOM。
-//
-// 和评论分开是因为取图链路每翻一片就要走一次这里，而它不要评论；
-// 一页 74 KB 的详情页建一次 DOM 要几毫秒，而那几毫秒卡在事件循环上时，
-// 通常正有几十路图片在流式转发。
+// parseGalleryPage 解析每页 token、总页数与分片区间，取图链路不需要构建评论 DOM。
 func parseGalleryPage(page string) galleryPage {
 	result := galleryPage{PageTokens: map[int]string{}}
 	for _, match := range imagePageLinkRE.FindAllStringSubmatch(page, -1) {
@@ -116,7 +109,7 @@ func parseGalleryPage(page string) galleryPage {
 		if err != nil || result.PageTokens[number] != "" {
 			continue
 		}
-		result.PageTokens[number] = detach(match[1])
+		result.PageTokens[number] = strings.Clone(match[1])
 	}
 
 	if showing := showingRE.FindStringSubmatch(page); showing != nil {
@@ -152,33 +145,20 @@ func parseImagePage(page string) imagePage {
 	}
 }
 
-// parseShowPageFragment 解析 showpage 接口返回的 i3 片段。
-//
-// i3 里除了本页的图片地址，还带着指向下一页的链接——顺序阅读时下一页的 token 就白送了，
-// 不用再回头请求详情页。这是整条取图链路上最省请求的一处。
-// nextPage 为 0 表示这是最后一页。
+// parseShowPageFragment 从 i3 片段提取图片地址和下一页令牌；没有下一页链接时 nextPage 为 0。
 func parseShowPageFragment(i3 string) (imageURL string, nextPage int, nextToken string) {
 	if match := imagePageLinkRE.FindStringSubmatch(i3); match != nil {
 		nextPage, _ = strconv.Atoi(match[2])
-		nextToken = detach(match[1])
+		nextToken = strings.Clone(match[1])
 	}
 	return firstGroup(mainImageRE, i3), nextPage, nextToken
 }
 
 func firstGroup(re *regexp.Regexp, text string) string {
 	if match := re.FindStringSubmatch(text); match != nil {
-		return detach(match[1])
+		return strings.Clone(match[1])
 	}
 	return ""
-}
-
-// 把捕获出来的短字符串复制成独立的一份。
-//
-// Go 的子串与父串共享同一块底层数组，正则捕获也一样。这些短字符串（每页令牌、showkey、
-// 图片地址）会被存进 20~30 分钟 TTL 的缓存，不复制的话每一条缓存都把它来源的那整页
-// 74 KB 的 HTML 一起钉在内存里——几百条捕获就是几十兆。strings.Clone 就是为这件事准备的。
-func detach(text string) string {
-	return strings.Clone(text)
 }
 
 // parseGalleryComments 解析详情页里的评论。只有评论接口会调，因为它是这里唯一需要建 DOM 的东西。
@@ -188,9 +168,7 @@ func parseGalleryComments(page string) ([]GalleryComment, error) {
 		return nil, err
 	}
 
-	// 下面三处（这里、parseSegments、mergeAdjacentText）都要空切片而不是 nil：
-	// 它们会被直接序列化成响应体，而 nil 切片编出来是 null 不是 []，前端照着数组遍历就炸。
-	// IDE 会建议改成 `var comments []GalleryComment`，别接受
+	// 评论和正文片段使用空切片，保证 JSON 输出 []。
 	comments := []GalleryComment{}
 	document.Find("#cdiv .c1").Each(func(_ int, block *goquery.Selection) {
 		meta := block.Find(".c3").First()

@@ -12,16 +12,8 @@ import (
 // 详情页默认每片 20 个缩略图。登录用户可以改成 40/50，所以只作为首次猜测。
 const defaultSliceSize = 20
 
-// ImageLocator 回答「第 N 页的图片地址是什么」，连同它一整套进程内缓存。
-//
-// 从 Service 里分出来是因为这里的状态最密集：每页令牌、分片大小、showkey、换源令牌、
-// 解析出的地址各有一张缓存表，还有一张在途请求表，它们只服务于取图，跟搜索、详情、进度无关。
-//
-// 请求路径是这样省下来的：详情页首片给出前 20 页的令牌 → 抓一次 /s/ 页拿 showkey →
-// 之后每页只打一次 showpage 接口，而它的响应里白送了下一页的令牌。所以顺序读一本 300 页的图集，
-// HTML 请求总共只有 2 次，只有跳页才会回头抓详情页的其它分片。
-//
-// 一张缓存表都不建：这些数据都能重新拉，为可重建的东西加表、加运维负担不值。
+// ImageLocator 定位每页图片地址，并缓存图片令牌、分片大小及解析结果。
+// 首次从详情页和 /s/ 页取得令牌、showkey，后续通过 showpage 获取图片及下一页令牌。
 type ImageLocator struct {
 	client *Client
 
@@ -31,11 +23,7 @@ type ImageLocator struct {
 	reloadToken *expirable.LRU[string, string]
 	imageURLs   *expirable.LRU[string, string]
 
-	// 在途的详情页请求，按「站点 + 图集 + 分片」去重。
-	//
-	// 阅读器一打开就并发要当前页和后两页，这三页的令牌通常落在同一片里，
-	// 不去重就是同一个 74 KB 的页面抓三遍。出网不限速，这种突发正好
-	// 打在最容易招封禁的那条通道上。
+	// 合并同一「站点 + 图集 + 分片」的并发请求，供可见页和预取页共用。
 	slices singleflight.Group
 }
 
@@ -50,13 +38,8 @@ func NewImageLocator(client *Client) *ImageLocator {
 	}
 }
 
-// Resolve 解析出某一页真正的图片地址。
-//
-// 有 showkey 时走 showpage 接口（一次轻量 JSON），没有或已失效就退回抓 /s/ 页面——
-// 那个页面本身就带着图片地址，所以失败路径反而更短。
-//
-// reload 用于图床节点失效（表现为图片 403）后换一台机器重取：它绕开所有缓存，
-// 并带上页面里的 nl 令牌让 e 站换源。
+// Resolve 优先通过 showpage 获取图片地址，showkey 缺失或失效时改用 /s/ 页面。
+// reload 跳过地址缓存和 showpage，使用 nl 令牌请求换源。
 func (l *ImageLocator) Resolve(ctx context.Context, rc RequestContext, ref GalleryRef, page int, reload bool) (string, error) {
 	urlKey := pageKey(rc.Site, ref.GID, page)
 	if reload {
@@ -88,7 +71,6 @@ func (l *ImageLocator) Resolve(ctx context.Context, rc RequestContext, ref Galle
 		}
 	}
 
-	// 写缓存只在这一个出口，再加解析路径时不用记着「别忘了也写一次缓存」
 	l.imageURLs.Add(urlKey, url)
 	return url, nil
 }
@@ -102,7 +84,7 @@ func (l *ImageLocator) AbsorbGalleryPage(site Site, gid int64, page string) {
 	}
 
 	// 只有不是最后一片时区间长度才等于分片大小，最后一片通常是残缺的
-	if parsed.RangeFrom > 0 && parsed.TotalPages > 0 && parsed.RangeTo < parsed.TotalPages {
+	if parsed.RangeFrom > 0 && parsed.RangeTo < parsed.TotalPages {
 		l.sliceSizes.Add(metaKey(site, gid), parsed.RangeTo-parsed.RangeFrom+1)
 	}
 }
@@ -117,12 +99,12 @@ func (l *ImageLocator) resolveViaAPI(ctx context.Context, rc RequestContext, ref
 	if err := l.client.CallAPI(ctx, rc, payload, &response); err != nil {
 		return "", err
 	}
-	if response.Error != "" || response.I3 == "" {
+	if response.Error != "" {
 		return "", nil
 	}
 
 	imageURL, nextPage, nextToken := parseShowPageFragment(response.I3)
-	// 响应里白送了下一页的令牌，顺手存下来，连续翻页就不用再回头请求详情页
+	// 缓存下一页令牌，连续翻页时无需再请求详情页。
 	if nextPage > 0 {
 		l.pageTokens.Add(pageKey(rc.Site, ref.GID, nextPage), nextToken)
 	}
@@ -196,9 +178,7 @@ func (l *ImageLocator) ensurePageToken(ctx context.Context, rc RequestContext, r
 // 同一片的并发请求合并成一次上游调用——评论接口要的正是首片，跟取图链路是同一个页面。
 func (l *ImageLocator) GalleryPage(ctx context.Context, rc RequestContext, ref GalleryRef, slice int) (string, error) {
 	result := l.slices.DoChan(fmt.Sprintf("%s:%d", metaKey(rc.Site, ref.GID), slice), func() (any, error) {
-		// 合并后的那一次上游调用挂在第一个来的请求的 ctx 上。阅读器预取时最先到的往往是
-		// 用户已经翻过去的那页，浏览器一中止它，跟在后面的两页会一起收到 context canceled——
-		// 所以这里把取消断开，只留超时（fetch 自己会加）。
+		// 单个读者取消不能中断共享请求；上游超时由 Client 控制。
 		detached := context.WithoutCancel(ctx)
 		// ?p= 是 0 基的，?p=0 就是第一片
 		body, err := l.client.FetchPage(detached, rc, fmt.Sprintf("/g/%d/%s/?p=%d", ref.GID, ref.Token, slice))

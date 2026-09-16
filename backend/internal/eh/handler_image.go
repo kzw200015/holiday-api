@@ -16,12 +16,6 @@ import (
 // 图集内容不会变，浏览器缓存住之后来回翻页就不再回源，也就不再消耗 e 站配额。
 const imageCacheControl = "private, max-age=2592000, immutable"
 
-// 两个图片接口，同样挂在 /api/eh 下，但**不要求登录**。
-//
-// <img src> 是浏览器自己发的请求，带不了 Authorization 头也就拿不到 JWT，
-// 所以这两个接口靠地址里的签名认身份：签名由 service 签发，覆盖「这是哪一份附件、给谁看、什么时候过期」。
-//
-// 单独一个文件而不是在 handler.go 里挑几条路由豁免，是因为「哪些接口不需要登录」必须一眼看得出来。
 func (h *Handler) imageRoutes(router chi.Router) {
 	// 这两条一次阅读就是几十个请求，访问日志统一降到 debug
 	router.Use(web.Quiet)
@@ -39,8 +33,7 @@ func (h *Handler) imageRoutes(router chi.Router) {
 			}
 
 			query := r.URL.Query()
-			// userId 只能来自签名过的 uid 参数，不能取当前登录者——这条链路根本没有登录者，
-			// 而信客户端随便给的值等于拿别人的 e 站凭据取图
+			// uid 随后由 Service 校验签名，通过后才能用它读取凭据。
 			userID, err := strconv.ParseInt(query.Get("uid"), 10, 64)
 			if err != nil || userID <= 0 {
 				return web.BadRequest("用户标识不合法")

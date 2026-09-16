@@ -112,11 +112,7 @@ type GalleryDetailResult struct {
 	ImageURLTemplate string `json:"imageUrlTemplate"`
 }
 
-// CommentSegment 是评论正文切出来的片段。
-//
-// 不直接给 HTML：正文是第三方站点的用户产出内容，交给前端 v-html 就是把 XSS 请进门。
-// 切成片段后前端用普通 JSX 渲染，链接还能保持可点。
-// type 为 break 时没有 text 和 href，靠 omitempty 省掉。
+// CommentSegment 将第三方评论拆为文本、换行与安全链接，供 Vue 模板渲染，避免直接插入 HTML。
 type CommentSegment struct {
 	Type string `json:"type"`
 	Text string `json:"text,omitempty"`

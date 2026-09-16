@@ -272,10 +272,7 @@ func (d *credentialDB) QueryRow(ctx context.Context, _ string, args ...any) pgx.
 		if cookie.IpbMemberID == "" {
 			return pgx.ErrNoRows
 		}
-		serialized, err := json.Marshal(cookie)
-		if err != nil {
-			return err
-		}
+		serialized, _ := json.Marshal(cookie)
 		*dest[0].(*string) = cookie.IpbMemberID
 		*dest[1].(*string) = string(serialized)
 		*dest[2].(*bool) = true

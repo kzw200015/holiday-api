@@ -78,13 +78,10 @@ func (s *Service) ReadingHistory(ctx context.Context, userID int64, value string
 		// 整批请求失败是可重试错误，不能把网络故障伪装成所有图集失效。
 		return ReadingHistoryPage{}, err
 	}
-	cards := make(map[int64]GalleryCard, len(galleries))
-	for _, gallery := range galleries {
-		cards[gallery.GID] = s.withThumbnail(gallery).GalleryCard
-	}
 	for _, row := range rows {
 		item := ReadingHistoryItem{GID: row.Gid, Token: row.Token, Page: row.Page, ReadAt: row.UpdatedAt}
-		if card, ok := cards[row.Gid]; ok {
+		if gallery, ok := galleries[row.Gid]; ok {
+			card := s.withThumbnail(gallery).GalleryCard
 			item.Gallery = &card
 		}
 		result.Items = append(result.Items, item)
