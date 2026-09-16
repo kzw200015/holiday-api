@@ -17,7 +17,7 @@ const chromeButton = {
   variant: "ghost",
 } as const
 
-/* 图片区连续横向滚动，底部导航始终可用，不跟随顶栏自动隐藏。 */
+/* 上下操作栏覆盖在阅读区上并同步隐藏，不占用图片的可用高度。 */
 export default defineComponent({
   name: "ReaderView",
   props: {
@@ -29,6 +29,9 @@ export default defineComponent({
     const { gallery, error, loading, page, totalPages, imageUrlTemplate, chromeVisible, showChrome, goTo, exit } =
       useReader(props)
     const seeking = ref(false)
+    /* 进度条捕获指针期间保持操作栏可用，松手后重新开始隐藏计时。 */
+    const controlsVisible = computed(() => chromeVisible.value || seeking.value)
+    watch(seeking, showChrome)
     const dragging = ref(false)
     const identity = computed(() => `${props.gid}/${props.token}`)
     const autoPage = useAutoPage(
@@ -43,7 +46,12 @@ export default defineComponent({
     })
 
     return () => (
-      <div class="fixed inset-0 flex flex-col bg-black">
+      <div
+        class="fixed inset-0 flex flex-col bg-black"
+        onPointerdown={showChrome}
+        onMousemove={showChrome}
+        onFocusin={showChrome}
+      >
         {error.value ? (
           <div class="flex flex-1 items-center justify-center p-4">
             <div class="max-w-md">
@@ -55,7 +63,7 @@ export default defineComponent({
             </div>
           </div>
         ) : (
-          <div class="relative flex min-h-0 flex-1 overflow-hidden" onPointerdown={showChrome} onMousemove={showChrome}>
+          <div class="relative flex min-h-0 flex-1 overflow-hidden">
             {imageUrlTemplate.value && totalPages.value ? (
               <ReaderStrip
                 key={`${props.gid}/${props.token}`}
@@ -76,10 +84,10 @@ export default defineComponent({
 
         {/* 隐藏后用 inert 停止接收焦点和点击，图片区域才能继续翻页。 */}
         <div
-          inert={!chromeVisible.value}
+          inert={!controlsVisible.value}
           class={[
             "pointer-events-none absolute inset-x-0 top-0 flex items-center gap-3 bg-gradient-to-b from-black/70 to-transparent p-3 transition-opacity",
-            chromeVisible.value ? "opacity-100" : "opacity-0",
+            controlsVisible.value ? "opacity-100" : "opacity-0",
           ]}
         >
           <Button aria-label="退出阅读" {...chromeButton} {...{ onClick: exit }}>
@@ -88,7 +96,13 @@ export default defineComponent({
           <p class="min-w-0 flex-1 truncate text-sm text-white/90">{gallery.value?.title ?? "加载中…"}</p>
         </div>
 
-        <div class="flex shrink-0 flex-wrap items-center gap-2 bg-zinc-950 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div
+          inert={!controlsVisible.value}
+          class={[
+            "absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-2 bg-gradient-to-t from-black/80 to-transparent px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity",
+            controlsVisible.value ? "opacity-100" : "pointer-events-none opacity-0",
+          ]}
+        >
           <Button
             aria-label="上一页"
             {...chromeButton}
