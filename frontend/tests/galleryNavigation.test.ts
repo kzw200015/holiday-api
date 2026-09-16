@@ -5,13 +5,25 @@ import { createApp, nextTick, type App as VueApp } from "vue"
 import { createRouter, createWebHistory, type Router } from "vue-router"
 
 import type * as EhApi from "@/api/eh"
-import { fetchGalleryComments, fetchGalleryDetail, saveProgress, searchGalleries, type GalleryDetail } from "@/api/eh"
+import {
+  bindCredential,
+  fetchCredentialStatus,
+  fetchGalleryComments,
+  fetchGalleryDetail,
+  saveProgress,
+  searchGalleries,
+  unbindCredential,
+  type GalleryDetail,
+} from "@/api/eh"
 import App from "@/App"
 import { AppRouter } from "@/router"
 import { useAuthStore } from "@/stores/AuthStore"
 
 vi.mock("@/api/eh", async (original) => ({
   ...(await original<typeof EhApi>()),
+  bindCredential: vi.fn(),
+  fetchCredentialStatus: vi.fn(),
+  unbindCredential: vi.fn(),
   fetchGalleryComments: vi.fn(),
   fetchGalleryDetail: vi.fn(),
   saveProgress: vi.fn(),
@@ -169,6 +181,38 @@ describe("图库组件缓存闭环", () => {
     await click("返回列表")
     expect(router.currentRoute.value.fullPath).toBe("/eh")
     expect(searchGalleries).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(["绑定", "解绑"])("%s只淘汰图库缓存，保留设置页且不重新读取凭据状态", async (action) => {
+    vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: true, memberId: "123", hasExAccess: false })
+    vi.mocked(bindCredential).mockResolvedValue({ bound: true, memberId: "456", hasExAccess: true })
+    vi.mocked(unbindCredential).mockResolvedValue(null)
+    await visit("/eh/g/1/aaaaaaaaaa")
+    await visit("/settings")
+    const form = host.querySelector("form")!
+    expect(form).not.toBeNull()
+    if (action === "绑定") {
+      const input = host.querySelector<HTMLInputElement>("#ipbMemberId")!
+      input.value = "456"
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+      await nextTick()
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+      await settle()
+    } else {
+      await click("解绑")
+    }
+    const expectedBindCalls = action === "绑定" ? [[{ ipbMemberId: "456", ipbPassHash: "", igneous: "" }]] : []
+    expect(vi.mocked(bindCredential).mock.calls).toEqual(expectedBindCalls)
+    expect(unbindCredential).toHaveBeenCalledTimes(action === "解绑" ? 1 : 0)
+    expect(host.textContent).toContain(action === "绑定" ? "绑定成功，里站已解锁。" : "未绑定")
+    expect(host.querySelector<HTMLInputElement>("#ipbMemberId")!.value).toBe("")
+    expect(host.querySelector("form")).toBe(form)
+    expect(fetchCredentialStatus).toHaveBeenCalledTimes(1)
+    await visit("/eh")
+    expect(searchGalleries).toHaveBeenCalledTimes(2)
+    await visit("/eh/g/1/aaaaaaaaaa")
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
+    expect(fetchGalleryComments).toHaveBeenCalledTimes(2)
   })
 
   it("分类草稿关闭不生效，应用才搜索；历史词沿用当前分类", async () => {
