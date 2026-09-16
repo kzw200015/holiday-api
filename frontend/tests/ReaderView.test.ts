@@ -104,14 +104,16 @@ describe("阅读器操作栏", () => {
     expect(controlsState()).toEqual(["hidden", "hidden"])
   })
 
-  it.each(['[aria-label="下一页"]', 'input[type="range"]', "select"])(
-    "点击操作栏中的 %s 不会切换显示状态",
-    async (selector) => {
-      host.querySelector<HTMLElement>(selector)!.click()
-      await vi.advanceTimersByTimeAsync(0)
-      expect(controlsState()).toEqual(["visible", "visible"])
-    },
-  )
+  it.each([
+    '[aria-label="下一页"]',
+    'input[type="range"]',
+    '[aria-label="增加自动翻页间隔"]',
+    '[aria-label="减少自动翻页间隔"]',
+  ])("点击操作栏中的 %s 不会切换显示状态", async (selector) => {
+    host.querySelector<HTMLElement>(selector)!.click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(controlsState()).toEqual(["visible", "visible"])
+  })
 
   it("自动翻页不会重新显示已隐藏的控件", async () => {
     host.querySelector<HTMLButtonElement>('[aria-label="开始自动翻页"]')!.click()
@@ -166,7 +168,9 @@ describe("阅读器操作栏", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }))
     await vi.advanceTimersByTimeAsync(0)
     expect(router.currentRoute.value.params.page).toBe("2")
-    host.querySelector("select")!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }))
+    host
+      .querySelector('[aria-label="增加自动翻页间隔"]')!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }))
     await vi.advanceTimersByTimeAsync(0)
     expect(router.currentRoute.value.params.page).toBe("2")
   })

@@ -60,11 +60,8 @@ function autoButton(host: HTMLElement) {
   return host.querySelector<HTMLButtonElement>("button[aria-pressed]")!
 }
 
-async function chooseInterval(host: HTMLElement, seconds: number) {
-  const select = host.querySelector("select")!
-  select.value = String(seconds)
-  select.dispatchEvent(new Event("change", { bubbles: true }))
-  await nextTick()
+function intervalText(host: HTMLElement) {
+  return host.querySelector("output")!.textContent.trim()
 }
 
 beforeEach(() => {
@@ -100,17 +97,19 @@ describe("阅读器自动翻页控件", () => {
     expect(change).toHaveBeenCalledTimes(2)
   })
 
-  it("图片拖动期间避让，结束后重新等待完整间隔", async () => {
+  it("图片拖动期间修改间隔不会恢复计时，结束后等待完整的新间隔", async () => {
     const { state, change, host } = await createReader()
     autoButton(host).click()
     await vi.advanceTimersByTimeAsync(4000)
     state.dragging = true
+    await nextTick()
+    host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
     await vi.advanceTimersByTimeAsync(10000)
     expect(autoButton(host).getAttribute("aria-pressed")).toBe("true")
     expect(change).not.toHaveBeenCalled()
     state.page = 3
     state.dragging = false
-    await vi.advanceTimersByTimeAsync(4999)
+    await vi.advanceTimersByTimeAsync(5999)
     expect(change).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
     expect(change).toHaveBeenCalledExactlyOnceWith(4)
@@ -141,19 +140,54 @@ describe("阅读器自动翻页控件", () => {
     const { change, host } = await createReader()
     autoButton(host).click()
     await vi.advanceTimersByTimeAsync(4000)
-    await chooseInterval(host, 20)
-    await vi.advanceTimersByTimeAsync(19999)
+    host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
+    await nextTick()
+    expect(intervalText(host)).toBe("6 秒")
+    await vi.advanceTimersByTimeAsync(5999)
     expect(change).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
     expect(change).toHaveBeenCalledTimes(1)
     const reopened = await createReader()
-    expect(reopened.host.querySelector("select")!.value).toBe("20")
+    expect(intervalText(reopened.host)).toBe("6 秒")
     expect(autoButton(reopened.host).getAttribute("aria-pressed")).toBe("false")
     const anotherUser = await createReader(2)
-    expect(anotherUser.host.querySelector("select")!.value).toBe("5")
-    await chooseInterval(host, 1)
-    await vi.advanceTimersByTimeAsync(1000)
+    expect(intervalText(anotherUser.host)).toBe("5 秒")
+    host.querySelector<HTMLButtonElement>('[aria-label="减少自动翻页间隔"]')!.click()
+    await nextTick()
+    expect(intervalText(host)).toBe("5 秒")
+    await vi.advanceTimersByTimeAsync(5000)
     expect(change).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    { seconds: 1, disabledLabel: "减少自动翻页间隔", enabledLabel: "增加自动翻页间隔", next: 2 },
+    { seconds: 20, disabledLabel: "增加自动翻页间隔", enabledLabel: "减少自动翻页间隔", next: 19 },
+  ])("间隔为 $seconds 秒时禁用越界按钮，反向调整仍可用", async ({ seconds, disabledLabel, enabledLabel, next }) => {
+    localStorage.setItem("myapi.reader-interval.1", JSON.stringify(seconds))
+    const { host } = await createReader()
+    const disabledButton = host.querySelector<HTMLButtonElement>(`[aria-label="${disabledLabel}"]`)!
+    const enabledButton = host.querySelector<HTMLButtonElement>(`[aria-label="${enabledLabel}"]`)!
+    expect(disabledButton.disabled).toBe(true)
+    expect(enabledButton.disabled).toBe(false)
+    disabledButton.click()
+    await nextTick()
+    expect(intervalText(host)).toBe(`${seconds} 秒`)
+    enabledButton.click()
+    await nextTick()
+    expect(intervalText(host)).toBe(`${next} 秒`)
+    expect(disabledButton.disabled).toBe(false)
+    expect(localStorage.getItem("myapi.reader-interval.1")).toBe(String(next))
+    disabledButton.click()
+    await nextTick()
+    expect(intervalText(host)).toBe(`${seconds} 秒`)
+    expect(disabledButton.disabled).toBe(true)
+    expect(localStorage.getItem("myapi.reader-interval.1")).toBe(String(seconds))
+  })
+
+  it("秒数只读，不提供下拉选择或手动输入", async () => {
+    const { host } = await createReader()
+    expect(intervalText(host)).toBe("5 秒")
+    expect(host.querySelector("select, input:not([type=range]), [contenteditable]")).toBeNull()
   })
 
   it("没有页数或已到末页不能启动，到达末页立即停止且不循环", async () => {
@@ -218,6 +252,6 @@ describe("阅读器自动翻页控件", () => {
   it.each([0, 21, 1.5, "10", null])("非法存储值 %s 使用默认间隔", async (value) => {
     localStorage.setItem("myapi.reader-interval.1", JSON.stringify(value))
     const { host } = await createReader()
-    expect(host.querySelector("select")!.value).toBe("5")
+    expect(intervalText(host)).toBe("5 秒")
   })
 })

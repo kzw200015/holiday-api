@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeftIcon, ChevronRightIcon, PauseIcon, PlayIcon, XIcon } from "@lucide/vue"
+import { ChevronLeftIcon, ChevronRightIcon, MinusIcon, PauseIcon, PlayIcon, PlusIcon, XIcon } from "@lucide/vue"
 import { useDocumentVisibility, useIntervalFn } from "@vueuse/core"
 import { computed, ref, watch } from "vue"
 import { onBeforeRouteLeave } from "vue-router"
@@ -21,8 +21,6 @@ const { value: interval, set: setInterval } = usePersistedValue("reader-interval
   typeof raw === "number" && Number.isInteger(raw) && raw >= 1 && raw <= 20 ? raw : 5,
 )
 
-/* 控件写入仍经过父级页码约束和偏好持久化入口，不另存一份表单状态。 */
-const selectedInterval = computed({ get: () => interval.value, set: setInterval })
 const progressPercent = computed(() => (props.total > 1 ? ((page.value - 1) / (props.total - 1)) * 100 : 0))
 const { pause, resume } = useIntervalFn(
   () => {
@@ -36,7 +34,6 @@ const { pause, resume } = useIntervalFn(
 
 function stop() {
   autoPaging.value = false
-  pause()
 }
 
 function toggleAutoPaging() {
@@ -56,13 +53,14 @@ watch(
   },
   { flush: "sync" },
 )
-/* 只在开关、拖动或间隔改变时重计时，手动换页保持原来的节奏。 */
+/* 开关和拖动控制计时；间隔变化由 useIntervalFn 重计时，手动换页不重置节奏。 */
 watch(
-  [autoPaging, interacting, interval],
+  [autoPaging, interacting],
   () => {
-    pause()
     if (autoPaging.value && !interacting.value) {
       resume()
+    } else {
+      pause()
     }
   },
   { flush: "sync" },
@@ -76,7 +74,7 @@ function startSeeking(event: PointerEvent) {
 }
 
 const chromeButton = {
-  class: "pointer-events-auto cursor-pointer text-white hover:bg-white/10 hover:text-white",
+  class: "cursor-pointer text-white hover:bg-white/10 hover:text-white",
   size: "icon-sm",
   variant: "ghost",
 } as const
@@ -94,6 +92,37 @@ const chromeButton = {
       <XIcon />
     </Button>
     <p class="min-w-0 flex-1 truncate text-sm text-white/90">{{ title ?? "加载中…" }}</p>
+    <div class="flex shrink-0 items-center gap-1">
+      <Button
+        :aria-label="autoPaging ? '暂停自动翻页' : '开始自动翻页'"
+        :aria-pressed="autoPaging"
+        v-bind="chromeButton"
+        :disabled="!canStart"
+        @click="toggleAutoPaging"
+      >
+        <PauseIcon v-if="autoPaging" />
+        <PlayIcon v-else />
+      </Button>
+      <Button
+        aria-label="减少自动翻页间隔"
+        v-bind="chromeButton"
+        :disabled="interval <= 1"
+        @click="setInterval(interval - 1)"
+      >
+        <MinusIcon />
+      </Button>
+      <output aria-label="自动翻页间隔" class="min-w-10 text-center text-sm text-white/90 tabular-nums">
+        {{ interval }} 秒
+      </output>
+      <Button
+        aria-label="增加自动翻页间隔"
+        v-bind="chromeButton"
+        :disabled="interval >= 20"
+        @click="setInterval(interval + 1)"
+      >
+        <PlusIcon />
+      </Button>
+    </div>
   </div>
   <div
     :inert="!visible"
@@ -125,24 +154,5 @@ const chromeButton = {
     <Button aria-label="下一页" v-bind="chromeButton" :disabled="!total || page >= total" @click="page += 1">
       <ChevronRightIcon />
     </Button>
-    <div class="flex items-center gap-1">
-      <Button
-        :aria-label="autoPaging ? '暂停自动翻页' : '开始自动翻页'"
-        :aria-pressed="autoPaging"
-        v-bind="chromeButton"
-        :disabled="!canStart"
-        @click="toggleAutoPaging"
-      >
-        <PauseIcon v-if="autoPaging" />
-        <PlayIcon v-else />
-      </Button>
-      <select
-        v-model.number="selectedInterval"
-        aria-label="自动翻页间隔"
-        class="h-8 rounded border border-white/20 bg-zinc-950 px-1 text-sm text-white"
-      >
-        <option v-for="seconds in 20" :key="seconds" :value="seconds">{{ seconds }} 秒</option>
-      </select>
-    </div>
   </div>
 </template>

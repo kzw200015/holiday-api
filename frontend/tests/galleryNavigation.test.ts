@@ -167,7 +167,7 @@ describe("图库组件缓存闭环", () => {
     expect(searchGalleries).toHaveBeenCalledTimes(1)
   })
 
-  it("阅读控件双向绑定路由和间隔，图片失败后可重试", async () => {
+  it("阅读控件双向绑定页码，间隔按钮保存偏好，图片失败后可重试", async () => {
     await visit("/eh/read/1/aaaaaaaaaa/1")
     const viewport = host.querySelector('[aria-label="横向阅读区域"]')!
     await vi.waitFor(() => expect(viewport.querySelector("img")).not.toBeNull())
@@ -185,11 +185,10 @@ describe("图库组件缓存闭环", () => {
     await settle()
     expect(router.currentRoute.value.params.page).toBe("17")
     expect(range.getAttribute("aria-valuetext")).toBe("第 17 页，共 100 页")
-    const interval = host.querySelector<HTMLSelectElement>('[aria-label="自动翻页间隔"]')!
-    interval.value = "20"
-    interval.dispatchEvent(new Event("change", { bubbles: true }))
+    host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
     await nextTick()
-    expect(localStorage.getItem("myapi.reader-interval.1")).toBe("20")
+    expect(host.querySelector('[aria-label="自动翻页间隔"]')!.textContent.trim()).toBe("6 秒")
+    expect(localStorage.getItem("myapi.reader-interval.1")).toBe("6")
     host.querySelector<HTMLElement>('[aria-label="开始自动翻页"]')!.click()
     await nextTick()
     const pause = host.querySelector<HTMLElement>('[aria-label="暂停自动翻页"]')!
