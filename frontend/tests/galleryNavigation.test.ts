@@ -15,7 +15,7 @@ import {
   unbindCredential,
   type GalleryDetail,
 } from "@/api/eh"
-import App from "@/App"
+import App from "@/App.vue"
 import { AppRouter } from "@/router"
 import { useAuthStore } from "@/stores/AuthStore"
 
@@ -167,6 +167,40 @@ describe("图库组件缓存闭环", () => {
     expect(searchGalleries).toHaveBeenCalledTimes(1)
   })
 
+  it("阅读控件双向绑定路由和间隔，图片失败后可重试", async () => {
+    await visit("/eh/read/1/aaaaaaaaaa/1")
+    const viewport = host.querySelector('[aria-label="横向阅读区域"]')!
+    await vi.waitFor(() => expect(viewport.querySelector("img")).not.toBeNull())
+    const image = viewport.querySelector("img")!
+    const imageUrl = image.getAttribute("src")
+    image.dispatchEvent(new Event("error"))
+    await nextTick()
+    expect(viewport.textContent).toContain("第 1 页加载失败")
+    await click("重试")
+    expect(viewport.querySelector("img")?.getAttribute("src")).not.toBe(imageUrl)
+
+    const range = host.querySelector<HTMLInputElement>('[aria-label="阅读进度"]')!
+    range.value = "17"
+    range.dispatchEvent(new Event("input", { bubbles: true }))
+    await settle()
+    expect(router.currentRoute.value.params.page).toBe("17")
+    expect(range.getAttribute("aria-valuetext")).toBe("第 17 页，共 100 页")
+    const interval = host.querySelector<HTMLSelectElement>('[aria-label="自动翻页间隔"]')!
+    interval.value = "20"
+    interval.dispatchEvent(new Event("change", { bubbles: true }))
+    await nextTick()
+    expect(localStorage.getItem("myapi.reader-interval.1")).toBe("20")
+    host.querySelector<HTMLElement>('[aria-label="开始自动翻页"]')!.click()
+    await nextTick()
+    const pause = host.querySelector<HTMLElement>('[aria-label="暂停自动翻页"]')!
+    expect(pause.getAttribute("aria-pressed")).toBe("true")
+    pause.click()
+    await visit("/eh/read/1/aaaaaaaaaa/100")
+    expect(range.value).toBe("100")
+    expect(host.querySelector<HTMLButtonElement>('[aria-label="下一页"]')!.disabled).toBe(true)
+    expect(host.querySelector<HTMLButtonElement>('[aria-label="开始自动翻页"]')!.disabled).toBe(true)
+  })
+
   it("换图集复用一份详情但重置内容和位置，凭据变更淘汰缓存", async () => {
     await visit("/eh/g/1/aaaaaaaaaa")
     window.scrollTo({ top: 500 })
@@ -213,6 +247,26 @@ describe("图库组件缓存闭环", () => {
     await visit("/eh/g/1/aaaaaaaaaa")
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
     expect(fetchGalleryComments).toHaveBeenCalledTimes(2)
+  })
+
+  it("绑定失败保留输入和图库缓存，并恢复提交按钮", async () => {
+    vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
+    vi.mocked(bindCredential).mockRejectedValueOnce(new Error("凭据无效"))
+    const listInput = host.querySelector("input")
+    await visit("/settings")
+    const form = host.querySelector("form")!
+    const input = host.querySelector<HTMLInputElement>("#ipbMemberId")!
+    input.value = "456"
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+    await nextTick()
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    await settle()
+    expect(host.textContent).toContain("凭据无效")
+    expect(input.value).toBe("456")
+    expect(form.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false)
+    await visit("/eh")
+    expect(host.querySelector("input")).toBe(listInput)
+    expect(searchGalleries).toHaveBeenCalledTimes(1)
   })
 
   it("分类草稿关闭不生效，应用才搜索；历史词沿用当前分类", async () => {

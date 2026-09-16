@@ -1,14 +1,12 @@
 import path from "node:path"
 import tailwindcss from "@tailwindcss/vite"
 import vue from "@vitejs/plugin-vue"
-import vueJsx from "@vitejs/plugin-vue-jsx"
 import { VitePWA } from "vite-plugin-pwa"
 import { defineConfig } from "vitest/config"
 
 export default defineConfig({
   plugins: [
     vue(),
-    vueJsx(),
     tailwindcss(),
     VitePWA({
       // 新版本在关闭旧页面后接管，避免阅读途中强制刷新。

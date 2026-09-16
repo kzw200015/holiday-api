@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest"
 import { createApp, h } from "vue"
 
-import GalleryMeta from "@/components/gallery/GalleryMeta"
+import GalleryMeta from "@/components/gallery/GalleryMeta.vue"
 
 describe("图集星级评分", () => {
   it.each([

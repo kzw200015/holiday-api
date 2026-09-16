@@ -1,6 +1,6 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-router"
 
-import AppLayout from "@/layouts/AppLayout"
+import AppLayout from "@/layouts/AppLayout.vue"
 import { useAuthStore } from "@/stores/AuthStore"
 
 declare module "vue-router" {
@@ -16,11 +16,11 @@ declare module "vue-router" {
 
 /* 路由表：业务页面作为布局的子路由登记，需要全屏的页面（登录、阅读）与布局平级 */
 const routes: RouteRecordRaw[] = [
-  { path: "/login", name: "login", component: () => import("@/views/LoginView"), meta: { title: "登录" } },
+  { path: "/login", name: "login", component: () => import("@/views/LoginView.vue"), meta: { title: "登录" } },
   {
     path: "/eh/read/:gid(\\d+)/:token/:page(\\d+)?",
     name: "reader",
-    component: () => import("@/views/ReaderView"),
+    component: () => import("@/views/ReaderView.vue"),
     props: (route) => ({
       gid: Number(route.params.gid),
       token: String(route.params.token),
@@ -32,30 +32,30 @@ const routes: RouteRecordRaw[] = [
     path: "/",
     component: AppLayout,
     children: [
-      { path: "", name: "home", component: () => import("@/views/HomeView"), meta: { title: "首页" } },
+      { path: "", name: "home", component: () => import("@/views/HomeView.vue"), meta: { title: "首页" } },
       {
         path: "holiday",
         name: "holiday",
-        component: () => import("@/views/HolidayView"),
+        component: () => import("@/views/HolidayView.vue"),
         meta: { title: "节假日查询" },
       },
       {
         path: "eh",
         name: "gallery-list",
-        component: () => import("@/views/GalleryListView"),
+        component: () => import("@/views/GalleryListView.vue"),
         meta: { title: "图库", requiresAuth: true, ownScroll: true },
       },
       {
         path: "eh/g/:gid(\\d+)/:token",
         name: "gallery-detail",
-        component: () => import("@/views/GalleryDetailView"),
+        component: () => import("@/views/GalleryDetailView.vue"),
         props: (route) => ({ gid: Number(route.params.gid), token: String(route.params.token) }),
         meta: { title: "图集详情", requiresAuth: true, ownScroll: true },
       },
       {
         path: "settings",
         name: "settings",
-        component: () => import("@/views/SettingsView"),
+        component: () => import("@/views/SettingsView.vue"),
         meta: { title: "设置", requiresAuth: true },
       },
     ],

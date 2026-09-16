@@ -2,9 +2,10 @@
 import { describe, expect, it, vi } from "vitest"
 import { createApp, h } from "vue"
 
-import EmptyState from "@/components/EmptyState"
-import ErrorAlert from "@/components/ErrorAlert"
-import GalleryTag from "@/components/gallery/GalleryTag"
+import EmptyState from "@/components/EmptyState.vue"
+import ErrorAlert from "@/components/ErrorAlert.vue"
+import CommentBody from "@/components/gallery/CommentBody.vue"
+import GalleryTag from "@/components/gallery/GalleryTag.vue"
 
 describe("页面公共反馈", () => {
   it("查询错误支持重试，保留自定义操作且按钮不会提交表单", () => {
@@ -44,6 +45,30 @@ describe("页面公共反馈", () => {
     app.mount(host)
     try {
       expect(host.querySelector('[role="status"]')?.textContent).toBe("暂无内容")
+    } finally {
+      app.unmount()
+    }
+  })
+
+  it("评论片段保留换行和链接，文本不会被当作 HTML 执行", () => {
+    const host = document.createElement("div")
+    const app = createApp(CommentBody, {
+      segments: [
+        { type: "text", text: '<img src="x" onerror="alert(1)">' },
+        { type: "break" },
+        { type: "link", text: "原文", href: "https://example.com/comment" },
+      ],
+    })
+    app.mount(host)
+    try {
+      expect(host.textContent).toContain('<img src="x" onerror="alert(1)">')
+      expect(host.querySelector("img")).toBeNull()
+      expect(host.querySelectorAll("br")).toHaveLength(1)
+      const link = host.querySelector("a")!
+      expect(link.textContent).toBe("原文")
+      expect(link.href).toBe("https://example.com/comment")
+      expect(link.rel).toBe("noreferrer noopener")
+      expect(link.target).toBe("_blank")
     } finally {
       app.unmount()
     }

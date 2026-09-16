@@ -27,7 +27,7 @@ MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存�
 
 前端格式由 Prettier 统一（无分号、双引号、120 列），import 顺序由 `@ianvs/prettier-plugin-sort-imports` 自动排序（三方依赖 → `@/` 内部模块），不要手工调整；lint 规则见 `frontend/.oxlintrc.json`，其中 `curly` 要求所有 `if`/`for` 使用花括号。`src/components/ui/` 属于 shadcn-vue 生成源码，已在 `.prettierignore` 与 oxlint 的 `ignorePatterns` 中排除，清理代码时同样保留。
 
-业务组件使用 TSX 和 `defineComponent`，均声明 `name` 以便 KeepAlive 按名匹配。JSX 事件绑定的规则：原生元素以及已声明对应 props/emits 的组件直接写 `onClick={...}`、`onUpdate:modelValue={...}`；只有组件未声明的属性（如 `Button` 的 `onClick`、`Input` 的原生属性）才用 `{...{ ... }}` 展开透传。前端使用 `@/` 路径别名，通过 API 封装访问后端。注释统一用 `/* */`（导出 API 用 `/** */`），注释、提交信息和文档使用简体中文。
+业务组件使用 Vue SFC 与 `<script setup lang="ts">`，组件名默认从 PascalCase 文件名推导，KeepAlive 按该名称匹配；需要不同名称时使用 `defineOptions` 显式声明。模板使用 `v-if`、`v-for`、`v-model`、`@事件` 和事件修饰符，props、emits 与双向绑定分别使用类型化的 `defineProps`、`defineEmits`、`defineModel`；不要用渲染函数模拟模板。可复用的业务状态与副作用放在组合式函数中。前端使用 `@/` 路径别名，SFC 导入显式带 `.vue` 后缀，通过 API 封装访问后端。脚本注释使用 `/* */`（导出 API 用 `/** */`），模板注释使用 `<!-- -->`；注释、提交信息和文档使用简体中文。
 
 ## 测试要求
 

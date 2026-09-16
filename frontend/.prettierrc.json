@@ -3,6 +3,6 @@
   "printWidth": 120,
   "plugins": ["@ianvs/prettier-plugin-sort-imports"],
   "importOrder": ["<BUILTIN_MODULES>", "<THIRD_PARTY_MODULES>", "", "^@/(.*)$", "^[./]"],
-  "importOrderParserPlugins": ["typescript", "jsx"],
+  "importOrderParserPlugins": ["typescript"],
   "importOrderTypeScriptVersion": "6.0.3"
 }
