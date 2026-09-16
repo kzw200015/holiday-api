@@ -95,11 +95,13 @@ export const categoryLabels: Record<string, string> = {
 /** 分类筛选项。value 必须和后端 CATEGORY_NAMES 逐字对应，拼错会被后端回 400 */
 export const galleryCategories = CATEGORIES.map(({ value, label }) => ({ value, label }))
 
+export interface GallerySearch {
+  keyword: string
+  categories: string[]
+}
+
 /** 搜索图集。cursor 为空表示第一页，翻页时关键词和分类要一起带上 */
-export function searchGalleries(
-  params: { keyword: string; categories: string[]; cursor: string },
-  signal?: AbortSignal,
-) {
+export function searchGalleries(params: GallerySearch & { cursor: string }, signal?: AbortSignal) {
   return httpClient.get<GalleryPage>("/eh/galleries", {
     params: { keyword: params.keyword, categories: params.categories.join(","), cursor: params.cursor },
     signal,

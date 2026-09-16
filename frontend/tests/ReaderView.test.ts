@@ -5,6 +5,7 @@ import { createApp, h, nextTick } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
 import type * as EhApi from "@/api/eh"
+import { saveProgress } from "@/api/eh"
 import { createGalleryNavigation, galleryNavigationKey } from "@/composables/galleryNavigation"
 import ReaderView from "@/views/ReaderView.vue"
 
@@ -16,6 +17,7 @@ vi.mock("@/api/eh", async (importOriginal) => ({
   }),
   saveProgress: vi.fn().mockResolvedValue(undefined),
   fetchGalleryPreferences: vi.fn().mockResolvedValue({ categories: [], readerInterval: 5 }),
+  saveReaderInterval: vi.fn().mockResolvedValue(null),
 }))
 
 let app: ReturnType<typeof createApp> | undefined
@@ -23,6 +25,7 @@ let host: HTMLDivElement
 let router: ReturnType<typeof createRouter>
 
 beforeEach(async () => {
+  vi.mocked(saveProgress).mockClear()
   vi.useFakeTimers()
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
   router = createRouter({
@@ -76,6 +79,34 @@ function controlsState() {
     return "inconsistent"
   })
 }
+
+describe("阅读进度保存", () => {
+  it("连续翻页防抖保存最后一页，卸载立即补报并取消计时", async () => {
+    await router.replace("/1/token/2")
+    await vi.advanceTimersByTimeAsync(500)
+    expect(saveProgress).not.toHaveBeenCalled()
+    await router.replace("/1/token/3")
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 3)
+    await router.replace("/1/token/4")
+    app!.unmount()
+    app = undefined
+    expect(saveProgress).toHaveBeenLastCalledWith(1, "token", 4)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(saveProgress).toHaveBeenCalledTimes(2)
+  })
+
+  it("切换图集补报旧位置，新图集不会使用旧页码", async () => {
+    await router.replace("/1/token/8")
+    await router.replace("/2/second/1")
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 8)
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(saveProgress).toHaveBeenNthCalledWith(2, 2, "second", 1)
+    app!.unmount()
+    app = undefined
+    expect(saveProgress).toHaveBeenCalledTimes(2)
+  })
+})
 
 describe("阅读器操作栏", () => {
   it("默认显示且不自动隐藏，单击阅读区域切换显示状态", async () => {

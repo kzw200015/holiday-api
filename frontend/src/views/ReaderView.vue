@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { clamp, useEventListener } from "@vueuse/core"
-import { computed, ref, watch } from "vue"
+import { clamp, useEventListener, useTimeoutFn } from "@vueuse/core"
+import { computed, onScopeDispose, ref, watch } from "vue"
 import { onBeforeRouteLeave, useRouter } from "vue-router"
 
-import { fetchGalleryDetail } from "@/api/eh"
+import { fetchGalleryDetail, saveProgress } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert.vue"
 import ReaderControls from "@/components/gallery/ReaderControls.vue"
 import ReaderStrip from "@/components/gallery/ReaderStrip.vue"
@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useGalleryNavigation } from "@/composables/galleryNavigation"
 import { useQuery } from "@/composables/useQuery"
-import { useReadingProgress } from "@/composables/useReadingProgress"
 import { backOrReplace } from "@/lib/navigation"
 
 const PAGE_STEPS: Record<string, number> = {
@@ -71,7 +70,38 @@ onBeforeRouteLeave(() => {
     void navigation.trigger(position.value)
   }
 })
-useReadingProgress(position)
+let pendingProgress: typeof position.value = null
+const { start: scheduleProgress, stop: cancelProgress } = useTimeoutFn(flushProgress, 1200, { immediate: false })
+
+function flushProgress() {
+  cancelProgress()
+  if (!pendingProgress) {
+    return
+  }
+  const { gid, token, page: progressPage } = pendingProgress
+  pendingProgress = null
+  /* 保存失败不阻断阅读，后续翻页会再次上报。 */
+  void saveProgress(gid, token, progressPage).catch(() => {})
+}
+
+watch(
+  position,
+  (progress) => {
+    if (
+      pendingProgress &&
+      (!progress || progress.gid !== pendingProgress.gid || progress.token !== pendingProgress.token)
+    ) {
+      flushProgress()
+    }
+    pendingProgress = progress
+    if (progress) {
+      scheduleProgress()
+    }
+  },
+  { immediate: true },
+)
+/* 换图集与离开页面都按原位置快照补报，不读取下一页的路由参数。 */
+onScopeDispose(flushProgress)
 
 useEventListener(window, "keydown", (event: KeyboardEvent) => {
   /* 焦点位于操作按钮时，空格和回车应保留原生激活行为。 */
