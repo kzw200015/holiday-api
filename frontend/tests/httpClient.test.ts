@@ -9,6 +9,28 @@ beforeEach(() => {
 })
 
 describe("HTTP 边界", () => {
+  it("默认使用 fetch 适配器，保留查询参数、鉴权头和 JSON 请求体", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockImplementation(async () => Response.json({ code: 200, data: { id: 1 }, msg: "" }))
+    const config = { baseURL: "https://myapi.test/api", env: { fetch } }
+    setToken("current")
+
+    expect(await httpClient.get("/eh/galleries", { ...config, params: { keyword: "中文 & cat" } })).toEqual({ id: 1 })
+    const getRequest = fetch.mock.calls[0]![0] as Request
+    expect(getRequest.method).toBe("GET")
+    expect(new URL(getRequest.url).pathname).toBe("/api/eh/galleries")
+    expect(new URL(getRequest.url).searchParams.get("keyword")).toBe("中文 & cat")
+    expect(getRequest.headers.get("Authorization")).toBe("Bearer current")
+
+    expect(await httpClient.post("/eh/preferences/reader-interval", { interval: 6 }, config)).toEqual({ id: 1 })
+    const postRequest = fetch.mock.calls[1]![0] as Request
+    expect(postRequest.method).toBe("POST")
+    expect(postRequest.headers.get("Content-Type")).toBe("application/json")
+    expect(await postRequest.json()).toEqual({ interval: 6 })
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
   it("GET 和 POST 都直接返回业务数据，保留 null", async () => {
     const adapter: AxiosAdapter = async (config) => ({
       config,

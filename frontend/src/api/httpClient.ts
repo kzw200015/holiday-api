@@ -7,6 +7,7 @@ const TOKEN_KEY = "myapi_token"
 
 const instance = axios.create({
   baseURL: "/api",
+  adapter: "fetch",
 })
 
 /*
