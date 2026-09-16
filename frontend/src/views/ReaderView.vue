@@ -1,67 +1,117 @@
 <script setup lang="ts">
-import { ChevronLeftIcon, ChevronRightIcon, PauseIcon, PlayIcon, XIcon } from "@lucide/vue"
+import { clamp, useEventListener } from "@vueuse/core"
 import { computed, ref, watch } from "vue"
-import { onBeforeRouteLeave } from "vue-router"
+import { onBeforeRouteLeave, useRouter } from "vue-router"
 
+import { fetchGalleryDetail } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert.vue"
+import ReaderControls from "@/components/gallery/ReaderControls.vue"
 import ReaderStrip from "@/components/gallery/ReaderStrip.vue"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useAutoPage } from "@/composables/useAutoPage"
-import { useReader } from "@/composables/useReader"
-import { useAuthStore } from "@/stores/AuthStore"
+import { useGalleryNavigation } from "@/composables/galleryNavigation"
+import { useQuery } from "@/composables/useQuery"
+import { useReadingProgress } from "@/composables/useReadingProgress"
+import { backOrReplace } from "@/lib/navigation"
 
+const PAGE_STEPS: Record<string, number> = {
+  ArrowRight: 1,
+  ArrowDown: 1,
+  PageDown: 1,
+  " ": 1,
+  ArrowLeft: -1,
+  ArrowUp: -1,
+  PageUp: -1,
+}
+
+/* 路由 props 在离开页面时仍保留本图集参数，进度补报不会读到下一页的路由。 */
 const props = defineProps<{ gid: number; token: string; page: number }>()
-const { gallery, error, loading, page, totalPages, imageUrlTemplate, chromeVisible, showChrome, goTo, exit } =
-  useReader(props)
-const seeking = ref(false)
-const dragging = ref(false)
-/* 进度条捕获指针期间保持操作栏可用，松手后重新开始隐藏计时。 */
-const controlsVisible = computed(() => chromeVisible.value || seeking.value)
-watch(seeking, showChrome)
+const router = useRouter()
+const navigation = useGalleryNavigation()
 const identity = computed(() => `${props.gid}/${props.token}`)
 const {
-  active: autoPaging,
-  canStart,
-  interval,
-  setInterval,
-  toggle,
-  stop,
-} = useAutoPage(
-  { identity, page, total: totalPages, dragging: computed(() => seeking.value || dragging.value) },
-  goTo,
-  useAuthStore().user?.id,
+  data: detail,
+  error,
+  loading,
+} = useQuery(identity, (_identity, signal) => fetchGalleryDetail(props.gid, props.token, signal))
+const gallery = computed(() => detail.value?.gallery)
+const totalPages = computed(() => gallery.value?.fileCount ?? 0)
+/* 页码来自 URL，详情到达后才能按实际页数约束，避免手改地址请求越界图片。 */
+const page = computed({
+  get: () => (totalPages.value ? clamp(props.page, 1, totalPages.value) : Math.max(1, props.page)),
+  set: goTo,
+})
+const imageUrlTemplate = computed(() => detail.value?.imageUrlTemplate ?? "")
+const seeking = ref(false)
+const dragging = ref(false)
+const controlsVisible = ref(true)
+
+function goTo(next: number) {
+  if (!totalPages.value) {
+    return
+  }
+  const clamped = clamp(next, 1, totalPages.value)
+  if (clamped === props.page) {
+    return
+  }
+  /* 用 replace 让浏览器后退直接离开阅读，而非逐页回退。 */
+  void router.replace({ name: "reader", params: { gid: props.gid, token: props.token, page: clamped } })
+}
+
+function exit() {
+  backOrReplace(router, { name: "gallery-detail", params: { gid: props.gid, token: props.token } })
+}
+
+/* 有效进度：详情到达且页数已知。进度上报与离开通知共用这一份判断。 */
+const position = computed(() =>
+  detail.value && totalPages.value ? { gid: props.gid, token: props.token, page: page.value } : null,
 )
-onBeforeRouteLeave(stop)
+onBeforeRouteLeave(() => {
+  if (position.value) {
+    void navigation.trigger(position.value)
+  }
+})
+useReadingProgress(position)
+
+useEventListener(window, "keydown", (event: KeyboardEvent) => {
+  /* 焦点位于操作按钮时，空格和回车应保留原生激活行为。 */
+  if (
+    event.target instanceof HTMLElement &&
+    event.target.closest("button, input, textarea, select, [contenteditable]")
+  ) {
+    return
+  }
+  const step = PAGE_STEPS[event.key]
+  if (step) {
+    event.preventDefault()
+    goTo(page.value + step)
+  } else if (event.key === "Home" || event.key === "End") {
+    event.preventDefault()
+    goTo(event.key === "Home" ? 1 : totalPages.value)
+  } else if (event.key === "Escape") {
+    event.preventDefault()
+    exit()
+  }
+})
+
+/* URL 越界时由 goTo 把地址收敛到实际页数。 */
+watch(
+  [detail, page],
+  () => {
+    if (detail.value) {
+      goTo(page.value)
+    }
+  },
+  { immediate: true },
+)
 watch(identity, () => {
   seeking.value = false
   dragging.value = false
 })
-/* 控件写入仍经过页码约束和持久化入口，不另存一份表单状态。 */
-const selectedPage = computed({ get: () => page.value, set: goTo })
-const selectedInterval = computed({ get: () => interval.value, set: setInterval })
-const progressPercent = computed(() => (totalPages.value > 1 ? ((page.value - 1) / (totalPages.value - 1)) * 100 : 0))
-
-function startSeeking(event: PointerEvent) {
-  seeking.value = true
-  const input = event.currentTarget as HTMLInputElement
-  input.setPointerCapture(event.pointerId)
-}
-
-const chromeButton = {
-  class: "pointer-events-auto cursor-pointer text-white hover:bg-white/10 hover:text-white",
-  size: "icon-sm",
-  variant: "ghost",
-} as const
 </script>
 
 <template>
-  <div
-    class="fixed inset-0 flex flex-col bg-black"
-    @pointerdown="showChrome"
-    @mousemove="showChrome"
-    @focusin="showChrome"
-  >
+  <div class="fixed inset-0 flex flex-col bg-black" @click="controlsVisible = !controlsVisible">
     <div v-if="error" class="flex flex-1 items-center justify-center p-4">
       <div class="max-w-md">
         <ErrorAlert :message="error.message" title="打不开这个图集">
@@ -73,79 +123,23 @@ const chromeButton = {
       <ReaderStrip
         v-if="imageUrlTemplate && totalPages"
         :key="identity"
-        :page="page"
+        v-model:page="page"
+        v-model:dragging="dragging"
         :total="totalPages"
         :template="imageUrlTemplate"
         :seeking="seeking"
-        @page-change="goTo"
-        @dragging-change="dragging = $event"
       />
       <Skeleton v-if="loading" class="absolute inset-x-1/4 inset-y-8 rounded-lg" />
     </div>
-    <!-- 上下栏不占图片高度；隐藏后停止接收焦点和点击。 -->
-    <div
-      :inert="!controlsVisible"
-      class="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-3 bg-gradient-to-b from-black/70 to-transparent p-3 transition-opacity"
-      :class="controlsVisible ? 'opacity-100' : 'opacity-0'"
-    >
-      <Button aria-label="退出阅读" v-bind="chromeButton" @click="exit">
-        <XIcon />
-      </Button>
-      <p class="min-w-0 flex-1 truncate text-sm text-white/90">{{ gallery?.title ?? "加载中…" }}</p>
-    </div>
-    <div
-      :inert="!controlsVisible"
-      class="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-2 bg-gradient-to-t from-black/80 to-transparent px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity"
-      :class="controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'"
-    >
-      <Button aria-label="上一页" v-bind="chromeButton" :disabled="!totalPages || page <= 1" @click="goTo(page - 1)">
-        <ChevronLeftIcon />
-      </Button>
-      <span class="min-w-6 text-center text-sm text-white/90 tabular-nums">{{ page }}</span>
-      <input
-        v-model.number="selectedPage"
-        type="range"
-        min="1"
-        :max="totalPages || 1"
-        step="1"
-        :disabled="!totalPages"
-        aria-label="阅读进度"
-        :aria-valuetext="`第 ${page} 页，共 ${totalPages} 页`"
-        class="reader-progress h-8 min-w-0 flex-1 cursor-pointer"
-        :style="{ '--reader-progress': `${progressPercent}%` }"
-        @pointerdown="startSeeking"
-        @pointerup="seeking = false"
-        @pointercancel="seeking = false"
-        @lostpointercapture="seeking = false"
-      />
-      <span class="text-sm text-white/90 tabular-nums">{{ totalPages || "…" }}</span>
-      <Button
-        aria-label="下一页"
-        v-bind="chromeButton"
-        :disabled="!totalPages || page >= totalPages"
-        @click="goTo(page + 1)"
-      >
-        <ChevronRightIcon />
-      </Button>
-      <div class="flex items-center gap-1">
-        <Button
-          :aria-label="autoPaging ? '暂停自动翻页' : '开始自动翻页'"
-          :aria-pressed="autoPaging"
-          v-bind="chromeButton"
-          :disabled="!canStart"
-          @click="toggle"
-        >
-          <PauseIcon v-if="autoPaging" />
-          <PlayIcon v-else />
-        </Button>
-        <select
-          v-model.number="selectedInterval"
-          aria-label="自动翻页间隔"
-          class="h-8 rounded border border-white/20 bg-zinc-950 px-1 text-sm text-white"
-        >
-          <option v-for="seconds in 20" :key="seconds" :value="seconds">{{ seconds }} 秒</option>
-        </select>
-      </div>
-    </div>
+    <ReaderControls
+      :key="identity"
+      v-model:page="page"
+      v-model:seeking="seeking"
+      :title="gallery?.title"
+      :visible="controlsVisible"
+      :total="totalPages"
+      :dragging="dragging"
+      @exit="exit"
+    />
   </div>
 </template>
