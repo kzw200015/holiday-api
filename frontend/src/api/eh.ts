@@ -149,6 +149,39 @@ export function unbindCredential() {
   return httpClient.post<null>("/eh/credential/unbind")
 }
 
+export interface GalleryPreferences {
+  categories: string[]
+  readerInterval: number
+}
+
+export function fetchGalleryPreferences(signal?: AbortSignal) {
+  return httpClient.get<GalleryPreferences>("/eh/preferences", { signal })
+}
+
+export function saveGalleryCategories(categories: string[]) {
+  return httpClient.post<null>("/eh/preferences/categories", { categories })
+}
+
+export function saveReaderInterval(interval: number) {
+  return httpClient.post<null>("/eh/preferences/reader-interval", { interval })
+}
+
+export function fetchSearchHistory(signal?: AbortSignal) {
+  return httpClient.get<string[]>("/eh/search-history", { signal })
+}
+
+export function recordSearch(keyword: string) {
+  return httpClient.post<string[]>("/eh/search-history", { keyword })
+}
+
+export function removeSearch(keyword: string) {
+  return httpClient.post<string[]>("/eh/search-history/remove", { keyword })
+}
+
+export function clearSearchHistory() {
+  return httpClient.post<null>("/eh/search-history/clear")
+}
+
 /** 上报读到第几页 */
 export function saveProgress(gid: number, token: string, page: number) {
   return httpClient.post<null>("/eh/progress", { gid, token, page })

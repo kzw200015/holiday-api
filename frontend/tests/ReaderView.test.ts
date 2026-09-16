@@ -15,6 +15,7 @@ vi.mock("@/api/eh", async (importOriginal) => ({
     imageUrlTemplate: "/image/{page}",
   }),
   saveProgress: vi.fn().mockResolvedValue(undefined),
+  fetchGalleryPreferences: vi.fn().mockResolvedValue({ categories: [], readerInterval: 5 }),
 }))
 
 let app: ReturnType<typeof createApp> | undefined

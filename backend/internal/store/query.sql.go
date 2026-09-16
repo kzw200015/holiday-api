@@ -9,6 +9,15 @@ import (
 	"context"
 )
 
+const clearEhSearchHistory = `-- name: ClearEhSearchHistory :exec
+UPDATE eh_preferences SET search_history = '{}', updated_at = now() WHERE user_id = $1
+`
+
+func (q *Queries) ClearEhSearchHistory(ctx context.Context, userID int64) error {
+	_, err := q.db.Exec(ctx, clearEhSearchHistory, userID)
+	return err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (username, password_hash, created_at, updated_at)
 VALUES ($1, $2, now(), now())
@@ -66,6 +75,33 @@ func (q *Queries) GetEhCredential(ctx context.Context, userID int64) (GetEhCrede
 	var i GetEhCredentialRow
 	err := row.Scan(&i.MemberID, &i.Cookie, &i.HasExAccess)
 	return i, err
+}
+
+const getEhPreferences = `-- name: GetEhPreferences :one
+SELECT categories, reader_interval FROM eh_preferences WHERE user_id = $1
+`
+
+type GetEhPreferencesRow struct {
+	Categories     []string
+	ReaderInterval int32
+}
+
+func (q *Queries) GetEhPreferences(ctx context.Context, userID int64) (GetEhPreferencesRow, error) {
+	row := q.db.QueryRow(ctx, getEhPreferences, userID)
+	var i GetEhPreferencesRow
+	err := row.Scan(&i.Categories, &i.ReaderInterval)
+	return i, err
+}
+
+const getEhSearchHistory = `-- name: GetEhSearchHistory :one
+SELECT search_history FROM eh_preferences WHERE user_id = $1
+`
+
+func (q *Queries) GetEhSearchHistory(ctx context.Context, userID int64) ([]string, error) {
+	row := q.db.QueryRow(ctx, getEhSearchHistory, userID)
+	var search_history []string
+	err := row.Scan(&search_history)
+	return search_history, err
 }
 
 const getHolidayDayByDate = `-- name: GetHolidayDayByDate :one
@@ -150,6 +186,81 @@ type InsertHolidayDaysParams struct {
 // 而且空数组自然插 0 行——2027 年安排还没发布时远程返回的就是空列表。
 func (q *Queries) InsertHolidayDays(ctx context.Context, arg InsertHolidayDaysParams) error {
 	_, err := q.db.Exec(ctx, insertHolidayDays, arg.Names, arg.Dates, arg.IsOffDays)
+	return err
+}
+
+const recordEhSearch = `-- name: RecordEhSearch :one
+INSERT INTO eh_preferences (user_id, search_history, created_at, updated_at)
+VALUES ($1, ARRAY[$2::text], now(), now())
+ON CONFLICT (user_id) DO UPDATE
+SET search_history = (ARRAY[$2::text] || array_remove(eh_preferences.search_history, $2::text))[1:10],
+    updated_at = now()
+RETURNING search_history
+`
+
+type RecordEhSearchParams struct {
+	UserID  int64
+	Keyword string
+}
+
+// 在同一条语句里去重并截取最近十条；并发提交不会用客户端的旧数组覆盖其他设备。
+func (q *Queries) RecordEhSearch(ctx context.Context, arg RecordEhSearchParams) ([]string, error) {
+	row := q.db.QueryRow(ctx, recordEhSearch, arg.UserID, arg.Keyword)
+	var search_history []string
+	err := row.Scan(&search_history)
+	return search_history, err
+}
+
+const removeEhSearch = `-- name: RemoveEhSearch :one
+UPDATE eh_preferences
+SET search_history = array_remove(search_history, $1::text), updated_at = now()
+WHERE user_id = $2
+RETURNING search_history
+`
+
+type RemoveEhSearchParams struct {
+	Keyword string
+	UserID  int64
+}
+
+func (q *Queries) RemoveEhSearch(ctx context.Context, arg RemoveEhSearchParams) ([]string, error) {
+	row := q.db.QueryRow(ctx, removeEhSearch, arg.Keyword, arg.UserID)
+	var search_history []string
+	err := row.Scan(&search_history)
+	return search_history, err
+}
+
+const saveEhCategories = `-- name: SaveEhCategories :exec
+INSERT INTO eh_preferences (user_id, categories, created_at, updated_at)
+VALUES ($1, $2, now(), now())
+ON CONFLICT (user_id) DO UPDATE
+SET categories = excluded.categories, updated_at = now()
+`
+
+type SaveEhCategoriesParams struct {
+	UserID     int64
+	Categories []string
+}
+
+func (q *Queries) SaveEhCategories(ctx context.Context, arg SaveEhCategoriesParams) error {
+	_, err := q.db.Exec(ctx, saveEhCategories, arg.UserID, arg.Categories)
+	return err
+}
+
+const saveEhReaderInterval = `-- name: SaveEhReaderInterval :exec
+INSERT INTO eh_preferences (user_id, reader_interval, created_at, updated_at)
+VALUES ($1, $2, now(), now())
+ON CONFLICT (user_id) DO UPDATE
+SET reader_interval = excluded.reader_interval, updated_at = now()
+`
+
+type SaveEhReaderIntervalParams struct {
+	UserID         int64
+	ReaderInterval int32
+}
+
+func (q *Queries) SaveEhReaderInterval(ctx context.Context, arg SaveEhReaderIntervalParams) error {
+	_, err := q.db.Exec(ctx, saveEhReaderInterval, arg.UserID, arg.ReaderInterval)
 	return err
 }
 

@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ChevronLeftIcon, ChevronRightIcon, MinusIcon, PauseIcon, PlayIcon, PlusIcon, XIcon } from "@lucide/vue"
-import { useDocumentVisibility, useIntervalFn } from "@vueuse/core"
-import { computed, ref, watch } from "vue"
-import { onBeforeRouteLeave } from "vue-router"
+import { useDocumentVisibility, useIntervalFn, useTimeoutFn } from "@vueuse/core"
+import { computed, onMounted, ref, watch } from "vue"
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from "vue-router"
 
 import { Button } from "@/components/ui/button"
-import { usePersistedValue } from "@/composables/usePersistedValue"
-import { useAuthStore } from "@/stores/AuthStore"
+import { useGalleryPreferences } from "@/composables/useGalleryPreferences"
 
 /* 换图集由父级以 key 重建，自动翻页不跨图集继续运行。 */
 const props = defineProps<{ title?: string; visible: boolean; total: number; dragging: boolean }>()
@@ -17,9 +16,32 @@ const autoPaging = ref(false)
 const visibility = useDocumentVisibility()
 const canStart = computed(() => props.total > 0 && page.value < props.total && visibility.value === "visible")
 const interacting = computed(() => seeking.value || props.dragging)
-const { value: interval, set: setInterval } = usePersistedValue("reader-interval", useAuthStore().user?.id, (raw) =>
-  typeof raw === "number" && Number.isInteger(raw) && raw >= 1 && raw <= 20 ? raw : 5,
-)
+const {
+  interval,
+  loading: preferencesLoading,
+  savingInterval,
+  errorMessage,
+  load,
+  saveInterval,
+} = useGalleryPreferences()
+onMounted(load)
+const {
+  start: scheduleSave,
+  stop: cancelSave,
+  isPending: savePending,
+} = useTimeoutFn(saveInterval, 1000, { immediate: false })
+
+function setInterval(seconds: number) {
+  interval.value = seconds
+  scheduleSave()
+}
+
+function flushInterval() {
+  if (savePending.value) {
+    cancelSave()
+    void saveInterval()
+  }
+}
 
 const progressPercent = computed(() => (props.total > 1 ? ((page.value - 1) / (props.total - 1)) * 100 : 0))
 const { pause, resume } = useIntervalFn(
@@ -65,7 +87,15 @@ watch(
   },
   { flush: "sync" },
 )
-onBeforeRouteLeave(stop)
+onBeforeRouteLeave(() => {
+  stop()
+  flushInterval()
+})
+onBeforeRouteUpdate((to, from) => {
+  if (to.params.gid !== from.params.gid || to.params.token !== from.params.token) {
+    flushInterval()
+  }
+})
 
 function startSeeking(event: PointerEvent) {
   seeking.value = true
@@ -91,13 +121,16 @@ const chromeButton = {
     <Button aria-label="退出阅读" v-bind="chromeButton" @click="emit('exit')">
       <XIcon />
     </Button>
-    <p class="min-w-0 flex-1 truncate text-sm text-white/90">{{ title ?? "加载中…" }}</p>
+    <div class="min-w-0 flex-1">
+      <p class="truncate text-sm text-white/90">{{ title ?? "加载中…" }}</p>
+      <p v-if="errorMessage" role="alert" class="text-xs text-red-300">{{ errorMessage }}</p>
+    </div>
     <div class="flex shrink-0 items-center gap-1">
       <Button
         :aria-label="autoPaging ? '暂停自动翻页' : '开始自动翻页'"
         :aria-pressed="autoPaging"
         v-bind="chromeButton"
-        :disabled="!canStart"
+        :disabled="preferencesLoading || !canStart"
         @click="toggleAutoPaging"
       >
         <PauseIcon v-if="autoPaging" />
@@ -106,7 +139,7 @@ const chromeButton = {
       <Button
         aria-label="减少自动翻页间隔"
         v-bind="chromeButton"
-        :disabled="interval <= 1"
+        :disabled="preferencesLoading || savingInterval || interval <= 1"
         @click="setInterval(interval - 1)"
       >
         <MinusIcon />
@@ -117,7 +150,7 @@ const chromeButton = {
       <Button
         aria-label="增加自动翻页间隔"
         v-bind="chromeButton"
-        :disabled="interval >= 20"
+        :disabled="preferencesLoading || savingInterval || interval >= 20"
         @click="setInterval(interval + 1)"
       >
         <PlusIcon />

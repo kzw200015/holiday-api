@@ -53,6 +53,8 @@ func (h *Handler) Routes() http.Handler {
 }
 
 func (h *Handler) authedRoutes(router chi.Router) {
+	h.preferenceRoutes(router)
+
 	// GET /api/eh/credential，返回绑定状态，不含明文 Cookie
 	router.Method(http.MethodGet, "/credential", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
 		status, err := h.service.CredentialStatus(r.Context(), auth.UserID(r.Context()))

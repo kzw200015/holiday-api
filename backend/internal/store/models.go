@@ -18,6 +18,16 @@ type EhCredential struct {
 	UpdatedAt   time.Time
 }
 
+type EhPreference struct {
+	ID             int64
+	UserID         int64
+	Categories     []string
+	ReaderInterval int32
+	SearchHistory  []string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type EhReadingProgress struct {
 	ID        int64
 	UserID    int64

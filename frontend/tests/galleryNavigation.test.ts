@@ -7,10 +7,17 @@ import { createRouter, createWebHistory, type Router } from "vue-router"
 import type * as EhApi from "@/api/eh"
 import {
   bindCredential,
+  clearSearchHistory,
   fetchCredentialStatus,
   fetchGalleryComments,
   fetchGalleryDetail,
+  fetchGalleryPreferences,
+  fetchSearchHistory,
+  recordSearch,
+  removeSearch,
+  saveGalleryCategories,
   saveProgress,
+  saveReaderInterval,
   searchGalleries,
   unbindCredential,
   type GalleryDetail,
@@ -28,6 +35,13 @@ vi.mock("@/api/eh", async (original) => ({
   fetchGalleryDetail: vi.fn(),
   saveProgress: vi.fn(),
   searchGalleries: vi.fn(),
+  fetchGalleryPreferences: vi.fn(),
+  fetchSearchHistory: vi.fn(),
+  recordSearch: vi.fn(),
+  removeSearch: vi.fn(),
+  clearSearchHistory: vi.fn(),
+  saveGalleryCategories: vi.fn(),
+  saveReaderInterval: vi.fn(),
 }))
 
 const gallery: GalleryDetail = {
@@ -95,6 +109,27 @@ beforeEach(async () => {
   }))
   vi.mocked(fetchGalleryComments).mockResolvedValue([])
   vi.mocked(saveProgress).mockResolvedValue(null)
+  let preferences = { categories: [] as string[], readerInterval: 5 }
+  let history: string[] = []
+  vi.mocked(fetchGalleryPreferences).mockImplementation(async () => structuredClone(preferences))
+  vi.mocked(saveGalleryCategories).mockImplementation(async (categories) => {
+    preferences = { ...preferences, categories: [...categories] }
+    return null
+  })
+  vi.mocked(saveReaderInterval).mockResolvedValue(null)
+  vi.mocked(fetchSearchHistory).mockImplementation(async () => [...history])
+  vi.mocked(recordSearch).mockImplementation(async (keyword) => {
+    history = [keyword, ...history.filter((entry) => entry !== keyword)]
+    return [...history]
+  })
+  vi.mocked(removeSearch).mockImplementation(async (keyword) => {
+    history = history.filter((entry) => entry !== keyword)
+    return [...history]
+  })
+  vi.mocked(clearSearchHistory).mockImplementation(async () => {
+    history = []
+    return null
+  })
   const pinia = createPinia()
   const auth = useAuthStore(pinia)
   auth.user = { id: 1, username: "tester" }
@@ -132,7 +167,7 @@ describe("图库组件缓存闭环", () => {
     await settle()
     expect(searchGalleries).toHaveBeenCalledTimes(count)
     expect(history.querySelector('[data-slot="badge"]')).toBeNull()
-    expect(localStorage.getItem("myapi.search-history.1")).toBe("[]")
+    expect(removeSearch).toHaveBeenCalledExactlyOnceWith("cat")
   })
 
   it("阅读返回保留详情 DOM、评论和滚动位置，仅同步进度；列表返回保留输入与条目", async () => {
@@ -188,7 +223,7 @@ describe("图库组件缓存闭环", () => {
     host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
     await nextTick()
     expect(host.querySelector('[aria-label="自动翻页间隔"]')!.textContent.trim()).toBe("6 秒")
-    expect(localStorage.getItem("myapi.reader-interval.1")).toBe("6")
+    expect(saveReaderInterval).not.toHaveBeenCalled()
     host.querySelector<HTMLElement>('[aria-label="开始自动翻页"]')!.click()
     await nextTick()
     const pause = host.querySelector<HTMLElement>('[aria-label="暂停自动翻页"]')!
@@ -288,9 +323,9 @@ describe("图库组件缓存闭环", () => {
       { keyword: "cat", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
-    expect(localStorage.getItem("myapi.gallery-categories.1")).toBe('["manga"]')
+    expect(saveGalleryCategories).toHaveBeenCalledExactlyOnceWith(["manga"])
     expect(host.textContent).toContain("分类 (1)")
-    expect(localStorage.getItem("myapi.search-history.1")).toBe('["cat"]')
+    expect(recordSearch).toHaveBeenCalledExactlyOnceWith("cat")
     await enterKeyword("dog")
     await click("搜索")
     await click("cat")
@@ -299,6 +334,43 @@ describe("图库组件缓存闭环", () => {
       { keyword: "cat", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
+  })
+
+  it("返回列表时读取其他设备的新分类与历史，不提交当前输入草稿", async () => {
+    await enterKeyword("cat")
+    await click("搜索")
+    await enterKeyword("尚未提交")
+    await visit("/eh/g/1/aaaaaaaaaa")
+    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 5 })
+    vi.mocked(fetchSearchHistory).mockResolvedValue(["其他设备的搜索"])
+    await click("返回列表")
+    expect(host.querySelector("input")?.value).toBe("尚未提交")
+    expect(host.textContent).toContain("其他设备的搜索")
+    expect(host.textContent).toContain("分类 (1)")
+    expect(searchGalleries).toHaveBeenLastCalledWith(
+      { keyword: "cat", categories: ["manga"], cursor: "" },
+      expect.any(AbortSignal),
+    )
+    expect(recordSearch).toHaveBeenCalledExactlyOnceWith("cat")
+    expect(saveGalleryCategories).not.toHaveBeenCalled()
+  })
+
+  it("分类和历史保存失败不阻断本次搜索，并显示未保存提示", async () => {
+    vi.mocked(saveGalleryCategories).mockRejectedValue(new Error("断网"))
+    vi.mocked(recordSearch).mockRejectedValue(new Error("断网"))
+    await enterKeyword("cat")
+    await click("分类")
+    category("漫画").click()
+    await settle()
+    category("应用").click()
+    await settle()
+    expect(searchGalleries).toHaveBeenLastCalledWith(
+      { keyword: "cat", categories: ["manga"], cursor: "" },
+      expect.any(AbortSignal),
+    )
+    expect(host.textContent).toContain("分类保存失败")
+    expect(host.textContent).toContain("搜索历史保存失败")
+    expect(host.querySelector("fieldset")!.disabled).toBe(false)
   })
 
   it("同一详情从新搜索进入后，浏览器后退仍保留详情与最新搜索", async () => {

@@ -4,8 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, nextTick, reactive } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
+import { fetchGalleryPreferences, saveReaderInterval } from "@/api/eh"
 import ReaderControls from "@/components/gallery/ReaderControls.vue"
 import { useAuthStore } from "@/stores/AuthStore"
+
+vi.mock("@/api/eh", () => ({
+  fetchGalleryPreferences: vi.fn(),
+  saveReaderInterval: vi.fn(),
+}))
 
 const cleanups: (() => void)[] = []
 
@@ -66,6 +72,9 @@ function intervalText(host: HTMLElement) {
 
 beforeEach(() => {
   vi.useFakeTimers()
+  vi.resetAllMocks()
+  vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: 5 })
+  vi.mocked(saveReaderInterval).mockResolvedValue(null)
   localStorage.clear()
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
 })
@@ -147,9 +156,12 @@ describe("阅读器自动翻页控件", () => {
     expect(change).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
     expect(change).toHaveBeenCalledTimes(1)
+    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(6)
+    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: 6 })
     const reopened = await createReader()
     expect(intervalText(reopened.host)).toBe("6 秒")
     expect(autoButton(reopened.host).getAttribute("aria-pressed")).toBe("false")
+    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: 5 })
     const anotherUser = await createReader(2)
     expect(intervalText(anotherUser.host)).toBe("5 秒")
     host.querySelector<HTMLButtonElement>('[aria-label="减少自动翻页间隔"]')!.click()
@@ -163,7 +175,7 @@ describe("阅读器自动翻页控件", () => {
     { seconds: 1, disabledLabel: "减少自动翻页间隔", enabledLabel: "增加自动翻页间隔", next: 2 },
     { seconds: 20, disabledLabel: "增加自动翻页间隔", enabledLabel: "减少自动翻页间隔", next: 19 },
   ])("间隔为 $seconds 秒时禁用越界按钮，反向调整仍可用", async ({ seconds, disabledLabel, enabledLabel, next }) => {
-    localStorage.setItem("myapi.reader-interval.1", JSON.stringify(seconds))
+    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: seconds })
     const { host } = await createReader()
     const disabledButton = host.querySelector<HTMLButtonElement>(`[aria-label="${disabledLabel}"]`)!
     const enabledButton = host.querySelector<HTMLButtonElement>(`[aria-label="${enabledLabel}"]`)!
@@ -176,12 +188,41 @@ describe("阅读器自动翻页控件", () => {
     await nextTick()
     expect(intervalText(host)).toBe(`${next} 秒`)
     expect(disabledButton.disabled).toBe(false)
-    expect(localStorage.getItem("myapi.reader-interval.1")).toBe(String(next))
+    expect(saveReaderInterval).not.toHaveBeenCalled()
     disabledButton.click()
     await nextTick()
     expect(intervalText(host)).toBe(`${seconds} 秒`)
     expect(disabledButton.disabled).toBe(true)
-    expect(localStorage.getItem("myapi.reader-interval.1")).toBe(String(seconds))
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(seconds)
+  })
+
+  it("连续调整合并保存，离开阅读页补存待提交的间隔", async () => {
+    const { host, router } = await createReader()
+    const increase = host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!
+    increase.click()
+    await vi.advanceTimersByTimeAsync(500)
+    increase.click()
+    await vi.advanceTimersByTimeAsync(999)
+    expect(saveReaderInterval).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(7)
+    increase.click()
+    await nextTick()
+    await router.push("/away")
+    expect(saveReaderInterval).toHaveBeenLastCalledWith(8)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(saveReaderInterval).toHaveBeenCalledTimes(2)
+  })
+
+  it("保存失败显示未同步提示，当前间隔继续可用", async () => {
+    vi.mocked(saveReaderInterval).mockRejectedValue(new Error("断网"))
+    const { host } = await createReader()
+    host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(intervalText(host)).toBe("6 秒")
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain("未同步到账号")
+    expect(host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.disabled).toBe(false)
   })
 
   it("秒数只读，不提供下拉选择或手动输入", async () => {
@@ -249,7 +290,7 @@ describe("阅读器自动翻页控件", () => {
     expect(change).not.toHaveBeenCalled()
   })
 
-  it.each([0, 21, 1.5, "10", null])("非法存储值 %s 使用默认间隔", async (value) => {
+  it.each([8, 0, 21, 1.5, "10", null])("不读取或迁移旧浏览器间隔 %s", async (value) => {
     localStorage.setItem("myapi.reader-interval.1", JSON.stringify(value))
     const { host } = await createReader()
     expect(intervalText(host)).toBe("5 秒")
