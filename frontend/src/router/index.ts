@@ -41,16 +41,23 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "eh",
-        name: "gallery-list",
-        component: () => import("@/views/GalleryListView.vue"),
-        meta: { title: "图库", requiresAuth: true, ownScroll: true },
-      },
-      {
-        path: "eh/g/:gid(\\d+)/:token",
-        name: "gallery-detail",
-        component: () => import("@/views/GalleryDetailView.vue"),
-        props: (route) => ({ gid: Number(route.params.gid), token: String(route.params.token) }),
-        meta: { title: "图集详情", requiresAuth: true, ownScroll: true },
+        component: () => import("@/layouts/EhLayout.vue"),
+        meta: { requiresAuth: true },
+        children: [
+          {
+            path: "",
+            name: "gallery-list",
+            component: () => import("@/views/GalleryListView.vue"),
+            meta: { title: "图库", ownScroll: true },
+          },
+          {
+            path: "g/:gid(\\d+)/:token",
+            name: "gallery-detail",
+            component: () => import("@/views/GalleryDetailView.vue"),
+            props: (route) => ({ gid: Number(route.params.gid), token: String(route.params.token) }),
+            meta: { title: "图集详情", ownScroll: true },
+          },
+        ],
       },
       {
         path: "settings",

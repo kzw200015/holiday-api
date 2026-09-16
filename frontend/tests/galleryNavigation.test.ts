@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, type App as VueApp } from "vue"
 import { createRouter, createWebHistory, type Router } from "vue-router"
 
+import { authenticate } from "@/api/auth"
 import type * as EhApi from "@/api/eh"
 import {
   bindCredential,
@@ -22,10 +23,14 @@ import {
   unbindCredential,
   type GalleryDetail,
 } from "@/api/eh"
+import { fetchHolidayDetail } from "@/api/holiday"
 import App from "@/App.vue"
 import { AppRouter } from "@/router"
 import { useAuthStore } from "@/stores/AuthStore"
+import { useEhStore } from "@/stores/EhStore"
 
+vi.mock("@/api/auth", () => ({ authenticate: vi.fn(), fetchCurrentUser: vi.fn() }))
+vi.mock("@/api/holiday", () => ({ fetchHolidayDetail: vi.fn() }))
 vi.mock("@/api/eh", async (original) => ({
   ...(await original<typeof EhApi>()),
   bindCredential: vi.fn(),
@@ -109,6 +114,8 @@ beforeEach(async () => {
   }))
   vi.mocked(fetchGalleryComments).mockResolvedValue([])
   vi.mocked(saveProgress).mockResolvedValue(null)
+  vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
+  vi.mocked(fetchHolidayDetail).mockImplementation(async (date) => ({ date, name: "", isOffDay: false }))
   let preferences = { categories: [] as string[], readerInterval: 5 }
   let history: string[] = []
   vi.mocked(fetchGalleryPreferences).mockImplementation(async () => structuredClone(preferences))
@@ -155,7 +162,74 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe("图库组件缓存闭环", () => {
+describe("页面缓存与失效范围", () => {
+  it("侧栏页面往返保留首页、节假日日期和设置草稿", async () => {
+    await visit("/")
+    const home = host.querySelector(".page-content")!
+    await visit("/holiday")
+    const holiday = host.querySelector(".page-content")!
+    const day = host.querySelector<HTMLButtonElement>(
+      '[data-slot="calendar-cell-trigger"]:not([data-selected]):not([data-outside-view])',
+    )!
+    day.click()
+    await settle()
+    expect(day.hasAttribute("data-selected")).toBe(true)
+    const holidayRequests = vi.mocked(fetchHolidayDetail).mock.calls.length
+    await visit("/settings")
+    const form = host.querySelector("form")!
+    const input = host.querySelector<HTMLInputElement>("#ipbMemberId")!
+    input.value = "未提交的草稿"
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+    await nextTick()
+
+    await visit("/")
+    expect(host.querySelector(".page-content")).toBe(home)
+    await visit("/holiday")
+    expect(host.querySelector(".page-content")).toBe(holiday)
+    expect(day.hasAttribute("data-selected")).toBe(true)
+    expect(fetchHolidayDetail).toHaveBeenCalledTimes(holidayRequests)
+    await visit("/settings")
+    expect(host.querySelector("form")).toBe(form)
+    expect(host.querySelector<HTMLInputElement>("#ipbMemberId")!.value).toBe("未提交的草稿")
+    expect(fetchCredentialStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(["登录", "退出"])("%s清空全部页面缓存，包括停用布局中的页面", async (action) => {
+    const pages = new Map<string, Element>()
+    for (const path of ["/", "/holiday", "/settings", "/eh", "/eh/g/1/aaaaaaaaaa"]) {
+      /* eslint-disable-next-line no-await-in-loop -- 必须逐页进入，才能建立同一个路由器的页面缓存。 */
+      await visit(path)
+      pages.set(path, host.querySelector(".page-content")!)
+      if (path === "/settings") {
+        const input = host.querySelector<HTMLInputElement>("#ipbPassHash")!
+        input.value = "旧账号的凭据草稿"
+        input.dispatchEvent(new Event("input", { bubbles: true }))
+      }
+    }
+    await visit("/login")
+    const auth = useAuthStore()
+    if (action === "登录") {
+      vi.mocked(authenticate).mockResolvedValue({ token: "new-token", user: { id: 2, username: "second" } })
+      await auth.authenticate("login", "second", "password")
+    } else {
+      auth.logout()
+      /* 只恢复测试身份，不调用登录清缓存，单独验证退出的失效效果。 */
+      auth.user = { id: 2, username: "second" }
+    }
+    await settle()
+    for (const [path, page] of pages) {
+      /* eslint-disable-next-line no-await-in-loop -- 路由切换必须串行，逐页检查缓存是否已经重建。 */
+      await visit(path)
+      expect(host.querySelector(".page-content")).not.toBe(page)
+    }
+    await visit("/settings")
+    expect(host.querySelector<HTMLInputElement>("#ipbPassHash")!.value).toBe("")
+    expect(fetchHolidayDetail).toHaveBeenCalledTimes(2)
+    expect(fetchCredentialStatus).toHaveBeenCalledTimes(2)
+    expect(searchGalleries).toHaveBeenCalledTimes(2)
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
+  })
+
   it("历史标签使用独立的搜索与删除按钮，删除不会触发搜索", async () => {
     await enterKeyword("cat")
     await click("搜索")
@@ -243,7 +317,7 @@ describe("图库组件缓存闭环", () => {
     expect(host.textContent).toContain("测试图集2")
     expect(window.scrollY).toBe(0)
     expect(fetchGalleryComments).toHaveBeenCalledTimes(2)
-    useAuthStore().invalidateGalleries()
+    useEhStore().invalidateCache()
     await settle()
     expect(fetchGalleryComments).toHaveBeenCalledTimes(3)
     await click("返回列表")
@@ -256,6 +330,10 @@ describe("图库组件缓存闭环", () => {
     vi.mocked(bindCredential).mockResolvedValue({ bound: true, memberId: "456", hasExAccess: true })
     vi.mocked(unbindCredential).mockResolvedValue(null)
     await visit("/eh/g/1/aaaaaaaaaa")
+    await visit("/")
+    const home = host.querySelector(".page-content")!
+    await visit("/holiday")
+    const holiday = host.querySelector(".page-content")!
     await visit("/settings")
     const form = host.querySelector("form")!
     expect(form).not.toBeNull()
@@ -274,6 +352,13 @@ describe("图库组件缓存闭环", () => {
     expect(unbindCredential).toHaveBeenCalledTimes(action === "解绑" ? 1 : 0)
     expect(host.textContent).toContain(action === "绑定" ? "绑定成功，里站已解锁。" : "未绑定")
     expect(host.querySelector<HTMLInputElement>("#ipbMemberId")!.value).toBe("")
+    expect(host.querySelector("form")).toBe(form)
+    await visit("/")
+    expect(host.querySelector(".page-content")).toBe(home)
+    await visit("/holiday")
+    expect(host.querySelector(".page-content")).toBe(holiday)
+    expect(fetchHolidayDetail).toHaveBeenCalledTimes(1)
+    await visit("/settings")
     expect(host.querySelector("form")).toBe(form)
     expect(fetchCredentialStatus).toHaveBeenCalledTimes(1)
     await visit("/eh")
@@ -432,7 +517,7 @@ describe("图库组件缓存闭环", () => {
     category("应用").click()
     await settle()
     // 模拟刷新后的全新页面实例，而非 KeepAlive 激活。
-    useAuthStore().invalidateGalleries()
+    useEhStore().invalidateCache()
     await settle()
     expect(host.querySelector("input")?.value).toBe("")
     expect(host.textContent).toContain("分类 (1)")

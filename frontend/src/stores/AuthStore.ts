@@ -9,11 +9,8 @@ export const useAuthStore = defineStore("AuthStore", () => {
 
   /* 是否已经问过后端「我是谁」。路由守卫要等这一步完成才敢判断放不放行 */
   const ready = ref(false)
-  /* 只通知布局内的页面缓存失效，不在账号 store 保存任何图库页面数据。布局本身没有按账号变化的状态，不必重建。 */
-  const galleryRevision = ref(0)
-  function invalidateGalleries() {
-    galleryRevision.value += 1
-  }
+  /* 账号变化清空全部页面；各业务模块自行管理内部缓存，这里不保存页面数据。 */
+  const pageRevision = ref(0)
 
   /* 刷新登录态。GET /auth/me 未登录时回 200 加 null，所以这里不会因为没登录而抛错 */
   async function refresh() {
@@ -35,19 +32,19 @@ export const useAuthStore = defineStore("AuthStore", () => {
 
   async function authenticate(action: authApi.AuthAction, username: string, password: string) {
     const session = await authApi.authenticate(action, username, password)
-    invalidateGalleries()
+    pageRevision.value += 1
     setToken(session.token)
     user.value = session.user
     ready.value = true
   }
 
-  /* 退出与令牌失效共用清理入口，避免下一个账号复用前一个账号的图库。 */
+  /* 退出与令牌失效共用清理入口，避免下一个账号复用旧页面和凭据草稿。 */
   function logout() {
     setToken("")
     user.value = null
     ready.value = true
-    invalidateGalleries()
+    pageRevision.value += 1
   }
 
-  return { user, ready, galleryRevision, invalidateGalleries, refresh, authenticate, logout }
+  return { user, ready, pageRevision, refresh, authenticate, logout }
 })

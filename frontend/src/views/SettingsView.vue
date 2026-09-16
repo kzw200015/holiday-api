@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { useQuery } from "@/composables/useQuery"
 import { useAuthStore } from "@/stores/AuthStore"
+import { useEhStore } from "@/stores/EhStore"
 
 const cookieFields = [
   { name: "ipbMemberId", label: "ipb_member_id", hint: "登录 e 站后必有" },
@@ -21,6 +22,7 @@ const cookieFields = [
 ] as const
 const router = useRouter()
 const authStore = useAuthStore()
+const ehStore = useEhStore()
 const {
   data: status,
   error: loadError,
@@ -41,7 +43,7 @@ async function submit() {
   successMessage.value = ""
   try {
     status.value = await bindCredential({ ...form.value })
-    authStore.invalidateGalleries()
+    ehStore.invalidateCache()
     successMessage.value = status.value.hasExAccess
       ? "绑定成功，里站已解锁。"
       : "绑定成功。这个账号没有里站权限，只能浏览前站。"
@@ -59,7 +61,7 @@ async function unbind() {
   successMessage.value = ""
   try {
     await unbindCredential()
-    authStore.invalidateGalleries()
+    ehStore.invalidateCache()
     status.value = { bound: false, memberId: "", hasExAccess: false }
   } catch (error) {
     errorMessage.value = (error as Error).message

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { MoonIcon, SunIcon } from "@lucide/vue"
-import { RouterView, useRoute, type RouteLocationNormalizedLoaded } from "vue-router"
+import { RouterView, useRoute } from "vue-router"
 
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -12,10 +12,6 @@ import { useAuthStore } from "@/stores/AuthStore"
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const route = useRoute()
-
-function isGalleryRoute(viewRoute: RouteLocationNormalizedLoaded) {
-  return viewRoute.name === "gallery-list" || viewRoute.name === "gallery-detail"
-}
 </script>
 
 <template>
@@ -35,12 +31,11 @@ function isGalleryRoute(viewRoute: RouteLocationNormalizedLoaded) {
         </Button>
       </header>
       <div class="flex flex-1 flex-col gap-4 p-4">
-        <RouterView v-slot="{ Component, route: viewRoute }">
-          <!-- 离开图库保留缓存容器；按路由名各缓存一份列表和详情，换凭据不重建普通页面。 -->
-          <KeepAlive :key="authStore.galleryRevision" :max="2">
-            <component :is="Component" v-if="isGalleryRoute(viewRoute)" :key="viewRoute.name" />
+        <RouterView v-slot="{ Component }">
+          <!-- 按上层组件身份缓存，不使用叶子路由名；账号变化时整体清空。 -->
+          <KeepAlive :key="authStore.pageRevision">
+            <component :is="Component" />
           </KeepAlive>
-          <component :is="Component" v-if="!isGalleryRoute(viewRoute)" />
         </RouterView>
       </div>
     </SidebarInset>
