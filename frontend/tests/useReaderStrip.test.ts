@@ -30,6 +30,11 @@ async function setup(page = 1) {
   const strip = scope.run(() => useReaderStrip(props, change))!
   const element = document.createElement("div")
   element.setPointerCapture = vi.fn()
+  element.scrollTo = vi.fn((options?: ScrollToOptions | number) => {
+    const left = typeof options === "number" ? options : options?.left
+    element.scrollLeft = left ?? element.scrollLeft
+    strip.onScroll()
+  })
   strip.viewport.value = element
   resize([{ contentRect: { width: 700, height: 1000 } }])
   await nextTick()
@@ -38,6 +43,81 @@ async function setup(page = 1) {
 }
 
 describe("横向阅读延迟加载", () => {
+  it("换页使用平滑滚动，途中不回写中间页，停稳后才加载目标附近图片", async () => {
+    const { props, strip, element, change } = await setup()
+    await vi.advanceTimersByTimeAsync(200)
+    vi.mocked(element.scrollTo).mockImplementation(() => {})
+    props.page = 5
+    await nextTick()
+    await nextTick()
+    expect(element.scrollTo).toHaveBeenLastCalledWith({ left: 2800, behavior: "smooth" })
+    element.scrollLeft = 700
+    strip.onScroll()
+    await vi.advanceTimersByTimeAsync(300)
+    expect(props.page).toBe(5)
+    expect(change).not.toHaveBeenCalled()
+    expect([...strip.loaded.value]).toEqual([1, 2, 3])
+    element.scrollLeft = 2800
+    strip.onScroll()
+    await vi.advanceTimersByTimeAsync(200)
+    expect([...strip.loaded.value]).toEqual([3, 4, 5, 6, 7])
+  })
+
+  it("滚轮可打断平滑换页，恢复按实际位置更新页码", async () => {
+    const { props, strip, element } = await setup()
+    vi.mocked(element.scrollTo).mockImplementation(() => {})
+    props.page = 5
+    await nextTick()
+    await nextTick()
+    element.scrollLeft = 700
+    strip.onWheel(new WheelEvent("wheel", { deltaY: 100 }))
+    expect(element.scrollTo).toHaveBeenLastCalledWith({ left: 700, behavior: "instant" })
+    strip.onScroll()
+    await nextTick()
+    expect(props.page).toBe(2)
+    expect(element.scrollLeft).toBe(800)
+  })
+
+  it("动画途中再次换页，以新目标为准，不被途中位置覆盖", async () => {
+    const { props, strip, element } = await setup()
+    vi.mocked(element.scrollTo).mockImplementation(() => {})
+    props.page = 5
+    await nextTick()
+    await nextTick()
+    element.scrollLeft = 700
+    props.page = 2
+    await nextTick()
+    await nextTick()
+    expect(element.scrollTo).toHaveBeenLastCalledWith({ left: 700, behavior: "smooth" })
+    strip.onScroll()
+    expect(props.page).toBe(2)
+    await vi.advanceTimersByTimeAsync(200)
+    expect([...strip.loaded.value]).toEqual([1, 2, 3, 4])
+  })
+
+  it("动画途中图片宽度更新会重新定位目标，尺寸变化则即时定位", async () => {
+    const { props, strip, element } = await setup()
+    vi.mocked(element.scrollTo).mockImplementation(() => {})
+    props.page = 5
+    await nextTick()
+    await nextTick()
+    element.scrollLeft = 700
+    await strip.imageLoaded(2, { naturalWidth: 500, naturalHeight: 1000 } as HTMLImageElement)
+    expect(element.scrollTo).toHaveBeenLastCalledWith({ left: 2600, behavior: "smooth" })
+    resize([{ contentRect: { width: 700, height: 500 } }])
+    await nextTick()
+    expect(element.scrollTo).toHaveBeenLastCalledWith({ left: 1125, behavior: "instant" })
+  })
+
+  it("进度条拖动仍即时定位，不启动平滑动画", async () => {
+    const { props, element } = await setup()
+    props.seeking = true
+    props.page = 5
+    await nextTick()
+    await nextTick()
+    expect(element.scrollTo).toHaveBeenLastCalledWith({ left: 2800, behavior: "instant" })
+  })
+
   it.each([
     { width: 390, height: 800, ratio: 0.7 },
     { width: 390, height: 800, ratio: 0.2 },

@@ -1,11 +1,14 @@
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "@lucide/vue"
-import { defineComponent, ref } from "vue"
+import { ChevronLeftIcon, ChevronRightIcon, PauseIcon, PlayIcon, XIcon } from "@lucide/vue"
+import { computed, defineComponent, ref, watch } from "vue"
+import { onBeforeRouteLeave } from "vue-router"
 
 import ErrorAlert from "@/components/ErrorAlert"
 import ReaderStrip from "@/components/gallery/ReaderStrip"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useAutoPage } from "@/composables/useAutoPage"
 import { useReader } from "@/composables/useReader"
+import { useAuthStore } from "@/stores/AuthStore"
 
 /* 操作栏上的按钮共用一套外观 */
 const chromeButton = {
@@ -26,6 +29,18 @@ export default defineComponent({
     const { gallery, error, loading, page, totalPages, imageUrlTemplate, chromeVisible, showChrome, goTo, exit } =
       useReader(props)
     const seeking = ref(false)
+    const dragging = ref(false)
+    const identity = computed(() => `${props.gid}/${props.token}`)
+    const autoPage = useAutoPage(
+      { identity, page, total: totalPages, dragging: computed(() => seeking.value || dragging.value) },
+      goTo,
+      useAuthStore().user?.id,
+    )
+    onBeforeRouteLeave(autoPage.stop)
+    watch(identity, () => {
+      seeking.value = false
+      dragging.value = false
+    })
 
     return () => (
       <div class="fixed inset-0 flex flex-col bg-black">
@@ -49,6 +64,9 @@ export default defineComponent({
                 template={imageUrlTemplate.value}
                 seeking={seeking.value}
                 onPageChange={goTo}
+                onDraggingChange={(value) => {
+                  dragging.value = value
+                }}
               />
             ) : null}
 
@@ -70,7 +88,7 @@ export default defineComponent({
           <p class="min-w-0 flex-1 truncate text-sm text-white/90">{gallery.value?.title ?? "加载中…"}</p>
         </div>
 
-        <div class="flex shrink-0 items-center gap-3 bg-zinc-950 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div class="flex shrink-0 flex-wrap items-center gap-2 bg-zinc-950 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Button
             aria-label="上一页"
             {...chromeButton}
@@ -120,6 +138,29 @@ export default defineComponent({
           >
             <ChevronRightIcon />
           </Button>
+
+          <div class="flex items-center gap-1">
+            <Button
+              aria-label={autoPage.active.value ? "暂停自动翻页" : "开始自动翻页"}
+              aria-pressed={autoPage.active.value}
+              {...chromeButton}
+              {...{ disabled: !autoPage.canStart.value, onClick: autoPage.toggle }}
+            >
+              {autoPage.active.value ? <PauseIcon /> : <PlayIcon />}
+            </Button>
+            <select
+              aria-label="自动翻页间隔"
+              class="h-8 rounded border border-white/20 bg-zinc-950 px-1 text-sm text-white"
+              value={autoPage.interval.value}
+              onChange={(event) => autoPage.setInterval(Number((event.currentTarget as HTMLSelectElement).value))}
+            >
+              {Array.from({ length: 20 }, (_, index) => (
+                <option key={index + 1} value={index + 1}>
+                  {index + 1} 秒
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
     )

@@ -18,6 +18,7 @@ export function useReaderStrip(
   const nonces = ref<Record<number, number>>({})
   const dragging = ref(false)
   let pointer: { id: number; x: number; left: number } | undefined
+  let scrollTarget: number | undefined
   let pendingAnchor: { page: number; relative: number } | undefined
   /* 图片等比缩放到阅读区内，宽高都不能超出可用空间。 */
   const widths = computed(() =>
@@ -80,27 +81,36 @@ export function useReaderStrip(
   const { start, stop: cancelLoad } = useTimeoutFn(loadVisible, LOAD_DELAY, { immediate: false })
   function scheduleLoad() {
     cancelLoad()
-    if (dragging.value || props.seeking || !viewport.value || !props.total) {
+    if (dragging.value || props.seeking || scrollTarget !== undefined || !viewport.value || !props.total) {
       return
     }
     start()
   }
 
-  async function jump(page: number) {
+  async function jump(page: number, behavior: ScrollBehavior = "instant") {
     cancelLoad()
     await nextTick()
     if (!viewport.value || !props.total) {
       return
     }
     const left = offsets.value[page - 1] + widths.value[page - 1] / 2 - width.value / 2
-    viewport.value.scrollLeft = clamp(left, 0, maxScroll())
+    const target = clamp(left, 0, maxScroll())
+    scrollTarget = behavior === "smooth" && Math.abs(viewport.value.scrollLeft - target) > 1 ? target : undefined
+    viewport.value.scrollTo({ left: target, behavior })
     scheduleLoad()
   }
 
-  /* 按位置算页码并只在变化时上报：程序性滚动算回来还是同一页，不需要区分滚动来源。 */
+  /* 平滑滚动途中保留目标页码，避免中间页回流触发反向跳转。 */
   function onScroll() {
     if (!viewport.value) {
       return
+    }
+    if (scrollTarget !== undefined) {
+      scheduleLoad()
+      if (Math.abs(viewport.value.scrollLeft - scrollTarget) > 1) {
+        return
+      }
+      scrollTarget = undefined
     }
     const page = pageAtScroll(viewport.value.scrollLeft)
     if (page !== props.page) {
@@ -109,10 +119,19 @@ export function useReaderStrip(
     scheduleLoad()
   }
 
+  function interruptScroll() {
+    if (scrollTarget !== undefined && viewport.value) {
+      scrollTarget = undefined
+      viewport.value.scrollTo({ left: viewport.value.scrollLeft, behavior: "instant" })
+      onScroll()
+    }
+  }
+
   function onPointerDown(event: PointerEvent) {
     if (event.button !== 0 || (event.target instanceof HTMLElement && event.target.closest("button"))) {
       return
     }
+    interruptScroll()
     dragging.value = true
     cancelLoad()
     /* 触屏保留浏览器原生惯性滚动，鼠标才需要自行搬动 scrollLeft。 */
@@ -133,6 +152,7 @@ export function useReaderStrip(
     scheduleLoad()
   }
   function onWheel(event: WheelEvent) {
+    interruptScroll()
     if (!viewport.value || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) {
       return
     }
@@ -154,6 +174,10 @@ export function useReaderStrip(
     }
     const { page: anchor, relative } = pendingAnchor
     pendingAnchor = undefined
+    if (scrollTarget !== undefined) {
+      await jump(props.page, "smooth")
+      return
+    }
     viewport.value.scrollLeft = clamp(offsets.value[anchor - 1] + relative, 0, maxScroll())
     scheduleLoad()
   }
@@ -175,8 +199,8 @@ export function useReaderStrip(
   watch(
     () => props.page,
     (page) => {
-      if (viewport.value && page !== pageAtScroll(viewport.value.scrollLeft)) {
-        void jump(page)
+      if (viewport.value && (scrollTarget !== undefined || page !== pageAtScroll(viewport.value.scrollLeft))) {
+        void jump(page, props.seeking ? "instant" : "smooth")
       }
     },
   )

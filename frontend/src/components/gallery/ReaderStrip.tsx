@@ -1,4 +1,4 @@
-import { defineComponent } from "vue"
+import { defineComponent, watch } from "vue"
 
 import { galleryImageUrl } from "@/api/eh"
 import { Button } from "@/components/ui/button"
@@ -13,9 +13,10 @@ export default defineComponent({
     template: { type: String, required: true },
     seeking: { type: Boolean, default: false },
   },
-  emits: { pageChange: (_page: number) => true },
+  emits: { pageChange: (_page: number) => true, draggingChange: (_dragging: boolean) => true },
   setup(props, { emit }) {
     const strip = useReaderStrip(props, (page) => emit("pageChange", page))
+    watch(strip.dragging, (dragging) => emit("draggingChange", dragging), { flush: "sync" })
     return () => (
       <div
         ref={strip.viewport}
