@@ -31,12 +31,12 @@ func TestBufferedRequestsReleaseFailedBody(t *testing.T) {
 		call func(*Client) error
 	}{
 		{"页面", func(c *Client) error {
-			_, err := c.FetchPage(context.Background(), RequestContext{Site: SiteE}, "/")
+			_, err := c.fetchPage(context.Background(), RequestContext{Site: SiteE}, "/")
 			return err
 		}},
 		{"元数据", func(c *Client) error {
 			var out gdataResponse
-			return c.CallAPI(context.Background(), RequestContext{Site: SiteE}, map[string]string{"method": "gdata"}, &out)
+			return c.callAPI(context.Background(), RequestContext{Site: SiteE}, map[string]string{"method": "gdata"}, &out)
 		}},
 		{"凭据探测", func(c *Client) error {
 			_, err := c.VerifyCredential(context.Background(), Cookie{})

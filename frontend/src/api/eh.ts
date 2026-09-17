@@ -172,16 +172,16 @@ export function fetchSearchHistory(signal?: AbortSignal) {
   return httpClient.get<string[]>("/eh/search-history", { signal })
 }
 
-export function recordSearch(keyword: string) {
-  return httpClient.post<string[]>("/eh/search-history", { keyword })
+export function recordSearch(keyword: string, signal?: AbortSignal) {
+  return httpClient.post<string[]>("/eh/search-history", { keyword }, { signal })
 }
 
-export function removeSearch(keyword: string) {
-  return httpClient.post<string[]>("/eh/search-history/remove", { keyword })
+export function removeSearch(keyword: string, signal?: AbortSignal) {
+  return httpClient.post<string[]>("/eh/search-history/remove", { keyword }, { signal })
 }
 
-export function clearSearchHistory() {
-  return httpClient.post<null>("/eh/search-history/clear")
+export function clearSearchHistory(signal?: AbortSignal) {
+  return httpClient.post<null>("/eh/search-history/clear", undefined, { signal })
 }
 
 export interface ReadingHistoryItem {

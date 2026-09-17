@@ -1,6 +1,23 @@
 package eh
 
-import "myapi/internal/apperr"
+import (
+	"errors"
+	"fmt"
+
+	"myapi/internal/apperr"
+)
+
+// 只有明确的 showkey 失效才允许重新获取页面，其余协议错误直接报告。
+var errShowKeyExpired = errors.New("e 站图片访问令牌已失效")
+
+// 节点失败允许大图换源；缩略图和重试仍失败时按上游故障报告。
+type imageNodeError struct {
+	status int
+}
+
+func (e *imageNodeError) Error() string {
+	return fmt.Sprintf("图床返回了 HTTP %d", e.status)
+}
 
 // e 站可预期的失败只描述种类与原因，HTTP 翻译集中在 web。
 

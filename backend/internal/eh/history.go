@@ -80,8 +80,8 @@ func (s *Service) ReadingHistory(ctx context.Context, userID int64, value string
 	}
 	for _, row := range rows {
 		item := ReadingHistoryItem{GID: row.Gid, Token: row.Token, Page: row.Page, ReadAt: row.UpdatedAt}
-		if gallery, ok := galleries[row.Gid]; ok {
-			card := s.withThumbnail(gallery).GalleryCard
+		if gallery, ok := galleries[GalleryRef{GID: row.Gid, Token: row.Token}]; ok {
+			card := s.galleryCard(gallery)
 			item.Gallery = &card
 		}
 		result.Items = append(result.Items, item)

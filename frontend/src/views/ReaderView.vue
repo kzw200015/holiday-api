@@ -9,6 +9,8 @@ import ReaderStrip from "@/components/gallery/ReaderStrip.vue"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useQuery } from "@/composables/useQuery"
+import { useReaderPlayback } from "@/composables/useReaderPlayback"
+import { readerExitLocation, readerLocation, type ReaderOrigin } from "@/lib/galleryNavigation"
 import { backOrReplace } from "@/lib/navigation"
 import { useEhStore } from "@/stores/EhStore"
 
@@ -23,13 +25,15 @@ const PAGE_STEPS: Record<string, number> = {
 }
 
 /* 路由 props 随页面实例保留，缓存页面和阅读器各自使用自己的图集身份。 */
-const props = defineProps<{
-  gid: number
-  token: string
-  page: number
-  fromHistory?: boolean
-  returnToHistory?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    gid: number
+    token: string
+    page: number
+    origin?: ReaderOrigin
+  }>(),
+  { origin: () => ({ kind: "detail", source: "search" }) },
+)
 const router = useRouter()
 const ehStore = useEhStore()
 const identity = computed(() => `${props.gid}/${props.token}`)
@@ -49,6 +53,7 @@ const imageUrlTemplate = computed(() => detail.value?.imageUrlTemplate ?? "")
 const seeking = ref(false)
 const dragging = ref(false)
 const controlsVisible = ref(true)
+const playback = useReaderPlayback(identity, page, totalPages, () => seeking.value || dragging.value)
 
 function goTo(next: number) {
   if (!totalPages.value) {
@@ -59,26 +64,11 @@ function goTo(next: number) {
     return
   }
   /* 用 replace 让浏览器后退直接离开阅读，而非逐页回退。 */
-  void router.replace({
-    name: "reader",
-    params: { gid: props.gid, token: props.token, page: clamped },
-    query: {
-      source: props.fromHistory ? "history" : undefined,
-      returnTo: props.returnToHistory ? "history" : undefined,
-    },
-  })
+  void router.replace(readerLocation(props, clamped, props.origin))
 }
 
 function exit() {
-  if (props.returnToHistory) {
-    backOrReplace(router, { name: "gallery-history" })
-    return
-  }
-  backOrReplace(router, {
-    name: "gallery-detail",
-    params: { gid: props.gid, token: props.token },
-    query: props.fromHistory ? { source: "history" } : {},
-  })
+  backOrReplace(router, readerExitLocation(props, props.origin))
 }
 
 /* 详情到达且页数已知后才报告位置，保存时机与请求顺序由 Store 负责。 */
@@ -157,7 +147,9 @@ watch(identity, () => {
       :title="gallery?.title"
       :visible="controlsVisible"
       :total="totalPages"
-      :dragging="dragging"
+      :playback="playback.state"
+      @toggle-auto-paging="playback.toggle"
+      @set-interval="playback.setInterval"
       @exit="exit"
     />
   </div>

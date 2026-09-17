@@ -1,11 +1,12 @@
 /* @vitest-environment happy-dom */
 import { createPinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createApp, h, nextTick, reactive } from "vue"
+import { computed, createApp, h, nextTick, reactive } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
 import { fetchGalleryPreferences, saveReaderInterval } from "@/api/eh"
 import ReaderControls from "@/components/gallery/ReaderControls.vue"
+import { useReaderPlayback } from "@/composables/useReaderPlayback"
 import { useAuthStore } from "@/stores/AuthStore"
 
 vi.mock("@/api/eh", () => ({
@@ -15,8 +16,16 @@ vi.mock("@/api/eh", () => ({
 
 const cleanups: (() => void)[] = []
 
-async function createReader(userId: number | undefined = 1) {
-  const state = reactive({ identity: "1/token", page: 1, total: 10, dragging: false, seeking: false, visible: true })
+async function createReader(userId: number | undefined = 1, position: { page?: number; total?: number } = {}) {
+  const state = reactive({
+    identity: "1/token",
+    page: 1,
+    total: 10,
+    dragging: false,
+    seeking: false,
+    visible: true,
+    ...position,
+  })
   const change = vi.fn((page: number) => {
     state.page = page
   })
@@ -26,19 +35,29 @@ async function createReader(userId: number | undefined = 1) {
       {
         path: "/reader",
         component: {
-          render: () =>
-            h(ReaderControls, {
-              key: state.identity,
-              page: state.page,
-              total: state.total,
-              dragging: state.dragging,
-              seeking: state.seeking,
-              visible: state.visible,
-              "onUpdate:page": change,
-              "onUpdate:seeking": (value: boolean) => {
-                state.seeking = value
-              },
-            }),
+          setup() {
+            const playback = useReaderPlayback(
+              () => state.identity,
+              computed({ get: () => state.page, set: change }),
+              () => state.total,
+              () => state.dragging || state.seeking,
+            )
+            return () =>
+              h(ReaderControls, {
+                key: state.identity,
+                page: state.page,
+                total: state.total,
+                seeking: state.seeking,
+                visible: state.visible,
+                playback: playback.state,
+                onToggleAutoPaging: playback.toggle,
+                onSetInterval: playback.setInterval,
+                "onUpdate:page": change,
+                "onUpdate:seeking": (value: boolean) => {
+                  state.seeking = value
+                },
+              })
+          },
         },
       },
       { path: "/away", component: { render: () => h("div") } },
@@ -215,6 +234,29 @@ describe("阅读器自动翻页控件", () => {
     expect(saveReaderInterval).toHaveBeenCalledTimes(2)
   })
 
+  it("切换图集时完成待保存的间隔后再读取，新会话不会被旧值覆盖", async () => {
+    let finish!: () => void
+    vi.mocked(saveReaderInterval).mockImplementation(async (seconds) => {
+      await new Promise<void>((resolve) => {
+        finish = resolve
+      })
+      vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: seconds })
+      return null
+    })
+    const { state, host } = await createReader()
+    host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
+    state.identity = "2/new"
+    await nextTick()
+    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(6)
+    expect(fetchGalleryPreferences).toHaveBeenCalledTimes(1)
+    expect(intervalText(host)).toBe("6 秒")
+    finish()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(fetchGalleryPreferences).toHaveBeenCalledTimes(2)
+    expect(intervalText(host)).toBe("6 秒")
+    expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
+  })
+
   it("保存失败显示未同步提示，当前间隔继续可用", async () => {
     vi.mocked(saveReaderInterval).mockRejectedValue(new Error("断网"))
     const { host } = await createReader()
@@ -229,6 +271,17 @@ describe("阅读器自动翻页控件", () => {
     const { host } = await createReader()
     expect(intervalText(host)).toBe("5 秒")
     expect(host.querySelector("select, input:not([type=range]), [contenteditable]")).toBeNull()
+  })
+
+  it("页数到达后创建滑块，保留从 URL 恢复的页码", async () => {
+    const { state, host } = await createReader(1, { page: 3, total: 0 })
+    expect(host.querySelector('input[type="range"]')).toBeNull()
+    state.total = 12
+    await nextTick()
+    const slider = host.querySelector<HTMLInputElement>('input[type="range"]')!
+    expect(slider.max).toBe("12")
+    expect(slider.value).toBe("3")
+    expect(slider.getAttribute("aria-valuetext")).toBe("第 3 页，共 12 页")
   })
 
   it("没有页数或已到末页不能启动，到达末页立即停止且不循环", async () => {

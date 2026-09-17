@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-router"
 
 import AppLayout from "@/layouts/AppLayout.vue"
+import { gallerySource, readerOrigin } from "@/lib/galleryNavigation"
 import { useAuthStore } from "@/stores/AuthStore"
 
 declare module "vue-router" {
@@ -25,8 +26,7 @@ const routes: RouteRecordRaw[] = [
       gid: Number(route.params.gid),
       token: String(route.params.token),
       page: Number(route.params.page ?? 1),
-      fromHistory: route.query.source === "history",
-      returnToHistory: route.query.returnTo === "history",
+      origin: readerOrigin(route.query),
     }),
     meta: { title: "阅读", requiresAuth: true },
   },
@@ -66,7 +66,7 @@ const routes: RouteRecordRaw[] = [
             props: (route) => ({
               gid: Number(route.params.gid),
               token: String(route.params.token),
-              fromHistory: route.query.source === "history",
+              source: gallerySource(route.query),
             }),
             meta: { title: "图集详情", ownScroll: true },
           },

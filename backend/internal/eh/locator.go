@@ -2,6 +2,7 @@ package eh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,202 +10,165 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-// 详情页默认每片 20 个缩略图。登录用户可以改成 40/50，所以只作为首次猜测。
+// 详情页分片大小受账号设置影响，首次按 20 猜测，再按实际区间校正。
 const defaultSliceSize = 20
 
-// ImageLocator 定位每页图片地址，并缓存图片令牌、分片大小及解析结果。
-// 首次从详情页和 /s/ 页取得令牌、showkey，后续通过 showpage 获取图片及下一页令牌。
+type galleryCacheKey struct {
+	scope accessScope
+	ref   GalleryRef
+}
+
+type imageCacheKey struct {
+	gallery galleryCacheKey
+	page    int
+}
+
+// ImageLocator 持有图片定位状态；所有状态按上游身份、站点和完整图集定位信息隔离。
+// 图片地址与换源令牌来自同一页，作为一个结果一起缓存和失效。
 type ImageLocator struct {
-	client *Client
-
-	pageTokens  *expirable.LRU[string, string]
-	sliceSizes  *expirable.LRU[string, int]
-	showKeys    *expirable.LRU[string, string]
-	reloadToken *expirable.LRU[string, string]
-	imageURLs   *expirable.LRU[string, string]
-
-	// 合并同一「站点 + 图集 + 分片」的并发请求，供可见页和预取页共用。
-	slices singleflight.Group
+	client     *Client
+	pageTokens *expirable.LRU[imageCacheKey, string]
+	sliceSizes *expirable.LRU[galleryCacheKey, int]
+	showKeys   *expirable.LRU[galleryCacheKey, string]
+	images     *expirable.LRU[imageCacheKey, imagePage]
+	slices     singleflight.Group
 }
 
 func NewImageLocator(client *Client) *ImageLocator {
 	return &ImageLocator{
-		client:      client,
-		pageTokens:  expirable.NewLRU[string, string](20000, nil, 30*time.Minute),
-		sliceSizes:  expirable.NewLRU[string, int](200, nil, 30*time.Minute),
-		showKeys:    expirable.NewLRU[string, string](200, nil, 30*time.Minute),
-		reloadToken: expirable.NewLRU[string, string](200, nil, 30*time.Minute),
-		imageURLs:   expirable.NewLRU[string, string](5000, nil, 20*time.Minute),
+		client:     client,
+		pageTokens: expirable.NewLRU[imageCacheKey, string](20000, nil, 30*time.Minute),
+		sliceSizes: expirable.NewLRU[galleryCacheKey, int](200, nil, 30*time.Minute),
+		showKeys:   expirable.NewLRU[galleryCacheKey, string](200, nil, 30*time.Minute),
+		images:     expirable.NewLRU[imageCacheKey, imagePage](5000, nil, 20*time.Minute),
 	}
 }
 
-// Resolve 优先通过 showpage 获取图片地址，showkey 缺失或失效时改用 /s/ 页面。
-// reload 跳过地址缓存和 showpage，使用 nl 令牌请求换源。
-func (l *ImageLocator) Resolve(ctx context.Context, rc RequestContext, ref GalleryRef, page int, reload bool) (string, error) {
-	urlKey := pageKey(rc.Site, ref.GID, page)
-	if reload {
-		// 旧地址已经证明取不到了，先清掉：万一这次解析也失败，下次进来不该又拿到它
-		l.imageURLs.Remove(urlKey)
-	} else if cached, ok := l.imageURLs.Get(urlKey); ok {
-		return cached, nil
+func (l *ImageLocator) Resolve(ctx context.Context, rc RequestContext, ref GalleryRef, page int) (string, error) {
+	galleryKey := galleryCacheKey{scope: rc.scope(), ref: ref}
+	key := imageCacheKey{gallery: galleryKey, page: page}
+	if cached, ok := l.images.Get(key); ok {
+		return cached.ImageURL, nil
 	}
-
 	pageToken, err := l.ensurePageToken(ctx, rc, ref, page)
 	if err != nil {
 		return "", err
 	}
 
-	key := metaKey(rc.Site, ref.GID)
-	url := ""
-	if showKey, ok := l.showKeys.Get(key); ok && !reload {
-		if url, err = l.resolveViaAPI(ctx, rc, ref, page, pageToken, showKey); err != nil {
+	if showKey, ok := l.showKeys.Get(galleryKey); ok {
+		image, err := l.client.ShowImage(ctx, rc, ref, page, pageToken, showKey)
+		if err == nil {
+			l.rememberImage(key, image)
+			return image.ImageURL, nil
+		}
+		if !errors.Is(err, errShowKeyExpired) {
 			return "", err
 		}
-		if url == "" {
-			// showkey 过期了，清掉后回落去抓页面换一个新的
-			l.showKeys.Remove(key)
-		}
-	}
-	if url == "" {
-		if url, err = l.resolveViaPage(ctx, rc, ref, page, pageToken, reload); err != nil {
-			return "", err
-		}
+		l.showKeys.Remove(galleryKey)
 	}
 
-	l.imageURLs.Add(urlKey, url)
-	return url, nil
-}
-
-// AbsorbGalleryPage 收下一页详情 HTML 里顺带带来的每页令牌。
-// 评论接口抓的就是详情首片，读完令牌等下点「开始阅读」就不用再抓一次。
-func (l *ImageLocator) AbsorbGalleryPage(site Site, gid int64, page string) {
-	parsed := parseGalleryPage(page)
-	for number, token := range parsed.PageTokens {
-		l.pageTokens.Add(pageKey(site, gid, number), token)
-	}
-
-	// 只有不是最后一片时区间长度才等于分片大小，最后一片通常是残缺的
-	if parsed.RangeFrom > 0 && parsed.RangeTo < parsed.TotalPages {
-		l.sliceSizes.Add(metaKey(site, gid), parsed.RangeTo-parsed.RangeFrom+1)
-	}
-}
-
-// 走 showpage 接口。showkey 失效时返回空串，交给调用方换路子。
-func (l *ImageLocator) resolveViaAPI(ctx context.Context, rc RequestContext, ref GalleryRef,
-	page int, pageToken, showKey string) (string, error) {
-	var response showPageResponse
-	payload := map[string]any{
-		"method": "showpage", "gid": ref.GID, "page": page, "imgkey": pageToken, "showkey": showKey,
-	}
-	if err := l.client.CallAPI(ctx, rc, payload, &response); err != nil {
-		return "", err
-	}
-	if response.Error != "" {
-		return "", nil
-	}
-
-	imageURL, nextPage, nextToken := parseShowPageFragment(response.I3)
-	// 缓存下一页令牌，连续翻页时无需再请求详情页。
-	if nextPage > 0 {
-		l.pageTokens.Add(pageKey(rc.Site, ref.GID, nextPage), nextToken)
-	}
-	return imageURL, nil
-}
-
-// 抓 /s/ 页面。顺带把 showkey 和换源令牌记下来。
-func (l *ImageLocator) resolveViaPage(ctx context.Context, rc RequestContext, ref GalleryRef,
-	page int, pageToken string, reload bool) (string, error) {
-	key := metaKey(rc.Site, ref.GID)
-
-	// nl 参数让 e 站换一台图床节点，用于原节点失效时重取
-	suffix := ""
-	if reload {
-		if token, ok := l.reloadToken.Get(key); ok {
-			suffix = "?nl=" + token
-		}
-	}
-
-	body, err := l.client.FetchPage(ctx, rc, fmt.Sprintf("/s/%s/%d-%d%s", pageToken, ref.GID, page, suffix))
+	image, err := l.client.FetchImagePage(ctx, rc, ref, page, pageToken, "")
 	if err != nil {
 		return "", err
 	}
-
-	parsed := parseImagePage(body)
-	if parsed.ShowKey != "" {
-		l.showKeys.Add(key, parsed.ShowKey)
-	}
-	if parsed.ReloadToken != "" {
-		l.reloadToken.Add(key, parsed.ReloadToken)
-	}
-	if parsed.ImageURL == "" {
-		return "", errUnavailable("第 %d 页没解析出图片地址，e 站版面可能改了", page)
-	}
-	return parsed.ImageURL, nil
+	l.rememberImage(key, image)
+	return image.ImageURL, nil
 }
 
-// 拿到某一页的图片令牌。
-//
-// 一页详情只列 20 个（登录用户能调到 40/50），所以按需抓包含目标页的那一片。
-// 分片大小先按默认值猜，抓回来后用 Showing 那行给出的真实区间校正，最多再抓一次。
-func (l *ImageLocator) ensurePageToken(ctx context.Context, rc RequestContext, ref GalleryRef, page int) (string, error) {
-	if cached, ok := l.pageTokens.Get(pageKey(rc.Site, ref.GID, page)); ok {
-		return cached, nil
+// Refresh 淘汰已失败的地址，从该图片页重新定位；有该页的 nl 令牌时请求换源。
+func (l *ImageLocator) Refresh(ctx context.Context, rc RequestContext, ref GalleryRef, page int) (string, error) {
+	key := imageCacheKey{gallery: galleryCacheKey{scope: rc.scope(), ref: ref}, page: page}
+	previous, _ := l.images.Get(key)
+	l.images.Remove(key)
+	pageToken, err := l.ensurePageToken(ctx, rc, ref, page)
+	if err != nil {
+		return "", err
 	}
-
-	key := metaKey(rc.Site, ref.GID)
-	sliceSize := defaultSliceSize
-	if cached, ok := l.sliceSizes.Get(key); ok {
-		sliceSize = cached
+	image, err := l.client.FetchImagePage(ctx, rc, ref, page, pageToken, previous.ReloadToken)
+	if err != nil {
+		return "", err
 	}
-
-	for range 2 {
-		if _, err := l.GalleryPage(ctx, rc, ref, (page-1)/sliceSize); err != nil {
+	// showpage 可能只给图片地址。先从当前页补齐 nl，再换源，不能借用其他页的令牌。
+	if previous.ReloadToken == "" && image.ReloadToken != "" {
+		image, err = l.client.FetchImagePage(ctx, rc, ref, page, pageToken, image.ReloadToken)
+		if err != nil {
 			return "", err
 		}
-		if found, ok := l.pageTokens.Get(pageKey(rc.Site, ref.GID, page)); ok {
-			return found, nil
+	}
+	l.rememberImage(key, image)
+	return image.ImageURL, nil
+}
+
+func (l *ImageLocator) rememberImage(key imageCacheKey, image imagePage) {
+	l.images.Add(key, image)
+	if image.ShowKey != "" {
+		l.showKeys.Add(key.gallery, image.ShowKey)
+	}
+	if image.NextPage > 0 && image.NextToken != "" {
+		l.pageTokens.Add(imageCacheKey{gallery: key.gallery, page: image.NextPage}, image.NextToken)
+	}
+}
+
+func (l *ImageLocator) ensurePageToken(ctx context.Context, rc RequestContext, ref GalleryRef, page int) (string, error) {
+	galleryKey := galleryCacheKey{scope: rc.scope(), ref: ref}
+	if cached, ok := l.pageTokens.Get(imageCacheKey{gallery: galleryKey, page: page}); ok {
+		return cached, nil
+	}
+	sliceSize := defaultSliceSize
+	if cached, ok := l.sliceSizes.Get(galleryKey); ok {
+		sliceSize = cached
+	}
+	for range 2 {
+		result, err := l.GalleryPage(ctx, rc, ref, (page-1)/sliceSize)
+		if err != nil {
+			return "", err
 		}
-		corrected, ok := l.sliceSizes.Get(key)
-		if !ok || corrected == sliceSize {
+		// 当前请求直接使用返回值，LRU 淘汰不会影响本次已取得的令牌。
+		if token := result.PageTokens[page]; token != "" {
+			return token, nil
+		}
+		corrected := result.sliceSize()
+		if corrected == 0 || corrected == sliceSize {
 			break
 		}
 		sliceSize = corrected
 	}
-
 	return "", errUnavailable("没能取到第 %d 页的图片令牌", page)
 }
 
-// GalleryPage 抓详情页的某一片，把里面的每页令牌收进缓存，并把 HTML 交给调用方。
-// 同一片的并发请求合并成一次上游调用——评论接口要的正是首片，跟取图链路是同一个页面。
-func (l *ImageLocator) GalleryPage(ctx context.Context, rc RequestContext, ref GalleryRef, slice int) (string, error) {
-	result := l.slices.DoChan(fmt.Sprintf("%s:%d", metaKey(rc.Site, ref.GID), slice), func() (any, error) {
-		// 单个读者取消不能中断共享请求；上游超时由 Client 控制。
-		detached := context.WithoutCancel(ctx)
-		// ?p= 是 0 基的，?p=0 就是第一片
-		body, err := l.client.FetchPage(detached, rc, fmt.Sprintf("/g/%d/%s/?p=%d", ref.GID, ref.Token, slice))
+// 最后一片可能不满，只有中间分片能用于确定账号的分片大小。
+func (page gallerySlice) sliceSize() int {
+	if page.RangeFrom > 0 && page.RangeTo >= page.RangeFrom && page.RangeTo < page.TotalPages {
+		return page.RangeTo - page.RangeFrom + 1
+	}
+	return 0
+}
+
+// GalleryPage 让评论与取图共享同一身份下的详情请求，返回 HTML 及已解析的定位数据。
+func (l *ImageLocator) GalleryPage(ctx context.Context, rc RequestContext, ref GalleryRef, slice int) (gallerySlice, error) {
+	key := galleryCacheKey{scope: rc.scope(), ref: ref}
+	flightKey := fmt.Sprintf("%s:%x:%d:%s:%d", key.scope.site, key.scope.credential, ref.GID, ref.Token, slice)
+	result := l.slices.DoChan(flightKey, func() (any, error) {
+		// 单个读者取消不影响其他等待者；实际请求仍受 Client 超时约束。
+		page, err := l.client.FetchGallerySlice(context.WithoutCancel(ctx), rc, ref, slice)
 		if err != nil {
-			return "", err
+			return gallerySlice{}, err
 		}
-		l.AbsorbGalleryPage(rc.Site, ref.GID, body)
-		return body, nil
+		for number, token := range page.PageTokens {
+			l.pageTokens.Add(imageCacheKey{gallery: key, page: number}, token)
+		}
+		if size := page.sliceSize(); size > 0 {
+			l.sliceSizes.Add(key, size)
+		}
+		return page, nil
 	})
-	// 共享请求继续为其他读者服务；当前读者取消后不用等到上游超时才释放处理器。
 	select {
 	case <-ctx.Done():
-		return "", ctx.Err()
-	case page := <-result:
-		if page.Err != nil {
-			return "", page.Err
+		return gallerySlice{}, ctx.Err()
+	case response := <-result:
+		if response.Err != nil {
+			return gallerySlice{}, response.Err
 		}
-		return page.Val.(string), nil
+		return response.Val.(gallerySlice), nil
 	}
-}
-
-// 按站点区分的图集级缓存键：分片大小、showkey、换源令牌共用它。
-func metaKey(site Site, gid int64) string {
-	return fmt.Sprintf("%s:%d", site, gid)
-}
-
-func pageKey(site Site, gid int64, page int) string {
-	return fmt.Sprintf("%s:%d:%d", site, gid, page)
 }

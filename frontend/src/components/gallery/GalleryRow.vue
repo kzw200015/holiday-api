@@ -5,18 +5,15 @@ import type { GalleryCard } from "@/api/eh"
 import GalleryMeta from "@/components/gallery/GalleryMeta.vue"
 import GalleryTag from "@/components/gallery/GalleryTag.vue"
 import { formatDateTime } from "@/lib/format"
+import { galleryDetailLocation, type GallerySource } from "@/lib/galleryNavigation"
 
-defineProps<{ item: GalleryCard; fromHistory?: boolean }>()
+withDefaults(defineProps<{ item: GalleryCard; source?: GallerySource }>(), { source: "search" })
 </script>
 
 <template>
   <RouterLink
     class="hover:bg-accent/50 flex gap-3 rounded-lg p-2 transition-colors"
-    :to="{
-      name: 'gallery-detail',
-      params: { gid: item.gid, token: item.token },
-      query: fromHistory ? { source: 'history' } : {},
-    }"
+    :to="galleryDetailLocation(item, source)"
   >
     <img alt="" class="bg-muted h-40 w-28 shrink-0 rounded-lg object-cover" loading="lazy" :src="item.thumbnail" />
     <div class="flex min-w-0 flex-1 flex-col gap-1.5 py-0.5">

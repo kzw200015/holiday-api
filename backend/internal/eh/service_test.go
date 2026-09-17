@@ -45,7 +45,7 @@ func TestSearchGalleriesPreservesOrderAcrossCacheEviction(t *testing.T) {
 			if gid == "3" {
 				entries = append(entries, `{"gid":3,"error":"deleted"}`)
 			} else {
-				entries = append(entries, fmt.Sprintf(`{"gid":%s,"title":"gallery %s"}`, gid, gid))
+				entries = append(entries, fmt.Sprintf(`{"gid":%s,"token":"0123456789","title":"gallery %s"}`, gid, gid))
 			}
 		}
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(
@@ -54,9 +54,9 @@ func TestSearchGalleriesPreservesOrderAcrossCacheEviction(t *testing.T) {
 	credentials, _ := newCredentialTestStore(Cookie{})
 	service := NewService(nil, client, credentials, nil, signing.NewAttachmentSigner("test", time.Hour))
 	// 缩小容量，确定性模拟其他请求淘汰本次已命中的缓存，以及批次之间相互淘汰。
-	service.galleries = expirable.NewLRU[int64, GalleryDetail](1, nil, time.Minute)
-	service.galleries.Add(1, GalleryDetail{GalleryCard: GalleryCard{GID: 1, Title: "cached"}})
-	result, err := service.SearchGalleries(context.Background(), 1, SearchQuery{CategoryFilter: -1})
+	service.galleries = expirable.NewLRU[GalleryRef, galleryMetadata](1, nil, time.Minute)
+	service.galleries.Add(GalleryRef{GID: 1, Token: "0123456789"}, galleryMetadata{Ref: GalleryRef{GID: 1, Token: "0123456789"}, Title: "cached"})
+	result, err := service.SearchGalleries(context.Background(), 1, SearchQuery{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,7 @@ import { computed, nextTick, onScopeDispose, ref, shallowRef, watch } from "vue"
 
 import { galleryImageUrl } from "@/api/eh"
 import { Button } from "@/components/ui/button"
+import { createReaderLayout } from "@/lib/readerLayout"
 
 const LOAD_DELAY = 200
 const PRELOAD_PAGES = 2
@@ -25,57 +26,13 @@ let pointer: { id: number; x: number; y: number; left: number } | undefined
 let dragged = false
 let scrollTarget: number | undefined
 let pendingAnchor: { page: number; relative: number } | undefined
-/* 图片等比缩放到阅读区内，宽高都不能超出可用空间。 */
-const widths = computed(() =>
-  Array.from({ length: props.total }, (_, index) =>
-    Math.min(width.value, height.value * (ratios.value[index + 1] ?? 0.7)),
-  ),
-)
-const offsets = computed(() => {
-  const result = [0]
-  for (const item of widths.value) {
-    result.push(result[result.length - 1] + item)
-  }
-  return result
-})
-const maxScroll = () => Math.max(0, offsets.value[props.total] - width.value)
-
-/* 横坐标落在哪一页：offsets 单调递增，二分找最后一个不超过 x 的页起点。 */
-function pageAt(x: number) {
-  let low = 1
-  let high = props.total
-  while (low < high) {
-    const middle = (low + high + 1) >> 1
-    if (offsets.value[middle - 1] <= x) {
-      low = middle
-    } else {
-      high = middle - 1
-    }
-  }
-  return low
-}
-/* 页码以视口中点为准；滚到两端直接算首页/末页，宽屏一屏多页时才标得到头。 */
-function pageAtScroll(left: number) {
-  if (left <= 1) {
-    return 1
-  }
-  if (left >= maxScroll() - 1) {
-    return props.total
-  }
-  return pageAt(left + width.value / 2)
-}
+const layout = computed(() => createReaderLayout(props.total, width.value, height.value, ratios.value))
 
 function loadVisible() {
   if (!viewport.value) {
     return
   }
-  const left = viewport.value.scrollLeft
-  const right = left + width.value
-  const first = pageAt(left)
-  let last = first
-  while (last < props.total && offsets.value[last] < right) {
-    last++
-  }
+  const { first, last } = layout.value.visiblePages(viewport.value.scrollLeft)
   /* 补充可见页和左右各两页，滑出视口的图片不卸载。 */
   for (
     let pageNumber = Math.max(1, first - PRELOAD_PAGES);
@@ -100,8 +57,7 @@ async function jump(targetPage: number, behavior: ScrollBehavior = "instant") {
   if (!viewport.value) {
     return
   }
-  const left = offsets.value[targetPage - 1] + widths.value[targetPage - 1] / 2 - width.value / 2
-  const target = clamp(left, 0, maxScroll())
+  const target = layout.value.scrollToPage(targetPage)
   scrollTarget = behavior === "smooth" && Math.abs(viewport.value.scrollLeft - target) > 1 ? target : undefined
   viewport.value.scrollTo({ left: target, behavior })
   scheduleLoad()
@@ -119,7 +75,7 @@ function onScroll() {
     }
     scrollTarget = undefined
   }
-  const nextPage = pageAtScroll(viewport.value.scrollLeft)
+  const nextPage = layout.value.pageAtScroll(viewport.value.scrollLeft)
   if (nextPage !== page.value) {
     page.value = nextPage
   }
@@ -182,7 +138,7 @@ async function onImageLoad(pageNumber: number, event: Event) {
     return
   }
   /* 占位宽度换成真实比例时，维持当前页在视口中的相对位置；同一批到达的图片只锚定一次。 */
-  pendingAnchor ??= { page: page.value, relative: viewport.value.scrollLeft - offsets.value[page.value - 1] }
+  pendingAnchor ??= { page: page.value, relative: viewport.value.scrollLeft - layout.value.offsets[page.value - 1] }
   ratios.value[pageNumber] = image.naturalWidth / image.naturalHeight
   await nextTick()
   if (!viewport.value || !pendingAnchor) {
@@ -194,7 +150,7 @@ async function onImageLoad(pageNumber: number, event: Event) {
     await jump(page.value, "smooth")
     return
   }
-  viewport.value.scrollLeft = clamp(offsets.value[anchor - 1] + relative, 0, maxScroll())
+  viewport.value.scrollLeft = clamp(layout.value.offsets[anchor - 1] + relative, 0, layout.value.maxScroll)
   scheduleLoad()
 }
 function retry(pageNumber: number) {
@@ -213,7 +169,10 @@ useResizeObserver(viewport, ([entry]) => {
 void jump(page.value)
 /* 自己滚出来的页码回流时位置已经对上，只有外部跳页才需要搬动视口。 */
 watch(page, (nextPage) => {
-  if (viewport.value && (scrollTarget !== undefined || nextPage !== pageAtScroll(viewport.value.scrollLeft))) {
+  if (
+    viewport.value &&
+    (scrollTarget !== undefined || nextPage !== layout.value.pageAtScroll(viewport.value.scrollLeft))
+  ) {
     void jump(nextPage, props.seeking ? "instant" : "smooth")
   }
 })
@@ -244,7 +203,7 @@ onScopeDispose(() => {
       v-for="pageNumber in total"
       :key="pageNumber"
       class="relative h-full shrink-0"
-      :style="{ width: `${widths[pageNumber - 1]}px` }"
+      :style="{ width: `${layout.widths[pageNumber - 1]}px` }"
     >
       <div
         v-if="failed.has(pageNumber)"

@@ -17,10 +17,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { usePageScroll } from "@/composables/usePageScroll"
 import { useQuery } from "@/composables/useQuery"
 import { formatDateTime, formatFileSize, formatNamespace, splitTag } from "@/lib/format"
+import { galleryListLocation, readerLocation, type GallerySource } from "@/lib/galleryNavigation"
 import { backOrReplace } from "@/lib/navigation"
 import { useEhStore } from "@/stores/EhStore"
 
-const props = defineProps<{ gid: number; token: string; fromHistory?: boolean }>()
+const props = withDefaults(defineProps<{ gid: number; token: string; source?: GallerySource }>(), { source: "search" })
 const identity = () => `${props.gid}/${props.token}`
 const router = useRouter()
 const ehStore = useEhStore()
@@ -57,7 +58,7 @@ const groupedTags = computed(() => {
 })
 
 function returnToList() {
-  backOrReplace(router, { name: props.fromHistory ? "gallery-history" : "gallery-list" })
+  backOrReplace(router, galleryListLocation(props.source))
 }
 </script>
 
@@ -101,27 +102,13 @@ function returnToList() {
           </dl>
           <div class="flex flex-wrap gap-2">
             <Button as-child>
-              <RouterLink
-                :to="{
-                  name: 'reader',
-                  params: { gid: gallery.gid, token: gallery.token, page: progress ?? 1 },
-                  query: fromHistory ? { source: 'history' } : {},
-                }"
-              >
+              <RouterLink :to="readerLocation(gallery, progress ?? 1, { kind: 'detail', source })">
                 <BookOpenIcon />
                 {{ canContinue ? `继续阅读（第 ${progress} 页）` : "开始阅读" }}
               </RouterLink>
             </Button>
             <Button v-if="canContinue" as-child variant="outline">
-              <RouterLink
-                :to="{
-                  name: 'reader',
-                  params: { gid: gallery.gid, token: gallery.token, page: 1 },
-                  query: fromHistory ? { source: 'history' } : {},
-                }"
-              >
-                从头开始
-              </RouterLink>
+              <RouterLink :to="readerLocation(gallery, 1, { kind: 'detail', source })"> 从头开始 </RouterLink>
             </Button>
           </div>
         </div>

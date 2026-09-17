@@ -9,7 +9,10 @@ import (
 // 所以样本全是从真实页面裁下来的，见文件末尾那几个常量。
 
 func TestParseGalleryList(t *testing.T) {
-	items, cursor := parseGalleryList(galleryListHTML)
+	items, cursor, err := parseGalleryList(galleryListHTML)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// 同一个图集在一行里会出现在封面和标题两个链接上，去重后每个只剩一条
 	want := []GalleryRef{
@@ -34,18 +37,18 @@ func TestParseGalleryList(t *testing.T) {
 
 func TestParseGalleryListEdgeCases(t *testing.T) {
 	// 搜索没命中时返回空列表而不是报错
-	if items, cursor := parseGalleryList(emptyGalleryListHTML); len(items) != 0 || cursor != nil {
+	if items, cursor, err := parseGalleryList(emptyGalleryListHTML); err != nil || len(items) != 0 || cursor != nil {
 		t.Errorf("空结果页 = %v, %v，期望空列表且没有游标", items, cursor)
 	}
 
 	// 翻到最后一页时 unext 从 <a> 变成 <span>，没有 href
-	if _, cursor := parseGalleryList(`<div class="searchnav"><span id="unext">Next ></span></div>`); cursor != nil {
+	if cursor := parseNextCursor(`<div class="searchnav"><span id="unext">Next ></span></div>`); cursor != nil {
 		t.Errorf("最后一页仍取到游标 %q", *cursor)
 	}
 
 	// token 固定 10 位十六进制，短的长的都不能收
-	items, _ := parseGalleryList(`<a href="/g/123/abc/">x</a><a href="/g/456/0123456789abcdef/">y</a>`)
-	if len(items) != 0 {
+	items, _, err := parseGalleryList(`<a href="/g/123/abc/">x</a><a href="/g/456/0123456789abcdef/">y</a>`)
+	if len(items) != 0 || err == nil {
 		t.Errorf("长度不对的 token 被当成了图集: %v", items)
 	}
 }

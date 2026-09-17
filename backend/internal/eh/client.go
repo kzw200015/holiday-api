@@ -3,6 +3,7 @@ package eh
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -41,6 +42,22 @@ type RequestContext struct {
 	Site       Site
 }
 
+// 同一份上游身份可以共享页面；换绑任一 Cookie 后自然进入新的缓存作用域。
+// 缓存键只保存摘要，不保存或输出凭据明文。
+type accessScope struct {
+	site       Site
+	credential [sha256.Size]byte
+}
+
+func (rc RequestContext) scope() accessScope {
+	scope := accessScope{site: rc.Site}
+	if rc.Credential != nil {
+		encoded, _ := json.Marshal(rc.Credential)
+		scope.credential = sha256.Sum256(encoded)
+	}
+	return scope
+}
+
 // Client 统一处理 e 站请求的地址、Cookie、超时及上游错误。
 type Client struct {
 	http      *http.Client
@@ -75,8 +92,8 @@ func NewClient(userAgent string, timeout time.Duration, transport http.RoundTrip
 	}
 }
 
-// FetchPage 取一个页面的 HTML。pathAndQuery 要以 / 开头。
-func (c *Client) FetchPage(ctx context.Context, rc RequestContext, pathAndQuery string) (string, error) {
+// fetchPage 取一个页面的 HTML。pathAndQuery 要以 / 开头。
+func (c *Client) fetchPage(ctx context.Context, rc RequestContext, pathAndQuery string) (string, error) {
 	body, err := c.fetch(ctx, http.MethodGet, pageHosts[rc.Site]+pathAndQuery, buildCookieHeader(rc.Credential), nil)
 	if err != nil {
 		return "", err
@@ -84,8 +101,8 @@ func (c *Client) FetchPage(ctx context.Context, rc RequestContext, pathAndQuery 
 	return string(body), nil
 }
 
-// CallAPI 调 JSON API（gdata / showpage），把响应解进 out。
-func (c *Client) CallAPI(ctx context.Context, rc RequestContext, payload any, out any) error {
+// callAPI 调 JSON API（gdata / showpage），把响应解进 out。
+func (c *Client) callAPI(ctx context.Context, rc RequestContext, payload any, out any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -113,31 +130,6 @@ func (c *Client) fetch(ctx context.Context, method, target, cookieHeader string,
 		return nil, err
 	}
 	return response.body, assertUsable(response.status, response.body, target)
-}
-
-// OpenImage 取一张图，返回上游响应本身以便流式转发，不把整张图读进内存。
-// 调用方负责关掉 Body。主机白名单在这里再校一遍：这个方法是唯一会去拉任意地址的地方。
-func (c *Client) OpenImage(ctx context.Context, url string) (*http.Response, error) {
-	if !IsAllowedImageURL(url) {
-		slog.Warn("图片地址不在白名单内，已拒绝", "url", url)
-		return nil, errUnavailable("图片地址不在允许的范围内")
-	}
-
-	// 一个 Cookie 都不带：图床不认 e 站的身份，发过去只是白白泄露给第三方主机。
-	// 也不套总超时：响应体是流式转发给浏览器的，读多久由 ctx（浏览器还在不在）决定
-	response, err := c.do(ctx, http.MethodGet, url, "", nil)
-	if err != nil {
-		return nil, err
-	}
-	if response.StatusCode != http.StatusOK {
-		// 失败响应的 body 调用方一律不读（只看状态码决定换源还是放弃），这里直接关掉。
-		// H@H 节点失效是常态，一次阅读撞上几十个 403 就是几十条连接挂在那里
-		response.Body.Close()
-		if response.StatusCode == 509 {
-			return nil, errQuotaExceeded()
-		}
-	}
-	return response, nil
 }
 
 // VerifyCredential 验证一组 Cookie 是否可用，能用就顺便回答有没有里站权限。

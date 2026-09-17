@@ -161,7 +161,7 @@ func parseSearchQuery(r *http.Request) (SearchQuery, error) {
 			categories = append(categories, name)
 		}
 	}
-	filter, err := toCategoryFilter(categories)
+	_, err := toCategoryFilter(categories)
 	if err != nil {
 		return SearchQuery{}, err
 	}
@@ -176,7 +176,7 @@ func parseSearchQuery(r *http.Request) (SearchQuery, error) {
 	if query.Get("site") == string(SiteE) {
 		site = SiteE
 	}
-	return SearchQuery{Keyword: keyword, CategoryFilter: filter, Cursor: cursor, Site: site}, nil
+	return SearchQuery{Keyword: keyword, Categories: categories, Cursor: cursor, Site: site}, nil
 }
 
 func parseGalleryRef(r *http.Request) (GalleryRef, error) {

@@ -420,7 +420,7 @@ describe("页面缓存与失效范围", () => {
     await settle()
     expect(searchGalleries).toHaveBeenCalledTimes(count)
     expect(history.querySelector('[data-slot="badge"]')).toBeNull()
-    expect(removeSearch).toHaveBeenCalledExactlyOnceWith("cat")
+    expect(removeSearch).toHaveBeenCalledExactlyOnceWith("cat", expect.any(AbortSignal))
   })
 
   it("阅读返回保留详情 DOM、评论和滚动位置，仅同步进度；列表返回保留输入与条目", async () => {
@@ -592,7 +592,7 @@ describe("页面缓存与失效范围", () => {
     )
     expect(saveGalleryCategories).toHaveBeenCalledExactlyOnceWith(["manga"])
     expect(host.textContent).toContain("分类 (1)")
-    expect(recordSearch).toHaveBeenCalledExactlyOnceWith("cat")
+    expect(recordSearch).toHaveBeenCalledExactlyOnceWith("cat", expect.any(AbortSignal))
     await enterKeyword("dog")
     await click("搜索")
     await click("cat")
@@ -618,7 +618,7 @@ describe("页面缓存与失效范围", () => {
       { keyword: "cat", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
-    expect(recordSearch).toHaveBeenCalledExactlyOnceWith("cat")
+    expect(recordSearch).toHaveBeenCalledExactlyOnceWith("cat", expect.any(AbortSignal))
     expect(saveGalleryCategories).not.toHaveBeenCalled()
   })
 

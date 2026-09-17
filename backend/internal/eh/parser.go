@@ -56,7 +56,7 @@ func decodeEntities(text string) string {
 }
 
 // parseGalleryList 解析搜索结果页，只取图集序列和下一页游标。
-func parseGalleryList(page string) ([]GalleryRef, *string) {
+func parseGalleryList(page string) ([]GalleryRef, *string, error) {
 	seen := map[int64]bool{}
 	var items []GalleryRef
 
@@ -70,7 +70,10 @@ func parseGalleryList(page string) ([]GalleryRef, *string) {
 		items = append(items, GalleryRef{GID: gid, Token: strings.Clone(match[2])})
 	}
 
-	return items, parseNextCursor(page)
+	if len(items) == 0 && !strings.Contains(page, "No hits found") {
+		return nil, nil, errUnavailable("没有识别出图集搜索结果，e 站版面可能改了")
+	}
+	return items, parseNextCursor(page), nil
 }
 
 func parseNextCursor(page string) *string {
@@ -92,7 +95,8 @@ func parseNextCursor(page string) *string {
 }
 
 // galleryPage 是详情页里跟取图有关的部分。
-type galleryPage struct {
+type gallerySlice struct {
+	HTML       string
 	PageTokens map[int]string
 	// 一页详情只带 20 个 token（登录用户能调成 40/50），所以总页数要另外从 Showing 那行取，
 	// 不能拿 len(PageTokens) 当总数。0 表示没取到。
@@ -102,8 +106,8 @@ type galleryPage struct {
 }
 
 // parseGalleryPage 解析每页 token、总页数与分片区间，取图链路不需要构建评论 DOM。
-func parseGalleryPage(page string) galleryPage {
-	result := galleryPage{PageTokens: map[int]string{}}
+func parseGalleryPage(page string) gallerySlice {
+	result := gallerySlice{HTML: page, PageTokens: map[int]string{}}
 	for _, match := range imagePageLinkRE.FindAllStringSubmatch(page, -1) {
 		number, err := strconv.Atoi(match[2])
 		if err != nil || result.PageTokens[number] != "" {
@@ -131,16 +135,21 @@ func parseGrouped(text string) int {
 
 // imagePage 是 /s/ 页面里取图要用的三样东西。
 type imagePage struct {
-	ShowKey  string
-	ImageURL string
+	ShowKey   string
+	ImageURL  string
+	NextPage  int
+	NextToken string
 	// 图床节点失效时靠它换一台机器重取。
 	ReloadToken string
 }
 
 func parseImagePage(page string) imagePage {
+	imageURL, nextPage, nextToken := parseShowPageFragment(page)
 	return imagePage{
+		NextPage:    nextPage,
+		NextToken:   nextToken,
 		ShowKey:     firstGroup(showKeyRE, page),
-		ImageURL:    firstGroup(mainImageRE, page),
+		ImageURL:    imageURL,
 		ReloadToken: firstGroup(reloadTokenRE, page),
 	}
 }

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { usePageScroll } from "@/composables/usePageScroll"
 import { formatDateTime } from "@/lib/format"
+import { readerLocation } from "@/lib/galleryNavigation"
 import { useEhStore, type ReadingHistoryEntry } from "@/stores/EhStore"
 
 const ehStore = useEhStore()
@@ -161,7 +162,7 @@ onScopeDispose(() => {
       <Skeleton v-for="index in 3" :key="index" class="h-48 w-full rounded-lg" />
     </div>
     <div v-for="item in items" :key="item.gid" class="rounded-lg border p-2" :aria-busy="loading">
-      <GalleryRow v-if="item.gallery" :item="item.gallery" from-history />
+      <GalleryRow v-if="item.gallery" :item="item.gallery" source="history" />
       <div v-else class="flex flex-col gap-1 p-2">
         <p class="font-medium">失效记录 · 图集 {{ item.gid }}</p>
         <p class="text-muted-foreground text-sm">无法获取图集信息，可能已删除或不可访问。</p>
@@ -172,13 +173,7 @@ onScopeDispose(() => {
         </p>
         <div class="flex gap-2">
           <Button v-if="item.gallery" as-child size="sm" variant="outline">
-            <RouterLink
-              :to="{
-                name: 'reader',
-                params: { gid: item.gid, token: item.token, page: ehStore.readingProgress.get(item.gid) ?? 1 },
-                query: { source: 'history', returnTo: 'history' },
-              }"
-            >
+            <RouterLink :to="readerLocation(item, ehStore.readingProgress.get(item.gid) ?? 1, { kind: 'history' })">
               <BookOpenIcon />继续阅读
             </RouterLink>
           </Button>

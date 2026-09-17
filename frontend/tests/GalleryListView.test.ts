@@ -1,5 +1,6 @@
 /* @vitest-environment happy-dom */
 import type * as VueUse from "@vueuse/core"
+import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, KeepAlive, nextTick } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
@@ -34,6 +35,7 @@ vi.mock("@/api/eh", async (original) => ({
   recordSearch: vi.fn().mockResolvedValue([]),
 }))
 
+let pinia: ReturnType<typeof createPinia>
 let app: ReturnType<typeof createApp> | undefined
 let router: ReturnType<typeof createRouter>
 let host: HTMLDivElement
@@ -96,6 +98,8 @@ async function mountList() {
       ),
   })
   app.use(router)
+  pinia = createPinia()
+  app.use(pinia)
   app.mount(host)
   await settle()
   search.mockClear()
@@ -118,6 +122,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   app?.unmount()
+  disposePinia(pinia)
   host.remove()
   vi.restoreAllMocks()
 })

@@ -20,6 +20,8 @@ export const useEhStore = defineStore("EhStore", () => {
   /* 与后端一样按 gid 识别进度；只存已查询到或已保存成功的页码。 */
   const readingProgress = ref(new Map<number, number | null>())
   const readingQueue = useSerialQueue()
+  const searchHistory = ref<string[]>([])
+  const searchQueue = useSerialQueue()
   const saveTimers = new Map<number, ReturnType<typeof setTimeout>>()
 
   /* 凭据变化只淘汰 EH 页面，账号级的阅读进度不因换绑 e 站账号而清空。 */
@@ -97,19 +99,64 @@ export const useEhStore = defineStore("EhStore", () => {
     )
   }
 
-  function resetReadingState() {
+  /* 搜索历史按账号顺序提交，页面退出后已排队的写入继续执行。 */
+  function loadSearchHistory(signal?: AbortSignal) {
+    return searchQueue.run(
+      (requestSignal) => ehApi.fetchSearchHistory(requestSignal),
+      (entries) => {
+        searchHistory.value = entries
+      },
+      signal,
+    )
+  }
+
+  function recordSearch(keyword: string) {
+    return searchQueue.run(
+      (signal) => ehApi.recordSearch(keyword, signal),
+      (entries) => {
+        searchHistory.value = entries
+      },
+    )
+  }
+
+  function removeSearch(keyword: string) {
+    return searchQueue.run(
+      (signal) => ehApi.removeSearch(keyword, signal),
+      (entries) => {
+        searchHistory.value = entries
+      },
+    )
+  }
+
+  function clearSearchHistory() {
+    return searchQueue.run(
+      (signal) => ehApi.clearSearchHistory(signal),
+      () => {
+        searchHistory.value = []
+      },
+    )
+  }
+
+  function resetSessionState() {
     cancelPendingSaves()
     readingQueue.reset()
     readingProgress.value.clear()
+    searchQueue.reset()
+    searchHistory.value = []
   }
 
   /* 队列可能比页面活得久。切换账号时取消旧会话，未发出的操作不能带着新账号令牌执行。 */
-  watch([() => authStore.user?.id, () => authStore.pageRevision], resetReadingState, { flush: "sync" })
+  watch([() => authStore.user?.id, () => authStore.pageRevision], resetSessionState, { flush: "sync" })
   onScopeDispose(cancelPendingSaves)
 
   return {
     cacheRevision,
     readingProgress,
+    searchHistory,
+    loadSearchHistory,
+    recordSearch,
+    removeSearch,
+    clearSearchHistory,
     invalidateCache,
     loadGalleryDetail,
     loadReadingHistory,

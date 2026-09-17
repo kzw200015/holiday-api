@@ -5,9 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type * as EhApi from "@/api/eh"
 import {
   clearReadingHistory,
+  clearSearchHistory,
   fetchGalleryDetail,
   fetchReadingHistory,
+  fetchSearchHistory,
+  recordSearch,
   removeReadingHistory,
+  removeSearch,
   saveProgress,
   type GalleryDetail,
 } from "@/api/eh"
@@ -19,6 +23,10 @@ vi.mock("@/api/eh", async (original) => ({
   fetchGalleryDetail: vi.fn(),
   fetchReadingHistory: vi.fn(),
   saveProgress: vi.fn(),
+  fetchSearchHistory: vi.fn(),
+  recordSearch: vi.fn(),
+  removeSearch: vi.fn(),
+  clearSearchHistory: vi.fn(),
   removeReadingHistory: vi.fn(),
   clearReadingHistory: vi.fn(),
 }))
@@ -197,5 +205,64 @@ describe("EH 共享阅读状态", () => {
     disposePinia(pinia)
     await vi.advanceTimersByTimeAsync(2000)
     expect(saveProgress).not.toHaveBeenCalled()
+  })
+})
+
+describe("EH 账号搜索历史", () => {
+  it("连续提交、删除与查询按操作顺序执行，旧快照不会覆盖后续结果", async () => {
+    const first = deferred<string[]>()
+    const second = deferred<string[]>()
+    vi.mocked(recordSearch).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    vi.mocked(removeSearch).mockResolvedValue(["second"])
+    vi.mocked(fetchSearchHistory).mockResolvedValue(["second"])
+    const savingFirst = store.recordSearch("first")
+    const savingSecond = store.recordSearch("second")
+    const removing = store.removeSearch("first")
+    const loading = store.loadSearchHistory()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(recordSearch).toHaveBeenCalledExactlyOnceWith("first", expect.any(AbortSignal))
+    expect(removeSearch).not.toHaveBeenCalled()
+    expect(fetchSearchHistory).not.toHaveBeenCalled()
+    first.resolve(["first"])
+    await savingFirst
+    await vi.advanceTimersByTimeAsync(0)
+    expect(store.searchHistory).toEqual(["first"])
+    expect(recordSearch).toHaveBeenLastCalledWith("second", expect.any(AbortSignal))
+    expect(removeSearch).not.toHaveBeenCalled()
+    second.resolve(["second", "first"])
+    await savingSecond
+    await removing
+    await loading
+    expect(store.searchHistory).toEqual(["second"])
+    expect(removeSearch).toHaveBeenCalledExactlyOnceWith("first", expect.any(AbortSignal))
+  })
+
+  it("旧账号的在途响应和排队操作不能进入新账号", async () => {
+    const pending = deferred<string[]>()
+    vi.mocked(recordSearch).mockReturnValueOnce(pending.promise).mockResolvedValue(["new"])
+    const old = store.recordSearch("old").catch((error: unknown) => error)
+    const queued = store.clearSearchHistory().catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(0)
+    const signal = vi.mocked(recordSearch).mock.calls[0]![1]!
+    useAuthStore().logout()
+    useAuthStore().user = { id: 2, username: "second" }
+    expect(signal.aborted).toBe(true)
+    await store.recordSearch("new")
+    pending.resolve(["old"])
+    expect(await old).toMatchObject({ name: "AbortError" })
+    expect(await queued).toMatchObject({ name: "AbortError" })
+    expect(clearSearchHistory).not.toHaveBeenCalled()
+    expect(store.searchHistory).toEqual(["new"])
+  })
+
+  it("保存失败保留已确认历史，后续清空仍能执行", async () => {
+    vi.mocked(fetchSearchHistory).mockResolvedValue(["confirmed"])
+    vi.mocked(recordSearch).mockRejectedValue(new Error("断网"))
+    vi.mocked(clearSearchHistory).mockResolvedValue(null)
+    await store.loadSearchHistory()
+    await expect(store.recordSearch("failed")).rejects.toThrow("断网")
+    expect(store.searchHistory).toEqual(["confirmed"])
+    await store.clearSearchHistory()
+    expect(store.searchHistory).toEqual([])
   })
 })
