@@ -1,0 +1,6 @@
+dist
+node_modules
+pnpm-lock.yaml
+
+# shadcn-vue 生成的组件源码保持与上游一致，不参与格式化
+src/components/ui

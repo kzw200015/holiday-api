@@ -1,4 +1,4 @@
-import { HttpClient } from "@/api/httpClient"
+import { httpClient } from "@/api/httpClient"
 
 /** 节假日查询结果，与后端 HolidayQueryResult 对齐 */
 export interface HolidayDetail {
@@ -11,7 +11,6 @@ export interface HolidayDetail {
 }
 
 /** 查询某一天是否为休息日及对应的节假日 */
-export async function fetchHolidayDetail(date: string) {
-  const response = await HttpClient.get<HolidayDetail>("/holiday/detail", { params: { date } })
-  return response.data
+export function fetchHolidayDetail(date: string, signal?: AbortSignal) {
+  return httpClient.get<HolidayDetail>("/holiday/detail", { params: { date }, signal })
 }

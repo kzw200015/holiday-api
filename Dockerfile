@@ -13,30 +13,31 @@ COPY frontend/ ./
 RUN pnpm build
 
 # ---------- 后端构建 ----------
-FROM eclipse-temurin:25-jdk AS backend-builder
+# 没有单独的类型检查阶段：go build 本身就是编译，编不过就构建失败
+FROM golang:1.27-alpine AS backend-builder
 
 WORKDIR /src
-COPY backend/gradle ./gradle
-COPY backend/gradlew backend/settings.gradle.kts backend/build.gradle.kts ./
-COPY backend/src ./src
-# 前端产物放入静态资源目录，随可执行 jar 一起打包
-COPY --from=frontend-builder /app/dist ./src/main/resources/static
+COPY backend/go.mod backend/go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
-# Gradle 用户目录挂成 BuildKit 缓存，依赖 jar 与 wrapper 发行版跨构建复用，
-# 不会因为源码变更而失效（dependencies 任务只解析元数据、不下载 jar，起不到预热作用）
-RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon bootJar
+COPY backend/ ./
+# CGO 关掉换一个纯静态的二进制，运行镜像里不需要 libc 之外的任何东西。
+# 进程不碰 DDL，建表用 backend/internal/store/schema.sql 由人工上库执行，镜像里不带它
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/myapi ./cmd/myapi
 
 # ---------- 运行时 ----------
-FROM eclipse-temurin:25-jre-alpine
+FROM alpine:3
 
-# JDK 自带时区数据库，通过 TZ 环境变量指定时区即可
-RUN adduser -D -u 10001 app
+# 时区数据由 time/tzdata 编进了二进制，这里只需要根证书（要访问 e 站和 GitHub）
+RUN apk add --no-cache ca-certificates && adduser -D -u 10001 app
 
 WORKDIR /app
-# 前端资源已打进 jar，运行时只需这一个文件
-COPY --from=backend-builder /src/build/libs/*.jar ./app.jar
+COPY --from=backend-builder /out/myapi ./myapi
+# 前端产物放进静态资源目录，由后端直接提供（默认就找可执行文件旁边的 public/）
+COPY --from=frontend-builder /app/dist ./public
 
 USER app
 EXPOSE 8000
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["/app/myapi"]

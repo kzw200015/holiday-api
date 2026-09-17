@@ -5,7 +5,7 @@ export const useAppStore = defineStore("AppStore", () => {
   const isDark = ref(false)
 
   /* 统一落地主题：切换暗色 class，并让移动端地址栏配色跟随 --background */
-  function applyTheme(value: boolean) {
+  function setDark(value: boolean) {
     isDark.value = value
     document.documentElement.classList.toggle("dark", value)
 
@@ -15,11 +15,7 @@ export const useAppStore = defineStore("AppStore", () => {
 
   function initializeTheme() {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
-    applyTheme(document.documentElement.classList.contains("dark") || prefersDark)
-  }
-
-  function setDark(value: boolean) {
-    applyTheme(value)
+    setDark(document.documentElement.classList.contains("dark") || prefersDark)
   }
 
   return {

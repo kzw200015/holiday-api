@@ -10,5 +10,9 @@ trim_trailing_whitespace = true
 [*.md]
 trim_trailing_whitespace = false
 
-[*.yml]
+[*.{ts,tsx,json,yml}]
 indent_size = 2
+
+# Go 的工具链（gofmt / go vet / IDE 格式化）只认 tab，落到上面 [*] 的 space 会被 gofmt 打回
+[*.go]
+indent_style = tab
