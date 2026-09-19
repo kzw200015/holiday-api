@@ -193,6 +193,9 @@ describe("阅读历史与二级导航", () => {
     host.querySelector<HTMLElement>('[aria-label="退出阅读"]')!.click()
     await settle()
     expect(router.currentRoute.value.fullPath).toBe("/eh/g/1/aaaaaaaaaa?source=history")
+    /* 刚翻的那一页还没写进地址栏就退出了，这次迟到的同步不能把人拽回阅读器。 */
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(router.currentRoute.value.fullPath).toBe("/eh/g/1/aaaaaaaaaa?source=history")
     await click("返回列表")
     expect(router.currentRoute.value.name).toBe("gallery-history")
     expect(window.scrollY).toBe(600)
@@ -476,8 +479,9 @@ describe("页面缓存与失效范围", () => {
     range.value = "17"
     range.dispatchEvent(new Event("input", { bubbles: true }))
     await settle()
-    expect(router.currentRoute.value.params.page).toBe("17")
+    /* 控件当场就是新页码，地址栏随后节流跟上。 */
     expect(range.getAttribute("aria-valuetext")).toBe("第 17 页，共 100 页")
+    await vi.waitFor(() => expect(router.currentRoute.value.params.page).toBe("17"))
     host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
     await nextTick()
     expect(host.querySelector('[aria-label="自动翻页间隔"]')!.textContent.trim()).toBe("6 秒")

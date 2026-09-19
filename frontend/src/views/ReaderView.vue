@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { clamp, useEventListener } from "@vueuse/core"
+import { clamp, useEventListener, useTimeoutFn } from "@vueuse/core"
 import { computed, ref, watch } from "vue"
-import { useRouter } from "vue-router"
+import { onBeforeRouteLeave, useRouter } from "vue-router"
 
 import ErrorAlert from "@/components/ErrorAlert.vue"
 import ReaderControls from "@/components/gallery/ReaderControls.vue"
@@ -13,6 +13,9 @@ import { useReaderPlayback } from "@/composables/useReaderPlayback"
 import { readerExitLocation, readerLocation, type ReaderOrigin } from "@/lib/galleryNavigation"
 import { backOrReplace } from "@/lib/navigation"
 import { useEhStore } from "@/stores/EhStore"
+
+/* 页码写回地址栏的节流时长。滚动是每帧都可能变的，地址栏不该跟着抖。 */
+const URL_SYNC_DELAY = 300
 
 const PAGE_STEPS: Record<string, number> = {
   ArrowRight: 1,
@@ -44,28 +47,53 @@ const {
 } = useQuery(identity, (_identity, signal) => ehStore.loadGalleryDetail(props.gid, props.token, signal))
 const gallery = computed(() => detail.value?.gallery)
 const totalPages = computed(() => gallery.value?.fileCount ?? 0)
-/* 页码来自 URL，详情到达后才能按实际页数约束，避免手改地址请求越界图片。 */
-const page = computed({
-  get: () => (totalPages.value ? clamp(props.page, 1, totalPages.value) : Math.max(1, props.page)),
-  set: goTo,
-})
+/**
+ * 当前页码的真源在这里，地址栏是它的投影。
+ *
+ * 反过来（地址栏当真源）意味着翻一页要穿过一次路由导航才能生效，而滚动是每帧都在发生的事：
+ * 拖动进度条会先跳回旧值再被纠正，滚动时还会连发好几次同样的 replace。地址栏只需要在
+ * 停下来之后对得上，好让刷新和分享落在同一页，所以这里只把页码节流写回去。
+ */
+const current = ref(Math.max(1, props.page))
+const page = computed({ get: () => current.value, set: goTo })
 const imageUrlTemplate = computed(() => detail.value?.imageUrlTemplate ?? "")
 const seeking = ref(false)
 const dragging = ref(false)
 const controlsVisible = ref(true)
 const playback = useReaderPlayback(identity, page, totalPages, () => seeking.value || dragging.value)
 
+/* 页数未知时先不夹取：详情还没到，上一本图集的页数不能拿来约束这一本。 */
 function goTo(next: number) {
-  if (!totalPages.value) {
-    return
-  }
-  const clamped = clamp(next, 1, totalPages.value)
-  if (clamped === props.page) {
-    return
-  }
-  /* 用 replace 让浏览器后退直接离开阅读，而非逐页回退。 */
-  void router.replace(readerLocation(props, clamped, props.origin))
+  current.value = totalPages.value ? clamp(next, 1, totalPages.value) : Math.max(1, next)
 }
+
+/* 用 replace 让浏览器后退直接离开阅读，而非逐页回退。 */
+function syncUrl() {
+  if (current.value !== props.page) {
+    void router.replace(readerLocation(props, current.value, props.origin))
+  }
+}
+const { start: scheduleUrlSync, stop: cancelUrlSync } = useTimeoutFn(syncUrl, URL_SYNC_DELAY, { immediate: false })
+watch(current, scheduleUrlSync)
+/* 已经离开阅读器时那次迟到的 replace 会把人拽回来，所以走之前先取消。 */
+onBeforeRouteLeave(cancelUrlSync)
+
+/* 地址栏是外部输入的入口：浏览器前进后退、手改地址、换图集都从这里进来。 */
+watch(
+  () => props.page,
+  (next) => {
+    if (next !== current.value) {
+      goTo(next)
+    }
+  },
+)
+
+/* 页数到手后把手改地址留下的越界页码收回来。 */
+watch(totalPages, (total) => {
+  if (total) {
+    goTo(current.value)
+  }
+})
 
 function exit() {
   backOrReplace(router, readerExitLocation(props, props.origin))
@@ -103,16 +131,6 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
   }
 })
 
-/* URL 越界时由 goTo 把地址收敛到实际页数。 */
-watch(
-  [detail, page],
-  () => {
-    if (detail.value) {
-      goTo(page.value)
-    }
-  },
-  { immediate: true },
-)
 watch(identity, () => {
   seeking.value = false
   dragging.value = false

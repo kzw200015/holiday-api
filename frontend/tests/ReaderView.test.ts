@@ -23,6 +23,8 @@ let pinia: ReturnType<typeof createPinia>
 let app: ReturnType<typeof createApp> | undefined
 let host: HTMLDivElement
 let router: ReturnType<typeof createRouter>
+/* 与 ReaderView 里的 URL_SYNC_DELAY 对齐：页码先生效，地址栏节流跟上。 */
+const URL_SYNC_DELAY = 300
 
 beforeEach(async () => {
   vi.mocked(saveProgress).mockClear()
@@ -176,7 +178,7 @@ describe("阅读器操作栏", () => {
     await nextTick()
     readingArea().click()
     await nextTick()
-    await vi.advanceTimersByTimeAsync(5000)
+    await vi.advanceTimersByTimeAsync(5000 + URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("2")
     expect(controlsState()).toEqual(["hidden", "hidden"])
   })
@@ -200,15 +202,18 @@ describe("阅读器操作栏", () => {
     expect(controlsState()).toEqual(["hidden", "hidden"])
   })
 
-  it("进度条通过 v-model 更新 URL，越界地址仍按实际页数收敛", async () => {
+  it("进度条立即生效、地址栏节流跟上，越界地址仍按实际页数收敛", async () => {
     const input = host.querySelector<HTMLInputElement>('input[type="range"]')!
     input.value = "6"
     input.dispatchEvent(new Event("input", { bubbles: true }))
     await vi.advanceTimersByTimeAsync(0)
-    expect(router.currentRoute.value.params.page).toBe("6")
+    /* 控件当场就是新页码，不等路由生效，所以拖动不会被旧值拽回去。 */
     expect(input.value).toBe("6")
+    expect(router.currentRoute.value.params.page).toBe("1")
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
+    expect(router.currentRoute.value.params.page).toBe("6")
     await router.replace("/1/token/99")
-    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("10")
     expect(input.value).toBe("10")
     expect(host.querySelector<HTMLButtonElement>('[aria-label="下一页"]')!.disabled).toBe(true)
@@ -216,19 +221,33 @@ describe("阅读器操作栏", () => {
 
   it("键盘翻页继续更新 URL，控件上的键盘操作不触发全局翻页", async () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "End" }))
-    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("10")
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Home" }))
-    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("1")
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }))
-    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("2")
     host
       .querySelector('[aria-label="增加自动翻页间隔"]')!
       .dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }))
-    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("2")
+  })
+
+  /* 连翻几页只在停下之后写一次地址栏：滚动每帧都在变，路由不该跟着抖。 */
+  it("连续翻页期间不逐页写地址栏，停下后只落最后一页", async () => {
+    for (const key of ["ArrowRight", "ArrowRight", "ArrowRight"]) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key }))
+      /* eslint-disable-next-line no-await-in-loop -- 必须逐次推进，才能让三次翻页落在同一个节流窗口里。 */
+      await vi.advanceTimersByTimeAsync(50)
+    }
+    expect(router.currentRoute.value.params.page).toBe("1")
+    const before = router.currentRoute.value.fullPath
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
+    expect(router.currentRoute.value.params.page).toBe("4")
+    expect(before).not.toBe(router.currentRoute.value.fullPath)
   })
 
   it("切换图集重建图片和控件，清除拖动状态并停止自动翻页", async () => {
