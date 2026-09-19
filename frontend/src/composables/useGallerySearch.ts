@@ -21,9 +21,17 @@ export function useGallerySearch() {
   const paging = useAsyncAction({ latestOnly: true })
   let activation = 0
 
-  function search(next: GallerySearch) {
+  /**
+   * 换一组搜索条件。
+   *
+   * 条件没变时默认不重来，好让返回列表页时保留已加载的多页和滚动位置。这条短路有两个例外：
+   * 用户自己按了搜索（submit 传 force），以及上一次就失败了——否则同一个关键词重按搜索、
+   * 甚至离开页面再回来，都不会发出任何请求，界面上看不出任何反应。
+   */
+  function search(next: GallerySearch, force = false) {
     const categories = [...new Set(next.categories)].sort()
-    if (query.value?.keyword === next.keyword && query.value.categories.join(",") === categories.join(",")) {
+    const unchanged = query.value?.keyword === next.keyword && query.value.categories.join(",") === categories.join(",")
+    if (unchanged && !force && !paging.errorMessage.value) {
       return
     }
     paging.cancel()
@@ -50,9 +58,10 @@ export function useGallerySearch() {
     })
   }
 
+  /* 按下搜索就当作「重新搜一次」，哪怕条件和上次一样：列表按时间倒序，重来能看到新图集。 */
   function submit() {
     keyword.value = keyword.value.trim()
-    search({ keyword: keyword.value, categories: preferences.categories })
+    search({ keyword: keyword.value, categories: preferences.categories }, true)
     if (keyword.value) {
       void history.record(keyword.value)
     }

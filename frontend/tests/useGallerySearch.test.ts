@@ -125,7 +125,8 @@ describe("图库搜索流程", () => {
     await clearHistory()
     expect(clearSearchHistory).toHaveBeenCalledExactlyOnceWith(expect.any(AbortSignal))
     expect(host.textContent).toContain("暂无搜索历史")
-    expect(onSearch).toHaveBeenCalledTimes(2)
+    /* 首屏一次、两次提交各一次；删除和清空历史都不搜索。 */
+    expect(onSearch).toHaveBeenCalledTimes(3)
   })
 
   it("保存和清空失败保留已确认历史，错误不阻止本次搜索", async () => {
@@ -144,6 +145,19 @@ describe("图库搜索流程", () => {
     await clearHistory()
     expect(host.textContent).toContain("清空搜索历史失败")
     expect(host.querySelector('[title="cat"]')).not.toBeNull()
+  })
+
+  /* 失败后条件没变也必须真的重来一次，否则用户重按搜索时界面上没有任何反应。 */
+  it("搜索失败后重新提交同一关键词仍会再搜一次", async () => {
+    await mountForm()
+    expect(onSearch).toHaveBeenCalledTimes(1)
+    onSearch.mockRejectedValueOnce(new Error("断网"))
+    await submit("dog")
+    expect(onSearch).toHaveBeenCalledTimes(2)
+    expect(host.textContent).toContain("断网")
+    await submit("dog")
+    expect(onSearch).toHaveBeenCalledTimes(3)
+    expect(host.textContent).not.toContain("断网")
   })
 
   it("历史查询与后续记录按序执行，查询不阻塞图集搜索", async () => {

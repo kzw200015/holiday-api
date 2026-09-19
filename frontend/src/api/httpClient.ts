@@ -75,7 +75,8 @@ instance.interceptors.response.use(undefined, (error: AxiosError<ApiResponse<unk
     setToken("")
     handleUnauthorized?.()
   }
-  return Promise.reject(new Error(error.response?.data.msg || error.message))
+  /* data 未必是本站的响应体：反向代理返回的空体或 HTML 走的也是这条路。 */
+  return Promise.reject(new Error(error.response?.data?.msg || error.message))
 })
 
 /** 在 HTTP 边界解包响应，业务接口只返回领域数据。 */
