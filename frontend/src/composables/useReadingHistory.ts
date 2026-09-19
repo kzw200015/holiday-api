@@ -1,8 +1,9 @@
 import { computed, onActivated, onDeactivated, ref, shallowRef } from "vue"
 
+import type { ReadingHistoryItem } from "@/api/eh"
 import { useAsyncAction } from "@/composables/useAsyncAction"
 import { usePageScroll } from "@/composables/usePageScroll"
-import { useEhStore, type ReadingHistoryEntry } from "@/stores/EhStore"
+import { useEhStore } from "@/stores/EhStore"
 
 /**
  * 阅读历史的翻页与增删。
@@ -13,7 +14,7 @@ import { useEhStore, type ReadingHistoryEntry } from "@/stores/EhStore"
  */
 export function useReadingHistory() {
   const store = useEhStore()
-  const items = shallowRef<ReadingHistoryEntry[]>([])
+  const items = shallowRef<ReadingHistoryItem[]>([])
   /* cursors[i] 是第 i 页的起始游标，第一页固定是空串；长度即已知的页数。 */
   const cursors = ref([""])
   const pageIndex = ref(0)
@@ -90,7 +91,6 @@ export function useReadingHistory() {
   return {
     items,
     pageIndex,
-    progress: computed(() => store.readingProgress),
     loading: loading.pending,
     busy,
     loadError: loading.errorMessage,

@@ -31,15 +31,16 @@ export function galleryDetailLocation(gallery: GalleryIdentity, source: GalleryS
   }
 }
 
+/* 退出阅读的去处只由这两个 query 决定：returnTo 指回阅读历史，source 指回详情页的来源列表。
+ * 直接从历史进入阅读时只需要 returnTo——退出就回历史列表，中间不经过详情页。 */
 export function readerLocation(gallery: GalleryIdentity, page: number, origin: ReaderOrigin): RouteLocationRaw {
-  const source = origin.kind === "history" ? "history" : origin.source
   return {
     name: "reader",
     params: { gid: gallery.gid, token: gallery.token, page },
-    query: {
-      source: source === "history" ? "history" : undefined,
-      returnTo: origin.kind === "history" ? "history" : undefined,
-    },
+    query:
+      origin.kind === "history"
+        ? { returnTo: "history" }
+        : { source: origin.source === "history" ? "history" : undefined },
   }
 }
 

@@ -204,7 +204,7 @@ describe("横向阅读图片条", () => {
     expect(imagePages(element)).toEqual([78, 79, 80, 81, 82])
   })
 
-  it("鼠标拖动不吸附，暂停期间不加载，远处图片及回滚后的图片节点保持不变", async () => {
+  it("鼠标拖动不吸附，暂停期间不加载，滑远后卸载窗口外的图片但保留窗口内的节点", async () => {
     const { element, change, draggingChange } = await setup()
     await vi.advanceTimersByTimeAsync(200)
     const firstImage = element.querySelector("img")
@@ -227,7 +227,8 @@ describe("横向阅读图片条", () => {
     element.scrollLeft = 0
     element.dispatchEvent(new Event("scroll"))
     await vi.advanceTimersByTimeAsync(200)
-    expect(imagePages(element)).toEqual([1, 2, 3, 9, 10, 11, 12, 13, 14])
+    /* 回到首页后第 14 页已经超出保留窗口而卸载，窗口内的节点不重建。 */
+    expect(imagePages(element)).toEqual([1, 2, 3, 9, 10, 11, 12, 13])
     expect(element.querySelector("img")).toBe(firstImage)
   })
 

@@ -8,6 +8,9 @@ import { createReaderLayout } from "@/lib/readerLayout"
 
 const LOAD_DELAY = 200
 const PRELOAD_PAGES = 2
+/* 离开视口这么多页之后把图片卸载：几百页的图集读到后面，不必把前面每一张大图都留在内存里。
+ * ratios 不跟着清，页宽因此保持原样，卸载不会让布局跳动，滑回去时也还在原来的位置。 */
+const KEEP_PAGES = 12
 
 /* 父级在页数已知且非零时挂载，换图集以 key 整体重建。 */
 const props = withDefaults(defineProps<{ total: number; template: string; seeking?: boolean }>(), {
@@ -33,14 +36,21 @@ function loadVisible() {
     return
   }
   const { first, last } = layout.value.visiblePages(viewport.value.scrollLeft)
-  /* 补充可见页和左右各两页，滑出视口的图片不卸载。 */
+  const kept = new Set<number>()
+  for (const pageNumber of loaded.value) {
+    if (pageNumber >= first - KEEP_PAGES && pageNumber <= last + KEEP_PAGES) {
+      kept.add(pageNumber)
+    }
+  }
+  /* 补充可见页和左右各两页。 */
   for (
     let pageNumber = Math.max(1, first - PRELOAD_PAGES);
     pageNumber <= Math.min(props.total, last + PRELOAD_PAGES);
     pageNumber++
   ) {
-    loaded.value.add(pageNumber)
+    kept.add(pageNumber)
   }
+  loaded.value = kept
 }
 const { start, stop: cancelLoad } = useTimeoutFn(loadVisible, LOAD_DELAY, { immediate: false })
 function scheduleLoad() {

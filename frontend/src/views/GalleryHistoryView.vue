@@ -12,21 +12,8 @@ import { useReadingHistory } from "@/composables/useReadingHistory"
 import { formatDateTime } from "@/lib/format"
 import { readerLocation } from "@/lib/galleryNavigation"
 
-const {
-  items,
-  pageIndex,
-  progress,
-  loading,
-  busy,
-  loadError,
-  changeError,
-  hasPrevious,
-  hasNext,
-  load,
-  remove,
-  clear,
-  retry,
-} = useReadingHistory()
+const { items, pageIndex, loading, busy, loadError, changeError, hasPrevious, hasNext, load, remove, clear, retry } =
+  useReadingHistory()
 </script>
 
 <template>
@@ -63,12 +50,10 @@ const {
         <p class="text-muted-foreground text-sm">无法获取图集信息，可能已删除或不可访问。</p>
       </div>
       <div class="flex flex-wrap items-center justify-between gap-2 px-2 pb-1">
-        <p class="text-muted-foreground text-xs">
-          最近阅读：{{ formatDateTime(item.readAt) }} · 第 {{ progress.get(item.gid) }} 页
-        </p>
+        <p class="text-muted-foreground text-xs">最近阅读：{{ formatDateTime(item.readAt) }} · 第 {{ item.page }} 页</p>
         <div class="flex gap-2">
           <Button v-if="item.gallery" as-child size="sm" variant="outline">
-            <RouterLink :to="readerLocation(item, progress.get(item.gid) ?? 1, { kind: 'history' })">
+            <RouterLink :to="readerLocation(item, item.page, { kind: 'history' })">
               <BookOpenIcon />继续阅读
             </RouterLink>
           </Button>

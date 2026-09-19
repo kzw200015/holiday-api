@@ -17,9 +17,6 @@ const noop = () => {}
 /* 后端读不到偏好行时也回这个值，两边保持一致。 */
 const defaultPreferences = (): ehApi.GalleryPreferences => ({ categories: [], readerInterval: 5 })
 
-/* 列表保留展示信息，页码统一从 Store 的 readingProgress 读取。 */
-export type ReadingHistoryEntry = Omit<ehApi.ReadingHistoryItem, "page">
-
 export const useEhStore = defineStore("EhStore", () => {
   const authStore = useAuthStore()
   const cacheRevision = ref(0)
@@ -68,8 +65,9 @@ export const useEhStore = defineStore("EhStore", () => {
     return { gallery: result.gallery, imageUrlTemplate: result.imageUrlTemplate }
   }
 
-  async function loadReadingHistory(cursor: string, signal?: AbortSignal) {
-    const result = await runReading(
+  /* 列表原样交给页面显示；顺带刷新 readingProgress，是为了让详情页的「继续阅读第 N 页」跟上。 */
+  function loadReadingHistory(cursor: string, signal?: AbortSignal) {
+    return runReading(
       (requestSignal) => ehApi.fetchReadingHistory(cursor, requestSignal),
       (history) => {
         for (const item of history.items) {
@@ -78,10 +76,6 @@ export const useEhStore = defineStore("EhStore", () => {
       },
       signal,
     )
-    return {
-      items: result.items.map(({ gid, token, readAt, gallery }) => ({ gid, token, readAt, gallery })),
-      nextCursor: result.nextCursor,
-    }
   }
 
   /* 计时器随 Store 存活，离开阅读器既不提前保存，也不丢弃最后报告的位置。 */

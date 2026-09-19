@@ -88,12 +88,12 @@ afterEach(() => {
 })
 
 describe("EH 共享阅读状态", () => {
-  it("详情与历史只返回展示数据，进度由同一份状态提供；删除和清空直接更新共享状态", async () => {
+  it("历史原样返回含页码的记录，同一份进度状态跟着刷新；删除和清空直接更新共享状态", async () => {
     const loadedDetail = await store.loadGalleryDetail(1, gallery.token)
     expect(loadedDetail).toEqual({ gallery, imageUrlTemplate: detail.imageUrlTemplate })
     expect(store.readingProgress.get(1)).toBe(3)
     const history = await store.loadReadingHistory("")
-    expect(history.items[0]).toEqual({ gid: 1, token: gallery.token, readAt: gallery.postedAt, gallery })
+    expect(history.items[0]).toEqual({ gid: 1, token: gallery.token, page: 7, readAt: gallery.postedAt, gallery })
     expect(store.readingProgress.get(1)).toBe(7)
     await store.removeReadingHistory(1)
     expect(store.readingProgress.has(1)).toBe(false)
