@@ -99,8 +99,9 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // 500 的固定响应体。Handler 和 Recover 两处共用，客户端看到的永远是这一句。
 var internalError = Response{Code: http.StatusInternalServerError, Msg: "服务器内部错误"}
 
-// OK 写一个成功响应。返回 error 只是为了让处理器能写成 `return web.OK(...)`，它永远是 nil。
-func OK(w http.ResponseWriter, data any) error {
+// ok 写一个成功响应。返回 error 只是为了让 Router 能写成 `return ok(...)`，它永远是 nil。
+// 不导出：各模块一律经 Router 注册路由，写响应只剩这一个出口。
+func ok(w http.ResponseWriter, data any) error {
 	WriteJSON(w, http.StatusOK, Response{Code: 200, Data: data, Msg: "OK"})
 	return nil
 }
@@ -124,8 +125,8 @@ func NotFound(w http.ResponseWriter, _ *http.Request) {
 // 不设上限的话一个长连接慢慢灌就能把内存吃掉。
 const maxRequestBody = 64 << 10
 
-// DecodeJSON 解析请求体。字段级的校验由各模块的 Validate 自己做，这里只管「是不是一段合法 JSON」。
-func DecodeJSON(r *http.Request, dst any) error {
+// decodeJSON 解析请求体。字段级的校验由各模块的业务代码自己做，这里只管「是不是一段合法 JSON」。
+func decodeJSON(r *http.Request, dst any) error {
 	decoder := json.NewDecoder(io.LimitReader(r.Body, maxRequestBody))
 	// 多余字段直接报错而不是忽略：前端字段名拼错时，静默忽略的表现是「传了但没生效」
 	decoder.DisallowUnknownFields()

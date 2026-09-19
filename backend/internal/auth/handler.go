@@ -63,58 +63,52 @@ type authenticated struct {
 // 这里不返回 e 站的绑定状态：那是 eh 模块的事，放在 GET /api/eh/credential，
 // 免得两个模块的类型互相缠住。
 func (h *Handler) Routes() http.Handler {
-	router := chi.NewRouter()
-
-	// 注册和登录的成功响应长得一模一样，读入参、签令牌这两段只写一次
-	authenticate := func(w http.ResponseWriter, r *http.Request,
-		verify func(ctx context.Context, username, password string) (store.User, error)) error {
-		var body credentials
-		if err := web.DecodeJSON(r, &body); err != nil {
-			return err
-		}
-		if err := body.validate(); err != nil {
-			return err
-		}
-
-		user, err := verify(r.Context(), body.Username, body.Password)
-		if err != nil {
-			return err
-		}
-		token, err := h.tokens.Issue(user.ID)
-		if err != nil {
-			return err
-		}
-		return web.OK(w, authenticated{Token: token, User: toCurrentUser(user)})
-	}
+	router := web.Routes(chi.NewRouter())
 
 	// POST /api/auth/register，注册成功即登录。用户名被占用或站点关闭注册时返回 400
-	router.Method(http.MethodPost, "/register", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		return authenticate(w, r, h.service.Register)
-	}))
+	router.Post("/register", func(ctx context.Context, body credentials) (authenticated, error) {
+		return h.authenticate(ctx, body, h.service.Register)
+	})
 
 	// POST /api/auth/login，成功后下发令牌
-	router.Method(http.MethodPost, "/login", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		return authenticate(w, r, h.service.Login)
-	}))
+	router.Post("/login", func(ctx context.Context, body credentials) (authenticated, error) {
+		return h.authenticate(ctx, body, h.service.Login)
+	})
 
 	// GET /api/auth/me，返回当前登录者，未登录或账号已被删都返回 data 为 null 的 200。
 	// 刻意不回 401：前端的响应拦截器遇到 401 会跳登录页，而登录页自己也要问「我是谁」
-	router.Method(http.MethodGet, "/me", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
+	router.Get("/me", func(r *http.Request) (*currentUser, error) {
 		userID := h.tokens.Read(r)
 		if userID == 0 {
-			return web.OK(w, nil)
+			return nil, nil
 		}
 		user, err := h.service.FindByID(r.Context(), userID)
-		if err != nil {
-			return err
+		if err != nil || user == nil {
+			return nil, err
 		}
-		if user == nil {
-			return web.OK(w, nil)
-		}
-		return web.OK(w, toCurrentUser(*user))
-	}))
+		current := toCurrentUser(*user)
+		return &current, nil
+	})
 
 	return router
+}
+
+// 注册和登录的成功响应长得一模一样，校验入参、签令牌这两段只写一次。
+func (h *Handler) authenticate(ctx context.Context, body credentials,
+	verify func(ctx context.Context, username, password string) (store.User, error)) (authenticated, error) {
+	if err := body.validate(); err != nil {
+		return authenticated{}, err
+	}
+
+	user, err := verify(ctx, body.Username, body.Password)
+	if err != nil {
+		return authenticated{}, err
+	}
+	token, err := h.tokens.Issue(user.ID)
+	if err != nil {
+		return authenticated{}, err
+	}
+	return authenticated{Token: token, User: toCurrentUser(user)}, nil
 }
 
 func toCurrentUser(user store.User) currentUser {

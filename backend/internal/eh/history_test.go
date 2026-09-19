@@ -22,7 +22,7 @@ import (
 )
 
 func TestHistoryRoutesRequireAuth(t *testing.T) {
-	handler := NewHandler(nil, auth.NewTokens("test", time.Hour)).Routes()
+	handler := NewHandler(newValidationService(), auth.NewTokens("test", time.Hour)).Routes()
 	for _, route := range []struct{ method, path string }{
 		{http.MethodGet, "/history"},
 		{http.MethodPost, "/history/remove"},
@@ -42,7 +42,7 @@ func TestHistoryValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := NewHandler(&Service{}, tokens).Routes()
+	handler := NewHandler(newValidationService(), tokens).Routes()
 	for _, value := range []string{"!", strings.Repeat("a", 257), base64.RawURLEncoding.EncodeToString([]byte(`{"gid":1}`)), base64.RawURLEncoding.EncodeToString([]byte(`{"gid":0,"readAt":"2026-01-01T00:00:00Z"}`))} {
 		request := httptest.NewRequest(http.MethodGet, "/history?cursor="+value, nil)
 		request.Header.Set("Authorization", "Bearer "+token)
@@ -121,11 +121,11 @@ func TestReadingHistoryPostgres(t *testing.T) {
 	queries := store.New(tx)
 	service := NewService(queries, client, nil, nil, signing.NewAttachmentSigner("test", time.Hour))
 	for gid := int64(1); gid <= 27; gid++ {
-		if err := service.SaveProgress(ctx, user.ID, GalleryRef{GID: gid, Token: "aaaaaaaaaa"}, int32(gid)); err != nil {
+		if err := service.SaveProgress(ctx, user.ID, ReadingPosition{GID: gid, Token: "aaaaaaaaaa", Page: int32(gid)}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := service.SaveProgress(ctx, other.ID, GalleryRef{GID: 27, Token: "aaaaaaaaaa"}, 99); err != nil {
+	if err := service.SaveProgress(ctx, other.ID, ReadingPosition{GID: 27, Token: "aaaaaaaaaa", Page: 99}); err != nil {
 		t.Fatal(err)
 	}
 	tokens := auth.NewTokens("test", time.Hour)

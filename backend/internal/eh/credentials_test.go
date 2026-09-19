@@ -113,7 +113,8 @@ func TestCredentialWaitCanBeCanceled(t *testing.T) {
 			return err
 		}},
 		{"解绑", func(ctx context.Context, s *CredentialStore) error {
-			return s.Unbind(ctx, 1)
+			_, err := s.Unbind(ctx, 1)
+			return err
 		}},
 	} {
 		t.Run(operation.name, func(t *testing.T) {
@@ -148,8 +149,8 @@ func TestCredentialWaitCanBeCanceled(t *testing.T) {
 					t.Fatal(err)
 				}
 				assertRequestCredential(t, credentials, 1, oldCredential)
-				if err := credentials.Unbind(context.Background(), 1); err != nil {
-					t.Fatal(err)
+				if status, err := credentials.Unbind(context.Background(), 1); err != nil || status.Bound {
+					t.Fatalf("解绑 = %+v, err = %v", status, err)
 				}
 				assertRequestCredential(t, credentials, 1, Cookie{})
 			})
@@ -178,7 +179,8 @@ func TestCredentialMutationFailurePreservesCredential(t *testing.T) {
 
 func changeCredential(ctx context.Context, credentials *CredentialStore, next Cookie) error {
 	if next.IpbMemberID == "" {
-		return credentials.Unbind(ctx, 1)
+		_, err := credentials.Unbind(ctx, 1)
+		return err
 	}
 	_, err := credentials.Bind(ctx, 1, next)
 	return err

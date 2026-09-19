@@ -20,7 +20,7 @@ func NewHandler(service *Service) *Handler {
 
 // Routes 挂在 /api/holiday 下。
 func (h *Handler) Routes() http.Handler {
-	router := chi.NewRouter()
+	router := web.Routes(chi.NewRouter())
 
 	query := func(r *http.Request) (Day, error) {
 		date, err := parseDateParam(r.URL.Query().Get("date"))
@@ -32,22 +32,16 @@ func (h *Handler) Routes() http.Handler {
 
 	// GET /api/holiday/is-holiday?date=YYYY-MM-DD，仅返回是否休息。
 	// 该接口有外部调用方，响应契约固定为 boolean，不要改动
-	router.Method(http.MethodGet, "/is-holiday", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
+	router.Get("/is-holiday", func(r *http.Request) (bool, error) {
 		day, err := query(r)
 		if err != nil {
-			return err
+			return false, err
 		}
-		return web.OK(w, day.IsOffDay)
-	}))
+		return day.IsOffDay, nil
+	})
 
 	// GET /api/holiday/detail?date=YYYY-MM-DD，返回是否休息及对应的节假日名称
-	router.Method(http.MethodGet, "/detail", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		day, err := query(r)
-		if err != nil {
-			return err
-		}
-		return web.OK(w, day)
-	}))
+	router.Get("/detail", query)
 
 	return router
 }

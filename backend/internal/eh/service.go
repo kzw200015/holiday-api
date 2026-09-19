@@ -2,20 +2,23 @@ package eh
 
 import (
 	"context"
-	"errors"
+	"regexp"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
-	"github.com/jackc/pgx/v5"
 	"golang.org/x/sync/errgroup"
 
+	"myapi/internal/apperr"
 	"myapi/internal/eh/store"
 	"myapi/internal/signing"
 )
 
 // Service 编排图集浏览、用户状态和图片代理用例，供 Handler 调用。
 type Service struct {
-	queries     *store.Queries
+	// 内嵌而不是当字段挂着：偏好、搜索历史、进度这些方法本来就是 Service 要对外提供的，
+	// 名字也是照这个位置起的，提升上来正好，不必再写一层同名转发。
+	*userState
+
 	client      *Client
 	credentials *CredentialStore
 	locator     *ImageLocator
@@ -28,7 +31,7 @@ type Service struct {
 func NewService(queries *store.Queries, client *Client, credentials *CredentialStore,
 	locator *ImageLocator, signer *signing.AttachmentSigner) *Service {
 	return &Service{
-		queries:     queries,
+		userState:   newUserState(queries),
 		client:      client,
 		credentials: credentials,
 		locator:     locator,
@@ -36,6 +39,10 @@ func NewService(queries *store.Queries, client *Client, credentials *CredentialS
 		galleries:   expirable.NewLRU[GalleryRef, galleryMetadata](500, nil, 10*time.Minute),
 	}
 }
+
+// 凭据这三个是转发而不是像 userState 那样内嵌：CredentialStore 的方法名是照它自己起的，
+// 提升上来就成了 Service.Status / Service.Bind，在一个还管着搜索和取图的门面上没法读。
+// 转发的这一层做的正是改名。
 
 func (s *Service) CredentialStatus(ctx context.Context, userID int64) (CredentialStatus, error) {
 	return s.credentials.Status(ctx, userID)
@@ -45,7 +52,7 @@ func (s *Service) BindCredential(ctx context.Context, userID int64, cookie Cooki
 	return s.credentials.Bind(ctx, userID, cookie)
 }
 
-func (s *Service) UnbindCredential(ctx context.Context, userID int64) error {
+func (s *Service) UnbindCredential(ctx context.Context, userID int64) (CredentialStatus, error) {
 	return s.credentials.Unbind(ctx, userID)
 }
 
@@ -58,8 +65,35 @@ type SearchQuery struct {
 	Site Site
 }
 
+// 分页游标是 e 站给的一串数字，会被拼进上游地址。
+var cursorPattern = regexp.MustCompile(`^\d*$`)
+
+// 检查搜索条件并归一。分类名认不认得由 toCategoryFilter 判断，换算结果这里用不上，
+// 真正拼 f_cats 是 Client 的事——两处调的是同一份规则，不会各判各的。
+func (q SearchQuery) checked() (SearchQuery, error) {
+	if len(q.Keyword) > 200 {
+		return SearchQuery{}, apperr.New(apperr.InvalidArgument, "关键词太长了")
+	}
+	if _, err := toCategoryFilter(q.Categories); err != nil {
+		return SearchQuery{}, err
+	}
+	if !cursorPattern.MatchString(q.Cursor) {
+		return SearchQuery{}, apperr.New(apperr.InvalidArgument, "分页游标不合法")
+	}
+	// site 只认显式的 "e"，别的值一律当成没传，交给账号权限决定
+	if q.Site != SiteE {
+		q.Site = ""
+	}
+	return q, nil
+}
+
 // SearchGalleries 从列表页获取图集顺序和游标，再用 gdata 补全元数据。
 func (s *Service) SearchGalleries(ctx context.Context, userID int64, search SearchQuery) (GalleryPage, error) {
+	search, err := search.checked()
+	if err != nil {
+		return GalleryPage{}, err
+	}
+
 	rc, err := s.credentials.RequestContext(ctx, userID, search.Site)
 	if err != nil {
 		return GalleryPage{}, err
@@ -93,11 +127,8 @@ func (s *Service) GalleryDetailOf(ctx context.Context, userID int64, ref Gallery
 	// 阅读进度与元数据互不依赖，并发读取。
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		page, err := s.queries.GetReadingProgress(groupCtx, store.GetReadingProgressParams{UserID: userID, Gid: ref.GID})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil
-		}
-		progress = &page
+		var err error
+		progress, err = s.progressOf(groupCtx, userID, ref)
 		return err
 	})
 	group.Go(func() error {
@@ -137,13 +168,6 @@ func (s *Service) GalleryComments(ctx context.Context, userID int64, ref Gallery
 	return parseGalleryComments(page.HTML)
 }
 
-// SaveProgress 记下读到第几页。同一个图集只留一条，重复上报就覆盖。
-func (s *Service) SaveProgress(ctx context.Context, userID int64, ref GalleryRef, page int32) error {
-	return s.queries.UpsertReadingProgress(ctx, store.UpsertReadingProgressParams{
-		UserID: userID, Gid: ref.GID, Token: ref.Token, Page: page,
-	})
-}
-
 // 本次结果独立于 LRU 保存；并发淘汰不影响已经取得的元数据。
 func (s *Service) loadGalleries(ctx context.Context, refs []GalleryRef) (map[GalleryRef]galleryMetadata, error) {
 	loaded := make(map[GalleryRef]galleryMetadata, len(refs))
@@ -154,6 +178,10 @@ func (s *Service) loadGalleries(ctx context.Context, refs []GalleryRef) (map[Gal
 		} else {
 			missing = append(missing, ref)
 		}
+	}
+	// 全都在缓存里就别走这一趟：翻回上一页、重进详情都会命中这里。
+	if len(missing) == 0 {
+		return loaded, nil
 	}
 
 	galleries, err := s.client.FetchMetadata(ctx, missing)

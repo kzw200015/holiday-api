@@ -54,7 +54,12 @@ func (s *CredentialStore) Status(ctx context.Context, userID int64) (CredentialS
 }
 
 // Bind 验证凭据后入库。
+// 字符集先自查一遍再发出去：这三个值会被原样拼进 Cookie 请求头，坏值不该有机会出门。
 func (s *CredentialStore) Bind(ctx context.Context, userID int64, cookie Cookie) (CredentialStatus, error) {
+	if err := cookie.validate(); err != nil {
+		return CredentialStatus{}, err
+	}
+
 	hasExAccess, err := s.client.VerifyCredential(ctx, cookie)
 	if err != nil {
 		return CredentialStatus{}, err
@@ -83,18 +88,20 @@ func (s *CredentialStore) Bind(ctx context.Context, userID int64, cookie Cookie)
 	return CredentialStatus{Bound: true, MemberID: cookie.IpbMemberID, HasExAccess: hasExAccess}, nil
 }
 
-func (s *CredentialStore) Unbind(ctx context.Context, userID int64) error {
+// Unbind 解绑并回一份解绑后的状态，跟 Bind 一样由服务端给出结果。
+func (s *CredentialStore) Unbind(ctx context.Context, userID int64) (CredentialStatus, error) {
 	unlock, err := s.locks.Acquire(ctx, credentialLockKey(userID))
 	if err != nil {
-		return err
+		return CredentialStatus{}, err
 	}
 	defer unlock()
 
 	if err := s.queries.DeleteEhCredential(ctx, userID); err != nil {
-		return err
+		return CredentialStatus{}, err
 	}
 	s.cache.Remove(userID)
-	return nil
+	// 零值就是「没绑、没有里站权限」
+	return CredentialStatus{}, nil
 }
 
 // RequestContext 组一次请求的上下文。

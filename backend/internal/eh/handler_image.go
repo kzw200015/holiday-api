@@ -16,18 +16,19 @@ import (
 // 图集内容不会变，浏览器缓存住之后来回翻页就不再回源，也就不再消耗 e 站配额。
 const imageCacheControl = "private, max-age=2592000, immutable"
 
-func (h *Handler) imageRoutes(router chi.Router) {
+// 这两条接口的身份**不来自登录令牌**：<img> 发的请求带不了 Authorization 头，
+// 所以它们挂在没有 tokens.Require 的那一组里，改由地址里的签名认人——
+// 下面每条都自己解出 uid、校验签名，这一段不能省成「反正中间件挡过了」。
+//
+// 响应体是二进制流而不是 ApiResponse，所以也不走 Router 那几个方法。
+func (h *Handler) imageRoutes(router web.Router) {
 	// 这两条一次阅读就是几十个请求，访问日志统一降到 debug
 	router.Use(web.Quiet)
 
 	// GET /api/eh/galleries/{gid}/{token}/pages/{page}/image?uid=&e=&s=，流式转发大图
 	router.Method(http.MethodGet, "/galleries/{gid}/{token}/pages/{page}/image",
 		web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-			ref, err := parseGalleryRef(r)
-			if err != nil {
-				return err
-			}
-			page, err := parsePage(chi.URLParam(r, "page"))
+			ref, err := galleryRefOf(r)
 			if err != nil {
 				return err
 			}
@@ -42,6 +43,8 @@ func (h *Handler) imageRoutes(router chi.Router) {
 			if !ok {
 				return errIncompleteSignature()
 			}
+			// 页码解析失败得到 0，跟「页码为正」那条规则撞在一起，由业务统一报错。
+			page, _ := strconv.Atoi(chi.URLParam(r, "page"))
 
 			image, err := h.service.OpenGalleryImage(r.Context(), userID, ref, page, sig)
 			if err != nil {

@@ -19,8 +19,14 @@ import (
 	"myapi/internal/eh/store"
 )
 
+// 入参校验都在碰数据库之前完成，所以这些用例不需要真正的连接。
+// 用零值的 userState 而不是 nil：真有哪条规则漏了，会当场 panic 而不是悄悄放行。
+func newValidationService() *Service {
+	return &Service{userState: newUserState(nil)}
+}
+
 func TestPreferenceRoutesRequireAuth(t *testing.T) {
-	handler := NewHandler(nil, auth.NewTokens("test-secret", time.Hour)).Routes()
+	handler := NewHandler(newValidationService(), auth.NewTokens("test-secret", time.Hour)).Routes()
 	for _, route := range []struct{ method, path string }{
 		{http.MethodGet, "/preferences"},
 		{http.MethodPost, "/preferences/categories"},
@@ -46,7 +52,7 @@ func TestPreferenceValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := NewHandler(&Service{}, tokens).Routes()
+	handler := NewHandler(newValidationService(), tokens).Routes()
 	for _, each := range []struct{ path, body string }{
 		{"/preferences/categories", `{"categories":["unknown"]}`},
 		{"/preferences/reader-interval", `{"interval":0}`},
@@ -92,7 +98,7 @@ func TestPreferencesPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	queries := store.New(tx)
-	service := &Service{queries: queries}
+	service := &Service{userState: newUserState(queries)}
 	user, err := authstore.New(tx).CreateUser(ctx, authstore.CreateUserParams{Username: fmt.Sprintf("preferences-%d", time.Now().UnixNano()), PasswordHash: "test"})
 	if err != nil {
 		t.Fatal(err)
@@ -147,8 +153,8 @@ func TestPreferencesPostgres(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(history, want[1:]) {
 		t.Fatalf("history after removal = %v, err = %v", history, err)
 	}
-	if err := service.ClearSearchHistory(ctx, user.ID); err != nil {
-		t.Fatal(err)
+	if cleared, err := service.ClearSearchHistory(ctx, user.ID); err != nil || len(cleared) != 0 {
+		t.Fatalf("clear = %v, err = %v", cleared, err)
 	}
 	history, err = service.SearchHistory(ctx, user.ID)
 	if err != nil || len(history) != 0 {
@@ -190,7 +196,7 @@ func TestPreferencesPostgres(t *testing.T) {
 	if err != nil || history == nil || len(history) != 0 {
 		t.Fatalf("remove missing history = %v, err = %v", history, err)
 	}
-	if err := service.ClearSearchHistory(ctx, other.ID); err != nil {
+	if _, err := service.ClearSearchHistory(ctx, other.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := service.SaveReaderInterval(ctx, other.ID, 3); err != nil {

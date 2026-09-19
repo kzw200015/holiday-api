@@ -17,6 +17,9 @@ const pagePlaceholder = "{page}"
 // 返回可直接转发的图片流，调用方负责关闭 Body。
 func (s *Service) OpenGalleryImage(ctx context.Context, userID int64, ref GalleryRef, page int,
 	sig signing.Signature) (*Attachment, error) {
+	if err := checkPage(page); err != nil {
+		return nil, err
+	}
 	if !s.signer.Verify(imageSubject(userID, ref), sig) {
 		return nil, errBadSignature("图片地址签名不正确或已过期，回到详情页重进一次")
 	}

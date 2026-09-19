@@ -1,8 +1,8 @@
 package eh
 
 import (
+	"context"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -13,6 +13,10 @@ import (
 )
 
 // Handler 负责 HTTP 与鉴权；取图、搜索等业务只经 Service 门面调用。
+//
+// 这里只做「把请求里的文本变成入参」：取查询串、转数字、解 JSON。
+// 值域和格式规则（页码为正、令牌长什么样、关键词多长）都在业务那边，
+// 否则同一条规则会在两层各写一份，改的时候只改到一处。
 type Handler struct {
 	service *Service
 	tokens  *auth.Tokens
@@ -22,22 +26,16 @@ func NewHandler(service *Service, tokens *auth.Tokens) *Handler {
 	return &Handler{service: service, tokens: tokens}
 }
 
-// token 固定 10 位十六进制。它和 gid 都会被拼进上游地址，不校验就等于把用户输入直接发给 e 站。
-var tokenPattern = regexp.MustCompile(`^[0-9a-f]{10}$`)
-
-// 分页游标是 e 站给的一串数字，同样会进上游地址。
-var cursorPattern = regexp.MustCompile(`^\d*$`)
-
 // Routes 挂在 /api/eh 下：图片使用签名鉴权，其余接口使用登录令牌。
 func (h *Handler) Routes() http.Handler {
-	router := chi.NewRouter()
+	router := web.Routes(chi.NewRouter())
 
 	// 浏览器的 img 请求不能携带 Authorization 头，改用签名地址，直接返回图片流。
-	router.Group(func(r chi.Router) {
+	router.Group(func(r web.Router) {
 		h.imageRoutes(r)
 	})
 
-	router.Group(func(r chi.Router) {
+	router.Group(func(r web.Router) {
 		r.Use(h.tokens.Require)
 		h.authedRoutes(r)
 	})
@@ -45,115 +43,57 @@ func (h *Handler) Routes() http.Handler {
 	return router
 }
 
-func (h *Handler) authedRoutes(router chi.Router) {
+func (h *Handler) authedRoutes(router web.Router) {
 	h.preferenceRoutes(router)
 	h.historyRoutes(router)
 
 	// GET /api/eh/credential，返回绑定状态，不含明文 Cookie
-	router.Method(http.MethodGet, "/credential", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		status, err := h.service.CredentialStatus(r.Context(), auth.UserID(r.Context()))
-		if err != nil {
-			return err
-		}
-		return web.OK(w, status)
-	}))
+	router.Get("/credential", func(r *http.Request) (CredentialStatus, error) {
+		return h.service.CredentialStatus(r.Context(), auth.UserID(r.Context()))
+	})
 
 	// POST /api/eh/credential，绑定前先拿这组 Cookie 实际请求一次，无效直接 400
-	router.Method(http.MethodPost, "/credential", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		var cookie Cookie
-		if err := web.DecodeJSON(r, &cookie); err != nil {
-			return err
-		}
-		if err := cookie.validate(); err != nil {
-			return err
-		}
-		status, err := h.service.BindCredential(r.Context(), auth.UserID(r.Context()), cookie)
-		if err != nil {
-			return err
-		}
-		return web.OK(w, status)
-	}))
+	router.Post("/credential", func(ctx context.Context, cookie Cookie) (CredentialStatus, error) {
+		return h.service.BindCredential(ctx, auth.UserID(ctx), cookie)
+	})
 
 	// POST /api/eh/credential/unbind，解绑后退回匿名浏览前站
-	router.Method(http.MethodPost, "/credential/unbind", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := h.service.UnbindCredential(r.Context(), auth.UserID(r.Context())); err != nil {
-			return err
-		}
-		return web.OK(w, nil)
-	}))
+	router.Action("/credential/unbind", func(ctx context.Context) (CredentialStatus, error) {
+		return h.service.UnbindCredential(ctx, auth.UserID(ctx))
+	})
 
 	// GET /api/eh/galleries?keyword=&categories=&cursor=&site=，游标式分页
-	router.Method(http.MethodGet, "/galleries", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		search, err := parseSearchQuery(r)
-		if err != nil {
-			return err
-		}
-		page, err := h.service.SearchGalleries(r.Context(), auth.UserID(r.Context()), search)
-		if err != nil {
-			return err
-		}
-		return web.OK(w, page)
-	}))
+	router.Get("/galleries", func(r *http.Request) (GalleryPage, error) {
+		return h.service.SearchGalleries(r.Context(), auth.UserID(r.Context()), searchQueryOf(r))
+	})
 
 	// GET /api/eh/galleries/{gid}/{token}，元数据、阅读进度，外加这本图集的大图地址模板
-	router.Method(http.MethodGet, "/galleries/{gid}/{token}", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		ref, err := parseGalleryRef(r)
+	router.Get("/galleries/{gid}/{token}", func(r *http.Request) (GalleryDetailResult, error) {
+		ref, err := galleryRefOf(r)
 		if err != nil {
-			return err
+			return GalleryDetailResult{}, err
 		}
-		detail, err := h.service.GalleryDetailOf(r.Context(), auth.UserID(r.Context()), ref)
-		if err != nil {
-			return err
-		}
-		return web.OK(w, detail)
-	}))
+		return h.service.GalleryDetailOf(r.Context(), auth.UserID(r.Context()), ref)
+	})
 
 	// GET /api/eh/galleries/{gid}/{token}/comments，单独一次请求，不拖慢详情页首屏
-	router.Method(http.MethodGet, "/galleries/{gid}/{token}/comments", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		ref, err := parseGalleryRef(r)
+	router.Get("/galleries/{gid}/{token}/comments", func(r *http.Request) ([]GalleryComment, error) {
+		ref, err := galleryRefOf(r)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		comments, err := h.service.GalleryComments(r.Context(), auth.UserID(r.Context()), ref)
-		if err != nil {
-			return err
-		}
-		return web.OK(w, comments)
-	}))
+		return h.service.GalleryComments(r.Context(), auth.UserID(r.Context()), ref)
+	})
 
 	// POST /api/eh/progress，记下读到第几页
-	router.Method(http.MethodPost, "/progress", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		var body struct {
-			GID   int64  `json:"gid"`
-			Token string `json:"token"`
-			Page  int32  `json:"page"`
-		}
-		if err := web.DecodeJSON(r, &body); err != nil {
-			return err
-		}
-		ref, err := newGalleryRef(body.GID, body.Token)
-		if err != nil {
-			return err
-		}
-		if err := checkPage(int(body.Page)); err != nil {
-			return err
-		}
-		if err := h.service.SaveProgress(r.Context(), auth.UserID(r.Context()), ref, body.Page); err != nil {
-			return err
-		}
-		return web.OK(w, nil)
-	}))
+	router.Post("/progress", func(ctx context.Context, body ReadingPosition) (any, error) {
+		return nil, h.service.SaveProgress(ctx, auth.UserID(ctx), body)
+	})
 }
 
-// 搜索参数。分类用名字的逗号列表传，位掩码的换算封在 category.go 里：
-// f_cats 传的是「排除哪些」，这个方向不该泄露到接口和前端。
-func parseSearchQuery(r *http.Request) (SearchQuery, error) {
+// 搜索参数。分类是名字的逗号列表，这里只负责拆开；认不认得这些名字由业务判断。
+func searchQueryOf(r *http.Request) SearchQuery {
 	query := r.URL.Query()
-
-	keyword := query.Get("keyword")
-	if len(keyword) > 200 {
-		return SearchQuery{}, web.BadRequest("关键词太长了")
-	}
 
 	var categories []string
 	for name := range strings.SplitSeq(query.Get("categories"), ",") {
@@ -161,52 +101,20 @@ func parseSearchQuery(r *http.Request) (SearchQuery, error) {
 			categories = append(categories, name)
 		}
 	}
-	_, err := toCategoryFilter(categories)
-	if err != nil {
-		return SearchQuery{}, err
+	return SearchQuery{
+		Keyword:    query.Get("keyword"),
+		Categories: categories,
+		Cursor:     query.Get("cursor"),
+		Site:       Site(query.Get("site")),
 	}
-
-	cursor := query.Get("cursor")
-	if !cursorPattern.MatchString(cursor) {
-		return SearchQuery{}, web.BadRequest("分页游标不合法")
-	}
-
-	// site 只认显式的 "e"，别的值一律当成没传
-	site := Site("")
-	if query.Get("site") == string(SiteE) {
-		site = SiteE
-	}
-	return SearchQuery{Keyword: keyword, Categories: categories, Cursor: cursor, Site: site}, nil
 }
 
-func parseGalleryRef(r *http.Request) (GalleryRef, error) {
+// 路径上的 gid 与 token。解析失败显式归零——溢出时 ParseInt 回的是 MaxInt64 而不是 0——
+// 正好撞进 checkGID 那条规则，文案由业务统一给，这儿不再自己报一遍。
+func galleryRefOf(r *http.Request) (GalleryRef, error) {
 	gid, err := strconv.ParseInt(chi.URLParam(r, "gid"), 10, 64)
 	if err != nil {
-		return GalleryRef{}, web.BadRequest("图集编号不合法")
+		gid = 0
 	}
 	return newGalleryRef(gid, chi.URLParam(r, "token"))
-}
-
-// 页码必须是正整数。URL 参数和 JSON 字段两条入口共用 checkPage 这一份规则和文案——
-// 解析失败得到 0，正好落进同一个判断。
-func parsePage(value string) (int, error) {
-	page, _ := strconv.Atoi(value)
-	return page, checkPage(page)
-}
-
-func checkPage(page int) error {
-	if page <= 0 {
-		return web.BadRequest("页码不合法")
-	}
-	return nil
-}
-
-func newGalleryRef(gid int64, token string) (GalleryRef, error) {
-	if gid <= 0 {
-		return GalleryRef{}, web.BadRequest("图集编号不合法")
-	}
-	if !tokenPattern.MatchString(token) {
-		return GalleryRef{}, web.BadRequest("图集令牌不合法")
-	}
-	return GalleryRef{GID: gid, Token: token}, nil
 }
