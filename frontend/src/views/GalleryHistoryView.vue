@@ -12,7 +12,7 @@ import { useReadingHistory } from "@/composables/useReadingHistory"
 import { formatDateTime } from "@/lib/format"
 import { readerLocation } from "@/lib/galleryNavigation"
 
-const { items, pageIndex, loading, busy, loadError, changeError, hasPrevious, hasNext, load, remove, clear, retry } =
+const { items, loading, loadingMore, hasMore, busy, loadError, changeError, refresh, remove, clear, retry } =
   useReadingHistory()
 </script>
 
@@ -21,7 +21,7 @@ const { items, pageIndex, loading, busy, loadError, changeError, hasPrevious, ha
     <div class="flex flex-wrap items-center justify-between gap-2">
       <p class="text-muted-foreground text-sm">按最近阅读时间排序，删除记录也会删除阅读进度。</p>
       <div class="flex gap-2">
-        <Button variant="outline" size="sm" :disabled="busy" @click="load(0, true)">
+        <Button variant="outline" size="sm" :disabled="busy" @click="refresh">
           <RefreshCwIcon />
           刷新
         </Button>
@@ -31,7 +31,7 @@ const { items, pageIndex, loading, busy, loadError, changeError, hasPrevious, ha
           confirm-text="清空"
           @confirm="clear"
         >
-          <Button variant="destructive" size="sm" :disabled="busy || (items.length === 0 && pageIndex === 0)">
+          <Button variant="destructive" size="sm" :disabled="busy || items.length === 0">
             <Trash2Icon />
             清空全部
           </Button>
@@ -40,10 +40,7 @@ const { items, pageIndex, loading, busy, loadError, changeError, hasPrevious, ha
     </div>
     <ErrorAlert v-if="changeError" title="操作失败" :message="changeError" />
     <ErrorAlert v-if="loadError" title="加载失败" :message="loadError" retryable @retry="retry" />
-    <div v-if="loading && items.length === 0" class="flex flex-col gap-3">
-      <Skeleton v-for="index in 3" :key="index" class="h-48 w-full rounded-lg" />
-    </div>
-    <div v-for="item in items" :key="item.gid" class="rounded-lg border p-2" :aria-busy="loading">
+    <div v-for="item in items" :key="item.gid" class="rounded-lg border p-2">
       <GalleryRow v-if="item.gallery" :item="item.gallery" source="history" />
       <div v-else class="flex flex-col gap-1 p-2">
         <p class="font-medium">失效记录 · 图集 {{ item.gid }}</p>
@@ -69,14 +66,12 @@ const { items, pageIndex, loading, busy, loadError, changeError, hasPrevious, ha
         </div>
       </div>
     </div>
-    <EmptyState
-      v-if="!loading && !loadError && items.length === 0"
-      :message="pageIndex === 0 ? '还没有阅读记录。' : '这一页已没有记录，可返回上一页或刷新。'"
-    />
-    <div v-if="items.length > 0 || pageIndex > 0" class="flex items-center justify-center gap-4">
-      <Button variant="outline" :disabled="busy || !hasPrevious" @click="load(pageIndex - 1, true)">上一页</Button>
-      <span class="text-muted-foreground text-sm">第 {{ pageIndex + 1 }} 页{{ loading ? " · 加载中" : "" }}</span>
-      <Button variant="outline" :disabled="busy || !hasNext" @click="load(pageIndex + 1, true)">下一页</Button>
+    <div v-if="loading || loadingMore" class="flex flex-col gap-3">
+      <Skeleton v-for="index in 3" :key="index" class="h-48 w-full rounded-lg" />
     </div>
+    <EmptyState v-if="!loading && !loadError && items.length === 0" message="还没有阅读记录。" />
+    <p v-if="!hasMore && !loadError && items.length > 0" class="text-muted-foreground py-6 text-center text-sm">
+      已经到底了。
+    </p>
   </div>
 </template>

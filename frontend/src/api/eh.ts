@@ -8,6 +8,8 @@ export const ehKeys = {
   content: ["eh", "content"] as const,
   gallery: (gid: number, token: string) => ["eh", "content", "gallery", gid, token] as const,
   comments: (gid: number, token: string) => ["eh", "content", "comments", gid, token] as const,
+  /* 历史记录本身是本站数据，但每条都带着 e 站的图集元数据，可见性跟着凭据变，所以同属 content。 */
+  history: ["eh", "content", "history"] as const,
 }
 
 /** 列表里一张卡片的内容，与后端 GalleryCard 对齐 */

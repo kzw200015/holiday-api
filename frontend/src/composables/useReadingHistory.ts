@@ -1,105 +1,112 @@
-import { computed, onActivated, onDeactivated, ref, shallowRef } from "vue"
+import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from "@tanstack/vue-query"
+import { useInfiniteScroll } from "@vueuse/core"
+import { computed, onActivated, onDeactivated, onScopeDispose, ref } from "vue"
 
-import type { ReadingHistoryItem } from "@/api/eh"
-import { useAsyncAction } from "@/composables/useAsyncAction"
+import { ehKeys, type ReadingHistoryPage } from "@/api/eh"
 import { usePageScroll } from "@/composables/usePageScroll"
 import { useEhStore } from "@/stores/EhStore"
 
+type HistoryCache = InfiniteData<ReadingHistoryPage, string>
+
 /**
- * 阅读历史的翻页与增删。
+ * 阅读历史的加载与增删。
  *
- * 后端按游标分页，只给「下一页从哪儿开始」，所以这里把走过的每页起点按顺序记下来，
- * 才能往回翻。读取和增删分成两个操作：删一条之后要重新取当前页补齐，两件事的
- * 进行中状态和失败提示都是分开的，界面上也是分开的两块。
+ * 分页方式和图集搜索一致：只往后触底加载，不做上一页下一页。游标分页本来只给「下一页从哪开始」，
+ * 硬要往回翻就得自己记住每页的起点，还得处理「删掉末页最后一条」这类边角；单向加载没有这些。
+ *
+ * 删除和清空直接改缓存里的列表，不重新拉页：游标按阅读时间取，删掉一条不会影响后面几页的起点。
  */
 export function useReadingHistory() {
   const store = useEhStore()
-  const items = shallowRef<ReadingHistoryItem[]>([])
-  /* cursors[i] 是第 i 页的起始游标，第一页固定是空串；长度即已知的页数。 */
-  const cursors = ref([""])
-  const pageIndex = ref(0)
+  const queryClient = useQueryClient()
   const resetScroll = usePageScroll()
-  const loading = useAsyncAction({ latestOnly: true })
-  const changing = useAsyncAction()
-  /* 「正忙」只算这一处：读和写都会改动列表，谁在跑都不该再接第二个操作。 */
-  const busy = computed(() => loading.pending.value || changing.pending.value)
-  let requestedPage = 0
   /* 页面被缓存起来时不再滚动、也不再自动补页，但已发出的删除仍要跑完。 */
-  let active = false
+  const active = ref(true)
 
-  function load(index = pageIndex.value, resetPosition = false) {
-    requestedPage = index
-    return loading.run((signal) => store.loadReadingHistory(cursors.value[index] ?? "", signal), {
-      apply: (result) => {
-        items.value = result.items
-        pageIndex.value = index
-        cursors.value = cursors.value.slice(0, index + 1)
-        if (result.nextCursor !== null) {
-          cursors.value.push(result.nextCursor)
-        }
-        if (resetPosition) {
-          void resetScroll()
-        }
-      },
-    })
+  const history = useInfiniteQuery({
+    queryKey: ehKeys.history,
+    queryFn: ({ pageParam, signal }) => store.loadReadingHistory(pageParam, signal),
+    initialPageParam: "",
+    getNextPageParam: (page: ReadingHistoryPage) => page.nextCursor,
+    /* 读完一本回到这里，它就该排在最前面、页码也对得上，所以不留新鲜期。 */
+    staleTime: 0,
+  })
+  const items = computed(() => history.data.value?.pages.flatMap((page) => page.items) ?? [])
+
+  function dropFromCache(gid: number) {
+    queryClient.setQueryData<HistoryCache>(ehKeys.history, (cache) =>
+      cache
+        ? {
+            ...cache,
+            pages: cache.pages.map((page) => ({ ...page, items: page.items.filter((item) => item.gid !== gid) })),
+          }
+        : cache,
+    )
   }
 
-  async function remove(gid: number) {
-    if (busy.value) {
-      return
-    }
-    const removed = await changing.run(() => store.removeReadingHistory(gid), {
-      apply: () => {
-        items.value = items.value.filter((item) => item.gid !== gid)
-      },
-    })
-    /* 删除末页最后一条时回到上一页，其余情况补齐当前页。 */
-    if (removed && active) {
-      await load(items.value.length === 0 ? Math.max(0, pageIndex.value - 1) : pageIndex.value)
+  const removing = useMutation({
+    mutationFn: (gid: number) => store.removeReadingHistory(gid),
+    onSuccess: (_result, gid) => dropFromCache(gid),
+  })
+  const clearing = useMutation({
+    mutationFn: () => store.clearReadingHistory(),
+    onSuccess: () => {
+      queryClient.setQueryData<HistoryCache>(ehKeys.history, {
+        pages: [{ items: [], nextCursor: null }],
+        pageParams: [""],
+      })
+      if (active.value) {
+        void resetScroll()
+      }
+    },
+  })
+
+  /* 读和写都会改动列表，谁在跑都不该再接第二个操作。 */
+  const busy = computed(() => history.isFetching.value || removing.isPending.value || clearing.isPending.value)
+
+  function loadMore() {
+    if (history.hasNextPage.value && !history.isFetching.value) {
+      void history.fetchNextPage()
     }
   }
 
-  async function clear() {
-    if (busy.value) {
-      return
+  async function refresh() {
+    await history.refetch()
+    if (active.value) {
+      void resetScroll()
     }
-    await changing.run(() => store.clearReadingHistory(), {
-      apply: () => {
-        items.value = []
-        cursors.value = [""]
-        pageIndex.value = 0
-        loading.clearError()
-        if (active) {
-          void resetScroll()
-        }
-      },
-    })
   }
 
-  /* 保留当前页与滚动位置，但重新读取进度，以反映本次阅读及其他设备的修改。 */
+  /* 保留滚动位置，但重新读取，以反映本次阅读及其他设备的修改。 */
   onActivated(() => {
-    active = true
-    if (!changing.pending.value) {
-      void load()
+    active.value = true
+    if (!busy.value) {
+      void history.refetch()
     }
   })
   onDeactivated(() => {
-    active = false
-    loading.cancel()
+    active.value = false
+  })
+  onScopeDispose(() => {
+    active.value = false
+  })
+
+  useInfiniteScroll(() => (active.value ? window : null), loadMore, {
+    distance: 600,
+    canLoadMore: () => history.hasNextPage.value && !history.isFetching.value && !history.error.value,
   })
 
   return {
     items,
-    pageIndex,
-    loading: loading.pending,
+    loading: history.isPending,
+    loadingMore: history.isFetchingNextPage,
+    hasMore: history.hasNextPage,
     busy,
-    loadError: loading.errorMessage,
-    changeError: changing.errorMessage,
-    hasPrevious: computed(() => pageIndex.value > 0),
-    hasNext: computed(() => pageIndex.value + 1 < cursors.value.length),
-    load,
-    remove,
-    clear,
-    retry: () => load(requestedPage),
+    loadError: computed(() => history.error.value?.message ?? ""),
+    changeError: computed(() => removing.error.value?.message ?? clearing.error.value?.message ?? ""),
+    refresh,
+    remove: (gid: number) => removing.mutate(gid),
+    clear: () => clearing.mutate(),
+    retry: () => void history.refetch(),
   }
 }

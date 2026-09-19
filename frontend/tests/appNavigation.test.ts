@@ -246,10 +246,11 @@ describe("阅读历史与二级导航", () => {
     await settle()
     expect(host.textContent).toContain("删除失败测试")
     expect(host.textContent).toContain("测试图集")
-    vi.mocked(fetchReadingHistory).mockResolvedValueOnce({ items: [], nextCursor: null })
+    /* 删除成功直接改缓存里的那一份列表，不再重新拉一页回来。 */
     host.querySelector<HTMLElement>('[aria-label="删除阅读记录：1"]')!.click()
     await settle()
     expect(host.textContent).toContain("还没有阅读记录")
+    expect(fetchReadingHistory).toHaveBeenCalledTimes(1)
     await visit("/eh/g/1/aaaaaaaaaa")
     expect(host.textContent).toContain("开始阅读")
     expect(host.textContent).not.toContain("继续阅读（第 3 页）")
@@ -287,28 +288,27 @@ describe("阅读历史与二级导航", () => {
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(1)
   })
 
-  it("游标翻页失败可重试，失效记录仍显示进度并可删除", async () => {
+  it("加载失败可重试，失效记录仍显示进度并可删除", async () => {
+    vi.mocked(fetchReadingHistory).mockRejectedValueOnce(new Error("历史加载失败测试"))
+    await visit("/eh/history")
+    expect(host.textContent).toContain("历史加载失败测试")
     vi.mocked(fetchReadingHistory).mockResolvedValueOnce({
       items: [{ gid: 1, token: gallery.token, page: 7, readAt: gallery.postedAt, gallery: null }],
-      nextCursor: "next",
+      nextCursor: null,
     })
-    await visit("/eh/history")
+    await click("重试")
+    expect(host.textContent).not.toContain("历史加载失败测试")
     expect(host.textContent).toContain("失效记录 · 图集 1")
     expect(host.textContent).toContain("第 7 页")
     expect(host.querySelector('a[href*="/eh/read/"]')).toBeNull()
-    vi.mocked(fetchReadingHistory).mockRejectedValueOnce(new Error("历史加载失败测试"))
-    await click("下一页")
-    expect(host.textContent).toContain("历史加载失败测试")
-    vi.mocked(fetchReadingHistory).mockResolvedValueOnce({ items: [], nextCursor: null })
-    await click("重试")
-    expect(fetchReadingHistory).toHaveBeenLastCalledWith("next", expect.any(AbortSignal))
-    expect(host.textContent).toContain("这一页已没有记录")
-    await click("上一页")
-    expect(fetchReadingHistory).toHaveBeenLastCalledWith("", expect.any(AbortSignal))
-    expect(host.textContent).toContain("测试图集")
+    host.querySelector<HTMLElement>('[aria-label="删除阅读记录：1"]')!.click()
+    await settle()
+    expect(removeReadingHistory).toHaveBeenCalledExactlyOnceWith(1, expect.any(AbortSignal))
+    expect(host.textContent).toContain("还没有阅读记录")
   })
 
-  it("离开历史取消请求，迟到响应不覆盖重新进入的结果", async () => {
+  /* 同一个查询键只有一份数据，来回切页不会让两次响应互相覆盖，也不必为此取消请求。 */
+  it("离开历史再回来，在途请求的结果仍然落到列表上", async () => {
     let finish!: (value: Awaited<ReturnType<typeof fetchReadingHistory>>) => void
     vi.mocked(fetchReadingHistory).mockReturnValueOnce(
       new Promise((resolve) => {
@@ -316,11 +316,9 @@ describe("阅读历史与二级导航", () => {
       }),
     )
     await visit("/eh/history")
-    const signal = vi.mocked(fetchReadingHistory).mock.calls[0]![1]!
     await visit("/eh")
-    expect(signal.aborted).toBe(true)
     await visit("/eh/history")
-    finish({ items: [], nextCursor: null })
+    finish({ items: [{ gid: 1, token: gallery.token, page: 3, readAt: gallery.postedAt, gallery }], nextCursor: null })
     await settle()
     expect(host.textContent).toContain("测试图集")
     expect(host.textContent).not.toContain("还没有阅读记录")
