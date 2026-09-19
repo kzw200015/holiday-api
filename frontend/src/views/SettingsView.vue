@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { CircleCheckIcon, LogOutIcon } from "@lucide/vue"
-import { useQueryClient } from "@tanstack/vue-query"
-import { computed, ref } from "vue"
+import { ref } from "vue"
 import { useRouter } from "vue-router"
 
-import { ehKeys } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert.vue"
 import FormField from "@/components/FormField.vue"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -12,9 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useAsyncAction } from "@/composables/useAsyncAction"
+import { useEhCredential } from "@/composables/useEhCredential"
 import { useAuthStore } from "@/stores/AuthStore"
-import { useEhStore } from "@/stores/EhStore"
 
 const cookieFields = [
   { name: "ipbMemberId", label: "ipb_member_id", hint: "登录 e 站后必有" },
@@ -23,45 +20,28 @@ const cookieFields = [
 ] as const
 const router = useRouter()
 const authStore = useAuthStore()
-const ehStore = useEhStore()
-const queryClient = useQueryClient()
-/* 绑定状态由 Store 持有，页面只管显示和提交。 */
-const status = computed(() => ehStore.credential)
-const loadAction = useAsyncAction({ latestOnly: true })
-const saveAction = useAsyncAction()
-/* 摊平成顶层 ref，模板里才会自动解包。 */
-const { pending: loading, errorMessage: loadError } = loadAction
-const { pending: saving, errorMessage } = saveAction
+/* 绑定状态、进行中与失败提示都由这一处提供，页面只管显示和提交。 */
+const { status, loading, loadError, saving, errorMessage, reload, bind, unbind: unbindCredential } = useEhCredential()
 const form = ref({ ipbMemberId: "", ipbPassHash: "", igneous: "" })
 const successMessage = ref("")
 
-function load() {
-  return loadAction.run((signal) => ehStore.loadCredential(signal))
-}
-void load()
-
-/* 换绑之后能看到的内容就变了：受 e 站凭据影响的缓存全部作废，本站的账号数据不受影响。 */
-function invalidateContent() {
-  void queryClient.invalidateQueries({ queryKey: ehKeys.content })
-}
-
-function submit() {
+/* 直接用这次提交回来的状态，不去读缓存，省得依赖「那边已经写完了」这个顺序。 */
+async function submit() {
   successMessage.value = ""
-  /* 直接用这次请求回来的状态，不去读 Store，省得依赖「它那边已经写完了」这个顺序。 */
-  return saveAction.run(() => ehStore.bindCredential({ ...form.value }), {
-    apply: (bound) => {
-      successMessage.value = bound.hasExAccess
-        ? "绑定成功，里站已解锁。"
-        : "绑定成功。这个账号没有里站权限，只能浏览前站。"
-      form.value = { ipbMemberId: "", ipbPassHash: "", igneous: "" }
-      invalidateContent()
-    },
-  })
+  try {
+    const bound = await bind({ ...form.value })
+    successMessage.value = bound.hasExAccess
+      ? "绑定成功，里站已解锁。"
+      : "绑定成功。这个账号没有里站权限，只能浏览前站。"
+    form.value = { ipbMemberId: "", ipbPassHash: "", igneous: "" }
+  } catch {
+    /* 失败原因已经在 errorMessage 里，这里只是别让它变成未处理的拒绝。 */
+  }
 }
 
-function unbind() {
+async function unbind() {
   successMessage.value = ""
-  return saveAction.run(() => ehStore.unbindCredential(), { apply: invalidateContent })
+  await unbindCredential().catch(() => {})
 }
 
 async function signOut() {
@@ -84,7 +64,7 @@ async function signOut() {
           <Skeleton class="h-5 w-40" />
           <Skeleton class="h-20 w-full" />
         </template>
-        <ErrorAlert v-else-if="loadError" :message="loadError" title="状态加载失败" retryable @retry="load" />
+        <ErrorAlert v-else-if="loadError" :message="loadError" title="状态加载失败" retryable @retry="reload" />
         <template v-else>
           <div class="flex flex-wrap items-center gap-2 text-sm">
             <span class="text-muted-foreground">当前状态</span>

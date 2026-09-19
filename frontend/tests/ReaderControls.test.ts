@@ -1,15 +1,19 @@
 /* @vitest-environment happy-dom */
+import { VueQueryPlugin } from "@tanstack/vue-query"
 import { createPinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { computed, createApp, h, nextTick, reactive } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
+import type * as EhApi from "@/api/eh"
 import { fetchGalleryPreferences, saveReaderInterval } from "@/api/eh"
+import { createQueryClient } from "@/api/queryClient"
 import ReaderControls from "@/components/gallery/ReaderControls.vue"
 import { useReaderPlayback } from "@/composables/useReaderPlayback"
 import { useAuthStore } from "@/stores/AuthStore"
 
-vi.mock("@/api/eh", () => ({
+vi.mock("@/api/eh", async (original) => ({
+  ...(await original<typeof EhApi>()),
   fetchGalleryPreferences: vi.fn(),
   saveReaderInterval: vi.fn(),
 }))
@@ -71,6 +75,7 @@ async function createReader(userId: number | undefined = 1, position: { page?: n
   const pinia = createPinia()
   app.use(pinia)
   app.use(router)
+  app.use(VueQueryPlugin, { queryClient: createQueryClient() })
   useAuthStore(pinia).user = userId === undefined ? null : { id: userId, username: "测试账号" }
   app.mount(host)
   cleanups.push(() => {
@@ -175,7 +180,7 @@ describe("阅读器自动翻页控件", () => {
     expect(change).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
     expect(change).toHaveBeenCalledTimes(1)
-    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(6, expect.any(AbortSignal))
+    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(6)
     vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: 6 })
     const reopened = await createReader()
     expect(intervalText(reopened.host)).toBe("6 秒")
@@ -213,7 +218,7 @@ describe("阅读器自动翻页控件", () => {
     expect(intervalText(host)).toBe(`${seconds} 秒`)
     expect(disabledButton.disabled).toBe(true)
     await vi.advanceTimersByTimeAsync(1000)
-    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(seconds, expect.any(AbortSignal))
+    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(seconds)
   })
 
   it("连续调整合并保存，离开阅读页补存待提交的间隔", async () => {
@@ -225,11 +230,11 @@ describe("阅读器自动翻页控件", () => {
     await vi.advanceTimersByTimeAsync(999)
     expect(saveReaderInterval).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
-    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(7, expect.any(AbortSignal))
+    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(7)
     increase.click()
     await nextTick()
     await router.push("/away")
-    expect(saveReaderInterval).toHaveBeenLastCalledWith(8, expect.any(AbortSignal))
+    expect(saveReaderInterval).toHaveBeenLastCalledWith(8)
     await vi.advanceTimersByTimeAsync(1000)
     expect(saveReaderInterval).toHaveBeenCalledTimes(2)
   })
@@ -247,7 +252,7 @@ describe("阅读器自动翻页控件", () => {
     host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
     state.identity = "2/new"
     await nextTick()
-    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(6, expect.any(AbortSignal))
+    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(6)
     expect(fetchGalleryPreferences).toHaveBeenCalledTimes(1)
     expect(intervalText(host)).toBe("6 秒")
     finish()

@@ -6,9 +6,7 @@ import type * as EhApi from "@/api/eh"
 import {
   clearReadingHistory,
   clearSearchHistory,
-  fetchCredentialStatus,
   fetchGalleryDetail,
-  fetchGalleryPreferences,
   fetchReadingHistory,
   fetchSearchHistory,
   recordSearch,
@@ -24,8 +22,6 @@ vi.mock("@/api/eh", async (original) => ({
   ...(await original<typeof EhApi>()),
   fetchGalleryDetail: vi.fn(),
   fetchReadingHistory: vi.fn(),
-  fetchGalleryPreferences: vi.fn(),
-  fetchCredentialStatus: vi.fn(),
   saveProgress: vi.fn(),
   fetchSearchHistory: vi.fn(),
   recordSearch: vi.fn(),
@@ -206,27 +202,18 @@ describe("EH 共享阅读状态", () => {
 
   /* 每块账号数据都登记在同一张重置表里，这里把「一块都不许漏」钉住：
    * 以后新增一块忘了登记，会在这条用例上失败，而不是等到线上串号才发现。 */
-  it("切换账号清空全部账号级状态：阅读进度、搜索历史、浏览偏好与绑定状态", async () => {
+  it("切换账号清空 Store 持有的全部账号级状态：阅读进度与搜索历史", async () => {
     vi.mocked(fetchSearchHistory).mockResolvedValue(["猫"])
-    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 9 })
-    vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: true, memberId: "123", hasExAccess: true })
     await store.loadGalleryDetail(1, gallery.token)
     await store.loadSearchHistory()
-    await store.loadPreferences()
-    await store.loadCredential()
     expect(store.readingProgress.size).toBe(1)
     expect(store.searchHistory).toEqual(["猫"])
-    expect(store.preferences).toEqual({ categories: ["manga"], readerInterval: 9 })
-    expect(store.credential).toEqual({ bound: true, memberId: "123", hasExAccess: true })
 
     useAuthStore().logout()
     useAuthStore().user = { id: 2, username: "second" }
 
     expect(store.readingProgress.size).toBe(0)
     expect(store.searchHistory).toEqual([])
-    /* 偏好回到后端读不到偏好行时的那份默认值，不是上一个账号的 9 秒。 */
-    expect(store.preferences).toEqual({ categories: [], readerInterval: 5 })
-    expect(store.credential).toBeNull()
   })
 
   it("销毁 Store 取消未触发的保存", async () => {

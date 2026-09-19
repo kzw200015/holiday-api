@@ -12,6 +12,8 @@ export const ehKeys = {
   history: ["eh", "content", "history"] as const,
   /* 分类数组参与哈希，顺序不同就是另一份查询，所以提交前一律去重排序。 */
   galleries: (search: GallerySearch) => ["eh", "content", "galleries", search] as const,
+  preferences: ["eh", "account", "preferences"] as const,
+  credential: ["eh", "account", "credential"] as const,
 }
 
 /** 列表里一张卡片的内容，与后端 GalleryCard 对齐 */

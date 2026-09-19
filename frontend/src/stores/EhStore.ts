@@ -11,12 +11,6 @@ export interface ReadingPosition {
   page: number
 }
 
-/* 提交成功不需要改本地状态时的占位。 */
-const noop = () => {}
-
-/* 后端读不到偏好行时也回这个值，两边保持一致。 */
-const defaultPreferences = (): ehApi.GalleryPreferences => ({ categories: [], readerInterval: 5 })
-
 export const useEhStore = defineStore("EhStore", () => {
   const authStore = useAuthStore()
   const saveTimers = new Map<number, ReturnType<typeof setTimeout>>()
@@ -44,10 +38,6 @@ export const useEhStore = defineStore("EhStore", () => {
   /* 与后端一样按 gid 识别进度；只存已查询到或已保存成功的页码。 */
   const { state: readingProgress, run: runReading } = accountState(() => new Map<number, number | null>())
   const { state: searchHistory, run: runSearch } = accountState<string[]>(() => [])
-  /* 浏览偏好与搜索历史同属账号数据：只有一份，读写也按提交顺序排队。 */
-  const { state: preferences, run: runPreference } = accountState(defaultPreferences)
-  /* e 站绑定状态。未读取时为 null，界面据此区分「还没问过」和「确实没绑」。 */
-  const { state: credential, run: runCredential } = accountState<ehApi.CredentialStatus | null>(() => null)
 
   /* 详情接口包含进度，也参与读写排序；页面不再单独持有这份页码。 */
   async function loadGalleryDetail(gid: number, token: string, signal?: AbortSignal) {
@@ -136,51 +126,6 @@ export const useEhStore = defineStore("EhStore", () => {
     return runSearch(ehApi.clearSearchHistory, acceptSearchHistory, signal)
   }
 
-  function acceptCredential(status: ehApi.CredentialStatus) {
-    credential.value = status
-  }
-
-  function loadCredential(signal?: AbortSignal) {
-    return runCredential(ehApi.fetchCredentialStatus, acceptCredential, signal)
-  }
-
-  /* 换绑或解绑会改变能看到的内容，但「哪些缓存该作废」是界面的事，由发起操作的页面去失效。 */
-  function bindCredential(cookie: ehApi.EhCookie) {
-    return runCredential(() => ehApi.bindCredential(cookie), acceptCredential)
-  }
-
-  function unbindCredential() {
-    return runCredential(() => ehApi.unbindCredential(), acceptCredential)
-  }
-
-  /* 每次进入页面都重新读一次：偏好可能在别的设备上改过。 */
-  function loadPreferences(signal?: AbortSignal) {
-    return runPreference(
-      ehApi.fetchGalleryPreferences,
-      (loaded) => {
-        preferences.value = loaded
-      },
-      signal,
-    )
-  }
-
-  /* 两个保存接口都是「先落到界面、再提交」：改动当场生效，保存失败也不把用户刚做的选择弹回去。
-   * 成功之后无需回写——本地早就是这个值了，再写一遍反而会把排在后面的那次改动顶掉。
-   */
-  function saveCategories(categories: string[]) {
-    const next = [...categories]
-    preferences.value = { ...preferences.value, categories: next }
-    return runPreference((signal) => ehApi.saveGalleryCategories(next, signal), noop)
-  }
-
-  function setReaderInterval(interval: number) {
-    preferences.value = { ...preferences.value, readerInterval: interval }
-  }
-
-  function saveReaderInterval(interval: number) {
-    return runPreference((signal) => ehApi.saveReaderInterval(interval, signal), noop)
-  }
-
   function resetSessionState() {
     cancelPendingSaves()
     for (const reset of sessionResets) {
@@ -195,19 +140,10 @@ export const useEhStore = defineStore("EhStore", () => {
   return {
     readingProgress,
     searchHistory,
-    preferences,
-    credential,
-    loadCredential,
-    bindCredential,
-    unbindCredential,
     loadSearchHistory,
     recordSearch,
     removeSearch,
     clearSearchHistory,
-    loadPreferences,
-    saveCategories,
-    setReaderInterval,
-    saveReaderInterval,
     loadGalleryDetail,
     loadReadingHistory,
     scheduleProgress,

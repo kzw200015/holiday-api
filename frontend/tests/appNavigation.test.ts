@@ -414,8 +414,8 @@ describe("页面缓存与失效范围", () => {
     await visit("/settings")
     expect(host.querySelector<HTMLInputElement>("#ipbPassHash")!.value).toBe("")
     expect(fetchHolidayDetail).toHaveBeenCalledTimes(2)
-    /* 图库布局和设置页各读一次绑定状态，换账号后两者都重建，于是又各读一次。 */
-    expect(fetchCredentialStatus).toHaveBeenCalledTimes(4)
+    /* 图库布局和设置页读同一个查询键，一个账号只读一次；换账号清空缓存后再读一次。 */
+    expect(fetchCredentialStatus).toHaveBeenCalledTimes(2)
     expect(searchGalleries).toHaveBeenCalledTimes(2)
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
   })
@@ -523,6 +523,8 @@ describe("页面缓存与失效范围", () => {
 
   it.each(["绑定", "解绑"])("%s只淘汰图库缓存，保留设置页且不重新读取凭据状态", async (action) => {
     vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: true, memberId: "123", hasExAccess: false })
+    /* 进入测试时图库布局已经读过一次状态，换掉返回值后要让缓存重新问一次。 */
+    await queryClient.invalidateQueries({ queryKey: ehKeys.credential })
     vi.mocked(bindCredential).mockResolvedValue({ bound: true, memberId: "456", hasExAccess: true })
     vi.mocked(unbindCredential).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
     await visit("/eh/g/1/aaaaaaaaaa")
@@ -605,7 +607,7 @@ describe("页面缓存与失效范围", () => {
       { keyword: "cat", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
-    expect(saveGalleryCategories).toHaveBeenCalledExactlyOnceWith(["manga"], expect.any(AbortSignal))
+    expect(saveGalleryCategories).toHaveBeenCalledExactlyOnceWith(["manga"])
     expect(host.textContent).toContain("分类 (1)")
     expect(recordSearch).toHaveBeenCalledExactlyOnceWith("cat", expect.any(AbortSignal))
     await enterKeyword("dog")

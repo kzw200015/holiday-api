@@ -1,18 +1,14 @@
 <script setup lang="ts">
 import { InfoIcon } from "@lucide/vue"
-import { computed, onMounted } from "vue"
+import { computed } from "vue"
 import { RouterLink, RouterView } from "vue-router"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { useEhStore } from "@/stores/EhStore"
+import { useEhCredential } from "@/composables/useEhCredential"
 
-const ehStore = useEhStore()
+const credential = useEhCredential()
 /* 读不到绑定状态就当作没问过，不显示任何提示：这条提示是背景信息，不该因为它失败而打扰阅读。 */
-const anonymous = computed(() => ehStore.credential?.bound === false)
-
-onMounted(() => {
-  ehStore.loadCredential().catch(() => {})
-})
+const anonymous = computed(() => credential.status.value?.bound === false)
 </script>
 
 <template>

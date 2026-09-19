@@ -1,7 +1,6 @@
 import { useDocumentVisibility, useIntervalFn, useTimeoutFn } from "@vueuse/core"
 import {
   computed,
-  onMounted,
   onScopeDispose,
   reactive,
   ref,
@@ -117,7 +116,6 @@ export function useReaderPlayback(
     { flush: "sync" },
   )
 
-  onMounted(preferences.load)
   watch(identity, async () => {
     stop()
     const current = ++revision
