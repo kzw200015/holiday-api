@@ -1,4 +1,5 @@
 /* @vitest-environment happy-dom */
+import { VueQueryPlugin } from "@tanstack/vue-query"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, KeepAlive, nextTick } from "vue"
@@ -13,6 +14,7 @@ import {
   removeSearch,
   searchGalleries,
 } from "@/api/eh"
+import { createQueryClient } from "@/api/queryClient"
 import GalleryListView from "@/views/GalleryListView.vue"
 
 vi.mock("@/api/eh", async (original) => ({
@@ -55,6 +57,7 @@ async function mountForm() {
   pinia = createPinia()
   app.use(pinia)
   app.use(router)
+  app.use(VueQueryPlugin, { queryClient: createQueryClient() })
   app.mount(host)
   await settle()
 }

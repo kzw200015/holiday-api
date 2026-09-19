@@ -1,67 +1,70 @@
+import { useInfiniteQuery, useQueryClient } from "@tanstack/vue-query"
 import { useInfiniteScroll } from "@vueuse/core"
-import { computed, onActivated, onDeactivated, onScopeDispose, reactive, ref, shallowRef, triggerRef } from "vue"
+import { computed, onActivated, onDeactivated, onScopeDispose, reactive, ref, shallowRef } from "vue"
 
-import { searchGalleries, type GalleryCard, type GallerySearch } from "@/api/eh"
-import { useAsyncAction } from "@/composables/useAsyncAction"
+import { ehKeys, searchGalleries, type GalleryPage, type GallerySearch } from "@/api/eh"
+import { CONTENT_STALE_TIME } from "@/api/queryClient"
 import { useGalleryPreferences } from "@/composables/useGalleryPreferences"
 import { usePageScroll } from "@/composables/usePageScroll"
 import { useSearchHistory } from "@/composables/useSearchHistory"
 
+/* 同一组条件的两种写法要哈希成同一个键，所以去重加排序。 */
+function normalize(search: GallerySearch): GallerySearch {
+  return { keyword: search.keyword, categories: [...new Set(search.categories)].sort() }
+}
+
+function sameSearch(left: GallerySearch | null, right: GallerySearch) {
+  return left?.keyword === right.keyword && left.categories.join(",") === right.categories.join(",")
+}
+
 /** 草稿、已提交条件、远端偏好和分页在同一个页面作用域内协调。 */
 export function useGallerySearch() {
   const keyword = ref("")
+  /* 已提交的条件。它同时是查询键，所以换条件就是换一份数据，旧条件的响应不会再写进来。 */
   const query = shallowRef<GallerySearch | null>(null)
-  const items = shallowRef<GalleryCard[]>([])
-  const cursor = ref<string | null>(null)
   const active = ref(true)
   const preferences = reactive(useGalleryPreferences())
   const history = reactive(useSearchHistory())
   const resetScroll = usePageScroll()
-  /* 翻页请求同一时刻只该有一个：换条件时旧的那页结果已经没有意义。 */
-  const paging = useAsyncAction({ latestOnly: true })
-  let activation = 0
+  const queryClient = useQueryClient()
+
+  const paging = useInfiniteQuery({
+    queryKey: computed(() => ehKeys.galleries(query.value ?? { keyword: "", categories: [] })),
+    queryFn: ({ pageParam, signal }) => searchGalleries({ ...query.value!, cursor: pageParam }, signal),
+    initialPageParam: "",
+    getNextPageParam: (page: GalleryPage) => page.nextCursor,
+    /* 条件还没确定（首次激活要先读远端分类）时先不查。 */
+    enabled: computed(() => query.value !== null),
+    staleTime: CONTENT_STALE_TIME,
+  })
+  const items = computed(() => paging.data.value?.pages.flatMap((page) => page.items) ?? [])
 
   /**
-   * 换一组搜索条件。
+   * 换一组搜索条件，返回条件是否真的变了。
    *
-   * 条件没变时默认不重来，好让返回列表页时保留已加载的多页和滚动位置。这条短路有两个例外：
-   * 用户自己按了搜索（submit 传 force），以及上一次就失败了——否则同一个关键词重按搜索、
-   * 甚至离开页面再回来，都不会发出任何请求，界面上看不出任何反应。
+   * 条件变了就是换查询键，缓存里有就直接显示、没有才请求。条件没变时只有两种情况要重来一次：
+   * 用户自己按了搜索（列表按时间倒序，重按就是想看有没有新的），以及上一次失败了——
+   * 否则同一个关键词重按搜索、甚至离开页面再回来，都不会有任何反应。
    */
-  function search(next: GallerySearch, force = false) {
-    const categories = [...new Set(next.categories)].sort()
-    const unchanged = query.value?.keyword === next.keyword && query.value.categories.join(",") === categories.join(",")
-    if (unchanged && !force && !paging.errorMessage.value) {
-      return
+  function restart(next: GallerySearch, force: boolean) {
+    const normalized = normalize(next)
+    const changed = !sameSearch(query.value, normalized)
+    query.value = normalized
+    if (!changed && (force || paging.isError.value)) {
+      void queryClient.resetQueries({ queryKey: ehKeys.galleries(normalized) })
     }
-    paging.cancel()
-    paging.clearError()
-    query.value = { keyword: next.keyword, categories }
-    items.value = []
-    cursor.value = ""
-    void loadMore()
+    return changed
   }
 
   function loadMore() {
-    const current = query.value
-    const from = cursor.value
-    /* 上一页还在路上、已经到底、或者上一次就失败了（等用户点重试），都不再自动往下取。 */
-    if (!current || from === null || paging.pending.value || paging.errorMessage.value) {
-      return
+    if (paging.hasNextPage.value && !paging.isFetching.value && !paging.isError.value) {
+      void paging.fetchNextPage()
     }
-    return paging.run((signal) => searchGalleries({ ...current, cursor: from }, signal), {
-      apply: (result) => {
-        items.value.push(...result.items)
-        triggerRef(items)
-        cursor.value = result.nextCursor
-      },
-    })
   }
 
-  /* 按下搜索就当作「重新搜一次」，哪怕条件和上次一样：列表按时间倒序，重来能看到新图集。 */
   function submit() {
     keyword.value = keyword.value.trim()
-    search({ keyword: keyword.value, categories: preferences.categories }, true)
+    restart({ keyword: keyword.value, categories: preferences.categories }, true)
     if (keyword.value) {
       void history.record(keyword.value)
     }
@@ -78,23 +81,24 @@ export function useGallerySearch() {
     submit()
   }
 
+  /* 第一页失败就重取第一页，续取失败则重试那一页。 */
   function retry() {
-    paging.clearError()
-    void loadMore()
+    if (items.value.length > 0) {
+      void paging.fetchNextPage()
+    } else {
+      void paging.refetch()
+    }
   }
 
   onActivated(async () => {
     active.value = true
-    const current = ++activation
     void history.load()
     await preferences.load()
-    if (!active.value || current !== activation) {
+    if (!active.value) {
       return
     }
-    /* 更新远端分类时沿用已提交关键词，草稿和未变化的列表位置保持原样。 */
-    const previousCategories = query.value?.categories.join(",") ?? ""
-    search({ keyword: query.value?.keyword ?? "", categories: preferences.categories })
-    if (previousCategories !== query.value?.categories.join(",")) {
+    /* 远端分类可能在别的设备上改过：条件跟着变才重新搜，草稿和原有列表位置保持原样。 */
+    if (restart({ keyword: query.value?.keyword ?? "", categories: preferences.categories }, false)) {
       void resetScroll()
     }
   })
@@ -105,23 +109,18 @@ export function useGallerySearch() {
     active.value = false
   })
 
-  const hasMore = computed(() => cursor.value !== null)
-  useInfiniteScroll(
-    () => (active.value ? window : null),
-    () => void loadMore(),
-    {
-      distance: 600,
-      canLoadMore: () => hasMore.value && !paging.pending.value && !paging.errorMessage.value,
-    },
-  )
+  useInfiniteScroll(() => (active.value ? window : null), loadMore, {
+    distance: 600,
+    canLoadMore: () => paging.hasNextPage.value && !paging.isFetching.value && !paging.isError.value,
+  })
 
   return {
     keyword,
     query,
     items,
-    loading: paging.pending,
-    errorMessage: paging.errorMessage,
-    hasMore,
+    loading: paging.isFetching,
+    errorMessage: computed(() => paging.error.value?.message ?? ""),
+    hasMore: paging.hasNextPage,
     preferences,
     history,
     submit,

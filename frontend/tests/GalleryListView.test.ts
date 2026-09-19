@@ -1,4 +1,5 @@
 /* @vitest-environment happy-dom */
+import { VueQueryPlugin } from "@tanstack/vue-query"
 import type * as VueUse from "@vueuse/core"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -7,6 +8,7 @@ import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
 import type * as EhApi from "@/api/eh"
 import { fetchGalleryPreferences, searchGalleries, type GalleryCard, type GalleryPage } from "@/api/eh"
+import { createQueryClient } from "@/api/queryClient"
 import GalleryListView from "@/views/GalleryListView.vue"
 
 const scroll = vi.hoisted(() => ({
@@ -100,6 +102,7 @@ async function mountList() {
   app.use(router)
   pinia = createPinia()
   app.use(pinia)
+  app.use(VueQueryPlugin, { queryClient: createQueryClient() })
   app.mount(host)
   await settle()
   search.mockClear()

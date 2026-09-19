@@ -582,7 +582,7 @@ describe("页面缓存与失效范围", () => {
     expect(searchGalleries).toHaveBeenCalledTimes(1)
   })
 
-  it("分类草稿关闭不生效，应用才搜索；历史词沿用当前分类", async () => {
+  it("分类草稿关闭不生效，应用才搜索；历史词沿用当前分类并复用缓存", async () => {
     await enterKeyword("cat")
     await click("分类")
     category("漫画").click()
@@ -607,12 +607,17 @@ describe("页面缓存与失效范围", () => {
     expect(recordSearch).toHaveBeenCalledExactlyOnceWith("cat", expect.any(AbortSignal))
     await enterKeyword("dog")
     await click("搜索")
-    await click("cat")
-    expect(router.currentRoute.value.fullPath).toBe("/eh")
     expect(searchGalleries).toHaveBeenLastCalledWith(
-      { keyword: "cat", categories: ["manga"], cursor: "" },
+      { keyword: "dog", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
+    const requests = vi.mocked(searchGalleries).mock.calls.length
+    await click("cat")
+    expect(router.currentRoute.value.fullPath).toBe("/eh")
+    expect(host.querySelector("input")!.value).toBe("cat")
+    /* cat 配当前分类的结果还在缓存里，直接显示，不必再抓一次上游；
+     * 反过来说，这一次没有请求也就证明它沿用的正是当前分类，换成别的分类就是另一个键了。 */
+    expect(searchGalleries).toHaveBeenCalledTimes(requests)
   })
 
   it("返回列表时读取其他设备的新分类与历史，不提交当前输入草稿", async () => {

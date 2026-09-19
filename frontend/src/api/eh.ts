@@ -10,6 +10,8 @@ export const ehKeys = {
   comments: (gid: number, token: string) => ["eh", "content", "comments", gid, token] as const,
   /* 历史记录本身是本站数据，但每条都带着 e 站的图集元数据，可见性跟着凭据变，所以同属 content。 */
   history: ["eh", "content", "history"] as const,
+  /* 分类数组参与哈希，顺序不同就是另一份查询，所以提交前一律去重排序。 */
+  galleries: (search: GallerySearch) => ["eh", "content", "galleries", search] as const,
 }
 
 /** 列表里一张卡片的内容，与后端 GalleryCard 对齐 */
