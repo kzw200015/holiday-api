@@ -147,8 +147,9 @@ export function bindCredential(cookie: EhCookie) {
   return httpClient.post<CredentialStatus>("/eh/credential", cookie)
 }
 
+/** 解绑，返回解绑后的状态 */
 export function unbindCredential() {
-  return httpClient.post<null>("/eh/credential/unbind")
+  return httpClient.post<CredentialStatus>("/eh/credential/unbind")
 }
 
 export interface GalleryPreferences {
@@ -160,12 +161,12 @@ export function fetchGalleryPreferences(signal?: AbortSignal) {
   return httpClient.get<GalleryPreferences>("/eh/preferences", { signal })
 }
 
-export function saveGalleryCategories(categories: string[]) {
-  return httpClient.post<null>("/eh/preferences/categories", { categories })
+export function saveGalleryCategories(categories: string[], signal?: AbortSignal) {
+  return httpClient.post<null>("/eh/preferences/categories", { categories }, { signal })
 }
 
-export function saveReaderInterval(interval: number) {
-  return httpClient.post<null>("/eh/preferences/reader-interval", { interval })
+export function saveReaderInterval(interval: number, signal?: AbortSignal) {
+  return httpClient.post<null>("/eh/preferences/reader-interval", { interval }, { signal })
 }
 
 export function fetchSearchHistory(signal?: AbortSignal) {
@@ -180,8 +181,9 @@ export function removeSearch(keyword: string, signal?: AbortSignal) {
   return httpClient.post<string[]>("/eh/search-history/remove", { keyword }, { signal })
 }
 
+/** 清空，返回清空后的历史（空列表），与记录、删除保持同一种返回 */
 export function clearSearchHistory(signal?: AbortSignal) {
-  return httpClient.post<null>("/eh/search-history/clear", undefined, { signal })
+  return httpClient.post<string[]>("/eh/search-history/clear", undefined, { signal })
 }
 
 export interface ReadingHistoryItem {

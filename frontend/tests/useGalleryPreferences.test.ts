@@ -1,4 +1,5 @@
 /* @vitest-environment happy-dom */
+import { createPinia, disposePinia, setActivePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { effectScope } from "vue"
 
@@ -11,6 +12,9 @@ vi.mock("@/api/eh", () => ({
   saveReaderInterval: vi.fn(),
 }))
 
+/* 偏好数据住在账号 Store 里，页面拿到的是同一份，所以每个用例都要一个干净的 Pinia。 */
+let pinia: ReturnType<typeof createPinia>
+
 const scopes: ReturnType<typeof effectScope>[] = []
 function createPreferences() {
   const scope = effectScope()
@@ -20,6 +24,8 @@ function createPreferences() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  pinia = createPinia()
+  setActivePinia(pinia)
   vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 8 })
   vi.mocked(saveGalleryCategories).mockResolvedValue(null)
   vi.mocked(saveReaderInterval).mockResolvedValue(null)
@@ -28,6 +34,7 @@ afterEach(() => {
   for (const scope of scopes.splice(0)) {
     scope.stop()
   }
+  disposePinia(pinia)
 })
 
 describe("账号浏览偏好", () => {
@@ -37,11 +44,11 @@ describe("账号浏览偏好", () => {
     expect(preferences.categories.value).toEqual(["manga"])
     expect(preferences.interval.value).toBe(8)
     await preferences.applyCategories([])
-    expect(saveGalleryCategories).toHaveBeenCalledExactlyOnceWith([])
+    expect(saveGalleryCategories).toHaveBeenCalledExactlyOnceWith([], expect.any(AbortSignal))
     expect(saveReaderInterval).not.toHaveBeenCalled()
     preferences.interval.value = 6
     await preferences.saveInterval()
-    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(6)
+    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(6, expect.any(AbortSignal))
     expect(preferences.categories.value).toEqual([])
   })
 
@@ -71,12 +78,12 @@ describe("账号浏览偏好", () => {
     await preferences.applyCategories(["manga"])
     expect(preferences.categories.value).toEqual(["manga"])
     expect(preferences.errorMessage.value).toContain("未同步到账号")
-    expect(preferences.savingCategories.value).toBe(false)
+    expect(preferences.saving.value).toBe(false)
     preferences.interval.value = 7
     await preferences.saveInterval()
     expect(preferences.interval.value).toBe(7)
     expect(preferences.errorMessage.value).toContain("翻页间隔保存失败")
-    expect(preferences.savingInterval.value).toBe(false)
+    expect(preferences.saving.value).toBe(false)
     expect(saveReaderInterval).toHaveBeenCalledTimes(1)
   })
 
@@ -89,6 +96,8 @@ describe("账号浏览偏好", () => {
     )
     const preferences = createPreferences()
     const request = preferences.load()
+    /* 读取经过账号 Store 的队列，排到队头要等一个微任务。 */
+    await Promise.resolve()
     scopes.at(-1)!.stop()
     expect(vi.mocked(fetchGalleryPreferences).mock.calls[0]![0]!.aborted).toBe(true)
     resolve({ categories: ["manga"], readerInterval: 10 })

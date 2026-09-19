@@ -2,6 +2,7 @@ import { useInfiniteScroll } from "@vueuse/core"
 import { computed, onActivated, onDeactivated, onScopeDispose, reactive, ref, shallowRef, triggerRef } from "vue"
 
 import { searchGalleries, type GalleryCard, type GallerySearch } from "@/api/eh"
+import { useAsyncAction } from "@/composables/useAsyncAction"
 import { useGalleryPreferences } from "@/composables/useGalleryPreferences"
 import { usePageScroll } from "@/composables/usePageScroll"
 import { useSearchHistory } from "@/composables/useSearchHistory"
@@ -12,13 +13,12 @@ export function useGallerySearch() {
   const query = shallowRef<GallerySearch | null>(null)
   const items = shallowRef<GalleryCard[]>([])
   const cursor = ref<string | null>(null)
-  const loading = ref(false)
-  const errorMessage = ref("")
   const active = ref(true)
   const preferences = reactive(useGalleryPreferences())
   const history = reactive(useSearchHistory())
   const resetScroll = usePageScroll()
-  let request: AbortController | undefined
+  /* 翻页请求同一时刻只该有一个：换条件时旧的那页结果已经没有意义。 */
+  const paging = useAsyncAction({ latestOnly: true })
   let activation = 0
 
   function search(next: GallerySearch) {
@@ -26,38 +26,28 @@ export function useGallerySearch() {
     if (query.value?.keyword === next.keyword && query.value.categories.join(",") === categories.join(",")) {
       return
     }
-    request?.abort()
+    paging.cancel()
+    paging.clearError()
     query.value = { keyword: next.keyword, categories }
     items.value = []
     cursor.value = ""
-    loading.value = false
-    errorMessage.value = ""
     void loadMore()
   }
 
-  async function loadMore() {
-    if (!query.value || loading.value || cursor.value === null || errorMessage.value) {
+  function loadMore() {
+    const current = query.value
+    const from = cursor.value
+    /* 上一页还在路上、已经到底、或者上一次就失败了（等用户点重试），都不再自动往下取。 */
+    if (!current || from === null || paging.pending.value || paging.errorMessage.value) {
       return
     }
-    const controller = new AbortController()
-    request = controller
-    loading.value = true
-    try {
-      const result = await searchGalleries({ ...query.value, cursor: cursor.value }, controller.signal)
-      if (!controller.signal.aborted) {
+    return paging.run((signal) => searchGalleries({ ...current, cursor: from }, signal), {
+      apply: (result) => {
         items.value.push(...result.items)
         triggerRef(items)
         cursor.value = result.nextCursor
-      }
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        errorMessage.value = (error as Error).message
-      }
-    } finally {
-      if (!controller.signal.aborted) {
-        loading.value = false
-      }
-    }
+      },
+    })
   }
 
   function submit() {
@@ -80,7 +70,7 @@ export function useGallerySearch() {
   }
 
   function retry() {
-    errorMessage.value = ""
+    paging.clearError()
     void loadMore()
   }
 
@@ -104,21 +94,24 @@ export function useGallerySearch() {
   })
   onScopeDispose(() => {
     active.value = false
-    request?.abort()
   })
 
   const hasMore = computed(() => cursor.value !== null)
-  useInfiniteScroll(() => (active.value ? window : null), loadMore, {
-    distance: 600,
-    canLoadMore: () => hasMore.value && !loading.value && !errorMessage.value,
-  })
+  useInfiniteScroll(
+    () => (active.value ? window : null),
+    () => void loadMore(),
+    {
+      distance: 600,
+      canLoadMore: () => hasMore.value && !paging.pending.value && !paging.errorMessage.value,
+    },
+  )
 
   return {
     keyword,
     query,
     items,
-    loading,
-    errorMessage,
+    loading: paging.pending,
+    errorMessage: paging.errorMessage,
     hasMore,
     preferences,
     history,

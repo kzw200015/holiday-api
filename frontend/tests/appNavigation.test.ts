@@ -149,7 +149,7 @@ beforeEach(async () => {
   })
   vi.mocked(clearSearchHistory).mockImplementation(async () => {
     history = []
-    return null
+    return [...history]
   })
   pinia = createPinia()
   const auth = useAuthStore(pinia)
@@ -510,7 +510,7 @@ describe("页面缓存与失效范围", () => {
   it.each(["绑定", "解绑"])("%s只淘汰图库缓存，保留设置页且不重新读取凭据状态", async (action) => {
     vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: true, memberId: "123", hasExAccess: false })
     vi.mocked(bindCredential).mockResolvedValue({ bound: true, memberId: "456", hasExAccess: true })
-    vi.mocked(unbindCredential).mockResolvedValue(null)
+    vi.mocked(unbindCredential).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
     await visit("/eh/g/1/aaaaaaaaaa")
     await visit("/")
     const home = host.querySelector(".page-content")!
@@ -590,7 +590,7 @@ describe("页面缓存与失效范围", () => {
       { keyword: "cat", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
-    expect(saveGalleryCategories).toHaveBeenCalledExactlyOnceWith(["manga"])
+    expect(saveGalleryCategories).toHaveBeenCalledExactlyOnceWith(["manga"], expect.any(AbortSignal))
     expect(host.textContent).toContain("分类 (1)")
     expect(recordSearch).toHaveBeenCalledExactlyOnceWith("cat", expect.any(AbortSignal))
     await enterKeyword("dog")

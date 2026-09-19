@@ -27,7 +27,7 @@ const {
     <GallerySearchForm
       v-model:keyword="keyword"
       :categories="preferences.categories"
-      :disabled="preferences.loading || preferences.savingCategories"
+      :disabled="preferences.loading || preferences.saving"
       :preferences-error="preferences.errorMessage"
       :history="history"
       @submit="submit"

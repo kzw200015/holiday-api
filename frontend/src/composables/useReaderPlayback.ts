@@ -35,7 +35,8 @@ export function useReaderPlayback(
   const visibility = useDocumentVisibility()
   const canStart = computed(() => toValue(total) > 0 && page.value < toValue(total) && visibility.value === "visible")
   const preferences = useGalleryPreferences()
-  let saving = Promise.resolve()
+  /* 只关心「上一次保存有没有跑完」，结果本身用不上。 */
+  let saving: Promise<unknown> = Promise.resolve()
   let revision = 0
 
   function persistInterval() {
@@ -130,7 +131,7 @@ export function useReaderPlayback(
     canStart,
     interval: preferences.interval,
     loading: preferences.loading,
-    saving: preferences.savingInterval,
+    saving: preferences.saving,
     errorMessage: preferences.errorMessage,
   })
   return { state, setInterval, toggle }

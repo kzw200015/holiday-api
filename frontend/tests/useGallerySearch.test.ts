@@ -85,7 +85,7 @@ beforeEach(() => {
   vi.mocked(fetchSearchHistory).mockResolvedValue(["cat"])
   vi.mocked(recordSearch).mockResolvedValue(["dog", "cat"])
   vi.mocked(removeSearch).mockResolvedValue(["dog"])
-  vi.mocked(clearSearchHistory).mockResolvedValue(null)
+  vi.mocked(clearSearchHistory).mockResolvedValue([])
 })
 afterEach(() => {
   app?.unmount()
