@@ -367,10 +367,11 @@ describe("页面缓存与失效范围", () => {
     expect(host.querySelector(".page-content")).toBe(holiday)
     expect(day.hasAttribute("data-selected")).toBe(true)
     expect(fetchHolidayDetail).toHaveBeenCalledTimes(holidayRequests)
+    const credentialRequests = vi.mocked(fetchCredentialStatus).mock.calls.length
     await visit("/settings")
     expect(host.querySelector("form")).toBe(form)
     expect(host.querySelector<HTMLInputElement>("#ipbMemberId")!.value).toBe("未提交的草稿")
-    expect(fetchCredentialStatus).toHaveBeenCalledTimes(1)
+    expect(fetchCredentialStatus).toHaveBeenCalledTimes(credentialRequests)
   })
 
   it.each(["登录", "退出"])("%s清空全部页面缓存，包括停用布局中的页面", async (action) => {
@@ -404,7 +405,8 @@ describe("页面缓存与失效范围", () => {
     await visit("/settings")
     expect(host.querySelector<HTMLInputElement>("#ipbPassHash")!.value).toBe("")
     expect(fetchHolidayDetail).toHaveBeenCalledTimes(2)
-    expect(fetchCredentialStatus).toHaveBeenCalledTimes(2)
+    /* 图库布局和设置页各读一次绑定状态，换账号后两者都重建，于是又各读一次。 */
+    expect(fetchCredentialStatus).toHaveBeenCalledTimes(4)
     expect(searchGalleries).toHaveBeenCalledTimes(2)
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
   })
@@ -540,9 +542,10 @@ describe("页面缓存与失效范围", () => {
     await visit("/holiday")
     expect(host.querySelector(".page-content")).toBe(holiday)
     expect(fetchHolidayDetail).toHaveBeenCalledTimes(1)
+    const credentialRequests = vi.mocked(fetchCredentialStatus).mock.calls.length
     await visit("/settings")
     expect(host.querySelector("form")).toBe(form)
-    expect(fetchCredentialStatus).toHaveBeenCalledTimes(1)
+    expect(fetchCredentialStatus).toHaveBeenCalledTimes(credentialRequests)
     await visit("/eh")
     expect(searchGalleries).toHaveBeenCalledTimes(2)
     await visit("/eh/g/1/aaaaaaaaaa")

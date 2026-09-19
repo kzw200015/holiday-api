@@ -38,6 +38,7 @@ export function useReaderPlayback(
   /* 只关心「上一次保存有没有跑完」，结果本身用不上。 */
   let saving: Promise<unknown> = Promise.resolve()
   let revision = 0
+  let resumeWhenVisible = false
 
   function persistInterval() {
     saving = preferences.saveInterval()
@@ -73,7 +74,9 @@ export function useReaderPlayback(
     { immediate: false },
   )
 
+  /* 停下就是停下：顺带丢掉「回到前台继续」的意图，免得手动暂停后又自己转起来。 */
   function stop() {
+    resumeWhenVisible = false
     autoPaging.value = false
   }
 
@@ -85,11 +88,17 @@ export function useReaderPlayback(
     }
   }
 
+  /* 切到后台算暂停不算结束，回到前台接着翻；读到最后一页那种不能继续的情况才真的停下。 */
   watch(
     canStart,
     (allowed) => {
       if (!allowed) {
+        const hidden = autoPaging.value && visibility.value !== "visible"
         stop()
+        resumeWhenVisible = hidden
+      } else if (resumeWhenVisible) {
+        resumeWhenVisible = false
+        autoPaging.value = true
       }
     },
     { flush: "sync" },

@@ -303,7 +303,7 @@ describe("阅读器自动翻页控件", () => {
     expect(change).toHaveBeenCalledTimes(1)
   })
 
-  it("切入后台停止，回来需要手动启动；换图集同样停止", async () => {
+  it("切入后台只是暂停，回到前台继续翻；换图集才真的停止", async () => {
     const { state, change, host } = await createReader()
     autoButton(host).click()
     await nextTick()
@@ -311,12 +311,16 @@ describe("阅读器自动翻页控件", () => {
     document.dispatchEvent(new Event("visibilitychange"))
     await nextTick()
     expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
-    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
-    document.dispatchEvent(new Event("visibilitychange"))
     await vi.advanceTimersByTimeAsync(10000)
     expect(change).not.toHaveBeenCalled()
-    autoButton(host).click()
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
+    document.dispatchEvent(new Event("visibilitychange"))
     await nextTick()
+    expect(autoButton(host).getAttribute("aria-pressed")).toBe("true")
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(change).toHaveBeenCalledWith(2)
+    /* 换图集是真的停下：回到可继续的状态也不会自己转起来。 */
+    change.mockClear()
     state.identity = "2/other"
     await nextTick()
     expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
