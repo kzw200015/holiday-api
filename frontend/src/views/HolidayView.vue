@@ -1,20 +1,31 @@
 <script setup lang="ts">
 import { getLocalTimeZone, parseDate, today, type DateValue } from "@internationalized/date"
 import { BriefcaseIcon, PartyPopperIcon } from "@lucide/vue"
+import { useQuery } from "@tanstack/vue-query"
 import { computed, shallowRef } from "vue"
 
-import { fetchHolidayDetail } from "@/api/holiday"
+import { fetchHolidayDetail, holidayKeys } from "@/api/holiday"
+import { HOLIDAY_STALE_TIME } from "@/api/queryClient"
 import ErrorAlert from "@/components/ErrorAlert.vue"
 import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useQuery } from "@/composables/useQuery"
 
 const weekdayNames = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
 /* DateValue 是带私有字段的不可变对象，避免深度解包。 */
 const selected = shallowRef<DateValue>(today(getLocalTimeZone()))
-const { data: detail, error, loading, retry } = useQuery(() => selected.value.toString(), fetchHolidayDetail)
+const {
+  data: detail,
+  error,
+  isPending: loading,
+  refetch,
+} = useQuery({
+  queryKey: computed(() => holidayKeys.detail(selected.value.toString())),
+  queryFn: ({ signal }) => fetchHolidayDetail(selected.value.toString(), signal),
+  staleTime: HOLIDAY_STALE_TIME,
+})
+const retry = () => void refetch()
 const summary = computed(() => {
   const value = detail.value
   if (!value) {

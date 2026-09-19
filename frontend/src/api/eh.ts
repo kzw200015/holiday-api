@@ -1,5 +1,15 @@
 import { httpClient } from "@/api/httpClient"
 
+/**
+ * 查询键。第二段把数据分成两类：content 是受 e 站凭据影响的内容，换绑 e 站账号后要重取；
+ * account 是本站的账号数据（浏览偏好、绑定状态本身），不该跟着 e 站账号一起失效。
+ */
+export const ehKeys = {
+  content: ["eh", "content"] as const,
+  gallery: (gid: number, token: string) => ["eh", "content", "gallery", gid, token] as const,
+  comments: (gid: number, token: string) => ["eh", "content", "comments", gid, token] as const,
+}
+
 /** 列表里一张卡片的内容，与后端 GalleryCard 对齐 */
 export interface GalleryCard {
   gid: number

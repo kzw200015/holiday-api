@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { VueQueryPlugin } from "@tanstack/vue-query"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, type App as VueApp } from "vue"
@@ -26,14 +27,19 @@ import {
   unbindCredential,
   type GalleryDetail,
 } from "@/api/eh"
+import type * as HolidayApi from "@/api/holiday"
 import { fetchHolidayDetail } from "@/api/holiday"
+import { createQueryClient } from "@/api/queryClient"
 import App from "@/App.vue"
 import { AppRouter } from "@/router"
 import { useAuthStore } from "@/stores/AuthStore"
 import { useEhStore } from "@/stores/EhStore"
 
 vi.mock("@/api/auth", () => ({ authenticate: vi.fn(), fetchCurrentUser: vi.fn() }))
-vi.mock("@/api/holiday", () => ({ fetchHolidayDetail: vi.fn() }))
+vi.mock("@/api/holiday", async (original) => ({
+  ...(await original<typeof HolidayApi>()),
+  fetchHolidayDetail: vi.fn(),
+}))
 vi.mock("@/api/eh", async (original) => ({
   ...(await original<typeof EhApi>()),
   bindCredential: vi.fn(),
@@ -162,7 +168,7 @@ beforeEach(async () => {
   })
   host = document.createElement("div")
   document.body.append(host)
-  app = createApp(App).use(pinia).use(router)
+  app = createApp(App).use(pinia).use(router).use(VueQueryPlugin, { queryClient: createQueryClient() })
   await router.push("/eh")
   await router.isReady()
   app.mount(host)
@@ -453,7 +459,8 @@ describe("页面缓存与失效范围", () => {
     expect(host.textContent).toContain("继续阅读（第 18 页）")
     expect(window.scrollY).toBe(450)
     expect(fetchGalleryComments).toHaveBeenCalledTimes(1)
-    expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
+    /* 详情页和阅读器查的是同一份缓存，所以进阅读器不再重新抓一次图集元数据。 */
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(1)
     expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 18, expect.any(AbortSignal))
     await click("返回列表")
     expect(router.currentRoute.value.fullPath).toBe("/eh")

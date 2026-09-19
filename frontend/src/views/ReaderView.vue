@@ -1,14 +1,16 @@
 <script setup lang="ts">
+import { useQuery } from "@tanstack/vue-query"
 import { clamp, useEventListener, useTimeoutFn } from "@vueuse/core"
 import { computed, ref, watch } from "vue"
 import { onBeforeRouteLeave, useRouter } from "vue-router"
 
+import { ehKeys } from "@/api/eh"
+import { CONTENT_STALE_TIME } from "@/api/queryClient"
 import ErrorAlert from "@/components/ErrorAlert.vue"
 import ReaderControls from "@/components/gallery/ReaderControls.vue"
 import ReaderStrip from "@/components/gallery/ReaderStrip.vue"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useQuery } from "@/composables/useQuery"
 import { useReaderPlayback } from "@/composables/useReaderPlayback"
 import { readerExitLocation, readerLocation, type ReaderOrigin } from "@/lib/galleryNavigation"
 import { backOrReplace } from "@/lib/navigation"
@@ -43,8 +45,12 @@ const identity = computed(() => `${props.gid}/${props.token}`)
 const {
   data: detail,
   error,
-  loading,
-} = useQuery(identity, (_identity, signal) => ehStore.loadGalleryDetail(props.gid, props.token, signal))
+  isPending: loading,
+} = useQuery({
+  queryKey: computed(() => ehKeys.gallery(props.gid, props.token)),
+  queryFn: ({ signal }) => ehStore.loadGalleryDetail(props.gid, props.token, signal),
+  staleTime: CONTENT_STALE_TIME,
+})
 const gallery = computed(() => detail.value?.gallery)
 const totalPages = computed(() => gallery.value?.fileCount ?? 0)
 /**

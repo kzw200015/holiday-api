@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ArrowLeftIcon, BookOpenIcon } from "@lucide/vue"
+import { useQuery } from "@tanstack/vue-query"
 import { computed } from "vue"
 import { RouterLink, useRouter } from "vue-router"
 
-import { fetchGalleryComments } from "@/api/eh"
+import { ehKeys, fetchGalleryComments } from "@/api/eh"
+import { CONTENT_STALE_TIME } from "@/api/queryClient"
 import EmptyState from "@/components/EmptyState.vue"
 import ErrorAlert from "@/components/ErrorAlert.vue"
 import CommentBody from "@/components/gallery/CommentBody.vue"
@@ -15,7 +17,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { usePageScroll } from "@/composables/usePageScroll"
-import { useQuery } from "@/composables/useQuery"
 import { formatDateTime, formatFileSize, formatNamespace, splitTag } from "@/lib/format"
 import { galleryListLocation, readerLocation, type GallerySource } from "@/lib/galleryNavigation"
 import { backOrReplace } from "@/lib/navigation"
@@ -30,9 +31,13 @@ usePageScroll(identity)
 const {
   data: detail,
   error,
-  loading,
-  retry,
-} = useQuery(identity, (_identity, signal) => ehStore.loadGalleryDetail(props.gid, props.token, signal))
+  isPending: loading,
+  refetch: reloadDetail,
+} = useQuery({
+  queryKey: computed(() => ehKeys.gallery(props.gid, props.token)),
+  queryFn: ({ signal }) => ehStore.loadGalleryDetail(props.gid, props.token, signal),
+  staleTime: CONTENT_STALE_TIME,
+})
 const gallery = computed(() => detail.value?.gallery)
 const progress = computed(() => ehStore.readingProgress.get(props.gid) ?? null)
 const canContinue = computed(() => (progress.value ?? 0) > 1)
@@ -40,9 +45,15 @@ const canContinue = computed(() => (progress.value ?? 0) > 1)
 const {
   data: comments,
   error: commentsError,
-  loading: commentsLoading,
-  retry: retryComments,
-} = useQuery(identity, (_identity, signal) => fetchGalleryComments(props.gid, props.token, signal))
+  isPending: commentsLoading,
+  refetch: reloadComments,
+} = useQuery({
+  queryKey: computed(() => ehKeys.comments(props.gid, props.token)),
+  queryFn: ({ signal }) => fetchGalleryComments(props.gid, props.token, signal),
+  staleTime: CONTENT_STALE_TIME,
+})
+const retry = () => void reloadDetail()
+const retryComments = () => void reloadComments()
 const groupedTags = computed(() => {
   const groups = new Map<string, string[]>()
   for (const tag of gallery.value?.tags ?? []) {

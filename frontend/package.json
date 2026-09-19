@@ -17,6 +17,7 @@
   "dependencies": {
     "@internationalized/date": "^3.12.3",
     "@lucide/vue": "^1.30.0",
+    "@tanstack/vue-query": "^5.103.1",
     "@vueuse/core": "^14.4.0",
     "axios": "^1.19.0",
     "class-variance-authority": "^0.7.1",

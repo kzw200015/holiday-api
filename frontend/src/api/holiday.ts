@@ -10,6 +10,10 @@ export interface HolidayDetail {
   name: string
 }
 
+export const holidayKeys = {
+  detail: (date: string) => ["holiday", "detail", date] as const,
+}
+
 /** 查询某一天是否为休息日及对应的节假日 */
 export function fetchHolidayDetail(date: string, signal?: AbortSignal) {
   return httpClient.get<HolidayDetail>("/holiday/detail", { params: { date }, signal })
