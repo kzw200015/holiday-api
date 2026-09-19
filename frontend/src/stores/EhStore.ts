@@ -19,25 +19,32 @@ export const useEhStore = defineStore("EhStore", () => {
   const sessionResets: (() => void)[] = []
 
   /**
-   * 一块账号级数据：一份状态，加一条把读写按提交顺序排好的队列。
+   * 一条把读写按提交顺序排好的队列，换账号时连同在途请求一起丢掉。
    *
-   * 每块都要「换账号时重置队列并恢复初始值」，以前是在 resetSessionState 里逐块手写两行。
-   * 漏写一块不会有任何信号，表现是换账号后还能看到上一个账号的数据——上线后才发现、
-   * 也很难复现。登记在这里之后，加一块新数据就不可能忘。
+   * 每块账号级数据都要「换账号时重置」，以前是在 resetSessionState 里逐块手写。漏写一块不会有
+   * 任何信号，表现是换账号后还能看到上一个账号的数据——上线后才发现、也很难复现。登记在这里
+   * 之后，加一块新数据就不可能忘。
    */
+  function accountQueue() {
+    const queue = useSerialQueue()
+    sessionResets.push(queue.reset)
+    return queue.run
+  }
+
+  /** 一块账号级数据：一份状态，加上那条队列。 */
   function accountState<T>(initial: () => T) {
     const state = ref(initial()) as Ref<T>
-    const queue = useSerialQueue()
+    const run = accountQueue()
     sessionResets.push(() => {
-      queue.reset()
       state.value = initial()
     })
-    return { state, run: queue.run }
+    return { state, run }
   }
 
   /* 与后端一样按 gid 识别进度；只存已查询到或已保存成功的页码。 */
   const { state: readingProgress, run: runReading } = accountState(() => new Map<number, number | null>())
-  const { state: searchHistory, run: runSearch } = accountState<string[]>(() => [])
+  /* 搜索历史的内容住在查询缓存里，Store 这边只负责「按提交顺序」这一件事。 */
+  const runSearch = accountQueue()
 
   /* 详情接口包含进度，也参与读写排序；页面不再单独持有这份页码。 */
   async function loadGalleryDetail(gid: number, token: string, signal?: AbortSignal) {
@@ -104,26 +111,22 @@ export const useEhStore = defineStore("EhStore", () => {
     )
   }
 
-  /* 四个接口都回整份历史，提交方式只有「整份替换」这一种。 */
-  function acceptSearchHistory(entries: string[]) {
-    searchHistory.value = entries
-  }
-
-  /* 搜索历史按账号顺序提交，页面退出后已排队的写入继续执行。 */
+  /* 四个接口都回整份历史，提交方式只有「整份替换」这一种，所以必须按提交顺序生效。
+   * 页面退出后已排队的写入继续执行。 */
   function loadSearchHistory(signal?: AbortSignal) {
-    return runSearch(ehApi.fetchSearchHistory, acceptSearchHistory, signal)
+    return runSearch(ehApi.fetchSearchHistory, undefined, signal)
   }
 
   function recordSearch(keyword: string) {
-    return runSearch((signal) => ehApi.recordSearch(keyword, signal), acceptSearchHistory)
+    return runSearch((signal) => ehApi.recordSearch(keyword, signal))
   }
 
   function removeSearch(keyword: string) {
-    return runSearch((signal) => ehApi.removeSearch(keyword, signal), acceptSearchHistory)
+    return runSearch((signal) => ehApi.removeSearch(keyword, signal))
   }
 
   function clearSearchHistory(signal?: AbortSignal) {
-    return runSearch(ehApi.clearSearchHistory, acceptSearchHistory, signal)
+    return runSearch(ehApi.clearSearchHistory, undefined, signal)
   }
 
   function resetSessionState() {
@@ -139,7 +142,6 @@ export const useEhStore = defineStore("EhStore", () => {
 
   return {
     readingProgress,
-    searchHistory,
     loadSearchHistory,
     recordSearch,
     removeSearch,

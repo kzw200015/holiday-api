@@ -202,18 +202,19 @@ describe("EH 共享阅读状态", () => {
 
   /* 每块账号数据都登记在同一张重置表里，这里把「一块都不许漏」钉住：
    * 以后新增一块忘了登记，会在这条用例上失败，而不是等到线上串号才发现。 */
-  it("切换账号清空 Store 持有的全部账号级状态：阅读进度与搜索历史", async () => {
-    vi.mocked(fetchSearchHistory).mockResolvedValue(["猫"])
+  it("切换账号清空阅读进度并取消两条队列上排队的操作", async () => {
+    const pending = deferred<string[]>()
+    vi.mocked(fetchSearchHistory).mockReturnValueOnce(pending.promise)
     await store.loadGalleryDetail(1, gallery.token)
-    await store.loadSearchHistory()
+    const loading = store.loadSearchHistory().catch((error: unknown) => error)
     expect(store.readingProgress.size).toBe(1)
-    expect(store.searchHistory).toEqual(["猫"])
 
     useAuthStore().logout()
     useAuthStore().user = { id: 2, username: "second" }
 
     expect(store.readingProgress.size).toBe(0)
-    expect(store.searchHistory).toEqual([])
+    pending.resolve(["猫"])
+    expect(await loading).toMatchObject({ name: "AbortError" })
   })
 
   it("销毁 Store 取消未触发的保存", async () => {
@@ -225,7 +226,8 @@ describe("EH 共享阅读状态", () => {
 })
 
 describe("EH 账号搜索历史", () => {
-  it("连续提交、删除与查询按操作顺序执行，旧快照不会覆盖后续结果", async () => {
+  /* 四个接口都回整份历史，调用方拿到就整份替换，所以顺序错了就会用旧快照顶掉新的。 */
+  it("连续提交、删除与查询按提交顺序逐个发出，各自拿到后端当时的整份历史", async () => {
     const first = deferred<string[]>()
     const second = deferred<string[]>()
     vi.mocked(recordSearch).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
@@ -240,16 +242,14 @@ describe("EH 账号搜索历史", () => {
     expect(removeSearch).not.toHaveBeenCalled()
     expect(fetchSearchHistory).not.toHaveBeenCalled()
     first.resolve(["first"])
-    await savingFirst
+    await expect(savingFirst).resolves.toEqual(["first"])
     await vi.advanceTimersByTimeAsync(0)
-    expect(store.searchHistory).toEqual(["first"])
     expect(recordSearch).toHaveBeenLastCalledWith("second", expect.any(AbortSignal))
     expect(removeSearch).not.toHaveBeenCalled()
     second.resolve(["second", "first"])
-    await savingSecond
-    await removing
-    await loading
-    expect(store.searchHistory).toEqual(["second"])
+    await expect(savingSecond).resolves.toEqual(["second", "first"])
+    await expect(removing).resolves.toEqual(["second"])
+    await expect(loading).resolves.toEqual(["second"])
     expect(removeSearch).toHaveBeenCalledExactlyOnceWith("first", expect.any(AbortSignal))
   })
 
@@ -263,22 +263,17 @@ describe("EH 账号搜索历史", () => {
     useAuthStore().logout()
     useAuthStore().user = { id: 2, username: "second" }
     expect(signal.aborted).toBe(true)
-    await store.recordSearch("new")
+    await expect(store.recordSearch("new")).resolves.toEqual(["new"])
     pending.resolve(["old"])
     expect(await old).toMatchObject({ name: "AbortError" })
     expect(await queued).toMatchObject({ name: "AbortError" })
     expect(clearSearchHistory).not.toHaveBeenCalled()
-    expect(store.searchHistory).toEqual(["new"])
   })
 
-  it("保存失败保留已确认历史，后续清空仍能执行", async () => {
-    vi.mocked(fetchSearchHistory).mockResolvedValue(["confirmed"])
+  it("单次失败不阻塞队列，后面排着的操作照常执行", async () => {
     vi.mocked(recordSearch).mockRejectedValue(new Error("断网"))
     vi.mocked(clearSearchHistory).mockResolvedValue([])
-    await store.loadSearchHistory()
     await expect(store.recordSearch("failed")).rejects.toThrow("断网")
-    expect(store.searchHistory).toEqual(["confirmed"])
-    await store.clearSearchHistory()
-    expect(store.searchHistory).toEqual([])
+    await expect(store.clearSearchHistory()).resolves.toEqual([])
   })
 })

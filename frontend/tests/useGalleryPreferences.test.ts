@@ -98,7 +98,8 @@ describe("账号浏览偏好", () => {
     preferences.interval.value = 7
     await preferences.saveInterval()
     expect(preferences.interval.value).toBe(7)
-    expect(preferences.errorMessage.value).toContain("分类保存失败")
+    /* 提示跟着最近一次保存走，不会被上一次分类保存的失败挡住。 */
+    expect(preferences.errorMessage.value).toContain("翻页间隔保存失败")
     expect(preferences.saving.value).toBe(false)
     expect(saveReaderInterval).toHaveBeenCalledTimes(1)
   })

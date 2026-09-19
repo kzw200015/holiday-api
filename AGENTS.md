@@ -29,6 +29,14 @@ MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存�
 
 业务组件使用 Vue SFC 与 `<script setup lang="ts">`，组件名默认从 PascalCase 文件名推导，KeepAlive 按该名称匹配；需要不同名称时使用 `defineOptions` 显式声明。模板使用 `v-if`、`v-for`、`v-model`、`@事件` 和事件修饰符，props、emits 与双向绑定分别使用类型化的 `defineProps`、`defineEmits`、`defineModel`；不要用渲染函数模拟模板。可复用的业务状态与副作用放在组合式函数中。前端使用 `@/` 路径别名，SFC 导入显式带 `.vue` 后缀，通过 API 封装访问后端。脚本注释使用 `/* */`（导出 API 用 `/** */`），模板注释使用 `<!-- -->`；注释、提交信息和文档使用简体中文。
 
+## 前端数据层
+
+服务端数据的读取统一走 `@tanstack/vue-query`。查询键定义在 `src/api/` 下（如 `ehKeys`），`eh` 的键按 `content`（受 e 站凭据影响的内容：图集、评论、搜索结果、阅读历史）和 `account`（本站账号数据：浏览偏好、绑定状态、搜索历史）分开，换绑 e 站账号只失效前者。「旧响应不算数」由查询键承担，页面不再自己数版本号或比对 signal。缓存策略集中在 `src/api/queryClient.ts`：不自动重试、不在窗口聚焦时重取，失败交给用户点重试。
+
+写入用 `useMutation`，成功后按需 `setQueryData` 或失效对应键；写入不接 `AbortSignal`，已经发出的保存不该被取消。同一页面上只有一处失败提示时，发起新写入前先 `reset()` 其余 mutation，让提示跟着最近一次操作走。只有「接口返回整份数据、调用方整份替换」的场景（目前是搜索历史）才需要 `EhStore` 里的串行队列保证提交顺序；阅读进度另有本地共享状态，也在该 Store 内。
+
+`KeepAlive` 只负责留住界面状态（输入草稿、滚动位置、展开状态），数据的新鲜与跨页面共享由查询缓存负责；换账号时 `App.vue` 清空整个缓存。列表分页一律是触底加载的 `useInfiniteQuery`，不做上一页下一页。
+
 ## 测试要求
 
 Go 测试命名为 `*_test.go`，Vitest 测试命名为 `*.test.ts`。重点验证可观察行为，尤其是鉴权、请求取消、缓存和导航回归。模拟外部服务，保证测试结果稳定。项目未配置数值化覆盖率门槛；提交评审前运行相关测试，前端改动还需通过 `pnpm lint`、`pnpm format:check` 与 `pnpm build`。

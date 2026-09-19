@@ -1,42 +1,76 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query"
 import { computed } from "vue"
 
-import { useAsyncAction } from "@/composables/useAsyncAction"
+import { ehKeys } from "@/api/eh"
 import { useEhStore } from "@/stores/EhStore"
 
-/** 页面持有反馈状态；账号 Store 负责历史数据和读写顺序。 */
+/**
+ * 账号共享的搜索历史。
+ *
+ * 四个接口都返回整份历史，提交方式只有「整份替换」这一种：两次提交的响应要是乱了序，后到的
+ * 旧快照就会把新的顶掉。Store 那条串行队列保证请求按提交顺序发出、逐个完成，这里才能放心地
+ * 拿响应直接覆盖缓存。页面上的进行中与失败提示由每个页面各自持有。
+ */
 export function useSearchHistory() {
   const store = useEhStore()
-  /* 反复进出页面时旧的读取没必要留着，写入则一条都不能丢，所以分成两个。 */
-  const loadAction = useAsyncAction({ latestOnly: true, failureMessage: "读取搜索历史失败。" })
-  const writeAction = useAsyncAction()
-  /* 页面上只有一处提示。写失败排在读失败前面：读取会随页面激活自动重来，写入不会。 */
-  const errorMessage = computed(() => writeAction.errorMessage.value || loadAction.errorMessage.value)
+  const queryClient = useQueryClient()
+  const loaded = useQuery({
+    queryKey: ehKeys.searchHistory,
+    queryFn: ({ signal }) => store.loadSearchHistory(signal),
+    /* 别的设备搜过的词也该出现，回到页面就重新问一次。 */
+    staleTime: 0,
+  })
 
-  function load() {
-    return loadAction.run((signal) => store.loadSearchHistory(signal))
+  function accept(entries: string[]) {
+    queryClient.setQueryData(ehKeys.searchHistory, entries)
   }
 
-  function record(keyword: string) {
-    return writeAction.run(() => store.recordSearch(keyword), {
-      failureMessage: "搜索历史保存失败，本次关键词未确认保存。",
-    })
+  const recording = useMutation({ mutationFn: (keyword: string) => store.recordSearch(keyword), onSuccess: accept })
+  const removing = useMutation({ mutationFn: (keyword: string) => store.removeSearch(keyword), onSuccess: accept })
+  const clearing = useMutation({ mutationFn: () => store.clearSearchHistory(), onSuccess: accept })
+
+  /* 页面上只有一处提示，显示的是最近一次写入的结果，所以发起新写入前先清掉上一次的失败。 */
+  function beginWrite() {
+    recording.reset()
+    removing.reset()
+    clearing.reset()
   }
 
-  function remove(keyword: string) {
-    return writeAction.run(() => store.removeSearch(keyword), { failureMessage: "删除搜索历史失败，请重试。" })
-  }
-
-  function clear() {
-    return writeAction.run(() => store.clearSearchHistory(), { failureMessage: "清空搜索历史失败，请重试。" })
-  }
+  /* 写失败排在读失败前面：读取会随页面激活自动重来，写入不会。 */
+  const errorMessage = computed(() => {
+    if (recording.error.value) {
+      return "搜索历史保存失败，本次关键词未确认保存。"
+    }
+    if (removing.error.value) {
+      return "删除搜索历史失败，请重试。"
+    }
+    if (clearing.error.value) {
+      return "清空搜索历史失败，请重试。"
+    }
+    return loaded.error.value ? "读取搜索历史失败。" : ""
+  })
 
   return {
-    entries: computed(() => store.searchHistory),
-    loading: computed(() => loadAction.pending.value || writeAction.pending.value),
+    entries: computed(() => loaded.data.value ?? []),
+    loading: computed(
+      () =>
+        loaded.isFetching.value || recording.isPending.value || removing.isPending.value || clearing.isPending.value,
+    ),
     errorMessage,
-    load,
-    record,
-    remove,
-    clear,
+    load: async () => {
+      await loaded.refetch()
+    },
+    record: (keyword: string) => {
+      beginWrite()
+      return recording.mutateAsync(keyword).catch(() => {})
+    },
+    remove: (keyword: string) => {
+      beginWrite()
+      return removing.mutateAsync(keyword).catch(() => {})
+    },
+    clear: () => {
+      beginWrite()
+      return clearing.mutateAsync().catch(() => {})
+    },
   }
 }

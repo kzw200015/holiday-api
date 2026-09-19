@@ -32,6 +32,12 @@ export function useEhCredential() {
   const binding = useMutation({ mutationFn: (cookie: EhCookie) => bindCredential(cookie), onSuccess: accept })
   const unbinding = useMutation({ mutationFn: () => unbindCredential(), onSuccess: accept })
 
+  /* 设置页只有一处提示，显示的是最近一次提交的结果。 */
+  function beginSubmit() {
+    binding.reset()
+    unbinding.reset()
+  }
+
   return {
     status: status.data,
     loading: status.isPending,
@@ -39,7 +45,13 @@ export function useEhCredential() {
     saving: computed(() => binding.isPending.value || unbinding.isPending.value),
     errorMessage: computed(() => (binding.error.value ?? unbinding.error.value)?.message ?? ""),
     reload: () => void status.refetch(),
-    bind: (cookie: EhCookie) => binding.mutateAsync(cookie),
-    unbind: () => unbinding.mutateAsync(),
+    bind: (cookie: EhCookie) => {
+      beginSubmit()
+      return binding.mutateAsync(cookie)
+    },
+    unbind: () => {
+      beginSubmit()
+      return unbinding.mutateAsync()
+    },
   }
 }

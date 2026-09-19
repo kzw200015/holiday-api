@@ -47,7 +47,13 @@ export function useGalleryPreferences() {
     set: (seconds: number) => apply({ ...preferences.value, readerInterval: seconds }),
   })
 
-  /* 页面上只有一处提示。保存失败排在读取失败前面：读取会随页面激活自动重来，
+  /* 页面上只有一处提示，显示的是最近一次保存的结果，所以发起新保存前先清掉上一次的失败。 */
+  function beginSave() {
+    savingCategories.reset()
+    savingInterval.reset()
+  }
+
+  /* 保存失败排在读取失败前面：读取会随页面激活自动重来，
    * 保存不会，那条提示不该被下一次自动读取顺手抹掉。 */
   const errorMessage = computed(() => {
     if (savingCategories.error.value) {
@@ -66,10 +72,12 @@ export function useGalleryPreferences() {
   function applyCategories(next: string[]) {
     const categories = [...next]
     apply({ ...preferences.value, categories })
+    beginSave()
     return savingCategories.mutateAsync(categories).catch(() => {})
   }
 
   function saveInterval() {
+    beginSave()
     return savingInterval.mutateAsync(interval.value).catch(() => {})
   }
 

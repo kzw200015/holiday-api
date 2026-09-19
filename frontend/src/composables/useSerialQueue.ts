@@ -1,18 +1,23 @@
 import { onScopeDispose } from "vue"
 
-/** 串行执行请求并同步提交结果；单次失败不阻塞后续任务。 */
+/**
+ * 串行执行请求并同步提交结果；单次失败不阻塞后续任务。
+ *
+ * 需要它的场合只有一种：接口返回整份数据、调用方直接整份替换。这时两次提交的响应一旦乱序，
+ * 后到的旧快照就会把新的顶掉。只想让「旧响应别写进来」的场合不需要队列，查询键已经管住了。
+ */
 export function useSerialQueue() {
   let controller = new AbortController()
   let tail = Promise.resolve()
 
-  function run<T>(request: (signal: AbortSignal) => Promise<T>, apply: (result: T) => void, signal?: AbortSignal) {
+  function run<T>(request: (signal: AbortSignal) => Promise<T>, apply?: (result: T) => void, signal?: AbortSignal) {
     const requestSignal = signal ? AbortSignal.any([controller.signal, signal]) : controller.signal
     const operation = tail.then(async () => {
       requestSignal.throwIfAborted()
       const result = await request(requestSignal)
       /* 请求实现可能忽略取消；提交前再检查，防止旧结果写入重置后的状态。 */
       requestSignal.throwIfAborted()
-      apply(result)
+      apply?.(result)
       return result
     })
     tail = operation.then(
