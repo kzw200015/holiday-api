@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { CircleCheckIcon, LogOutIcon } from "@lucide/vue"
+import { useQueryClient } from "@tanstack/vue-query"
 import { computed, ref } from "vue"
 import { useRouter } from "vue-router"
 
+import { ehKeys } from "@/api/eh"
 import ErrorAlert from "@/components/ErrorAlert.vue"
 import FormField from "@/components/FormField.vue"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -22,7 +24,8 @@ const cookieFields = [
 const router = useRouter()
 const authStore = useAuthStore()
 const ehStore = useEhStore()
-/* 绑定状态由 Store 持有：它同时决定图集缓存要不要作废，页面只管显示和提交。 */
+const queryClient = useQueryClient()
+/* 绑定状态由 Store 持有，页面只管显示和提交。 */
 const status = computed(() => ehStore.credential)
 const loadAction = useAsyncAction({ latestOnly: true })
 const saveAction = useAsyncAction()
@@ -37,6 +40,11 @@ function load() {
 }
 void load()
 
+/* 换绑之后能看到的内容就变了：受 e 站凭据影响的缓存全部作废，本站的账号数据不受影响。 */
+function invalidateContent() {
+  void queryClient.invalidateQueries({ queryKey: ehKeys.content })
+}
+
 function submit() {
   successMessage.value = ""
   /* 直接用这次请求回来的状态，不去读 Store，省得依赖「它那边已经写完了」这个顺序。 */
@@ -46,13 +54,14 @@ function submit() {
         ? "绑定成功，里站已解锁。"
         : "绑定成功。这个账号没有里站权限，只能浏览前站。"
       form.value = { ipbMemberId: "", ipbPassHash: "", igneous: "" }
+      invalidateContent()
     },
   })
 }
 
 function unbind() {
   successMessage.value = ""
-  return saveAction.run(() => ehStore.unbindCredential())
+  return saveAction.run(() => ehStore.unbindCredential(), { apply: invalidateContent })
 }
 
 async function signOut() {

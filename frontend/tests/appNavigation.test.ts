@@ -11,6 +11,7 @@ import {
   bindCredential,
   clearReadingHistory,
   clearSearchHistory,
+  ehKeys,
   fetchCredentialStatus,
   fetchGalleryComments,
   fetchGalleryDetail,
@@ -33,7 +34,6 @@ import { createQueryClient } from "@/api/queryClient"
 import App from "@/App.vue"
 import { AppRouter } from "@/router"
 import { useAuthStore } from "@/stores/AuthStore"
-import { useEhStore } from "@/stores/EhStore"
 
 vi.mock("@/api/auth", () => ({ authenticate: vi.fn(), fetchCurrentUser: vi.fn() }))
 vi.mock("@/api/holiday", async (original) => ({
@@ -81,6 +81,7 @@ let pinia: ReturnType<typeof createPinia>
 let app: VueApp
 let router: Router
 let host: HTMLElement
+let queryClient: ReturnType<typeof createQueryClient>
 
 async function settle() {
   await vi.dynamicImportSettled()
@@ -168,7 +169,8 @@ beforeEach(async () => {
   })
   host = document.createElement("div")
   document.body.append(host)
-  app = createApp(App).use(pinia).use(router).use(VueQueryPlugin, { queryClient: createQueryClient() })
+  queryClient = createQueryClient()
+  app = createApp(App).use(pinia).use(router).use(VueQueryPlugin, { queryClient })
   await router.push("/eh")
   await router.isReady()
   app.mount(host)
@@ -510,7 +512,8 @@ describe("页面缓存与失效范围", () => {
     expect(host.textContent).toContain("测试图集2")
     expect(window.scrollY).toBe(0)
     expect(fetchGalleryComments).toHaveBeenCalledTimes(2)
-    useEhStore().invalidateCache()
+    /* 换绑 e 站账号后受凭据影响的内容全部作废，界面状态和滚动位置不受牵连。 */
+    await queryClient.invalidateQueries({ queryKey: ehKeys.content })
     await settle()
     expect(fetchGalleryComments).toHaveBeenCalledTimes(3)
     await click("返回列表")
@@ -708,29 +711,5 @@ describe("页面缓存与失效范围", () => {
     expect(host.querySelector("input")?.value).toBe("new")
     expect(router.currentRoute.value.fullPath).toBe("/eh")
     expect(router.options.history.state.position).toBe(position)
-  })
-
-  it("重建组件时恢复分类但清空当前关键词，历史仍可再次使用", async () => {
-    await enterKeyword("cat")
-    await click("分类")
-    category("漫画").click()
-    await settle()
-    category("应用").click()
-    await settle()
-    // 模拟刷新后的全新页面实例，而非 KeepAlive 激活。
-    useEhStore().invalidateCache()
-    await settle()
-    expect(host.querySelector("input")?.value).toBe("")
-    expect(host.textContent).toContain("分类 (1)")
-    expect(searchGalleries).toHaveBeenLastCalledWith(
-      { keyword: "", categories: ["manga"], cursor: "" },
-      expect.any(AbortSignal),
-    )
-    await click("cat")
-    expect(host.querySelector("input")?.value).toBe("cat")
-    expect(searchGalleries).toHaveBeenLastCalledWith(
-      { keyword: "cat", categories: ["manga"], cursor: "" },
-      expect.any(AbortSignal),
-    )
   })
 })

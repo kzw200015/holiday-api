@@ -19,7 +19,6 @@ const defaultPreferences = (): ehApi.GalleryPreferences => ({ categories: [], re
 
 export const useEhStore = defineStore("EhStore", () => {
   const authStore = useAuthStore()
-  const cacheRevision = ref(0)
   const saveTimers = new Map<number, ReturnType<typeof setTimeout>>()
 
   /* 切换账号时要清空的那几份状态，由 accountState 自己登记进来。 */
@@ -49,11 +48,6 @@ export const useEhStore = defineStore("EhStore", () => {
   const { state: preferences, run: runPreference } = accountState(defaultPreferences)
   /* e 站绑定状态。未读取时为 null，界面据此区分「还没问过」和「确实没绑」。 */
   const { state: credential, run: runCredential } = accountState<ehApi.CredentialStatus | null>(() => null)
-
-  /* 凭据变化只淘汰 EH 页面，账号级的阅读进度不因换绑 e 站账号而清空。 */
-  function invalidateCache() {
-    cacheRevision.value += 1
-  }
 
   /* 详情接口包含进度，也参与读写排序；页面不再单独持有这份页码。 */
   async function loadGalleryDetail(gid: number, token: string, signal?: AbortSignal) {
@@ -146,22 +140,17 @@ export const useEhStore = defineStore("EhStore", () => {
     credential.value = status
   }
 
-  /* 换绑或解绑都会改变能看到的内容，缓存里的图集要连同页面一起丢掉。 */
-  function acceptRebind(status: ehApi.CredentialStatus) {
-    acceptCredential(status)
-    invalidateCache()
-  }
-
   function loadCredential(signal?: AbortSignal) {
     return runCredential(ehApi.fetchCredentialStatus, acceptCredential, signal)
   }
 
+  /* 换绑或解绑会改变能看到的内容，但「哪些缓存该作废」是界面的事，由发起操作的页面去失效。 */
   function bindCredential(cookie: ehApi.EhCookie) {
-    return runCredential(() => ehApi.bindCredential(cookie), acceptRebind)
+    return runCredential(() => ehApi.bindCredential(cookie), acceptCredential)
   }
 
   function unbindCredential() {
-    return runCredential(() => ehApi.unbindCredential(), acceptRebind)
+    return runCredential(() => ehApi.unbindCredential(), acceptCredential)
   }
 
   /* 每次进入页面都重新读一次：偏好可能在别的设备上改过。 */
@@ -204,7 +193,6 @@ export const useEhStore = defineStore("EhStore", () => {
   onScopeDispose(cancelPendingSaves)
 
   return {
-    cacheRevision,
     readingProgress,
     searchHistory,
     preferences,
@@ -220,7 +208,6 @@ export const useEhStore = defineStore("EhStore", () => {
     saveCategories,
     setReaderInterval,
     saveReaderInterval,
-    invalidateCache,
     loadGalleryDetail,
     loadReadingHistory,
     scheduleProgress,

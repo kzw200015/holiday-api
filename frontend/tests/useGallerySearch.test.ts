@@ -150,6 +150,18 @@ describe("图库搜索流程", () => {
     expect(host.querySelector('[title="cat"]')).not.toBeNull()
   })
 
+  it("点历史词回填输入框并按当前分类搜索", async () => {
+    await mountForm()
+    onSearch.mockClear()
+    host.querySelector<HTMLButtonElement>('[title="cat"]')!.click()
+    await settle()
+    expect(host.querySelector("input")!.value).toBe("cat")
+    expect(onSearch).toHaveBeenCalledExactlyOnceWith(
+      { keyword: "cat", categories: ["manga"], cursor: "" },
+      expect.any(AbortSignal),
+    )
+  })
+
   /* 失败后条件没变也必须真的重来一次，否则用户重按搜索时界面上没有任何反应。 */
   it("搜索失败后重新提交同一关键词仍会再搜一次", async () => {
     await mountForm()
