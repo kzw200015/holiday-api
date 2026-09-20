@@ -4,7 +4,9 @@
 
 MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存放 Go 入口与 Wire 依赖注入代码；`backend/internal/` 包含业务模块（`auth`、`eh`、`holiday`）、HTTP 基础设施、配置和 PostgreSQL 访问代码。HTTP Handler 与业务 Service 保持分离。表结构统一位于 `backend/internal/store/schema.sql`，查询 SQL 及 sqlc 生成代码位于各业务模块的 `store/` 子目录，由 `backend/sqlc.yaml` 统一配置。
 
-`frontend/src/` 存放 Vue 3/TypeScript 页面、布局、组件、组合式函数、API 封装和状态管理代码。静态资源放在 `frontend/public/`，前端测试放在 `frontend/tests/`，Go 测试与实现文件同目录。领域术语见 `CONTEXT.md`，辅助工作流见 `docs/agents/`。Docker 镜像由 Go 服务统一提供 API 和前端静态文件。
+`frontend/src/` 按业务领域分三块：`app/` 是应用装配（路由、全局布局、导航目录、主题），`features/` 下每块业务自成一体（`auth`、`eh`、`holiday`，与 `backend/internal/` 的模块一一对应），`shared/` 放与业务无关的通用能力（HTTP 客户端、查询缓存、通用组件与组合式函数）。`src/components/ui/` 与 `src/lib/utils.ts` 是 shadcn-vue 的生成位置，保持原样。静态资源放在 `frontend/public/`，前端测试放在 `frontend/tests/`，Go 测试与实现文件同目录。领域术语见 `CONTEXT.md`，辅助工作流见 `docs/agents/`。Docker 镜像由 Go 服务统一提供 API 和前端静态文件。
+
+一块 feature 内部按角色分文件：`model.ts` 是领域类型，`api.ts` 只管 HTTP 调用，`keys.ts` 放查询键与新鲜期，`labels.ts` 一类放展示用的中文词汇，`store.ts` 只收留查询缓存管不住的共享状态，`composables/` 把数据和交互包成页面能直接用的形状，`components/` 与 `views/` 是界面。依赖方向只有一条：`views` → `composables` → `api`/`store` → `shared/`，页面不直接调接口、也不直接写 `useQuery`。把多个 feature 拼到一个界面上只发生在 `app/` 层（如设置页同时用到 `auth` 与 `eh`）；feature 之间唯一允许的引用是依赖 `auth` 的会话状态，因为换账号要让各自的缓存与在途请求作废。`shared/` 不得反向引用 `features/` 或 `app/`。
 
 ## 构建、测试与本地开发
 
@@ -27,15 +29,15 @@ MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存�
 
 前端格式由 Prettier 统一（无分号、双引号、120 列），import 顺序由 `@ianvs/prettier-plugin-sort-imports` 自动排序（三方依赖 → `@/` 内部模块），不要手工调整；lint 规则见 `frontend/.oxlintrc.json`，其中 `curly` 要求所有 `if`/`for` 使用花括号。`src/components/ui/` 属于 shadcn-vue 生成源码，已在 `.prettierignore` 与 oxlint 的 `ignorePatterns` 中排除，清理代码时同样保留。
 
-业务组件使用 Vue SFC 与 `<script setup lang="ts">`，组件名默认从 PascalCase 文件名推导，KeepAlive 按该名称匹配；需要不同名称时使用 `defineOptions` 显式声明。模板使用 `v-if`、`v-for`、`v-model`、`@事件` 和事件修饰符，props、emits 与双向绑定分别使用类型化的 `defineProps`、`defineEmits`、`defineModel`；不要用渲染函数模拟模板。可复用的业务状态与副作用放在组合式函数中。前端使用 `@/` 路径别名，SFC 导入显式带 `.vue` 后缀，通过 API 封装访问后端。脚本注释使用 `/* */`（导出 API 用 `/** */`），模板注释使用 `<!-- -->`；注释、提交信息和文档使用简体中文。
+业务组件使用 Vue SFC 与 `<script setup lang="ts">`，组件名默认从 PascalCase 文件名推导，KeepAlive 按该名称匹配；需要不同名称时使用 `defineOptions` 显式声明。模板使用 `v-if`、`v-for`、`v-model`、`@事件` 和事件修饰符，props、emits 与双向绑定分别使用类型化的 `defineProps`、`defineEmits`、`defineModel`；不要用渲染函数模拟模板。可复用的业务状态与副作用放在组合式函数中。前端使用 `@/` 路径别名，SFC 导入显式带 `.vue` 后缀，页面经所属 feature 的组合式函数访问后端。脚本注释使用 `/* */`（导出 API 用 `/** */`），模板注释使用 `<!-- -->`；注释、提交信息和文档使用简体中文。
 
 ## 前端数据层
 
-服务端数据的读取统一走 `@tanstack/vue-query`。查询键定义在 `src/api/` 下（如 `ehKeys`），`eh` 的键按 `content`（受 e 站凭据影响的内容：图集、评论、搜索结果、阅读历史）和 `account`（本站账号数据：浏览偏好、绑定状态、搜索历史）分开，换绑 e 站账号只失效前者。「旧响应不算数」由查询键承担，页面不再自己数版本号或比对 signal。缓存策略集中在 `src/api/queryClient.ts`：不自动重试、不在窗口聚焦时重取，失败交给用户点重试。
+服务端数据的读取统一走 `@tanstack/vue-query`，且只写在 feature 的 `composables/` 里，页面拿到的是已经包好的 `loading`、`errorMessage` 与数据本身。查询键定义在各 feature 的 `keys.ts`（如 `ehKeys`），`eh` 的键按 `content`（受 e 站凭据影响的内容：图集、评论、搜索结果、阅读历史）和 `account`（本站账号数据：浏览偏好、绑定状态、搜索历史）分开，换绑 e 站账号只失效前者。「旧响应不算数」由查询键承担，页面不再自己数版本号或比对 signal。全局缓存策略在 `src/shared/api/queryClient.ts`：不自动重试、不在窗口聚焦时重取，失败交给用户点重试；各业务自己的新鲜期（如 `CONTENT_STALE_TIME`）跟着所属 feature 走。
 
-写入用 `useMutation`，成功后按需 `setQueryData` 或失效对应键；写入不接 `AbortSignal`，已经发出的保存不该被取消。同一页面上只有一处失败提示时，发起新写入前先 `reset()` 其余 mutation，让提示跟着最近一次操作走。只有「接口返回整份数据、调用方整份替换」的场景（目前是搜索历史）才需要 `EhStore` 里的串行队列保证提交顺序；阅读进度另有本地共享状态，也在该 Store 内。
+写入用 `useMutation`，成功后按需 `setQueryData` 或失效对应键；写入不接 `AbortSignal`，已经发出的保存不该被取消。同一页面上只有一处失败提示时，发起新写入前先 `reset()` 其余 mutation，让提示跟着最近一次操作走。只有「接口返回整份数据、调用方整份替换」的场景（目前是搜索历史）才需要 `features/eh/store.ts` 里的串行队列保证提交顺序；阅读进度另有本地共享状态，也在该 Store 内。Store 只被同一 feature 的组合式函数取用，页面不直接引用它。
 
-`KeepAlive` 只负责留住界面状态（输入草稿、滚动位置、展开状态），数据的新鲜与跨页面共享由查询缓存负责；换账号时 `App.vue` 清空整个缓存。列表分页一律是触底加载的 `useInfiniteQuery`，不做上一页下一页。
+`KeepAlive` 只负责留住界面状态（输入草稿、滚动位置、展开状态），数据的新鲜与跨页面共享由查询缓存负责；换账号时 `app/App.vue` 清空整个缓存。列表分页一律是触底加载的 `useInfiniteQuery`，不做上一页下一页。
 
 ## 测试要求
 
