@@ -2,11 +2,12 @@
 import { VueQueryPlugin } from "@tanstack/vue-query"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createApp, h, nextTick } from "vue"
-import { createMemoryHistory, createRouter, RouterView } from "vue-router"
+import { createApp, h, nextTick, type Component as VueComponent } from "vue"
+import { createMemoryHistory, createRouter, RouterView, type RouteLocationNormalizedLoaded } from "vue-router"
 
 import type * as EhApi from "@/features/eh/api"
 import { saveProgress } from "@/features/eh/api"
+import { readerInstanceKey } from "@/features/eh/navigation"
 import ReaderView from "@/features/eh/views/ReaderView.vue"
 import { createQueryClient } from "@/shared/api/queryClient"
 
@@ -51,7 +52,14 @@ beforeEach(async () => {
   await router.isReady()
   host = document.createElement("div")
   document.body.append(host)
-  app = createApp({ render: () => h(RouterView) })
+  /* 和 App.vue 一样按图集给阅读器设 key，换图集时整个重建。 */
+  app = createApp({
+    render: () =>
+      h(RouterView, null, {
+        default: ({ Component, route }: { Component: VueComponent; route: RouteLocationNormalizedLoaded }) =>
+          Component ? h(Component, { key: readerInstanceKey(route) }) : null,
+      }),
+  })
   app.use(router)
   pinia = createPinia()
   app.use(pinia)
@@ -87,22 +95,19 @@ function controlsState() {
 }
 
 describe("阅读进度保存", () => {
-  it("连续翻页防抖保存最后一页，卸载不补报但保留原定保存", async () => {
+  it("连续翻页只保存最后一页；卸载把还没发出的那次丢掉", async () => {
     await router.replace("/1/token/2")
     await vi.advanceTimersByTimeAsync(500)
     expect(saveProgress).not.toHaveBeenCalled()
     await router.replace("/1/token/3")
     await vi.advanceTimersByTimeAsync(1200)
-    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 3, expect.any(AbortSignal))
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 3)
+    /* 正常离开走的是路由，那条路径会补提交；直接卸载没有这个机会。 */
     await router.replace("/1/token/4")
     app!.unmount()
     app = undefined
+    await vi.advanceTimersByTimeAsync(1200)
     expect(saveProgress).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(1199)
-    expect(saveProgress).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(1)
-    expect(saveProgress).toHaveBeenLastCalledWith(1, "token", 4, expect.any(AbortSignal))
-    expect(saveProgress).toHaveBeenCalledTimes(2)
   })
 
   it("保存较慢时按顺序提交，旧页码不会晚于新页码写入", async () => {
@@ -116,21 +121,21 @@ describe("阅读进度保存", () => {
     await vi.advanceTimersByTimeAsync(1200)
     await router.replace("/1/token/3")
     await vi.advanceTimersByTimeAsync(1200)
-    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 2, expect.any(AbortSignal))
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 2)
     finish(null)
     await vi.advanceTimersByTimeAsync(0)
-    expect(saveProgress).toHaveBeenNthCalledWith(2, 1, "token", 3, expect.any(AbortSignal))
+    expect(saveProgress).toHaveBeenNthCalledWith(2, 1, "token", 3)
   })
 
-  it("切换图集不提前补报，两本图集分别保存最后报告的位置", async () => {
+  /* 换图集会重建阅读器，重建前先把上一本攒着的位置发掉。 */
+  it("换图集后两本各自最后报告的位置都会保存", async () => {
     await router.replace("/1/token/8")
     await vi.advanceTimersByTimeAsync(500)
     await router.replace("/2/second/1")
-    expect(saveProgress).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(700)
-    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 8, expect.any(AbortSignal))
-    await vi.advanceTimersByTimeAsync(500)
-    expect(saveProgress).toHaveBeenNthCalledWith(2, 2, "second", 1, expect.any(AbortSignal))
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(saveProgress).toHaveBeenCalledTimes(2)
+    expect(saveProgress).toHaveBeenCalledWith(1, "token", 8)
+    expect(saveProgress).toHaveBeenCalledWith(2, "second", 1)
     app!.unmount()
     app = undefined
     expect(saveProgress).toHaveBeenCalledTimes(2)

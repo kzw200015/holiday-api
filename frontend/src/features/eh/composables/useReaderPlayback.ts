@@ -1,16 +1,5 @@
-import { useDocumentVisibility, useIntervalFn, useTimeoutFn } from "@vueuse/core"
-import {
-  computed,
-  onScopeDispose,
-  reactive,
-  ref,
-  toValue,
-  watch,
-  type MaybeRefOrGetter,
-  type Ref,
-  type WatchSource,
-} from "vue"
-import { onBeforeRouteLeave } from "vue-router"
+import { useDocumentVisibility, useIntervalFn } from "@vueuse/core"
+import { computed, reactive, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue"
 
 import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
 
@@ -18,14 +7,10 @@ export interface ReaderPlaybackState {
   autoPaging: boolean
   canStart: boolean
   interval: number
-  loading: boolean
-  saving: boolean
-  errorMessage: string
 }
 
-/** 一次阅读的自动翻页与间隔保存；控件只展示状态并发出操作。 */
+/** 一次阅读的自动翻页与间隔；控件只展示状态并发出操作。 */
 export function useReaderPlayback(
-  identity: WatchSource<string>,
   page: Ref<number>,
   total: MaybeRefOrGetter<number>,
   interacting: MaybeRefOrGetter<boolean>,
@@ -34,32 +19,10 @@ export function useReaderPlayback(
   const visibility = useDocumentVisibility()
   const canStart = computed(() => toValue(total) > 0 && page.value < toValue(total) && visibility.value === "visible")
   const preferences = useGalleryPreferences()
-  /* 只关心「上一次保存有没有跑完」，结果本身用不上。 */
-  let saving: Promise<unknown> = Promise.resolve()
-  let revision = 0
 
-  function persistInterval() {
-    saving = preferences.saveInterval()
-    return saving
-  }
-
-  const {
-    start: scheduleSave,
-    stop: cancelSave,
-    isPending: savePending,
-  } = useTimeoutFn(persistInterval, 1000, { immediate: false })
-
-  function setInterval(seconds: number) {
+  /* 间隔改了当场生效，存哪去、什么时候存都不是这里的事。 */
+  function changeInterval(seconds: number) {
     preferences.interval.value = seconds
-    scheduleSave()
-  }
-
-  function flushInterval() {
-    if (savePending.value) {
-      cancelSave()
-      return persistInterval()
-    }
-    return saving
   }
 
   const { pause, resume } = useIntervalFn(
@@ -84,7 +47,7 @@ export function useReaderPlayback(
     }
   }
 
-  /* 翻不动就停下，不记「等会儿接着翻」：读到最后一页、换了图集、切去别的标签页，都要重新点开始。 */
+  /* 翻不动就停下，不记「等会儿接着翻」：读到最后一页、切去别的标签页，都要重新点开始。 */
   watch(
     canStart,
     (allowed) => {
@@ -108,30 +71,10 @@ export function useReaderPlayback(
     { flush: "sync" },
   )
 
-  watch(identity, async () => {
-    stop()
-    const current = ++revision
-    /* 新图集读取偏好前，先完成上一图集已提交的间隔保存。 */
-    await flushInterval()
-    if (current === revision) {
-      await preferences.load()
-    }
-  })
-  onBeforeRouteLeave(() => {
-    stop()
-    void flushInterval()
-  })
-  onScopeDispose(() => {
-    revision += 1
-  })
-
   const state: ReaderPlaybackState = reactive({
     autoPaging,
     canStart,
     interval: preferences.interval,
-    loading: preferences.loading,
-    saving: preferences.saving,
-    errorMessage: preferences.errorMessage,
   })
-  return { state, setInterval, toggle }
+  return { state, changeInterval, toggle }
 }

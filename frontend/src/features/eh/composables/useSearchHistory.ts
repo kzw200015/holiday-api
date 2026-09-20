@@ -1,78 +1,52 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query"
 import { computed } from "vue"
 
+import { fetchSearchHistory, saveSearchHistory } from "@/features/eh/api"
 import { ehKeys } from "@/features/eh/keys"
-import { useEhStore } from "@/features/eh/store"
+
+/* 最多留几条。后端列上有同样的上限，超了会被退回来，所以这里就是那条规则本身。 */
+const LIMIT = 10
+
+/* 后端拒收超过这么多字节的关键词。整份提交里混进一条，之后每次保存都会跟着失败，所以超长的干脆不记。 */
+const MAX_ENTRY_BYTES = 200
 
 /**
  * 账号共享的搜索历史。
  *
- * 四个接口都返回整份历史，提交方式只有「整份替换」这一种：两次提交的响应要是乱了序，后到的
- * 旧快照就会把新的顶掉。Store 那条串行队列保证请求按提交顺序发出、逐个完成，这里才能放心地
- * 拿响应直接覆盖缓存。页面上的进行中与失败提示由每个页面各自持有。
+ * 最近搜的排最前、同一个词只留一条、总共留 10 条——这三条本来就是界面的规则，所以由这里说了算；
+ * 服务端只负责校验和存住。关键词进来之前已经去过两端空白，和服务端存下的那份一致。
  */
 export function useSearchHistory() {
-  const store = useEhStore()
   const queryClient = useQueryClient()
   const loaded = useQuery({
     queryKey: ehKeys.searchHistory,
-    queryFn: ({ signal }) => store.loadSearchHistory(signal),
-    /* 别的设备搜过的词也该出现，回到页面就重新问一次。 */
-    staleTime: 0,
+    queryFn: ({ signal }) => fetchSearchHistory(signal),
+    staleTime: Infinity,
   })
+  const entries = computed(() => loaded.data.value ?? [])
 
-  function accept(entries: string[]) {
-    queryClient.setQueryData(ehKeys.searchHistory, entries)
-  }
-
-  const recording = useMutation({ mutationFn: (keyword: string) => store.recordSearch(keyword), onSuccess: accept })
-  const removing = useMutation({ mutationFn: (keyword: string) => store.removeSearch(keyword), onSuccess: accept })
-  const clearing = useMutation({ mutationFn: () => store.clearSearchHistory(), onSuccess: accept })
-
-  /* 页面上只有一处提示，显示的是最近一次写入的结果，所以发起新写入前先清掉上一次的失败。 */
-  function beginWrite() {
-    recording.reset()
-    removing.reset()
-    clearing.reset()
-  }
-
-  /* 写失败排在读失败前面：读取会随页面激活自动重来，写入不会。 */
-  const errorMessage = computed(() => {
-    if (recording.error.value) {
-      return "搜索历史保存失败，本次关键词未确认保存。"
-    }
-    if (removing.error.value) {
-      return "删除搜索历史失败，请重试。"
-    }
-    if (clearing.error.value) {
-      return "清空搜索历史失败，请重试。"
-    }
-    return loaded.error.value ? "读取搜索历史失败。" : ""
+  const saving = useMutation({
+    mutationFn: (next: string[]) => saveSearchHistory(next),
+    /* 和偏好同一套：整份提交按顺序发，乱序会让旧快照顶掉新的。 */
+    scope: { id: "eh-search-history" },
+    onMutate: (next) => {
+      queryClient.setQueryData(ehKeys.searchHistory, next)
+    },
   })
 
   return {
-    entries: computed(() => loaded.data.value ?? []),
-    loading: computed(
-      () =>
-        loaded.isFetching.value || recording.isPending.value || removing.isPending.value || clearing.isPending.value,
-    ),
-    errorMessage,
-    load: async () => {
-      await loaded.refetch()
-    },
-    /* 三个写入都不把失败往外抛：原因已经由 errorMessage 显示给用户，catch 只是免得它再变成一次
-     * 未处理的拒绝。调用方大多用 void 发出去就不管了，接不住这个拒绝。 */
+    /* 和偏好一样，真的读到了才算就绪：读失败时按空的用，下一次搜索就会把服务端那份历史冲掉。 */
+    ready: computed(() => loaded.data.value !== undefined),
+    loadError: computed(() => loaded.error.value?.message ?? ""),
+    reload: () => void loaded.refetch(),
+    entries,
     record: (keyword: string) => {
-      beginWrite()
-      return recording.mutateAsync(keyword).catch(() => {})
+      if (new TextEncoder().encode(keyword).length > MAX_ENTRY_BYTES) {
+        return
+      }
+      saving.mutate([keyword, ...entries.value.filter((entry) => entry !== keyword)].slice(0, LIMIT))
     },
-    remove: (keyword: string) => {
-      beginWrite()
-      return removing.mutateAsync(keyword).catch(() => {})
-    },
-    clear: () => {
-      beginWrite()
-      return clearing.mutateAsync().catch(() => {})
-    },
+    remove: (keyword: string) => saving.mutate(entries.value.filter((entry) => entry !== keyword)),
+    clear: () => saving.mutate([]),
   }
 }

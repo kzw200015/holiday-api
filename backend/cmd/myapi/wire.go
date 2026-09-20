@@ -51,6 +51,8 @@ func initApplication(ctx context.Context) (*application, func(), error) {
 		// 同一个 eh.Client 传给三处：出网只有这一个出口，要加限速也就只有一处可加
 		eh.NewCredentialStore,
 		eh.NewImageLocator,
+		// 本站库里的那部分状态，Service 不再自己 new，也就不必再握着 *ehstore.Queries
+		eh.NewUserState,
 		eh.NewService,
 
 		holiday.NewRemoteClient,

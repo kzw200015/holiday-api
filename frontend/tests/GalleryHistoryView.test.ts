@@ -24,7 +24,12 @@ vi.mock("@vueuse/core", async (original) => ({
   ...(await original<typeof VueUse>()),
   useInfiniteScroll: (target: () => Window | null, load: () => void, options: { canLoadMore: () => boolean }) => {
     scroll.target = target
-    scroll.load = load
+    /* 真的 useInfiniteScroll 先问过 canLoadMore 才会触发加载，这里照做。 */
+    scroll.load = () => {
+      if (target() && options.canLoadMore()) {
+        load()
+      }
+    }
     scroll.canLoad = options.canLoadMore
   },
 }))
@@ -171,6 +176,26 @@ describe("阅读历史分页", () => {
     await click("删除")
     expect(titles()).toEqual(["图集 2"])
     expect(loadHistory).toHaveBeenCalledTimes(2)
+  })
+
+  /* 续取写回的是它开始时拿到的列表，删除在途时放它走，刚删掉的那条会跟着回来。 */
+  it("删除还没回来时不续取下一页", async () => {
+    loadHistory.mockResolvedValueOnce(page(1, "cursor-2")).mockResolvedValueOnce(page(2, null))
+    await mountHistory()
+    let finish!: (value: null) => void
+    vi.mocked(removeReadingHistory).mockReturnValueOnce(new Promise((resolve) => (finish = resolve)))
+    await click("删除")
+    expect(scroll.canLoad()).toBe(false)
+    scroll.load()
+    await settle()
+    expect(loadHistory).toHaveBeenCalledTimes(1)
+
+    finish(null)
+    await settle()
+    expect(titles()).toEqual([])
+    scroll.load()
+    await settle()
+    expect(titles()).toEqual(["图集 2"])
   })
 
   it("页面停用后不再自动续取，重新激活会刷新列表", async () => {

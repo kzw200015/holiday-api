@@ -20,21 +20,18 @@ import (
 )
 
 // 入参校验都在碰数据库之前完成，所以这些用例不需要真正的连接。
-// 用零值的 userState 而不是 nil：真有哪条规则漏了，会当场 panic 而不是悄悄放行。
+// 用零值的 UserState 而不是 nil：真有哪条规则漏了，会当场 panic 而不是悄悄放行。
 func newValidationService() *Service {
-	return &Service{userState: newUserState(nil)}
+	return &Service{UserState: NewUserState(nil)}
 }
 
 func TestPreferenceRoutesRequireAuth(t *testing.T) {
 	handler := NewHandler(newValidationService(), auth.NewTokens("test-secret", time.Hour)).Routes()
 	for _, route := range []struct{ method, path string }{
 		{http.MethodGet, "/preferences"},
-		{http.MethodPost, "/preferences/categories"},
-		{http.MethodPost, "/preferences/reader-interval"},
+		{http.MethodPut, "/preferences"},
 		{http.MethodGet, "/search-history"},
-		{http.MethodPost, "/search-history"},
-		{http.MethodPost, "/search-history/remove"},
-		{http.MethodPost, "/search-history/clear"},
+		{http.MethodPut, "/search-history"},
 	} {
 		t.Run(route.path+route.method, func(t *testing.T) {
 			response := httptest.NewRecorder()
@@ -54,15 +51,18 @@ func TestPreferenceValidation(t *testing.T) {
 	}
 	handler := NewHandler(newValidationService(), tokens).Routes()
 	for _, each := range []struct{ path, body string }{
-		{"/preferences/categories", `{"categories":["unknown"]}`},
-		{"/preferences/reader-interval", `{"interval":0}`},
-		{"/preferences/reader-interval", `{"interval":21}`},
-		{"/preferences/reader-interval", `{"interval":1.5}`},
-		{"/search-history", `{"keyword":"   "}`},
-		{"/search-history", `{"keyword":"` + strings.Repeat("a", 201) + `"}`},
+		{"/preferences", `{"categories":["unknown"],"readerInterval":5}`},
+		{"/preferences", `{"categories":[],"readerInterval":0}`},
+		{"/preferences", `{"categories":[],"readerInterval":21}`},
+		{"/preferences", `{"categories":[],"readerInterval":1.5}`},
+		/* 身份只认令牌，请求体里多带一个 userId 会被当作未知字段挡下。 */
+		{"/preferences", `{"categories":[],"readerInterval":5,"userId":2}`},
+		{"/search-history", `{"entries":["   "]}`},
+		{"/search-history", `{"entries":["` + strings.Repeat("a", 201) + `"]}`},
+		{"/search-history", `{"entries":["1","2","3","4","5","6","7","8","9","10","11"]}`},
 	} {
-		t.Run(each.body, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, each.path, strings.NewReader(each.body))
+		t.Run(each.path+each.body, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPut, each.path, strings.NewReader(each.body))
 			request.Header.Set("Authorization", "Bearer "+token)
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, request)
@@ -98,7 +98,7 @@ func TestPreferencesPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	queries := store.New(tx)
-	service := &Service{userState: newUserState(queries)}
+	service := &Service{UserState: NewUserState(queries)}
 	user, err := authstore.New(tx).CreateUser(ctx, authstore.CreateUserParams{Username: fmt.Sprintf("preferences-%d", time.Now().UnixNano()), PasswordHash: "test"})
 	if err != nil {
 		t.Fatal(err)
@@ -114,53 +114,57 @@ func TestPreferencesPostgres(t *testing.T) {
 			t.Fatalf("preferences = %+v, err = %v", got, err)
 		}
 	}
+	assertHistory := func(userID int64, want []string) {
+		t.Helper()
+		got, err := service.SearchHistory(ctx, userID)
+		if err != nil || !reflect.DeepEqual(got, want) {
+			t.Fatalf("history = %v, want %v, err = %v", got, want, err)
+		}
+	}
 	assertPreferences(user.ID, []string{}, 5)
-	history, err := service.SearchHistory(ctx, user.ID)
-	if err != nil || history == nil || len(history) != 0 {
-		t.Fatalf("initial history = %v, err = %v", history, err)
-	}
+	assertHistory(user.ID, []string{})
 
-	if err := service.SaveCategories(ctx, user.ID, []string{"manga", "doujinshi", "manga"}); err != nil {
+	// 偏好整份提交，两个字段一起落；分类排序去重后入库。
+	if err := service.SavePreferences(ctx, user.ID, Preferences{Categories: []string{"manga", "doujinshi", "manga"}, ReaderInterval: 8}); err != nil {
 		t.Fatal(err)
-	}
-	for _, interval := range []int32{1, 20, 8} {
-		if err := service.SaveReaderInterval(ctx, user.ID, interval); err != nil {
-			t.Fatal(err)
-		}
-		assertPreferences(user.ID, []string{"doujinshi", "manga"}, interval)
-	}
-	for index := range 12 {
-		if _, err := service.RecordSearch(ctx, user.ID, fmt.Sprintf("词%d", index)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	history, err = service.RecordSearch(ctx, user.ID, " 词5 ")
-	want := []string{"词5", "词11", "词10", "词9", "词8", "词7", "词6", "词4", "词3", "词2"}
-	if err != nil || !reflect.DeepEqual(history, want) {
-		t.Fatalf("history = %v, err = %v", history, err)
 	}
 	assertPreferences(user.ID, []string{"doujinshi", "manga"}, 8)
-	assertPreferences(other.ID, []string{}, 5)
-	history, err = service.SearchHistory(ctx, other.ID)
-	if err != nil || len(history) != 0 {
-		t.Fatalf("other user's history = %v, err = %v", history, err)
+
+	// 搜索历史同样整份替换：顺序照前端给的存，同一份重复提交结果不变。
+	entries := []string{"词5", "词4", "词3", "词2", "词1"}
+	for range 2 {
+		if err := service.SaveSearchHistory(ctx, user.ID, entries); err != nil {
+			t.Fatal(err)
+		}
+		assertHistory(user.ID, entries)
 	}
-	if err := service.SaveCategories(ctx, user.ID, []string{}); err != nil {
+
+	// 关键词两端的空白入库前去掉。
+	if err := service.SaveSearchHistory(ctx, user.ID, []string{" 词9 "}); err != nil {
 		t.Fatal(err)
 	}
-	assertPreferences(user.ID, []string{}, 8)
-	history, err = service.RemoveSearch(ctx, user.ID, "词5")
-	if err != nil || !reflect.DeepEqual(history, want[1:]) {
-		t.Fatalf("history after removal = %v, err = %v", history, err)
+	assertHistory(user.ID, []string{"词9"})
+
+	// 超出条数上限整份退回，库里原来那份不受影响。用非空关键词，免得实际上是被「不能为空」挡下的。
+	tooMany := make([]string, 0, searchHistoryLimit+1)
+	for i := range searchHistoryLimit + 1 {
+		tooMany = append(tooMany, fmt.Sprintf("词%d", i))
 	}
-	if cleared, err := service.ClearSearchHistory(ctx, user.ID); err != nil || len(cleared) != 0 {
-		t.Fatalf("clear = %v, err = %v", cleared, err)
+	if err := service.SaveSearchHistory(ctx, user.ID, tooMany); err == nil {
+		t.Fatal("超出条数上限应当报错")
 	}
-	history, err = service.SearchHistory(ctx, user.ID)
-	if err != nil || len(history) != 0 {
-		t.Fatalf("history after clear = %v, err = %v", history, err)
+	assertHistory(user.ID, []string{"词9"})
+
+	// 清空就是提交一份空列表，不再有单独的接口。
+	if err := service.SaveSearchHistory(ctx, user.ID, []string{}); err != nil {
+		t.Fatal(err)
 	}
-	assertPreferences(user.ID, []string{}, 8)
+	assertHistory(user.ID, []string{})
+	assertPreferences(user.ID, []string{"doujinshi", "manga"}, 8)
+
+	// 写入只落在自己账号上。
+	assertPreferences(other.ID, []string{}, 5)
+	assertHistory(other.ID, []string{})
 
 	// 身份只取登录令牌；请求中的 userId 不能读取或修改另一账号。
 	tokens := auth.NewTokens("test-secret", time.Hour)
@@ -169,14 +173,14 @@ func TestPreferencesPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler := NewHandler(service, tokens).Routes()
-	request := httptest.NewRequest(http.MethodPost, "/preferences/reader-interval", strings.NewReader(fmt.Sprintf(`{"interval":3,"userId":%d}`, user.ID)))
+	request := httptest.NewRequest(http.MethodPut, "/preferences", strings.NewReader(fmt.Sprintf(`{"categories":[],"readerInterval":3,"userId":%d}`, user.ID)))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
-	assertPreferences(user.ID, []string{}, 8)
+	assertPreferences(user.ID, []string{"doujinshi", "manga"}, 8)
 	request = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/preferences?userId=%d", user.ID), nil)
 	request.Header.Set("Authorization", "Bearer "+token)
 	response = httptest.NewRecorder()
@@ -191,25 +195,19 @@ func TestPreferencesPostgres(t *testing.T) {
 		t.Fatalf("read another user's preferences: %s", response.Body.String())
 	}
 
-	// 尚无偏好行时，删除和清空仍成功；首次保存任一字段都会补齐其余默认值。
-	history, err = service.RemoveSearch(ctx, other.ID, "不存在")
-	if err != nil || history == nil || len(history) != 0 {
-		t.Fatalf("remove missing history = %v, err = %v", history, err)
-	}
-	if _, err := service.ClearSearchHistory(ctx, other.ID); err != nil {
+	// 尚无偏好行时，先写哪一边都会把其余的列补上默认值。
+	if err := service.SaveSearchHistory(ctx, other.ID, []string{"首次搜索"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.SaveReaderInterval(ctx, other.ID, 3); err != nil {
-		t.Fatal(err)
-	}
-	assertPreferences(other.ID, []string{}, 3)
+	assertHistory(other.ID, []string{"首次搜索"})
+	assertPreferences(other.ID, []string{}, 5)
 	third, err := authstore.New(tx).CreateUser(ctx, authstore.CreateUserParams{Username: user.Username + "-third", PasswordHash: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	history, err = service.RecordSearch(ctx, third.ID, "首次搜索")
-	if err != nil || !reflect.DeepEqual(history, []string{"首次搜索"}) {
-		t.Fatalf("first search = %v, err = %v", history, err)
+	if err := service.SavePreferences(ctx, third.ID, Preferences{Categories: []string{}, ReaderInterval: 3}); err != nil {
+		t.Fatal(err)
 	}
-	assertPreferences(third.ID, []string{}, 5)
+	assertPreferences(third.ID, []string{}, 3)
+	assertHistory(third.ID, []string{})
 }

@@ -119,7 +119,7 @@ func TestReadingHistoryPostgres(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
 	}))
 	queries := store.New(tx)
-	service := NewService(queries, client, nil, nil, signing.NewAttachmentSigner("test", time.Hour))
+	service := NewService(NewUserState(queries), client, nil, nil, signing.NewAttachmentSigner("test", time.Hour))
 	for gid := int64(1); gid <= 27; gid++ {
 		if err := service.SaveProgress(ctx, user.ID, ReadingPosition{GID: gid, Token: "aaaaaaaaaa", Page: int32(gid)}); err != nil {
 			t.Fatal(err)

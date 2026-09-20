@@ -1,13 +1,23 @@
 import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from "@tanstack/vue-query"
 import { useInfiniteScroll } from "@vueuse/core"
-import { computed, onActivated, onDeactivated, onScopeDispose, ref } from "vue"
+import { computed, onActivated, onDeactivated, ref } from "vue"
 
+import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"
 import { ehKeys } from "@/features/eh/keys"
-import type { ReadingHistoryPage } from "@/features/eh/model"
-import { useEhStore } from "@/features/eh/store"
+import type { GalleryDetailResult, ReadingHistoryItem, ReadingHistoryPage } from "@/features/eh/model"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
 
 type HistoryCache = InfiniteData<ReadingHistoryPage, string>
+
+/*
+ * 删掉记录的同时把那本图集详情里的进度抹掉。
+ *
+ * 详情缓存里还留着删之前的页码，不改它的话重进详情会显示「继续阅读第 N 页」，
+ * 而服务端那边这条已经没了。
+ */
+function forgetProgress(detail: GalleryDetailResult | undefined) {
+  return detail && detail.progress !== null ? { ...detail, progress: null } : detail
+}
 
 /**
  * 阅读历史的加载与增删。
@@ -18,7 +28,6 @@ type HistoryCache = InfiniteData<ReadingHistoryPage, string>
  * 删除和清空直接改缓存里的列表，不重新拉页：游标按阅读时间取，删掉一条不会影响后面几页的起点。
  */
 export function useReadingHistory() {
-  const store = useEhStore()
   const queryClient = useQueryClient()
   const resetScroll = usePageScroll()
   /* 页面被缓存起来时不再滚动、也不再自动补页，但已发出的删除仍要跑完。 */
@@ -26,7 +35,7 @@ export function useReadingHistory() {
 
   const history = useInfiniteQuery({
     queryKey: ehKeys.history,
-    queryFn: ({ pageParam, signal }) => store.loadReadingHistory(pageParam, signal),
+    queryFn: ({ pageParam, signal }) => fetchReadingHistory(pageParam, signal),
     initialPageParam: "",
     getNextPageParam: (page: ReadingHistoryPage) => page.nextCursor,
     /* 读完一本回到这里，它就该排在最前面、页码也对得上，所以不留新鲜期。 */
@@ -45,13 +54,18 @@ export function useReadingHistory() {
     )
   }
 
+  /* 删除要给回执：用户看着那一条消失，所以这两个等结果，失败了照样提示。 */
   const removing = useMutation({
-    mutationFn: (gid: number) => store.removeReadingHistory(gid),
-    onSuccess: (_result, gid) => dropFromCache(gid),
+    mutationFn: (item: ReadingHistoryItem) => removeReadingHistory(item.gid),
+    onSuccess: (_result, item) => {
+      queryClient.setQueryData<GalleryDetailResult>(ehKeys.gallery(item.gid, item.token), forgetProgress)
+      dropFromCache(item.gid)
+    },
   })
   const clearing = useMutation({
-    mutationFn: () => store.clearReadingHistory(),
+    mutationFn: () => clearReadingHistory(),
     onSuccess: () => {
+      queryClient.setQueriesData<GalleryDetailResult>({ queryKey: ehKeys.galleryDetails }, forgetProgress)
       queryClient.setQueryData<HistoryCache>(ehKeys.history, {
         pages: [{ items: [], nextCursor: null }],
         pageParams: [""],
@@ -64,12 +78,6 @@ export function useReadingHistory() {
 
   /* 读和写都会改动列表，谁在跑都不该再接第二个操作。 */
   const busy = computed(() => history.isFetching.value || removing.isPending.value || clearing.isPending.value)
-
-  function loadMore() {
-    if (history.hasNextPage.value && !history.isFetching.value) {
-      void history.fetchNextPage()
-    }
-  }
 
   async function refresh() {
     await history.refetch()
@@ -88,14 +96,13 @@ export function useReadingHistory() {
   onDeactivated(() => {
     active.value = false
   })
-  onScopeDispose(() => {
-    active.value = false
-  })
 
-  useInfiniteScroll(() => (active.value ? window : null), loadMore, {
-    distance: 600,
-    canLoadMore: () => history.hasNextPage.value && !history.isFetching.value && !history.error.value,
-  })
+  /* 删除在途时也不续取：续取写回的是它开始时拿到的列表，刚删掉的那条会跟着回来。 */
+  useInfiniteScroll(
+    () => (active.value ? window : null),
+    () => void history.fetchNextPage(),
+    { distance: 600, canLoadMore: () => history.hasNextPage.value && !busy.value && !history.error.value },
+  )
 
   return {
     items,
@@ -106,7 +113,7 @@ export function useReadingHistory() {
     loadError: computed(() => history.error.value?.message ?? ""),
     changeError: computed(() => removing.error.value?.message ?? clearing.error.value?.message ?? ""),
     refresh,
-    remove: (gid: number) => removing.mutate(gid),
+    remove: (item: ReadingHistoryItem) => removing.mutate(item),
     clear: () => clearing.mutate(),
     retry: () => void history.refetch(),
   }

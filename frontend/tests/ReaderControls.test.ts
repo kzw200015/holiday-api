@@ -1,13 +1,11 @@
 /* @vitest-environment happy-dom */
 import { VueQueryPlugin } from "@tanstack/vue-query"
-import { createPinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { computed, createApp, h, nextTick, reactive } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
-import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
-import { fetchGalleryPreferences, saveReaderInterval } from "@/features/eh/api"
+import { fetchGalleryPreferences, saveGalleryPreferences } from "@/features/eh/api"
 import ReaderControls from "@/features/eh/components/ReaderControls.vue"
 import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
 import { createQueryClient } from "@/shared/api/queryClient"
@@ -15,14 +13,21 @@ import { createQueryClient } from "@/shared/api/queryClient"
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
   fetchGalleryPreferences: vi.fn(),
-  saveReaderInterval: vi.fn(),
+  saveGalleryPreferences: vi.fn(),
 }))
 
 const cleanups: (() => void)[] = []
 
-async function createReader(userId: number | undefined = 1, position: { page?: number; total?: number } = {}) {
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
+async function createReader(position: { page?: number; total?: number } = {}) {
   const state = reactive({
-    identity: "1/token",
     page: 1,
     total: 10,
     dragging: false,
@@ -41,21 +46,19 @@ async function createReader(userId: number | undefined = 1, position: { page?: n
         component: {
           setup() {
             const playback = useReaderPlayback(
-              () => state.identity,
               computed({ get: () => state.page, set: change }),
               () => state.total,
               () => state.dragging || state.seeking,
             )
             return () =>
               h(ReaderControls, {
-                key: state.identity,
                 page: state.page,
                 total: state.total,
                 seeking: state.seeking,
                 visible: state.visible,
                 playback: playback.state,
                 onToggleAutoPaging: playback.toggle,
-                onSetInterval: playback.setInterval,
+                onSetInterval: playback.changeInterval,
                 "onUpdate:page": change,
                 "onUpdate:seeking": (value: boolean) => {
                   state.seeking = value
@@ -72,11 +75,8 @@ async function createReader(userId: number | undefined = 1, position: { page?: n
   const host = document.createElement("div")
   document.body.append(host)
   const app = createApp({ render: () => h(RouterView) })
-  const pinia = createPinia()
-  app.use(pinia)
   app.use(router)
   app.use(VueQueryPlugin, { queryClient: createQueryClient() })
-  useAuthStore(pinia).user = userId === undefined ? null : { id: userId, username: "测试账号" }
   app.mount(host)
   cleanups.push(() => {
     app.unmount()
@@ -98,7 +98,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
   vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: 5 })
-  vi.mocked(saveReaderInterval).mockResolvedValue(null)
+  vi.mocked(saveGalleryPreferences).mockResolvedValue(null)
   localStorage.clear()
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
 })
@@ -169,7 +169,7 @@ describe("阅读器自动翻页控件", () => {
     },
   )
 
-  it("修改间隔立即重新计时，按账号保存间隔但不保存开启状态", async () => {
+  it("修改间隔立即重新计时，间隔会存下来但开启状态不会", async () => {
     const { change, host } = await createReader()
     autoButton(host).click()
     await vi.advanceTimersByTimeAsync(4000)
@@ -180,14 +180,12 @@ describe("阅读器自动翻页控件", () => {
     expect(change).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
     expect(change).toHaveBeenCalledTimes(1)
-    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(6)
+    expect(saveGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ categories: [], readerInterval: 6 })
+    /* 重开一个阅读器：间隔按存下来的那份显示，自动翻页不跟着恢复。 */
     vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: 6 })
     const reopened = await createReader()
     expect(intervalText(reopened.host)).toBe("6 秒")
     expect(autoButton(reopened.host).getAttribute("aria-pressed")).toBe("false")
-    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: 5 })
-    const anotherUser = await createReader(2)
-    expect(intervalText(anotherUser.host)).toBe("5 秒")
     host.querySelector<HTMLButtonElement>('[aria-label="减少自动翻页间隔"]')!.click()
     await nextTick()
     expect(intervalText(host)).toBe("5 秒")
@@ -212,63 +210,45 @@ describe("阅读器自动翻页控件", () => {
     await nextTick()
     expect(intervalText(host)).toBe(`${next} 秒`)
     expect(disabledButton.disabled).toBe(false)
-    expect(saveReaderInterval).not.toHaveBeenCalled()
     disabledButton.click()
     await nextTick()
     expect(intervalText(host)).toBe(`${seconds} 秒`)
     expect(disabledButton.disabled).toBe(true)
-    await vi.advanceTimersByTimeAsync(1000)
-    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(seconds)
+    /* 越界那两次点击什么也没发生，只有真的改了值才提交。 */
+    await vi.advanceTimersByTimeAsync(0)
+    expect(saveGalleryPreferences).toHaveBeenNthCalledWith(1, { categories: [], readerInterval: next })
+    expect(saveGalleryPreferences).toHaveBeenLastCalledWith({ categories: [], readerInterval: seconds })
   })
 
-  it("连续调整合并保存，离开阅读页补存待提交的间隔", async () => {
-    const { host, router } = await createReader()
+  /* 改几次就提交几次；同一条 scope 让它们按操作顺序到达，后到的旧值盖不掉新的。 */
+  it("连续调整逐次提交，前一次没回来就排队等着", async () => {
+    const inflight = deferred<null>()
+    vi.mocked(saveGalleryPreferences).mockReturnValueOnce(inflight.promise)
+    const { host } = await createReader()
     const increase = host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!
     increase.click()
-    await vi.advanceTimersByTimeAsync(500)
-    increase.click()
-    await vi.advanceTimersByTimeAsync(999)
-    expect(saveReaderInterval).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(1)
-    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(7)
+    await nextTick()
+    expect(saveGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ categories: [], readerInterval: 6 })
     increase.click()
     await nextTick()
-    await router.push("/away")
-    expect(saveReaderInterval).toHaveBeenLastCalledWith(8)
-    await vi.advanceTimersByTimeAsync(1000)
-    expect(saveReaderInterval).toHaveBeenCalledTimes(2)
+    /* 第一次还没回来，第二次排在后面。 */
+    expect(saveGalleryPreferences).toHaveBeenCalledTimes(1)
+    expect(intervalText(host)).toBe("7 秒")
+    inflight.resolve(null)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(saveGalleryPreferences).toHaveBeenLastCalledWith({ categories: [], readerInterval: 7 })
+    /* 前一次的响应回来时本地已经是 7 了，不能把它写回 6。 */
+    expect(intervalText(host)).toBe("7 秒")
   })
 
-  it("切换图集时完成待保存的间隔后再读取，新会话不会被旧值覆盖", async () => {
-    let finish!: () => void
-    vi.mocked(saveReaderInterval).mockImplementation(async (seconds) => {
-      await new Promise<void>((resolve) => {
-        finish = resolve
-      })
-      vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: seconds })
-      return null
-    })
-    const { state, host } = await createReader()
-    host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
-    state.identity = "2/new"
-    await nextTick()
-    expect(saveReaderInterval).toHaveBeenCalledExactlyOnceWith(6)
-    expect(fetchGalleryPreferences).toHaveBeenCalledTimes(1)
-    expect(intervalText(host)).toBe("6 秒")
-    finish()
-    await vi.advanceTimersByTimeAsync(1)
-    expect(fetchGalleryPreferences).toHaveBeenCalledTimes(2)
-    expect(intervalText(host)).toBe("6 秒")
-    expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
-  })
-
-  it("保存失败显示未同步提示，当前间隔继续可用", async () => {
-    vi.mocked(saveReaderInterval).mockRejectedValue(new Error("断网"))
+  it("推送失败不改动当前间隔，也不拿失败打扰用户", async () => {
+    vi.mocked(saveGalleryPreferences).mockRejectedValue(new Error("断网"))
     const { host } = await createReader()
     host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
-    await vi.advanceTimersByTimeAsync(1000)
+    await vi.advanceTimersByTimeAsync(0)
+    await nextTick()
     expect(intervalText(host)).toBe("6 秒")
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain("未同步到账号")
+    expect(host.querySelector('[role="alert"]')).toBeNull()
     expect(host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.disabled).toBe(false)
   })
 
@@ -279,7 +259,7 @@ describe("阅读器自动翻页控件", () => {
   })
 
   it("页数到达后创建滑块，保留从 URL 恢复的页码", async () => {
-    const { state, host } = await createReader(1, { page: 3, total: 0 })
+    const { state, host } = await createReader({ page: 3, total: 0 })
     expect(host.querySelector('input[type="range"]')).toBeNull()
     state.total = 12
     await nextTick()
@@ -308,8 +288,8 @@ describe("阅读器自动翻页控件", () => {
     expect(change).toHaveBeenCalledTimes(1)
   })
 
-  it("切入后台就停下，回到前台不自己转起来；换图集同样停下", async () => {
-    const { state, change, host } = await createReader()
+  it("切入后台就停下，回到前台不自己转起来", async () => {
+    const { change, host } = await createReader()
     autoButton(host).click()
     await nextTick()
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
@@ -328,13 +308,6 @@ describe("阅读器自动翻页控件", () => {
     autoButton(host).click()
     await vi.advanceTimersByTimeAsync(5000)
     expect(change).toHaveBeenCalledWith(2)
-    /* 换图集同样停下：回到可继续的状态也不会自己转起来。 */
-    change.mockClear()
-    state.identity = "2/other"
-    await nextTick()
-    expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
-    await vi.advanceTimersByTimeAsync(10000)
-    expect(change).not.toHaveBeenCalled()
   })
 
   it("离开路由后停止自动翻页", async () => {

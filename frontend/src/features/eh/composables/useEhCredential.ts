@@ -18,10 +18,15 @@ export function useEhCredential() {
     queryFn: ({ signal }) => fetchCredentialStatus(signal),
   })
 
-  /* 换绑或解绑都会改变能看到的内容：新状态直接落到缓存，受凭据影响的内容一并作废。 */
+  /*
+   * 换绑或解绑都会改变能看到的内容：新状态直接落到缓存，受凭据影响的内容一并丢掉重来。
+   *
+   * 用 reset 而不是 invalidate：被 KeepAlive 留着的搜索页算「正在用」，invalidate 会把它翻过的每一页
+   * 都向上游重抓一遍；reset 之后只取第一页，旧账号下翻到哪本来也不算数了。
+   */
   function accept(next: CredentialStatus) {
     queryClient.setQueryData(ehKeys.credential, next)
-    void queryClient.invalidateQueries({ queryKey: ehKeys.content })
+    void queryClient.resetQueries({ queryKey: ehKeys.content })
   }
 
   const binding = useMutation({ mutationFn: (cookie: EhCookie) => bindCredential(cookie), onSuccess: accept })

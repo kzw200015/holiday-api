@@ -57,7 +57,7 @@ const { items, loading, loadingMore, hasMore, busy, loadError, changeError, refr
             variant="ghost"
             :disabled="busy"
             :aria-label="`删除阅读记录：${item.gid}`"
-            @click="remove(item.gid)"
+            @click="remove(item)"
           >
             <Trash2Icon />删除
           </Button>

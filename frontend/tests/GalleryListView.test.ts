@@ -26,7 +26,12 @@ vi.mock("@vueuse/core", async (original) => ({
     options: { canLoadMore: () => boolean },
   ) => {
     scroll.target = target
-    scroll.load = load
+    /* 真的 useInfiniteScroll 先问过 canLoadMore 才会触发加载，这里照做。 */
+    scroll.load = async () => {
+      if (target() && options.canLoadMore()) {
+        await load()
+      }
+    }
     scroll.canLoad = options.canLoadMore
   },
 }))

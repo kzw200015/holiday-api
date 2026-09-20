@@ -13,19 +13,16 @@ import type * as EhApi from "@/features/eh/api"
 import {
   bindCredential,
   clearReadingHistory,
-  clearSearchHistory,
   fetchCredentialStatus,
   fetchGalleryComments,
   fetchGalleryDetail,
   fetchGalleryPreferences,
   fetchReadingHistory,
   fetchSearchHistory,
-  recordSearch,
   removeReadingHistory,
-  removeSearch,
-  saveGalleryCategories,
+  saveGalleryPreferences,
   saveProgress,
-  saveReaderInterval,
+  saveSearchHistory,
   searchGalleries,
   unbindCredential,
 } from "@/features/eh/api"
@@ -54,11 +51,8 @@ vi.mock("@/features/eh/api", async (original) => ({
   searchGalleries: vi.fn(),
   fetchGalleryPreferences: vi.fn(),
   fetchSearchHistory: vi.fn(),
-  recordSearch: vi.fn(),
-  removeSearch: vi.fn(),
-  clearSearchHistory: vi.fn(),
-  saveGalleryCategories: vi.fn(),
-  saveReaderInterval: vi.fn(),
+  saveGalleryPreferences: vi.fn(),
+  saveSearchHistory: vi.fn(),
 }))
 
 const gallery: GalleryDetail = {
@@ -140,23 +134,15 @@ beforeEach(async () => {
   let preferences = { categories: [] as string[], readerInterval: 5 }
   let history: string[] = []
   vi.mocked(fetchGalleryPreferences).mockImplementation(async () => structuredClone(preferences))
-  vi.mocked(saveGalleryCategories).mockImplementation(async (categories) => {
-    preferences = { ...preferences, categories: [...categories] }
+  /* 两份账号数据都是整份提交：推上来什么就存什么，服务端不再自己算结果。 */
+  vi.mocked(saveGalleryPreferences).mockImplementation(async (next) => {
+    preferences = structuredClone(next)
     return null
   })
-  vi.mocked(saveReaderInterval).mockResolvedValue(null)
   vi.mocked(fetchSearchHistory).mockImplementation(async () => [...history])
-  vi.mocked(recordSearch).mockImplementation(async (keyword) => {
-    history = [keyword, ...history.filter((entry) => entry !== keyword)]
-    return [...history]
-  })
-  vi.mocked(removeSearch).mockImplementation(async (keyword) => {
-    history = history.filter((entry) => entry !== keyword)
-    return [...history]
-  })
-  vi.mocked(clearSearchHistory).mockImplementation(async () => {
-    history = []
-    return [...history]
+  vi.mocked(saveSearchHistory).mockImplementation(async (entries) => {
+    history = [...entries]
+    return null
   })
   pinia = createPinia()
   const auth = useAuthStore(pinia)
@@ -223,7 +209,7 @@ describe("阅读历史与二级导航", () => {
     expect(searchGalleries).toHaveBeenCalledTimes(1)
   })
 
-  it("保存仍在进行时退出不等待，历史查询在 Store 中排队", async () => {
+  it("退出阅读不等进度推送跑完，历史照常立刻重取", async () => {
     await visit("/eh/history")
     let finish!: (value: null) => void
     vi.mocked(saveProgress).mockReturnValueOnce(
@@ -232,15 +218,15 @@ describe("阅读历史与二级导航", () => {
       }),
     )
     await click("继续阅读")
-    await vi.waitFor(() => expect(saveProgress).toHaveBeenCalledWith(1, "aaaaaaaaaa", 3, expect.any(AbortSignal)), {
+    await vi.waitFor(() => expect(saveProgress).toHaveBeenCalledWith(1, "aaaaaaaaaa", 3), {
       timeout: 2000,
     })
     await visit("/eh/history")
     expect(router.currentRoute.value.name).toBe("gallery-history")
-    expect(fetchReadingHistory).toHaveBeenCalledTimes(1)
+    /* 推送在途也不挡读取：两者各走各的，不再共用一条队列。 */
+    expect(fetchReadingHistory).toHaveBeenCalledTimes(2)
     finish(null)
     await settle()
-    expect(fetchReadingHistory).toHaveBeenCalledTimes(2)
   })
 
   it("删除失败保留条目，成功后清除缓存详情的继续阅读页码，清空必须确认", async () => {
@@ -272,7 +258,7 @@ describe("阅读历史与二级导航", () => {
     expect(host.textContent).toContain("还没有阅读记录")
   })
 
-  it("详情和历史按序查询，删除后缓存详情直接读取 Store 的新进度", async () => {
+  it("详情在途不挡历史查询；删除之后缓存里的详情不再显示继续阅读", async () => {
     let finish!: (value: Awaited<ReturnType<typeof fetchGalleryDetail>>) => void
     vi.mocked(fetchGalleryDetail).mockReturnValueOnce(
       new Promise((resolve) => {
@@ -281,15 +267,16 @@ describe("阅读历史与二级导航", () => {
     )
     await visit("/eh/g/1/aaaaaaaaaa")
     await visit("/eh/history")
-    expect(fetchReadingHistory).not.toHaveBeenCalled()
+    expect(fetchReadingHistory).toHaveBeenCalledTimes(1)
     finish({ gallery, progress: 17, imageUrlTemplate: "/image/{page}" })
     await settle()
     vi.mocked(fetchReadingHistory).mockResolvedValueOnce({ items: [], nextCursor: null })
     host.querySelector<HTMLElement>('[aria-label="删除阅读记录：1"]')!.click()
     await settle()
     await visit("/eh/g/1/aaaaaaaaaa")
+    /* 详情还在缓存里，不必重取；进度已经作废，所以不会再冒出一个「继续阅读」。 */
     expect(host.textContent).toContain("开始阅读")
-    expect(host.textContent).not.toContain("继续阅读（第 17 页）")
+    expect(host.textContent).not.toContain("继续阅读")
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(1)
   })
 
@@ -308,7 +295,7 @@ describe("阅读历史与二级导航", () => {
     expect(host.querySelector('a[href*="/eh/read/"]')).toBeNull()
     host.querySelector<HTMLElement>('[aria-label="删除阅读记录：1"]')!.click()
     await settle()
-    expect(removeReadingHistory).toHaveBeenCalledExactlyOnceWith(1, expect.any(AbortSignal))
+    expect(removeReadingHistory).toHaveBeenCalledExactlyOnceWith(1)
     expect(host.textContent).toContain("还没有阅读记录")
   })
 
@@ -434,7 +421,8 @@ describe("页面缓存与失效范围", () => {
     await settle()
     expect(searchGalleries).toHaveBeenCalledTimes(count)
     expect(history.querySelector('[data-slot="badge"]')).toBeNull()
-    expect(removeSearch).toHaveBeenCalledExactlyOnceWith("cat", expect.any(AbortSignal))
+    /* 界面当场就没了；整份历史随后才推上去。 */
+    await vi.waitFor(() => expect(saveSearchHistory).toHaveBeenCalledWith([]))
   })
 
   it("阅读返回保留详情 DOM、评论和滚动位置，仅同步进度；列表返回保留输入与条目", async () => {
@@ -452,7 +440,7 @@ describe("页面缓存与失效范围", () => {
     // 阅读器翻页不增加历史记录。
     await router.replace("/eh/read/1/aaaaaaaaaa/17")
     await router.replace("/eh/read/1/aaaaaaaaaa/18")
-    await vi.waitFor(() => expect(saveProgress).toHaveBeenCalledWith(1, "aaaaaaaaaa", 18, expect.any(AbortSignal)), {
+    await vi.waitFor(() => expect(saveProgress).toHaveBeenCalledWith(1, "aaaaaaaaaa", 18), {
       timeout: 2000,
     })
     await settle()
@@ -464,7 +452,7 @@ describe("页面缓存与失效范围", () => {
     expect(fetchGalleryComments).toHaveBeenCalledTimes(1)
     /* 详情页和阅读器查的是同一份缓存，所以进阅读器不再重新抓一次图集元数据。 */
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(1)
-    expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 18, expect.any(AbortSignal))
+    expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 18)
     await click("返回列表")
     expect(router.currentRoute.value.fullPath).toBe("/eh")
     expect(host.querySelector("input")).toBe(input)
@@ -495,7 +483,7 @@ describe("页面缓存与失效范围", () => {
     host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
     await nextTick()
     expect(host.querySelector('[aria-label="自动翻页间隔"]')!.textContent.trim()).toBe("6 秒")
-    expect(saveReaderInterval).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(saveGalleryPreferences).toHaveBeenCalledWith({ categories: [], readerInterval: 6 }))
     host.querySelector<HTMLElement>('[aria-label="开始自动翻页"]')!.click()
     await nextTick()
     const pause = host.querySelector<HTMLElement>('[aria-label="暂停自动翻页"]')!
@@ -610,9 +598,12 @@ describe("页面缓存与失效范围", () => {
       { keyword: "cat", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
-    expect(saveGalleryCategories).toHaveBeenCalledExactlyOnceWith(["manga"])
     expect(host.textContent).toContain("分类 (1)")
-    expect(recordSearch).toHaveBeenCalledExactlyOnceWith("cat", expect.any(AbortSignal))
+    /* 两份数据各自整份推上去，界面不等它们。 */
+    await vi.waitFor(() => {
+      expect(saveGalleryPreferences).toHaveBeenCalledWith({ categories: ["manga"], readerInterval: 5 })
+      expect(saveSearchHistory).toHaveBeenCalledWith(["cat"])
+    })
     await enterKeyword("dog")
     await click("搜索")
     expect(searchGalleries).toHaveBeenLastCalledWith(
@@ -628,28 +619,43 @@ describe("页面缓存与失效范围", () => {
     expect(searchGalleries).toHaveBeenCalledTimes(requests)
   })
 
-  it("返回列表时读取其他设备的新分类与历史，不提交当前输入草稿", async () => {
+  /* 本地那份才是真源：读过一次之后，服务端上别处的改动不会回头盖掉它，也不再重读。 */
+  /* 两份账号数据的保存都是整份提交，带着没读到的空值放行，下一次搜索就会把服务端的历史冲掉。 */
+  it("账号数据读不到就停在布局层，重试读到后才放页面进来", async () => {
+    vi.mocked(fetchSearchHistory).mockRejectedValueOnce(new Error("历史读取失败"))
+    await queryClient.resetQueries({ queryKey: ehKeys.searchHistory })
+    await settle()
+    expect(host.textContent).toContain("历史读取失败")
+    expect(host.querySelector('input[aria-label="搜索图集"]')).toBeNull()
+
+    await click("重试")
+    expect(host.textContent).not.toContain("历史读取失败")
+    expect(host.querySelector('input[aria-label="搜索图集"]')).not.toBeNull()
+    expect(saveSearchHistory).not.toHaveBeenCalled()
+  })
+
+  it("返回列表沿用本地那份偏好与历史，不再重读服务端", async () => {
     await enterKeyword("cat")
     await click("搜索")
     await enterKeyword("尚未提交")
     await visit("/eh/g/1/aaaaaaaaaa")
+    const reads = vi.mocked(fetchGalleryPreferences).mock.calls.length
     vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 5 })
     vi.mocked(fetchSearchHistory).mockResolvedValue(["其他设备的搜索"])
     await click("返回列表")
     expect(host.querySelector("input")?.value).toBe("尚未提交")
-    expect(host.textContent).toContain("其他设备的搜索")
-    expect(host.textContent).toContain("分类 (1)")
+    expect(host.textContent).not.toContain("其他设备的搜索")
+    expect(host.textContent).toContain("cat")
+    expect(fetchGalleryPreferences).toHaveBeenCalledTimes(reads)
     expect(searchGalleries).toHaveBeenLastCalledWith(
-      { keyword: "cat", categories: ["manga"], cursor: "" },
+      { keyword: "cat", categories: [], cursor: "" },
       expect.any(AbortSignal),
     )
-    expect(recordSearch).toHaveBeenCalledExactlyOnceWith("cat", expect.any(AbortSignal))
-    expect(saveGalleryCategories).not.toHaveBeenCalled()
   })
 
-  it("分类和历史保存失败不阻断本次搜索，并显示未保存提示", async () => {
-    vi.mocked(saveGalleryCategories).mockRejectedValue(new Error("断网"))
-    vi.mocked(recordSearch).mockRejectedValue(new Error("断网"))
+  it("推送失败不阻断本次搜索，也不拿失败打扰用户", async () => {
+    vi.mocked(saveGalleryPreferences).mockRejectedValue(new Error("断网"))
+    vi.mocked(saveSearchHistory).mockRejectedValue(new Error("断网"))
     await enterKeyword("cat")
     await click("分类")
     category("漫画").click()
@@ -660,9 +666,10 @@ describe("页面缓存与失效范围", () => {
       { keyword: "cat", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
-    expect(host.textContent).toContain("分类保存失败")
-    expect(host.textContent).toContain("搜索历史保存失败")
-    expect(host.querySelector("fieldset")!.disabled).toBe(false)
+    await vi.waitFor(() => expect(saveGalleryPreferences).toHaveBeenCalled())
+    /* 存不上也不说，界面照常用本地这份。 */
+    expect(host.textContent).not.toContain("失败")
+    expect(host.textContent).toContain("分类 (1)")
   })
 
   it("同一详情从新搜索进入后，浏览器后退仍保留详情与最新搜索", async () => {
@@ -682,9 +689,9 @@ describe("页面缓存与失效范围", () => {
     router.back()
     await settle()
     expect(host.querySelector("h2")).toBe(heading)
-    /* 尚未到防抖时间，先显示上次确认的页码；退出不会立即补报。 */
-    expect(host.textContent).toContain("继续阅读（第 3 页）")
-    expect(saveProgress).not.toHaveBeenCalled()
+    /* 翻到哪本地就是哪，界面当场跟上；退出阅读时把还没发出的这一页补提交上去。 */
+    expect(host.textContent).toContain("继续阅读（第 29 页）")
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "aaaaaaaaaa", 29)
     await click("返回列表")
     expect(router.currentRoute.value.fullPath).toBe("/eh")
     expect(host.querySelector("input")?.value).toBe("dog")

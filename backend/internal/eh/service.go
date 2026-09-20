@@ -9,7 +9,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"myapi/internal/apperr"
-	"myapi/internal/eh/store"
 	"myapi/internal/signing"
 )
 
@@ -17,7 +16,7 @@ import (
 type Service struct {
 	// 内嵌而不是当字段挂着：偏好、搜索历史、进度这些方法本来就是 Service 要对外提供的，
 	// 名字也是照这个位置起的，提升上来正好，不必再写一层同名转发。
-	*userState
+	*UserState
 
 	client      *Client
 	credentials *CredentialStore
@@ -28,10 +27,10 @@ type Service struct {
 	galleries *expirable.LRU[GalleryRef, galleryMetadata]
 }
 
-func NewService(queries *store.Queries, client *Client, credentials *CredentialStore,
+func NewService(userState *UserState, client *Client, credentials *CredentialStore,
 	locator *ImageLocator, signer *signing.AttachmentSigner) *Service {
 	return &Service{
-		userState:   newUserState(queries),
+		UserState:   userState,
 		client:      client,
 		credentials: credentials,
 		locator:     locator,
@@ -40,7 +39,7 @@ func NewService(queries *store.Queries, client *Client, credentials *CredentialS
 	}
 }
 
-// 凭据这三个是转发而不是像 userState 那样内嵌：CredentialStore 的方法名是照它自己起的，
+// 凭据这三个是转发而不是像 UserState 那样内嵌：CredentialStore 的方法名是照它自己起的，
 // 提升上来就成了 Service.Status / Service.Bind，在一个还管着搜索和取图的门面上没法读。
 // 转发的这一层做的正是改名。
 

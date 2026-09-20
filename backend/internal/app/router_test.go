@@ -117,7 +117,7 @@ func newTestRouter(t *testing.T) (http.Handler, string) {
 	tokens := auth.NewTokens("jwt-子密钥", time.Hour)
 	// 假 db 一律返回空行，所以这条链路走的是「未绑定凭据」，匿名看前站
 	client := eh.NewClient("test-agent", time.Second, upstream{})
-	ehService := eh.NewService(queries, client,
+	ehService := eh.NewService(eh.NewUserState(queries), client,
 		eh.NewCredentialStore(queries, client, keylock.New()), eh.NewImageLocator(client),
 		signing.NewAttachmentSigner("attachment-子密钥", time.Hour))
 

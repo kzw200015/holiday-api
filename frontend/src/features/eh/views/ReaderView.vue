@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { clamp, useEventListener, useTimeoutFn } from "@vueuse/core"
 import { computed, ref, watch } from "vue"
-import { onBeforeRouteLeave, useRouter } from "vue-router"
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter } from "vue-router"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -9,6 +9,7 @@ import ReaderControls from "@/features/eh/components/ReaderControls.vue"
 import ReaderStrip from "@/features/eh/components/ReaderStrip.vue"
 import { useGalleryDetail } from "@/features/eh/composables/useGalleryDetail"
 import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
+import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
 import { galleryDetailLocation, readerLocation, type GallerySource } from "@/features/eh/navigation"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 
@@ -25,7 +26,7 @@ const PAGE_STEPS: Record<string, number> = {
   PageUp: -1,
 }
 
-/* 路由 props 随页面实例保留，缓存页面和阅读器各自使用自己的图集身份。 */
+/* 一个实例只读一本：换图集时 App.vue 按 key 整个重建，所以 gid 与 token 在这里当常量用。 */
 const props = withDefaults(
   defineProps<{
     gid: number
@@ -36,11 +37,11 @@ const props = withDefaults(
   { source: "search" },
 )
 const router = useRouter()
-const identity = computed(() => `${props.gid}/${props.token}`)
-const { gallery, imageUrlTemplate, loaded, loading, errorMessage, reportProgress } = useGalleryDetail(
+const { gallery, imageUrlTemplate, loaded, loading, errorMessage } = useGalleryDetail(
   () => props.gid,
   () => props.token,
 )
+const { report: reportProgress, flush: flushProgress } = useReadingProgress(props.gid, props.token)
 const totalPages = computed(() => gallery.value?.fileCount ?? 0)
 /**
  * 当前页码的真源在这里，地址栏是它的投影。
@@ -54,9 +55,9 @@ const page = computed({ get: () => current.value, set: goTo })
 const seeking = ref(false)
 const dragging = ref(false)
 const controlsVisible = ref(true)
-const playback = useReaderPlayback(identity, page, totalPages, () => seeking.value || dragging.value)
+const playback = useReaderPlayback(page, totalPages, () => seeking.value || dragging.value)
 
-/* 页数未知时先不夹取：详情还没到，上一本图集的页数不能拿来约束这一本。 */
+/* 页数未知时只保证不小于 1，越界的部分等页数到了再收回来。 */
 function goTo(next: number) {
   current.value = totalPages.value ? clamp(next, 1, totalPages.value) : Math.max(1, next)
 }
@@ -69,10 +70,21 @@ function syncUrl() {
 }
 const { start: scheduleUrlSync, stop: cancelUrlSync } = useTimeoutFn(syncUrl, URL_SYNC_DELAY, { immediate: false })
 watch(current, scheduleUrlSync)
-/* 已经离开阅读器时那次迟到的 replace 会把人拽回来，所以走之前先取消。 */
-onBeforeRouteLeave(cancelUrlSync)
+/* 已经离开阅读器时那次迟到的 replace 会把人拽回来，所以走之前先取消；
+ * 同时把还没发出的那次进度补上，否则最后翻的几页就丢了。 */
+onBeforeRouteLeave(() => {
+  cancelUrlSync()
+  flushProgress()
+})
+/* 手改地址换图集不算离开路由，但这个实例马上要被重建，攒着的进度同样先发掉。 */
+onBeforeRouteUpdate((to) => {
+  if (Number(to.params.gid) !== props.gid) {
+    cancelUrlSync()
+    flushProgress()
+  }
+})
 
-/* 地址栏是外部输入的入口：浏览器前进后退、手改地址、换图集都从这里进来。 */
+/* 地址栏是外部输入的入口：浏览器前进后退、手改页码都从这里进来。 */
 watch(
   () => props.page,
   (next) => {
@@ -96,10 +108,10 @@ function exit() {
 
 /* 详情到达且页数已知后才报告位置。 */
 watch(
-  () => (loaded.value && totalPages.value ? { gid: props.gid, token: props.token, page: page.value } : null),
-  (position) => {
-    if (position) {
-      reportProgress(position.page)
+  [() => loaded.value && totalPages.value > 0, page],
+  ([ready, at]) => {
+    if (ready) {
+      reportProgress(at)
     }
   },
   { immediate: true },
@@ -125,11 +137,6 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
     exit()
   }
 })
-
-watch(identity, () => {
-  seeking.value = false
-  dragging.value = false
-})
 </script>
 
 <template>
@@ -144,7 +151,6 @@ watch(identity, () => {
     <div v-else class="relative flex min-h-0 flex-1 overflow-hidden">
       <ReaderStrip
         v-if="imageUrlTemplate && totalPages"
-        :key="identity"
         v-model:page="page"
         v-model:dragging="dragging"
         :total="totalPages"
@@ -154,7 +160,6 @@ watch(identity, () => {
       <Skeleton v-if="loading" class="absolute inset-x-1/4 inset-y-8 rounded-lg" />
     </div>
     <ReaderControls
-      :key="identity"
       v-model:page="page"
       v-model:seeking="seeking"
       :title="gallery?.title"
@@ -162,7 +167,7 @@ watch(identity, () => {
       :total="totalPages"
       :playback="playback.state"
       @toggle-auto-paging="playback.toggle"
-      @set-interval="playback.setInterval"
+      @set-interval="playback.changeInterval"
       @exit="exit"
     />
   </div>

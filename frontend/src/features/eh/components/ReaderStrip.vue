@@ -12,7 +12,7 @@ const PRELOAD_PAGES = 2
  * ratios 不跟着清，页宽因此保持原样，卸载不会让布局跳动，滑回去时也还在原来的位置。 */
 const KEEP_PAGES = 12
 
-/* 父级在页数已知且非零时挂载，换图集以 key 整体重建。 */
+/* 父级在页数已知且非零时挂载；换图集时整个阅读器重建，这里不会中途换一本。 */
 const props = withDefaults(defineProps<{ total: number; template: string; seeking?: boolean }>(), {
   seeking: false,
 })

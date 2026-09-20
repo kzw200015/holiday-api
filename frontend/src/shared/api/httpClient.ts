@@ -95,4 +95,10 @@ export const httpClient = {
     const response = await instance.post<ApiResponse<T>>(url, data, config)
     return response.data.data
   },
+
+  /** 整份替换：同一份重复提交结果不变，重试是安全的。（乱序提交仍会用旧快照盖掉新的，由调用方自己串行。） */
+  async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    const response = await instance.put<ApiResponse<T>>(url, data, config)
+    return response.data.data
+  },
 }

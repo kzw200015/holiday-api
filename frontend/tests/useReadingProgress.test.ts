@@ -1,0 +1,144 @@
+/* @vitest-environment happy-dom */
+import { VueQueryPlugin, type QueryClient } from "@tanstack/vue-query"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { createApp, nextTick } from "vue"
+
+import type * as EhApi from "@/features/eh/api"
+import { saveProgress } from "@/features/eh/api"
+import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
+import { ehKeys } from "@/features/eh/keys"
+import type { GalleryDetail, GalleryDetailResult } from "@/features/eh/model"
+import { createQueryClient } from "@/shared/api/queryClient"
+
+vi.mock("@/features/eh/api", async (original) => ({
+  ...(await original<typeof EhApi>()),
+  saveProgress: vi.fn(),
+}))
+
+/* 与 useReadingProgress 里的 SAVE_DELAY 对齐。 */
+const SAVE_DELAY = 1200
+
+const gallery: GalleryDetail = {
+  gid: 1,
+  token: "aaaaaaaaaa",
+  title: "测试图集",
+  titleJpn: "",
+  category: "Manga",
+  thumbnail: "/thumbnail",
+  uploader: "tester",
+  postedAt: "2026-09-05T00:00:00Z",
+  fileCount: 100,
+  rating: 4,
+  tags: [],
+  fileSize: 100,
+  torrentCount: 0,
+  expunged: false,
+}
+
+let queryClient: QueryClient
+const cleanups: (() => void)[] = []
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
+/* 详情已经在缓存里，进度就是它的一个字段——翻页改的正是这一份。 */
+function seedDetail(gid: number, token: string, progress: number | null) {
+  queryClient.setQueryData<GalleryDetailResult>(ehKeys.gallery(gid, token), {
+    gallery: { ...gallery, gid, token },
+    progress,
+    imageUrlTemplate: "/image/{page}",
+  })
+}
+
+function progressOf(gid: number, token: string) {
+  return queryClient.getQueryData<GalleryDetailResult>(ehKeys.gallery(gid, token))?.progress
+}
+
+async function mountReader() {
+  let api!: ReturnType<typeof useReadingProgress>
+  const app = createApp({
+    setup() {
+      api = useReadingProgress(1, "aaaaaaaaaa")
+      return () => null
+    },
+  })
+  app.use(VueQueryPlugin, { queryClient })
+  app.mount(document.createElement("div"))
+  cleanups.push(() => app.unmount())
+  await nextTick()
+  return { api }
+}
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.resetAllMocks()
+  queryClient = createQueryClient()
+  seedDetail(1, "aaaaaaaaaa", 3)
+  vi.mocked(saveProgress).mockResolvedValue(null)
+})
+afterEach(() => {
+  for (const cleanup of cleanups.splice(0)) {
+    cleanup()
+  }
+  queryClient.clear()
+  vi.useRealTimers()
+})
+
+describe("阅读进度上报", () => {
+  it("翻页当场改详情缓存，连着翻只发最后一页", async () => {
+    const { api } = await mountReader()
+    api.report(5)
+    /* 详情页的「继续阅读第 N 页」读的就是这里，所以不必等网络。 */
+    expect(progressOf(1, "aaaaaaaaaa")).toBe(5)
+    api.report(6)
+    api.report(7)
+    expect(progressOf(1, "aaaaaaaaaa")).toBe(7)
+    expect(saveProgress).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY)
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "aaaaaaaaaa", 7)
+  })
+
+  /* 同一本的两次上报一旦乱序，后到的旧页码就会把进度按回去。 */
+  it("前一次还没回来就不发下一次", async () => {
+    const inflight = deferred<null>()
+    vi.mocked(saveProgress).mockReturnValueOnce(inflight.promise)
+    const { api } = await mountReader()
+    api.report(5)
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY)
+    expect(saveProgress).toHaveBeenCalledTimes(1)
+
+    api.report(9)
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY)
+    expect(saveProgress).toHaveBeenCalledTimes(1)
+
+    inflight.resolve(null)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 9)
+  })
+
+  it("flush 把合并窗口里那次立刻发出去", async () => {
+    const { api } = await mountReader()
+    api.report(12)
+    expect(saveProgress).not.toHaveBeenCalled()
+    api.flush()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "aaaaaaaaaa", 12)
+    /* 已经发过了，原定的那次不会再来一遍。 */
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY)
+    expect(saveProgress).toHaveBeenCalledTimes(1)
+  })
+
+  it("存不上不回退，缓存里仍是用户读到的那一页", async () => {
+    vi.mocked(saveProgress).mockRejectedValue(new Error("断网"))
+    const { api } = await mountReader()
+    api.report(20)
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY)
+    await nextTick()
+    expect(progressOf(1, "aaaaaaaaaa")).toBe(20)
+  })
+})

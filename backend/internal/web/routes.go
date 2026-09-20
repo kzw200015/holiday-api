@@ -19,8 +19,8 @@ import (
 // 覆盖的是返回 Response 的接口。直接转发二进制流的（eh 的两条图片接口）响应形态不同，
 // 硬塞进来就得让这里认识那边的附件类型，所以它们自己写 Handler。
 //
-// 嵌入 chi.Router，Use / Method 这些照常可用；Get 与 Post 会遮蔽 chi 的同名方法，
-// 各模块注册路由一律经这里，不用原生那两个。Group 也一并遮蔽，交回给回调的就是包装过的
+// 嵌入 chi.Router，Use / Method 这些照常可用；Get、Post 与 Put 会遮蔽 chi 的同名方法，
+// 各模块注册路由一律经这里，不用原生那几个。Group 也一并遮蔽，交回给回调的就是包装过的
 // Router——否则每开一组子路由都得记得再 Routes(r) 一次，忘了会悄悄退回 chi 原生的 Get/Post。
 type Router struct{ chi.Router }
 
@@ -48,7 +48,20 @@ func (router Router) Get[R any](pattern string, use func(*http.Request) (R, erro
 // Post 注册一个带请求体的写接口，请求体先解成 B 再交给 use。
 // 只回「成功与否」的用例把 R 写成 any、返回 nil 即可，响应体里的 data 就是 null。
 func (router Router) Post[B, R any](pattern string, use func(context.Context, B) (R, error)) {
-	router.Method(http.MethodPost, pattern, Handler(func(w http.ResponseWriter, r *http.Request) error {
+	router.withBody(http.MethodPost, pattern, use)
+}
+
+// Put 注册一个整份替换的写接口，收发与 Post 一致，只是方法不同。
+//
+// 分出来是为了让接口自己说清楚是哪一种：Post 是「做这件事」，重复提交会叠加；
+// Put 是「这是它现在的样子」，同一份重复提交结果不变。前端拿本地当真源、
+// 把整份状态推上来的那几个接口走这条。
+func (router Router) Put[B, R any](pattern string, use func(context.Context, B) (R, error)) {
+	router.withBody(http.MethodPut, pattern, use)
+}
+
+func (router Router) withBody[B, R any](method, pattern string, use func(context.Context, B) (R, error)) {
+	router.Method(method, pattern, Handler(func(w http.ResponseWriter, r *http.Request) error {
 		var body B
 		if err := decodeJSON(r, &body); err != nil {
 			return err
@@ -64,8 +77,8 @@ func (router Router) Post[B, R any](pattern string, use func(context.Context, B)
 // Action 注册没有请求体的写接口，除了不解请求体，其余与 Post 一致。
 //
 // 不能拿 Post 配空结构体顶替：这几个调用压根不发请求体，解码会直接撞上 EOF。
-// 两者的差别就只有这一条，所以结果也照样交回来——「清空」之后回一份清空了的列表，
-// 比让前端自己拼一个空列表更少出错。只关心成败的用例把 R 写成 any、返回 nil 即可。
+// 两者的差别就只有这一条，所以结果也照样交回来——解绑凭据回的就是解绑后的状态。
+// 只关心成败的用例把 R 写成 any、返回 nil 即可。
 func (router Router) Action[R any](pattern string, use func(context.Context) (R, error)) {
 	router.Method(http.MethodPost, pattern, Handler(func(w http.ResponseWriter, r *http.Request) error {
 		result, err := use(r.Context())

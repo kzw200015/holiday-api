@@ -57,48 +57,40 @@ export function unbindCredential() {
   return httpClient.post<CredentialStatus>("/eh/credential/unbind")
 }
 
+/* 偏好与搜索历史读一次之后由前端说了算，写入都是把当前这份整个推上去，不再逐个动作上报。
+ * 以下写接口一律不接 AbortSignal：已经发出的保存不该被取消。 */
+
 export function fetchGalleryPreferences(signal?: AbortSignal) {
   return httpClient.get<GalleryPreferences>("/eh/preferences", { signal })
 }
 
-export function saveGalleryCategories(categories: string[], signal?: AbortSignal) {
-  return httpClient.post<null>("/eh/preferences/categories", { categories }, { signal })
-}
-
-export function saveReaderInterval(interval: number, signal?: AbortSignal) {
-  return httpClient.post<null>("/eh/preferences/reader-interval", { interval }, { signal })
+/** 只回成败：本地那份才是用户正在用的，服务端存成什么样不回写。 */
+export function saveGalleryPreferences(preferences: GalleryPreferences) {
+  return httpClient.put<null>("/eh/preferences", preferences)
 }
 
 export function fetchSearchHistory(signal?: AbortSignal) {
   return httpClient.get<string[]>("/eh/search-history", { signal })
 }
 
-export function recordSearch(keyword: string, signal?: AbortSignal) {
-  return httpClient.post<string[]>("/eh/search-history", { keyword }, { signal })
-}
-
-export function removeSearch(keyword: string, signal?: AbortSignal) {
-  return httpClient.post<string[]>("/eh/search-history/remove", { keyword }, { signal })
-}
-
-/** 清空，返回清空后的历史（空列表），与记录、删除保持同一种返回 */
-export function clearSearchHistory(signal?: AbortSignal) {
-  return httpClient.post<string[]>("/eh/search-history/clear", undefined, { signal })
+/** 同样只回成败。超过 10 条或含超过 200 字节的关键词会被整份退回。 */
+export function saveSearchHistory(entries: string[]) {
+  return httpClient.put<null>("/eh/search-history", { entries })
 }
 
 export function fetchReadingHistory(cursor: string, signal?: AbortSignal) {
   return httpClient.get<ReadingHistoryPage>("/eh/history", { params: { cursor }, signal })
 }
 
-export function removeReadingHistory(gid: number, signal?: AbortSignal) {
-  return httpClient.post<null>("/eh/history/remove", { gid }, { signal })
+export function removeReadingHistory(gid: number) {
+  return httpClient.post<null>("/eh/history/remove", { gid })
 }
 
-export function clearReadingHistory(signal?: AbortSignal) {
-  return httpClient.post<null>("/eh/history/clear", undefined, { signal })
+export function clearReadingHistory() {
+  return httpClient.post<null>("/eh/history/clear")
 }
 
 /** 上报读到第几页 */
-export function saveProgress(gid: number, token: string, page: number, signal?: AbortSignal) {
-  return httpClient.post<null>("/eh/progress", { gid, token, page }, { signal })
+export function saveProgress(gid: number, token: string, page: number) {
+  return httpClient.post<null>("/eh/progress", { gid, token, page })
 }

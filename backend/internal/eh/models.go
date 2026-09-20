@@ -2,7 +2,7 @@
 //
 // 分层：handler（校验入参）→ Service（对外门面：编排用例、元数据缓存、附件地址的签发与校验）
 // → Client（上游协议、解析与异常翻译，以及已校验的图片流）。
-// Service 底下挂着三块自带状态的协作者：userState（本站库里的偏好、搜索历史与阅读进度）、
+// Service 底下挂着三块自带状态的协作者：UserState（本站库里的偏好、搜索历史与阅读进度）、
 // CredentialStore（凭据）和 ImageLocator（取图链路）。Service 自己不碰 SQL。
 package eh
 

@@ -10,15 +10,6 @@ import (
 	"time"
 )
 
-const clearEhSearchHistory = `-- name: ClearEhSearchHistory :exec
-UPDATE eh_preferences SET search_history = '{}', updated_at = now() WHERE user_id = $1
-`
-
-func (q *Queries) ClearEhSearchHistory(ctx context.Context, userID int64) error {
-	_, err := q.db.Exec(ctx, clearEhSearchHistory, userID)
-	return err
-}
-
 const clearReadingProgress = `-- name: ClearReadingProgress :exec
 DELETE FROM eh_reading_progress WHERE user_id = $1
 `
@@ -166,78 +157,40 @@ func (q *Queries) ListReadingHistory(ctx context.Context, arg ListReadingHistory
 	return items, nil
 }
 
-const recordEhSearch = `-- name: RecordEhSearch :one
-INSERT INTO eh_preferences (user_id, search_history, created_at, updated_at)
-VALUES ($1, ARRAY[$2::text], now(), now())
+const saveEhPreferences = `-- name: SaveEhPreferences :exec
+INSERT INTO eh_preferences (user_id, categories, reader_interval, created_at, updated_at)
+VALUES ($1, $2, $3, now(), now())
 ON CONFLICT (user_id) DO UPDATE
-SET search_history = (ARRAY[$2::text] || array_remove(eh_preferences.search_history, $2::text))[1:10],
-    updated_at = now()
-RETURNING search_history
+SET categories = excluded.categories, reader_interval = excluded.reader_interval, updated_at = now()
 `
 
-type RecordEhSearchParams struct {
-	UserID  int64
-	Keyword string
-}
-
-// 在同一条语句里去重并截取最近十条；并发提交不会用客户端的旧数组覆盖其他设备。
-func (q *Queries) RecordEhSearch(ctx context.Context, arg RecordEhSearchParams) ([]string, error) {
-	row := q.db.QueryRow(ctx, recordEhSearch, arg.UserID, arg.Keyword)
-	var search_history []string
-	err := row.Scan(&search_history)
-	return search_history, err
-}
-
-const removeEhSearch = `-- name: RemoveEhSearch :one
-UPDATE eh_preferences
-SET search_history = array_remove(search_history, $1::text), updated_at = now()
-WHERE user_id = $2
-RETURNING search_history
-`
-
-type RemoveEhSearchParams struct {
-	Keyword string
-	UserID  int64
-}
-
-func (q *Queries) RemoveEhSearch(ctx context.Context, arg RemoveEhSearchParams) ([]string, error) {
-	row := q.db.QueryRow(ctx, removeEhSearch, arg.Keyword, arg.UserID)
-	var search_history []string
-	err := row.Scan(&search_history)
-	return search_history, err
-}
-
-const saveEhCategories = `-- name: SaveEhCategories :exec
-INSERT INTO eh_preferences (user_id, categories, created_at, updated_at)
-VALUES ($1, $2, now(), now())
-ON CONFLICT (user_id) DO UPDATE
-SET categories = excluded.categories, updated_at = now()
-`
-
-type SaveEhCategoriesParams struct {
-	UserID     int64
-	Categories []string
-}
-
-func (q *Queries) SaveEhCategories(ctx context.Context, arg SaveEhCategoriesParams) error {
-	_, err := q.db.Exec(ctx, saveEhCategories, arg.UserID, arg.Categories)
-	return err
-}
-
-const saveEhReaderInterval = `-- name: SaveEhReaderInterval :exec
-INSERT INTO eh_preferences (user_id, reader_interval, created_at, updated_at)
-VALUES ($1, $2, now(), now())
-ON CONFLICT (user_id) DO UPDATE
-SET reader_interval = excluded.reader_interval, updated_at = now()
-`
-
-type SaveEhReaderIntervalParams struct {
+type SaveEhPreferencesParams struct {
 	UserID         int64
+	Categories     []string
 	ReaderInterval int32
 }
 
-func (q *Queries) SaveEhReaderInterval(ctx context.Context, arg SaveEhReaderIntervalParams) error {
-	_, err := q.db.Exec(ctx, saveEhReaderInterval, arg.UserID, arg.ReaderInterval)
+// 整份覆盖前端推上来的那一份，不在这里算增量。
+func (q *Queries) SaveEhPreferences(ctx context.Context, arg SaveEhPreferencesParams) error {
+	_, err := q.db.Exec(ctx, saveEhPreferences, arg.UserID, arg.Categories, arg.ReaderInterval)
+	return err
+}
+
+const saveEhSearchHistory = `-- name: SaveEhSearchHistory :exec
+INSERT INTO eh_preferences (user_id, search_history, created_at, updated_at)
+VALUES ($1, $2, now(), now())
+ON CONFLICT (user_id) DO UPDATE
+SET search_history = excluded.search_history, updated_at = now()
+`
+
+type SaveEhSearchHistoryParams struct {
+	UserID        int64
+	SearchHistory []string
+}
+
+// 同样整份覆盖；顺序、去重、留几条都是前端定好的。
+func (q *Queries) SaveEhSearchHistory(ctx context.Context, arg SaveEhSearchHistoryParams) error {
+	_, err := q.db.Exec(ctx, saveEhSearchHistory, arg.UserID, arg.SearchHistory)
 	return err
 }
 

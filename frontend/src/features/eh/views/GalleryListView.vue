@@ -8,7 +8,6 @@ import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 
 const {
   keyword,
-  query,
   items,
   loading,
   errorMessage,
@@ -27,9 +26,7 @@ const {
     <GallerySearchForm
       v-model:keyword="keyword"
       :categories="preferences.categories"
-      :disabled="preferences.loading || preferences.saving"
-      :preferences-error="preferences.errorMessage"
-      :history="history"
+      :history="history.entries"
       @submit="submit"
       @apply-categories="applyCategories"
       @select-history="selectHistory"
@@ -49,7 +46,7 @@ const {
         </div>
       </template>
       <ErrorAlert v-if="errorMessage" :message="errorMessage" title="加载失败" retryable @retry="retry" />
-      <EmptyState v-if="query && !loading && !errorMessage && items.length === 0" message="没有找到符合条件的图集。" />
+      <EmptyState v-if="!loading && !errorMessage && items.length === 0" message="没有找到符合条件的图集。" />
       <p v-if="!hasMore && !errorMessage && items.length > 0" class="text-muted-foreground py-6 text-center text-sm">
         已经到底了。
       </p>

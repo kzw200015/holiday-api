@@ -40,16 +40,13 @@ const chromeButton = {
     <Button aria-label="退出阅读" v-bind="chromeButton" @click="emit('exit')">
       <XIcon />
     </Button>
-    <div class="min-w-0 flex-1">
-      <p class="truncate text-sm text-white/90">{{ title ?? "加载中…" }}</p>
-      <p v-if="playback.errorMessage" role="alert" class="text-xs text-red-300">{{ playback.errorMessage }}</p>
-    </div>
+    <p class="min-w-0 flex-1 truncate text-sm text-white/90">{{ title ?? "加载中…" }}</p>
     <div class="flex shrink-0 items-center gap-1">
       <Button
         :aria-label="playback.autoPaging ? '暂停自动翻页' : '开始自动翻页'"
         :aria-pressed="playback.autoPaging"
         v-bind="chromeButton"
-        :disabled="playback.loading || !playback.canStart"
+        :disabled="!playback.canStart"
         @click="emit('toggleAutoPaging')"
       >
         <PauseIcon v-if="playback.autoPaging" />
@@ -58,7 +55,7 @@ const chromeButton = {
       <Button
         aria-label="减少自动翻页间隔"
         v-bind="chromeButton"
-        :disabled="playback.loading || playback.saving || playback.interval <= 1"
+        :disabled="playback.interval <= 1"
         @click="emit('setInterval', playback.interval - 1)"
       >
         <MinusIcon />
@@ -69,7 +66,7 @@ const chromeButton = {
       <Button
         aria-label="增加自动翻页间隔"
         v-bind="chromeButton"
-        :disabled="playback.loading || playback.saving || playback.interval >= 20"
+        :disabled="playback.interval >= 20"
         @click="emit('setInterval', playback.interval + 1)"
       >
         <PlusIcon />
