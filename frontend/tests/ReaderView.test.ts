@@ -5,12 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, nextTick } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
-import type * as EhApi from "@/api/eh"
-import { saveProgress } from "@/api/eh"
-import { createQueryClient } from "@/api/queryClient"
-import ReaderView from "@/views/ReaderView.vue"
+import type * as EhApi from "@/features/eh/api"
+import { saveProgress } from "@/features/eh/api"
+import ReaderView from "@/features/eh/views/ReaderView.vue"
+import { createQueryClient } from "@/shared/api/queryClient"
 
-vi.mock("@/api/eh", async (importOriginal) => ({
+vi.mock("@/features/eh/api", async (importOriginal) => ({
   ...(await importOriginal<typeof EhApi>()),
   fetchGalleryDetail: vi.fn().mockResolvedValue({
     gallery: { title: "测试图集", fileCount: 10 },

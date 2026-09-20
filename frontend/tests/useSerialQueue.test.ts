@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { effectScope } from "vue"
 
-import { useSerialQueue } from "@/composables/useSerialQueue"
+import { useSerialQueue } from "@/shared/composables/useSerialQueue"
 
 let scope: ReturnType<typeof effectScope>
 let queue: ReturnType<typeof useSerialQueue>

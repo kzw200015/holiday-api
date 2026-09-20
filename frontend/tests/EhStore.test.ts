@@ -2,7 +2,8 @@
 import { createPinia, disposePinia, setActivePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type * as EhApi from "@/api/eh"
+import { useAuthStore } from "@/features/auth/store"
+import type * as EhApi from "@/features/eh/api"
 import {
   clearReadingHistory,
   clearSearchHistory,
@@ -13,12 +14,11 @@ import {
   removeReadingHistory,
   removeSearch,
   saveProgress,
-  type GalleryDetail,
-} from "@/api/eh"
-import { useAuthStore } from "@/stores/AuthStore"
-import { useEhStore } from "@/stores/EhStore"
+} from "@/features/eh/api"
+import type { GalleryDetail } from "@/features/eh/model"
+import { useEhStore } from "@/features/eh/store"
 
-vi.mock("@/api/eh", async (original) => ({
+vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
   fetchGalleryDetail: vi.fn(),
   fetchReadingHistory: vi.fn(),

@@ -3,12 +3,12 @@ import { VueQueryPlugin, type QueryClient } from "@tanstack/vue-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick } from "vue"
 
-import type * as EhApi from "@/api/eh"
-import { fetchGalleryPreferences, saveGalleryCategories, saveReaderInterval } from "@/api/eh"
-import { createQueryClient } from "@/api/queryClient"
-import { useGalleryPreferences } from "@/composables/useGalleryPreferences"
+import type * as EhApi from "@/features/eh/api"
+import { fetchGalleryPreferences, saveGalleryCategories, saveReaderInterval } from "@/features/eh/api"
+import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
+import { createQueryClient } from "@/shared/api/queryClient"
 
-vi.mock("@/api/eh", async (original) => ({
+vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
   fetchGalleryPreferences: vi.fn(),
   saveGalleryCategories: vi.fn(),

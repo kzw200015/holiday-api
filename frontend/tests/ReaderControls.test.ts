@@ -5,14 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { computed, createApp, h, nextTick, reactive } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
-import type * as EhApi from "@/api/eh"
-import { fetchGalleryPreferences, saveReaderInterval } from "@/api/eh"
-import { createQueryClient } from "@/api/queryClient"
-import ReaderControls from "@/components/gallery/ReaderControls.vue"
-import { useReaderPlayback } from "@/composables/useReaderPlayback"
-import { useAuthStore } from "@/stores/AuthStore"
+import { useAuthStore } from "@/features/auth/store"
+import type * as EhApi from "@/features/eh/api"
+import { fetchGalleryPreferences, saveReaderInterval } from "@/features/eh/api"
+import ReaderControls from "@/features/eh/components/ReaderControls.vue"
+import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
+import { createQueryClient } from "@/shared/api/queryClient"
 
-vi.mock("@/api/eh", async (original) => ({
+vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
   fetchGalleryPreferences: vi.fn(),
   saveReaderInterval: vi.fn(),
@@ -308,7 +308,7 @@ describe("阅读器自动翻页控件", () => {
     expect(change).toHaveBeenCalledTimes(1)
   })
 
-  it("切入后台只是暂停，回到前台继续翻；换图集才真的停止", async () => {
+  it("切入后台就停下，回到前台不自己转起来；换图集同样停下", async () => {
     const { state, change, host } = await createReader()
     autoButton(host).click()
     await nextTick()
@@ -318,13 +318,17 @@ describe("阅读器自动翻页控件", () => {
     expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
     await vi.advanceTimersByTimeAsync(10000)
     expect(change).not.toHaveBeenCalled()
+    /* 回到前台只是重新可以开始，要再点一次才继续翻。 */
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
     document.dispatchEvent(new Event("visibilitychange"))
     await nextTick()
-    expect(autoButton(host).getAttribute("aria-pressed")).toBe("true")
+    expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(change).not.toHaveBeenCalled()
+    autoButton(host).click()
     await vi.advanceTimersByTimeAsync(5000)
     expect(change).toHaveBeenCalledWith(2)
-    /* 换图集是真的停下：回到可继续的状态也不会自己转起来。 */
+    /* 换图集同样停下：回到可继续的状态也不会自己转起来。 */
     change.mockClear()
     state.identity = "2/other"
     await nextTick()

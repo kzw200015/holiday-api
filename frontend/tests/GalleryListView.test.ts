@@ -6,10 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, KeepAlive, nextTick } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
-import type * as EhApi from "@/api/eh"
-import { fetchGalleryPreferences, searchGalleries, type GalleryCard, type GalleryPage } from "@/api/eh"
-import { createQueryClient } from "@/api/queryClient"
-import GalleryListView from "@/views/GalleryListView.vue"
+import type * as EhApi from "@/features/eh/api"
+import { fetchGalleryPreferences, searchGalleries } from "@/features/eh/api"
+import type { GalleryCard, GalleryPage } from "@/features/eh/model"
+import GalleryListView from "@/features/eh/views/GalleryListView.vue"
+import { createQueryClient } from "@/shared/api/queryClient"
 
 const scroll = vi.hoisted(() => ({
   load: async () => {},
@@ -29,7 +30,7 @@ vi.mock("@vueuse/core", async (original) => ({
     scroll.canLoad = options.canLoadMore
   },
 }))
-vi.mock("@/api/eh", async (original) => ({
+vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
   searchGalleries: vi.fn(),
   fetchGalleryPreferences: vi.fn(),

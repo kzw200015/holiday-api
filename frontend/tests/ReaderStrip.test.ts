@@ -3,7 +3,7 @@ import type * as VueUse from "@vueuse/core"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, nextTick, reactive } from "vue"
 
-import ReaderStrip from "@/components/gallery/ReaderStrip.vue"
+import ReaderStrip from "@/features/eh/components/ReaderStrip.vue"
 
 let resize: (entries: { contentRect: { width: number; height: number } }[]) => void
 vi.mock("@vueuse/core", async (importOriginal) => ({

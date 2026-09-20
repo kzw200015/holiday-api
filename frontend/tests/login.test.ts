@@ -4,11 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, type App } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
-import { authenticate } from "@/api/auth"
-import { useAuthStore } from "@/stores/AuthStore"
-import LoginView from "@/views/LoginView.vue"
+import { authenticate } from "@/features/auth/api"
+import { useAuthStore } from "@/features/auth/store"
+import LoginView from "@/features/auth/views/LoginView.vue"
 
-vi.mock("@/api/auth", () => ({ authenticate: vi.fn() }))
+vi.mock("@/features/auth/api", () => ({ authenticate: vi.fn() }))
 
 let app: App
 let host: HTMLElement

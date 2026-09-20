@@ -6,17 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, KeepAlive, nextTick } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
-import type * as EhApi from "@/api/eh"
-import {
-  clearReadingHistory,
-  fetchReadingHistory,
-  removeReadingHistory,
-  type GalleryCard,
-  type ReadingHistoryPage,
-} from "@/api/eh"
-import { createQueryClient } from "@/api/queryClient"
-import { useAuthStore } from "@/stores/AuthStore"
-import GalleryHistoryView from "@/views/GalleryHistoryView.vue"
+import { useAuthStore } from "@/features/auth/store"
+import type * as EhApi from "@/features/eh/api"
+import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"
+import type { GalleryCard, ReadingHistoryPage } from "@/features/eh/model"
+import GalleryHistoryView from "@/features/eh/views/GalleryHistoryView.vue"
+import { createQueryClient } from "@/shared/api/queryClient"
 
 /* 触底加载靠滚动位置触发，happy-dom 不做布局，所以把入口接出来手动调用。 */
 const scroll = vi.hoisted(() => ({
@@ -33,7 +28,7 @@ vi.mock("@vueuse/core", async (original) => ({
     scroll.canLoad = options.canLoadMore
   },
 }))
-vi.mock("@/api/eh", async (original) => ({
+vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
   fetchReadingHistory: vi.fn(),
   removeReadingHistory: vi.fn(),

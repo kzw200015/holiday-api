@@ -5,13 +5,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, type App as VueApp } from "vue"
 import { createRouter, createWebHistory, type Router } from "vue-router"
 
-import { authenticate } from "@/api/auth"
-import type * as EhApi from "@/api/eh"
+import App from "@/app/App.vue"
+import { AppRouter } from "@/app/router"
+import { authenticate } from "@/features/auth/api"
+import { useAuthStore } from "@/features/auth/store"
+import type * as EhApi from "@/features/eh/api"
 import {
   bindCredential,
   clearReadingHistory,
   clearSearchHistory,
-  ehKeys,
   fetchCredentialStatus,
   fetchGalleryComments,
   fetchGalleryDetail,
@@ -26,21 +28,19 @@ import {
   saveReaderInterval,
   searchGalleries,
   unbindCredential,
-  type GalleryDetail,
-} from "@/api/eh"
-import type * as HolidayApi from "@/api/holiday"
-import { fetchHolidayDetail } from "@/api/holiday"
-import { createQueryClient } from "@/api/queryClient"
-import App from "@/App.vue"
-import { AppRouter } from "@/router"
-import { useAuthStore } from "@/stores/AuthStore"
+} from "@/features/eh/api"
+import { ehKeys } from "@/features/eh/keys"
+import type { GalleryDetail } from "@/features/eh/model"
+import type * as HolidayApi from "@/features/holiday/api"
+import { fetchHolidayDetail } from "@/features/holiday/api"
+import { createQueryClient } from "@/shared/api/queryClient"
 
-vi.mock("@/api/auth", () => ({ authenticate: vi.fn(), fetchCurrentUser: vi.fn() }))
-vi.mock("@/api/holiday", async (original) => ({
+vi.mock("@/features/auth/api", () => ({ authenticate: vi.fn(), fetchCurrentUser: vi.fn() }))
+vi.mock("@/features/holiday/api", async (original) => ({
   ...(await original<typeof HolidayApi>()),
   fetchHolidayDetail: vi.fn(),
 }))
-vi.mock("@/api/eh", async (original) => ({
+vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
   bindCredential: vi.fn(),
   fetchReadingHistory: vi.fn(),
@@ -211,9 +211,12 @@ describe("阅读历史与二级导航", () => {
     await click("继续阅读")
     host.querySelector<HTMLElement>('[aria-label="下一页"]')!.click()
     await settle()
-    expect(router.currentRoute.value.query.returnTo).toBe("history")
+    expect(router.currentRoute.value.query.source).toBe("history")
+    /* 从历史直接进阅读，退出同样落在详情页，再按一次返回才回到历史列表。 */
     host.querySelector<HTMLElement>('[aria-label="退出阅读"]')!.click()
     await settle()
+    expect(router.currentRoute.value.fullPath).toBe("/eh/g/1/aaaaaaaaaa?source=history")
+    await click("返回列表")
     expect(router.currentRoute.value.name).toBe("gallery-history")
     await click("图集搜索")
     expect(host.querySelector("input")).toBe(searchInput)

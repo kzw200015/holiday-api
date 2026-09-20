@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, KeepAlive, nextTick } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
-import type * as EhApi from "@/api/eh"
+import type * as EhApi from "@/features/eh/api"
 import {
   clearSearchHistory,
   fetchGalleryPreferences,
@@ -13,11 +13,12 @@ import {
   recordSearch,
   removeSearch,
   searchGalleries,
-} from "@/api/eh"
-import { createQueryClient } from "@/api/queryClient"
-import GalleryListView from "@/views/GalleryListView.vue"
+} from "@/features/eh/api"
+import type { GalleryPreferences } from "@/features/eh/model"
+import GalleryListView from "@/features/eh/views/GalleryListView.vue"
+import { createQueryClient } from "@/shared/api/queryClient"
 
-vi.mock("@/api/eh", async (original) => ({
+vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
   searchGalleries: vi.fn(),
   fetchGalleryPreferences: vi.fn(),
@@ -196,7 +197,7 @@ describe("图库搜索流程", () => {
   })
 
   it("销毁时取消在途读取，不再向页面发送恢复查询", async () => {
-    let resolve!: (value: EhApi.GalleryPreferences) => void
+    let resolve!: (value: GalleryPreferences) => void
     vi.mocked(fetchGalleryPreferences).mockReturnValue(
       new Promise((done) => {
         resolve = done

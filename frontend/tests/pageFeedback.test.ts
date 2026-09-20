@@ -2,10 +2,10 @@
 import { describe, expect, it, vi } from "vitest"
 import { createApp, h } from "vue"
 
-import EmptyState from "@/components/EmptyState.vue"
-import ErrorAlert from "@/components/ErrorAlert.vue"
-import CommentBody from "@/components/gallery/CommentBody.vue"
-import GalleryTag from "@/components/gallery/GalleryTag.vue"
+import CommentBody from "@/features/eh/components/CommentBody.vue"
+import GalleryTag from "@/features/eh/components/GalleryTag.vue"
+import EmptyState from "@/shared/components/EmptyState.vue"
+import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 
 describe("页面公共反馈", () => {
   it("查询错误支持重试，保留自定义操作且按钮不会提交表单", () => {

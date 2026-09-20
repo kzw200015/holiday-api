@@ -1,7 +1,7 @@
 import { AxiosError, CanceledError, type AxiosAdapter, type AxiosResponse } from "axios"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { hasToken, httpClient, onUnauthorized, setToken } from "@/api/httpClient"
+import { hasToken, httpClient, onUnauthorized, setToken } from "@/shared/api/httpClient"
 
 beforeEach(() => {
   setToken("")
