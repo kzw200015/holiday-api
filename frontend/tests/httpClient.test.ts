@@ -28,7 +28,13 @@ describe("HTTP 边界", () => {
     expect(postRequest.method).toBe("POST")
     expect(postRequest.headers.get("Content-Type")).toBe("application/json")
     expect(await postRequest.json()).toEqual({ interval: 6 })
-    expect(fetch).toHaveBeenCalledTimes(2)
+
+    expect(await httpClient.delete("/eh/history/27", config)).toEqual({ id: 1 })
+    const deleteRequest = fetch.mock.calls[2]![0] as Request
+    expect(deleteRequest.method).toBe("DELETE")
+    expect(new URL(deleteRequest.url).pathname).toBe("/api/eh/history/27")
+    expect(deleteRequest.body).toBeNull()
+    expect(fetch).toHaveBeenCalledTimes(3)
   })
 
   it("GET 和 POST 都直接返回业务数据，保留 null", async () => {

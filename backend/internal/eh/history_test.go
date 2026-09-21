@@ -37,13 +37,14 @@ func TestHistoryValidation(t *testing.T) {
 			t.Fatalf("cursor %q: status = %d", value, response.Code)
 		}
 	}
-	for _, body := range []string{`{}`, `{"gid":0}`, `{"gid":-1}`, `{"gid":1.5}`, `{"gid":1,"userId":2}`} {
-		request := httptest.NewRequest(http.MethodPost, "/history/remove", strings.NewReader(body))
+	// 解不成数字的、溢出的都归零，由业务统一报图集编号不合法
+	for _, gid := range []string{"0", "-1", "1.5", "abc", "9223372036854775808"} {
+		request := httptest.NewRequest(http.MethodDelete, "/history/"+gid, nil)
 		request.Header.Set("Authorization", "Bearer "+token)
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
 		if response.Code != http.StatusBadRequest {
-			t.Fatalf("body %s: status = %d", body, response.Code)
+			t.Fatalf("gid %s: status = %d", gid, response.Code)
 		}
 	}
 }
@@ -156,12 +157,12 @@ func TestReadingHistoryPostgres(t *testing.T) {
 	if err != nil || latest.Items[0].GID != 1 {
 		t.Fatalf("最近阅读未置顶：%+v, err = %v", latest, err)
 	}
-	request(http.MethodPost, "/history/remove", `{"gid":27}`)
-	request(http.MethodPost, "/history/remove", `{"gid":27}`)
+	request(http.MethodDelete, "/history/27", "")
+	request(http.MethodDelete, "/history/27", "")
 	if _, err := queries.GetReadingProgress(ctx, store.GetReadingProgressParams{UserID: user.ID, Gid: 27}); err != pgx.ErrNoRows {
 		t.Fatalf("删除历史应同时删除进度，err = %v", err)
 	}
-	request(http.MethodPost, "/history/clear", "")
+	request(http.MethodDelete, "/history", "")
 	empty, err := service.ReadingHistory(ctx, user.ID, "")
 	if err != nil || empty.Items == nil || len(empty.Items) != 0 || empty.NextCursor != nil {
 		t.Fatalf("清空后 = %+v, err = %v", empty, err)

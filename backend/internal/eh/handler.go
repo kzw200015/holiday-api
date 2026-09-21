@@ -52,7 +52,7 @@ func (h *Handler) Routes() http.Handler {
 		// e 站凭据
 		r.Get("/credential", h.credentialStatus)
 		r.Post("/credential", h.bindCredential)
-		r.PostNoBody("/credential/unbind", h.unbindCredential)
+		r.Delete("/credential", h.unbindCredential)
 
 		// 图集
 		r.Post("/galleries/search", h.searchGalleries)
@@ -62,8 +62,8 @@ func (h *Handler) Routes() http.Handler {
 		// 阅读进度与历史
 		r.Post("/progress", h.saveProgress)
 		r.Get("/history", h.readingHistory)
-		r.Post("/history/remove", h.removeReadingHistory)
-		r.PostNoBody("/history/clear", h.clearReadingHistory)
+		r.Delete("/history/{gid}", h.removeReadingHistory)
+		r.Delete("/history", h.clearReadingHistory)
 	})
 
 	return router
@@ -80,8 +80,8 @@ func (h *Handler) bindCredential(ctx context.Context, cookie Cookie) (Credential
 }
 
 // unbindCredential 解绑后退回匿名浏览前站。
-func (h *Handler) unbindCredential(ctx context.Context) (CredentialStatus, error) {
-	return h.service.UnbindCredential(ctx, auth.UserID(ctx))
+func (h *Handler) unbindCredential(r *http.Request) (CredentialStatus, error) {
+	return h.service.UnbindCredential(r.Context(), auth.UserID(r.Context()))
 }
 
 // searchGalleries 游标式分页。这是一次读取，
@@ -108,12 +108,17 @@ func (h *Handler) galleryComments(r *http.Request) ([]GalleryComment, error) {
 	return h.service.GalleryComments(r.Context(), auth.UserID(r.Context()), ref)
 }
 
-// 路径上的 gid 与 token。解析失败显式归零——溢出时 ParseInt 回的是 MaxInt64 而不是 0——
-// 正好撞进 checkGID 那条规则，文案由业务统一给，这儿不再自己报一遍。
+// 路径上的 gid 与 token。
 func galleryRefOf(r *http.Request) (GalleryRef, error) {
+	return newGalleryRef(gidOf(r), chi.URLParam(r, "token"))
+}
+
+// 路径上的 gid。解析失败显式归零——溢出时 ParseInt 回的是 MaxInt64 而不是 0——
+// 正好撞进 checkGID 那条规则，文案由业务统一给，这儿不再自己报一遍。
+func gidOf(r *http.Request) int64 {
 	gid, err := strconv.ParseInt(chi.URLParam(r, "gid"), 10, 64)
 	if err != nil {
-		gid = 0
+		return 0
 	}
-	return newGalleryRef(gid, chi.URLParam(r, "token"))
+	return gid
 }

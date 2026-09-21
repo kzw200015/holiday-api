@@ -101,4 +101,10 @@ export const httpClient = {
     const response = await instance.put<ApiResponse<T>>(url, data, config)
     return response.data.data
   },
+
+  /** 删的是哪一个写在地址上，不带请求体：DELETE 的请求体没有约定的含义，后端也不读。 */
+  async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await instance.delete<ApiResponse<T>>(url, config)
+    return response.data.data
+  },
 }

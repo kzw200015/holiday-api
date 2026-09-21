@@ -60,7 +60,7 @@ export function bindCredential(cookie: EhCookie) {
 
 /** 解绑，返回解绑后的状态 */
 export function unbindCredential() {
-  return httpClient.post<CredentialStatus>("/eh/credential/unbind")
+  return httpClient.delete<CredentialStatus>("/eh/credential")
 }
 
 /* 偏好与搜索历史读一次之后由前端说了算，写入都是把当前这份整个推上去，不再逐个动作上报。
@@ -89,11 +89,11 @@ export function fetchReadingHistory(cursor: string, signal?: AbortSignal) {
 }
 
 export function removeReadingHistory(gid: number) {
-  return httpClient.post<null>("/eh/history/remove", { gid })
+  return httpClient.delete<null>(`/eh/history/${gid}`)
 }
 
 export function clearReadingHistory() {
-  return httpClient.post<null>("/eh/history/clear")
+  return httpClient.delete<null>("/eh/history")
 }
 
 /** 上报读到第几页 */
