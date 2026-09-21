@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -58,13 +57,14 @@ func (h *Handler) authedRoutes(router web.Router) {
 	})
 
 	// POST /api/eh/credential/unbind，解绑后退回匿名浏览前站
-	router.Action("/credential/unbind", func(ctx context.Context) (CredentialStatus, error) {
+	router.PostNoBody("/credential/unbind", func(ctx context.Context) (CredentialStatus, error) {
 		return h.service.UnbindCredential(ctx, auth.UserID(ctx))
 	})
 
-	// GET /api/eh/galleries?keyword=&categories=&cursor=&site=，游标式分页
-	router.Get("/galleries", func(r *http.Request) (GalleryPage, error) {
-		return h.service.SearchGalleries(r.Context(), auth.UserID(r.Context()), searchQueryOf(r))
+	// POST /api/eh/galleries/search，游标式分页。这是一次读取，
+	// 走 POST 只是因为条件里有分类数组，整条放在请求体里比编码进查询串省事
+	router.Post("/galleries/search", func(ctx context.Context, search SearchQuery) (GalleryPage, error) {
+		return h.service.SearchGalleries(ctx, auth.UserID(ctx), search)
 	})
 
 	// GET /api/eh/galleries/{gid}/{token}，元数据、阅读进度，外加这本图集的大图地址模板
@@ -89,24 +89,6 @@ func (h *Handler) authedRoutes(router web.Router) {
 	router.Post("/progress", func(ctx context.Context, body ReadingPosition) (any, error) {
 		return nil, h.service.SaveProgress(ctx, auth.UserID(ctx), body)
 	})
-}
-
-// 搜索参数。分类是名字的逗号列表，这里只负责拆开；认不认得这些名字由业务判断。
-func searchQueryOf(r *http.Request) SearchQuery {
-	query := r.URL.Query()
-
-	var categories []string
-	for name := range strings.SplitSeq(query.Get("categories"), ",") {
-		if name != "" {
-			categories = append(categories, name)
-		}
-	}
-	return SearchQuery{
-		Keyword:    query.Get("keyword"),
-		Categories: categories,
-		Cursor:     query.Get("cursor"),
-		Site:       Site(query.Get("site")),
-	}
 }
 
 // 路径上的 gid 与 token。解析失败显式归零——溢出时 ParseInt 回的是 MaxInt64 而不是 0——

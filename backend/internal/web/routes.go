@@ -45,17 +45,18 @@ func (router Router) Get[R any](pattern string, use func(*http.Request) (R, erro
 	}))
 }
 
-// Post 注册一个带请求体的写接口，请求体先解成 B 再交给 use。
+// Post 注册一个带请求体的 POST 接口，请求体先解成 B 再交给 use。
 // 只回「成功与否」的用例把 R 写成 any、返回 nil 即可，响应体里的 data 就是 null。
+// 这里只认「什么方法、带不带请求体」，是读是写由注册处自己讲清楚——
+// 条件复杂到塞不进查询串的读取，走的也是这条。
 func (router Router) Post[B, R any](pattern string, use func(context.Context, B) (R, error)) {
 	router.withBody(http.MethodPost, pattern, use)
 }
 
-// Put 注册一个整份替换的写接口，收发与 Post 一致，只是方法不同。
+// Put 注册一个带请求体的 PUT 接口，收发与 Post 一致，只是方法不同。
 //
-// 分出来是为了让接口自己说清楚是哪一种：Post 是「做这件事」，重复提交会叠加；
-// Put 是「这是它现在的样子」，同一份重复提交结果不变。前端拿本地当真源、
-// 把整份状态推上来的那几个接口走这条。
+// 分出来是为了让接口自己说清楚是哪一种：PUT 是「这是它现在的样子」，
+// 同一份重复提交结果不变。前端拿本地当真源、把整份状态推上来的那几个接口走这条。
 func (router Router) Put[B, R any](pattern string, use func(context.Context, B) (R, error)) {
 	router.withBody(http.MethodPut, pattern, use)
 }
@@ -74,12 +75,12 @@ func (router Router) withBody[B, R any](method, pattern string, use func(context
 	}))
 }
 
-// Action 注册没有请求体的写接口，除了不解请求体，其余与 Post 一致。
+// PostNoBody 注册一个不带请求体的 POST 接口，除了不解请求体，其余与 Post 一致。
 //
 // 不能拿 Post 配空结构体顶替：这几个调用压根不发请求体，解码会直接撞上 EOF。
 // 两者的差别就只有这一条，所以结果也照样交回来——解绑凭据回的就是解绑后的状态。
 // 只关心成败的用例把 R 写成 any、返回 nil 即可。
-func (router Router) Action[R any](pattern string, use func(context.Context) (R, error)) {
+func (router Router) PostNoBody[R any](pattern string, use func(context.Context) (R, error)) {
 	router.Method(http.MethodPost, pattern, Handler(func(w http.ResponseWriter, r *http.Request) error {
 		result, err := use(r.Context())
 		if err != nil {

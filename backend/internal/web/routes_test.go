@@ -27,14 +27,14 @@ func call(router Router, method, path, body string) *httptest.ResponseRecorder {
 	return response
 }
 
-// Action 和 Post 的分界只有一条：要不要解请求体。
+// PostNoBody 和 Post 的分界只有一条：要不要解请求体。
 //
 // 「清空」这类操作的调用方不发请求体，交给 Post 就会栽在 EOF 上回 400。
-// 这里把它钉住，免得日后有人觉得 Action 只是替调用方少写一个 nil 而把两者并掉。
-func TestActionTakesNoRequestBody(t *testing.T) {
+// 这里把它钉住，免得日后有人觉得 PostNoBody 只是替调用方少写一个 nil 而把两者并掉。
+func TestPostNoBodyTakesNoRequestBody(t *testing.T) {
 	cleared := false
 	router := Routes(chi.NewRouter())
-	router.Action("/clear", func(context.Context) (any, error) {
+	router.PostNoBody("/clear", func(context.Context) (any, error) {
 		cleared = true
 		return nil, nil
 	})
@@ -51,7 +51,7 @@ func TestActionTakesNoRequestBody(t *testing.T) {
 	}
 
 	// 不解请求体不等于不能回数据：结果照样按统一契约写出去
-	router.Action("/clear-all", func(context.Context) ([]string, error) {
+	router.PostNoBody("/clear-all", func(context.Context) ([]string, error) {
 		return []string{}, nil
 	})
 	if response := call(router, http.MethodPost, "/clear-all", ""); response.Code != http.StatusOK ||
@@ -59,7 +59,7 @@ func TestActionTakesNoRequestBody(t *testing.T) {
 		t.Fatalf("有返回值的操作 = %d %s", response.Code, response.Body)
 	}
 
-	// 同一个请求换成 Post 注册的路由就不行了，这正是 Action 存在的原因
+	// 同一个请求换成 Post 注册的路由就不行了，这正是 PostNoBody 存在的原因
 	if response := call(router, http.MethodPost, "/remove", ""); response.Code != http.StatusBadRequest {
 		t.Fatalf("Post 缺请求体 = %d %s", response.Code, response.Body)
 	}

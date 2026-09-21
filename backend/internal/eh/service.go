@@ -55,13 +55,15 @@ func (s *Service) UnbindCredential(ctx context.Context, userID int64) (Credentia
 	return s.credentials.Unbind(ctx, userID)
 }
 
-// SearchQuery 是一次搜索的全部条件。
+// SearchQuery 是一次搜索的全部条件，同时也是搜索接口的请求体：
+// 带结构的条件（分类是一组名字）编码进查询串就得两头各写一份拼拆规则，所以整条走 JSON。
 type SearchQuery struct {
-	Keyword    string
-	Categories []string
-	Cursor     string
-	// 显式指定前站；空串表示按账号权限选择站点。
-	Site Site
+	Keyword    string   `json:"keyword"`
+	Categories []string `json:"categories"`
+	// 空串表示第一页。
+	Cursor string `json:"cursor"`
+	// 显式指定前站；空串或不传表示按账号权限选择站点。
+	Site Site `json:"site"`
 }
 
 // 分页游标是 e 站给的一串数字，会被拼进上游地址。

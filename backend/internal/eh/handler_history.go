@@ -20,7 +20,7 @@ func (h *Handler) historyRoutes(router web.Router) {
 	router.Post("/history/remove", func(ctx context.Context, body galleryIDBody) (any, error) {
 		return nil, h.service.RemoveReadingHistory(ctx, auth.UserID(ctx), body.GID)
 	})
-	router.Action("/history/clear", func(ctx context.Context) (any, error) {
+	router.PostNoBody("/history/clear", func(ctx context.Context) (any, error) {
 		return nil, h.service.ClearReadingHistory(ctx, auth.UserID(ctx))
 	})
 }

@@ -10,12 +10,18 @@ import type {
 } from "@/features/eh/model"
 import { httpClient } from "@/shared/api/httpClient"
 
-/** 搜索图集。cursor 为空表示第一页，翻页时关键词和分类要一起带上 */
+/**
+ * 搜索图集。cursor 为空表示第一页，翻页时关键词和分类要一起带上。
+ *
+ * 条件整条放在请求体里：分类是一组名字，塞进查询串就得两头各写一份拼装和拆解的规则。
+ * 用 POST 只是为了带这段 JSON，它仍是一次读取——所以照常接 AbortSignal，离开页面要能取消。
+ */
 export function searchGalleries(params: GallerySearch & { cursor: string }, signal?: AbortSignal) {
-  return httpClient.get<GalleryPage>("/eh/galleries", {
-    params: { keyword: params.keyword, categories: params.categories.join(","), cursor: params.cursor },
-    signal,
-  })
+  return httpClient.post<GalleryPage>(
+    "/eh/galleries/search",
+    { keyword: params.keyword, categories: params.categories, cursor: params.cursor },
+    { signal },
+  )
 }
 
 /** 图集详情，顺带返回这个账号读到第几页，以及这本图集的大图地址模板 */

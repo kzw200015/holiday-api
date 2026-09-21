@@ -89,8 +89,9 @@ func TestApiContract(t *testing.T) {
 		}
 	}
 
-	// 需要登录的接口不带令牌就是 401，响应体仍然是统一结构
-	response := do(t, router, "/api/eh/galleries", "")
+	// 需要登录的接口不带令牌就是 401，响应体仍然是统一结构。
+	// 搜索走 POST，不带请求体也能拿到 401：鉴权在解请求体之前，顺带钉住这条路由确实挂在鉴权那一组里
+	response := send(t, router, http.MethodPost, "/api/eh/galleries/search", "")
 	if response.Code != http.StatusUnauthorized ||
 		response.Body.String() != `{"code":401,"data":null,"msg":"请先登录"}`+"\n" {
 		t.Errorf("未登录访问 = %d %s", response.Code, response.Body)
@@ -152,9 +153,13 @@ func fetchDetail(t *testing.T, router http.Handler, token string) map[string]any
 }
 
 func do(t *testing.T, router http.Handler, path, token string) *httptest.ResponseRecorder {
+	return send(t, router, http.MethodGet, path, token)
+}
+
+func send(t *testing.T, router http.Handler, method, path, token string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	request := httptest.NewRequest(http.MethodGet, path, nil)
+	request := httptest.NewRequest(method, path, nil)
 	if token != "" {
 		request.Header.Set("Authorization", "Bearer "+token)
 	}
