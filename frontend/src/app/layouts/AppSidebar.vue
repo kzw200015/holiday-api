@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronDownIcon, ZapIcon } from "@lucide/vue"
+import { ChevronDownIcon } from "@lucide/vue"
 import { ref, watch } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
 
@@ -58,11 +58,8 @@ function isActive(name: string) {
         <SidebarMenuItem>
           <SidebarMenuButton as-child size="lg">
             <RouterLink to="/" @click="closeNavigation">
-              <div
-                class="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg"
-              >
-                <ZapIcon class="size-4" />
-              </div>
+              <!-- 与浏览器标签页、PWA 用同一份图标；旁边已有站名，图片本身不再重复朗读 -->
+              <img src="/favicon.svg" alt="" class="size-8 shrink-0" />
               <span class="truncate font-semibold">MyAPI</span>
             </RouterLink>
           </SidebarMenuButton>
