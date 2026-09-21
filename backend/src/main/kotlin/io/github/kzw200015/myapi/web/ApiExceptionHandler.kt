@@ -8,7 +8,6 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatusCode
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
-import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.context.request.WebRequest
@@ -65,15 +64,14 @@ class ApiExceptionHandler : ResponseEntityExceptionHandler() {
         statusCode: HttpStatusCode,
         request: WebRequest,
     ): ResponseEntity<Any>? {
-        // 方法不匹配与路径不存在一样按 404 回
-        val status = if (ex is HttpRequestMethodNotSupportedException) HttpStatus.NOT_FOUND else statusCode
         val msg = when {
-            status.value() == 404 -> "Not Found"
+            statusCode.value() == 404 -> "Not Found"
+            statusCode.value() == 405 -> "Method Not Allowed"
             ex is HttpMessageNotReadableException -> "请求体格式错误"
-            status.is4xxClientError -> "请求参数格式错误"
+            statusCode.is4xxClientError -> "请求参数格式错误"
             else -> "服务器内部错误"
         }
-        return super.handleExceptionInternal(ex, ApiResponse(status.value(), null, msg), headers, status, request)
+        return super.handleExceptionInternal(ex, ApiResponse(statusCode.value(), null, msg), headers, statusCode, request)
     }
 
     private fun failure(status: HttpStatus, msg: String) =

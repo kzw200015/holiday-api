@@ -71,11 +71,15 @@ class ApiTest {
         // 鉴权在解请求体之前：不带请求体也是 401
         assertJson("""{"code":401,"data":null,"msg":"请先登录"}""", 401, send(HttpMethod.POST, "/api/eh/galleries/search"))
 
-        // 未匹配的 /api 路径与方法不匹配都回 JSON 404
-        for (response in listOf(get("/api/unknown"), get("/api"), get("/api/eh/progress", token()))) {
+        // 未匹配的 /api 路径回 JSON 404
+        for (response in listOf(get("/api/unknown"), get("/api"))) {
             assertJson("""{"code":404,"data":null,"msg":"Not Found"}""", 404, response)
         }
         val token = token()
+        // 方法不匹配回 405，Allow 头照 Spring 的默认带上
+        val wrongMethod = get("/api/eh/progress", token)
+        assertJson("""{"code":405,"data":null,"msg":"Method Not Allowed"}""", 405, wrongMethod)
+        assertEquals("POST", wrongMethod.getHeader(HttpHeaders.ALLOW))
         assertJson("""{"code":400,"data":null,"msg":"请求体格式错误"}""", 400, send(HttpMethod.PUT, "/api/eh/preferences", token, "{"))
         // 路径参数连数字都不是，同样回统一结构
         for (gid in listOf("abc", "1.5", "9223372036854775808")) {
