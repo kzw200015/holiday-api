@@ -54,7 +54,7 @@ function reload() {
     <Skeleton class="h-40 w-full" />
   </div>
   <RouterView v-else v-slot="{ Component }">
-    <!-- 搜索、历史与详情各保留一份，换图集复用详情。数据的新鲜由查询缓存管，这里只留住界面状态。 -->
+    <!-- 搜索、历史与详情各保留一份，换图集复用详情。搜索结果、历史与评论就活在这些页面里，跟着一起留下。 -->
     <KeepAlive>
       <component :is="Component" />
     </KeepAlive>

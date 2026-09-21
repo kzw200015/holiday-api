@@ -1,5 +1,5 @@
 /* @vitest-environment happy-dom */
-import { VueQueryPlugin } from "@tanstack/vue-query"
+import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { computed, createApp, h, nextTick, reactive } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
@@ -8,7 +8,6 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, saveGalleryPreferences } from "@/features/eh/api"
 import ReaderControls from "@/features/eh/components/ReaderControls.vue"
 import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
-import { createQueryClient } from "@/shared/api/queryClient"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -76,10 +75,13 @@ async function createReader(position: { page?: number; total?: number } = {}) {
   document.body.append(host)
   const app = createApp({ render: () => h(RouterView) })
   app.use(router)
-  app.use(VueQueryPlugin, { queryClient: createQueryClient() })
+  /* 每个阅读器一份自己的账号数据，和各自打开一个新页面一样。 */
+  const pinia = createPinia()
+  app.use(pinia)
   app.mount(host)
   cleanups.push(() => {
     app.unmount()
+    disposePinia(pinia)
     host.remove()
   })
   await vi.advanceTimersByTimeAsync(1)

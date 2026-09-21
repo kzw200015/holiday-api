@@ -25,7 +25,7 @@ const { status, loading, loadError, saving, errorMessage, reload, bind, unbind: 
 const form = ref({ ipbMemberId: "", ipbPassHash: "", igneous: "" })
 const successMessage = ref("")
 
-/* 直接用这次提交回来的状态，不去读缓存，省得依赖「那边已经写完了」这个顺序。 */
+/* 直接用这次提交回来的状态，不去读共享的那份，省得依赖「那边已经写完了」这个顺序。 */
 async function submit() {
   successMessage.value = ""
   try {

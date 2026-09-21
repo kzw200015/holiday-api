@@ -1,12 +1,13 @@
 /* @vitest-environment happy-dom */
-import { VueQueryPlugin, type QueryClient } from "@tanstack/vue-query"
+import { createPinia, disposePinia, type Pinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick } from "vue"
 
+import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, saveGalleryPreferences } from "@/features/eh/api"
 import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
-import { createQueryClient } from "@/shared/api/queryClient"
+import type { GalleryPreferences } from "@/features/eh/model"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -14,8 +15,8 @@ vi.mock("@/features/eh/api", async (original) => ({
   saveGalleryPreferences: vi.fn(),
 }))
 
-/* 账号级的一份数据，同一份缓存下每个页面读到的都是它，所以用例内共用一个 queryClient。 */
-let queryClient: QueryClient
+/* 账号级的一份数据，每个页面读到的都是同一份，所以用例内的几个应用共用一个 pinia。 */
+let pinia: Pinia
 const apps: ReturnType<typeof createApp>[] = []
 
 function mount() {
@@ -26,7 +27,7 @@ function mount() {
       return () => null
     },
   })
-  app.use(VueQueryPlugin, { queryClient })
+  app.use(pinia)
   app.mount(document.createElement("div"))
   apps.push(app)
   return api
@@ -40,7 +41,7 @@ async function settle() {
 beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
-  queryClient = createQueryClient()
+  pinia = createPinia()
   vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 8 })
   vi.mocked(saveGalleryPreferences).mockResolvedValue(null)
 })
@@ -48,7 +49,7 @@ afterEach(() => {
   for (const app of apps.splice(0)) {
     app.unmount()
   }
-  queryClient.clear()
+  disposePinia(pinia)
   vi.useRealTimers()
 })
 
@@ -113,5 +114,47 @@ describe("账号浏览偏好", () => {
     await settle()
     expect(preferences.ready.value).toBe(true)
     expect(preferences.loadError.value).toBe("")
+  })
+
+  /* 换账号那一刻作废：旧账号还没回来的读取，不能落到新账号头上。 */
+  it("换账号后旧账号在途的读取作废，新页面读新账号的那份", async () => {
+    let finish!: (value: GalleryPreferences) => void
+    vi.mocked(fetchGalleryPreferences).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    const before = mount()
+    await settle()
+    useAuthStore(pinia).logout()
+    finish({ categories: ["旧账号的分类"], readerInterval: 9 })
+    await settle()
+    expect(before.ready.value).toBe(false)
+
+    const after = mount()
+    await settle()
+    expect(after.categories.value).toEqual(["manga"])
+    expect(fetchGalleryPreferences).toHaveBeenCalledTimes(2)
+  })
+
+  /* 排队中的保存要等前一次回来才发，那时令牌已经是新账号的了，发出去就写到了新账号上。 */
+  it("换账号后旧账号排队中的保存不再发出", async () => {
+    let finish!: (value: null) => void
+    vi.mocked(saveGalleryPreferences).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    const preferences = mount()
+    await settle()
+    preferences.interval.value = 6
+    preferences.interval.value = 7
+    await settle()
+    expect(saveGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ categories: ["manga"], readerInterval: 6 })
+
+    useAuthStore(pinia).logout()
+    finish(null)
+    await settle()
+    expect(saveGalleryPreferences).toHaveBeenCalledTimes(1)
   })
 })

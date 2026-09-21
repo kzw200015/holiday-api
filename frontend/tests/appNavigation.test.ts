@@ -1,5 +1,4 @@
 // @vitest-environment happy-dom
-import { VueQueryPlugin } from "@tanstack/vue-query"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, type App as VueApp } from "vue"
@@ -26,11 +25,10 @@ import {
   searchGalleries,
   unbindCredential,
 } from "@/features/eh/api"
-import { ehKeys } from "@/features/eh/keys"
 import type { GalleryDetail } from "@/features/eh/model"
+import { useCredentialStore, useGalleryContentStore } from "@/features/eh/store"
 import type * as HolidayApi from "@/features/holiday/api"
 import { fetchHolidayDetail } from "@/features/holiday/api"
-import { createQueryClient } from "@/shared/api/queryClient"
 
 vi.mock("@/features/auth/api", () => ({ authenticate: vi.fn(), fetchCurrentUser: vi.fn() }))
 vi.mock("@/features/holiday/api", async (original) => ({
@@ -75,7 +73,6 @@ let pinia: ReturnType<typeof createPinia>
 let app: VueApp
 let router: Router
 let host: HTMLElement
-let queryClient: ReturnType<typeof createQueryClient>
 
 async function settle() {
   await vi.dynamicImportSettled()
@@ -155,8 +152,7 @@ beforeEach(async () => {
   })
   host = document.createElement("div")
   document.body.append(host)
-  queryClient = createQueryClient()
-  app = createApp(App).use(pinia).use(router).use(VueQueryPlugin, { queryClient })
+  app = createApp(App).use(pinia).use(router)
   await router.push("/eh")
   await router.isReady()
   app.mount(host)
@@ -237,7 +233,7 @@ describe("阅读历史与二级导航", () => {
     await settle()
     expect(host.textContent).toContain("删除失败测试")
     expect(host.textContent).toContain("测试图集")
-    /* 删除成功直接改缓存里的那一份列表，不再重新拉一页回来。 */
+    /* 删除成功直接改本地的那一份列表，不再重新拉一页回来。 */
     host.querySelector<HTMLElement>('[aria-label="删除阅读记录：1"]')!.click()
     await settle()
     expect(host.textContent).toContain("还没有阅读记录")
@@ -274,7 +270,7 @@ describe("阅读历史与二级导航", () => {
     host.querySelector<HTMLElement>('[aria-label="删除阅读记录：1"]')!.click()
     await settle()
     await visit("/eh/g/1/aaaaaaaaaa")
-    /* 详情还在缓存里，不必重取；进度已经作废，所以不会再冒出一个「继续阅读」。 */
+    /* 详情早已读过，不必重取；进度已经作废，所以不会再冒出一个「继续阅读」。 */
     expect(host.textContent).toContain("开始阅读")
     expect(host.textContent).not.toContain("继续阅读")
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(1)
@@ -299,7 +295,7 @@ describe("阅读历史与二级导航", () => {
     expect(host.textContent).toContain("还没有阅读记录")
   })
 
-  /* 同一个查询键只有一份数据，来回切页不会让两次响应互相覆盖，也不必为此取消请求。 */
+  /* 历史页被 KeepAlive 留着：回来时请求还在途就不发第二次，它的结果照样落到列表上。 */
   it("离开历史再回来，在途请求的结果仍然落到列表上", async () => {
     let finish!: (value: Awaited<ReturnType<typeof fetchReadingHistory>>) => void
     vi.mocked(fetchReadingHistory).mockReturnValueOnce(
@@ -404,7 +400,7 @@ describe("页面缓存与失效范围", () => {
     await visit("/settings")
     expect(host.querySelector<HTMLInputElement>("#ipbPassHash")!.value).toBe("")
     expect(fetchHolidayDetail).toHaveBeenCalledTimes(2)
-    /* 图库布局和设置页读同一个查询键，一个账号只读一次；换账号清空缓存后再读一次。 */
+    /* 图库布局和设置页读的是同一份，一个账号只读一次；换账号清空后再读一次。 */
     expect(fetchCredentialStatus).toHaveBeenCalledTimes(2)
     expect(searchGalleries).toHaveBeenCalledTimes(2)
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
@@ -450,7 +446,7 @@ describe("页面缓存与失效范围", () => {
     expect(host.textContent).toContain("继续阅读（第 18 页）")
     expect(window.scrollY).toBe(450)
     expect(fetchGalleryComments).toHaveBeenCalledTimes(1)
-    /* 详情页和阅读器查的是同一份缓存，所以进阅读器不再重新抓一次图集元数据。 */
+    /* 详情页和阅读器读的是同一份详情，所以进阅读器不再重新抓一次图集元数据。 */
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(1)
     expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 18)
     await click("返回列表")
@@ -504,7 +500,7 @@ describe("页面缓存与失效范围", () => {
     expect(window.scrollY).toBe(0)
     expect(fetchGalleryComments).toHaveBeenCalledTimes(2)
     /* 换绑 e 站账号后受凭据影响的内容全部作废，界面状态和滚动位置不受牵连。 */
-    await queryClient.invalidateQueries({ queryKey: ehKeys.content })
+    useGalleryContentStore(pinia).reset()
     await settle()
     expect(fetchGalleryComments).toHaveBeenCalledTimes(3)
     await click("返回列表")
@@ -514,8 +510,8 @@ describe("页面缓存与失效范围", () => {
 
   it.each(["绑定", "解绑"])("%s只淘汰图库缓存，保留设置页且不重新读取凭据状态", async (action) => {
     vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: true, memberId: "123", hasExAccess: false })
-    /* 进入测试时图库布局已经读过一次状态，换掉返回值后要让缓存重新问一次。 */
-    await queryClient.invalidateQueries({ queryKey: ehKeys.credential })
+    /* 进入测试时图库布局已经读过一次状态，换掉返回值后重新问一次。 */
+    await useCredentialStore(pinia).reload()
     vi.mocked(bindCredential).mockResolvedValue({ bound: true, memberId: "456", hasExAccess: true })
     vi.mocked(unbindCredential).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
     await visit("/eh/g/1/aaaaaaaaaa")
@@ -578,7 +574,7 @@ describe("页面缓存与失效范围", () => {
     expect(searchGalleries).toHaveBeenCalledTimes(1)
   })
 
-  it("分类草稿关闭不生效，应用才搜索；历史词沿用当前分类并复用缓存", async () => {
+  it("分类草稿关闭不生效，应用才搜索；历史词沿用当前分类", async () => {
     await enterKeyword("cat")
     await click("分类")
     category("漫画").click()
@@ -610,20 +606,24 @@ describe("页面缓存与失效范围", () => {
       { keyword: "dog", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
-    const requests = vi.mocked(searchGalleries).mock.calls.length
     await click("cat")
     expect(router.currentRoute.value.fullPath).toBe("/eh")
     expect(host.querySelector("input")!.value).toBe("cat")
-    /* cat 配当前分类的结果还在缓存里，直接显示，不必再抓一次上游；
-     * 反过来说，这一次没有请求也就证明它沿用的正是当前分类，换成别的分类就是另一个键了。 */
-    expect(searchGalleries).toHaveBeenCalledTimes(requests)
+    /* 点历史词就是拿它配上当前分类重新搜一次。 */
+    expect(searchGalleries).toHaveBeenLastCalledWith(
+      { keyword: "cat", categories: ["manga"], cursor: "" },
+      expect.any(AbortSignal),
+    )
   })
 
   /* 本地那份才是真源：读过一次之后，服务端上别处的改动不会回头盖掉它，也不再重读。 */
   /* 两份账号数据的保存都是整份提交，带着没读到的空值放行，下一次搜索就会把服务端的历史冲掉。 */
   it("账号数据读不到就停在布局层，重试读到后才放页面进来", async () => {
     vi.mocked(fetchSearchHistory).mockRejectedValueOnce(new Error("历史读取失败"))
-    await queryClient.resetQueries({ queryKey: ehKeys.searchHistory })
+    /* 在图库里换个账号：页面整个重建，两份账号数据都要重新读，历史这次读失败。 */
+    const auth = useAuthStore()
+    auth.logout()
+    auth.user = { id: 2, username: "second" }
     await settle()
     expect(host.textContent).toContain("历史读取失败")
     expect(host.querySelector('input[aria-label="搜索图集"]')).toBeNull()

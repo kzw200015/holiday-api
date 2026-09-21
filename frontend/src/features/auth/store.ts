@@ -9,7 +9,7 @@ export const useAuthStore = defineStore("AuthStore", () => {
 
   /* 是否已经问过后端「我是谁」。路由守卫要等这一步完成才敢判断放不放行 */
   const ready = ref(false)
-  /* 账号变化清空全部页面；各业务模块自行管理内部缓存，这里不保存页面数据。 */
+  /* 账号一变就加一：页面缓存以它为 key 整体重建，各业务模块的 store 也监听它自行清空；这里不保存页面数据。 */
   const pageRevision = ref(0)
 
   /* 刷新登录态。GET /auth/me 未登录时回 200 加 null，所以这里不会因为没登录而抛错 */

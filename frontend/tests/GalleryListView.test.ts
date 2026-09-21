@@ -1,5 +1,4 @@
 /* @vitest-environment happy-dom */
-import { VueQueryPlugin } from "@tanstack/vue-query"
 import type * as VueUse from "@vueuse/core"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -10,7 +9,6 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, searchGalleries } from "@/features/eh/api"
 import type { GalleryCard, GalleryPage } from "@/features/eh/model"
 import GalleryListView from "@/features/eh/views/GalleryListView.vue"
-import { createQueryClient } from "@/shared/api/queryClient"
 
 const scroll = vi.hoisted(() => ({
   load: async () => {},
@@ -108,7 +106,6 @@ async function mountList() {
   app.use(router)
   pinia = createPinia()
   app.use(pinia)
-  app.use(VueQueryPlugin, { queryClient: createQueryClient() })
   app.mount(host)
   await settle()
   search.mockClear()
@@ -192,7 +189,7 @@ describe("图库列表分页", () => {
     expect(host.textContent).toContain("图集 2")
   })
 
-  it("停用时关闭触底监听，恢复相同条件不重载，分类顺序和重复不影响身份", async () => {
+  it("停用时关闭触底监听，回来不重新搜索；提交的分类去掉重复、保留顺序", async () => {
     vi.mocked(fetchGalleryPreferences).mockResolvedValue({
       categories: ["manga", "doujinshi", "manga"],
       readerInterval: 5,
@@ -200,10 +197,13 @@ describe("图库列表分页", () => {
     await mountList()
     search.mockResolvedValue({ items: [card(1)], nextCursor: null })
     await submit("a|b")
+    expect(search).toHaveBeenCalledExactlyOnceWith(
+      { keyword: "a|b", categories: ["manga", "doujinshi"], cursor: "" },
+      expect.any(AbortSignal),
+    )
     await router.push("/away")
     await settle()
     expect(scroll.target()).toBeNull()
-    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["doujinshi", "manga"], readerInterval: 5 })
     await router.push("/eh")
     await settle()
     expect(scroll.target()).toBe(window)

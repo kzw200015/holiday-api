@@ -1,5 +1,4 @@
 /* @vitest-environment happy-dom */
-import { VueQueryPlugin } from "@tanstack/vue-query"
 import type * as VueUse from "@vueuse/core"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -11,7 +10,6 @@ import type * as EhApi from "@/features/eh/api"
 import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"
 import type { GalleryCard, ReadingHistoryPage } from "@/features/eh/model"
 import GalleryHistoryView from "@/features/eh/views/GalleryHistoryView.vue"
-import { createQueryClient } from "@/shared/api/queryClient"
 
 /* 触底加载靠滚动位置触发，happy-dom 不做布局，所以把入口接出来手动调用。 */
 const scroll = vi.hoisted(() => ({
@@ -102,7 +100,6 @@ async function mountHistory() {
   pinia = createPinia()
   app.use(router)
   app.use(pinia)
-  app.use(VueQueryPlugin, { queryClient: createQueryClient() })
   useAuthStore(pinia).user = { id: 1, username: "tester" }
   app.mount(host)
   await settle()

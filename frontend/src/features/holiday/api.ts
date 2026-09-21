@@ -10,13 +10,6 @@ export interface HolidayDetail {
   name: string
 }
 
-export const holidayKeys = {
-  detail: (date: string) => ["holiday", "detail", date] as const,
-}
-
-/** 节假日安排一年都不会变，同一天问第二次没有意义。 */
-export const HOLIDAY_STALE_TIME = 60 * 60 * 1000
-
 /** 查询某一天是否为休息日及对应的节假日 */
 export function fetchHolidayDetail(date: string, signal?: AbortSignal) {
   return httpClient.get<HolidayDetail>("/holiday/detail", { params: { date }, signal })

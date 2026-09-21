@@ -1,5 +1,4 @@
 /* @vitest-environment happy-dom */
-import { VueQueryPlugin } from "@tanstack/vue-query"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, nextTick, type Component as VueComponent } from "vue"
@@ -9,7 +8,6 @@ import type * as EhApi from "@/features/eh/api"
 import { saveProgress } from "@/features/eh/api"
 import { readerInstanceKey } from "@/features/eh/navigation"
 import ReaderView from "@/features/eh/views/ReaderView.vue"
-import { createQueryClient } from "@/shared/api/queryClient"
 
 vi.mock("@/features/eh/api", async (importOriginal) => ({
   ...(await importOriginal<typeof EhApi>()),
@@ -63,7 +61,6 @@ beforeEach(async () => {
   app.use(router)
   pinia = createPinia()
   app.use(pinia)
-  app.use(VueQueryPlugin, { queryClient: createQueryClient() })
   app.mount(host)
   /* 越过 Vue 事件监听器的挂载时间戳，让冒泡点击被视为挂载后的用户事件。 */
   await vi.advanceTimersByTimeAsync(1)

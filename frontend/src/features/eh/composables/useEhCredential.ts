@@ -1,57 +1,52 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query"
-import { computed } from "vue"
+import { computed, ref } from "vue"
 
-import { bindCredential, fetchCredentialStatus, unbindCredential } from "@/features/eh/api"
-import { ehKeys } from "@/features/eh/keys"
+import { bindCredential, unbindCredential } from "@/features/eh/api"
 import type { CredentialStatus, EhCookie } from "@/features/eh/model"
+import { useCredentialStore, useGalleryContentStore } from "@/features/eh/store"
 
 /**
  * e 站账号的绑定状态。
  *
- * 设置页和图库布局读的是同一个查询键，所以绑定成功后图库那条「匿名浏览前站」的提示会立刻消失，
+ * 设置页和图库布局读的是同一份，所以绑定成功后图库那条「匿名浏览前站」的提示会立刻消失，
  * 不需要谁去通知谁。未读取时 status 为 undefined，界面据此区分「还没问过」和「确实没绑」。
  */
 export function useEhCredential() {
-  const queryClient = useQueryClient()
-  const status = useQuery({
-    queryKey: ehKeys.credential,
-    queryFn: ({ signal }) => fetchCredentialStatus(signal),
-  })
+  const credential = useCredentialStore()
+  const content = useGalleryContentStore()
+  void credential.load()
+
+  /* 绑定和解绑一次只会有一个在提交，设置页也只有一处提示，所以共用一份进行中与失败信息。 */
+  const saving = ref(false)
+  const errorMessage = ref("")
 
   /*
-   * 换绑或解绑都会改变能看到的内容：新状态直接落到缓存，受凭据影响的内容一并丢掉重来。
-   *
-   * 用 reset 而不是 invalidate：被 KeepAlive 留着的搜索页算「正在用」，invalidate 会把它翻过的每一页
-   * 都向上游重抓一遍；reset 之后只取第一页，旧账号下翻到哪本来也不算数了。
+   * 换绑或解绑都会改变能看到的内容：新状态直接落到本地，受凭据影响的内容一并作废重来。
+   * 失败照样抛给调用方，设置页要据此决定显不显示成功提示。
    */
-  function accept(next: CredentialStatus) {
-    queryClient.setQueryData(ehKeys.credential, next)
-    void queryClient.resetQueries({ queryKey: ehKeys.content })
-  }
-
-  const binding = useMutation({ mutationFn: (cookie: EhCookie) => bindCredential(cookie), onSuccess: accept })
-  const unbinding = useMutation({ mutationFn: () => unbindCredential(), onSuccess: accept })
-
-  /* 设置页只有一处提示，显示的是最近一次提交的结果。 */
-  function beginSubmit() {
-    binding.reset()
-    unbinding.reset()
+  async function submit(request: () => Promise<CredentialStatus>) {
+    saving.value = true
+    errorMessage.value = ""
+    try {
+      const next = await request()
+      credential.set(next)
+      content.reset()
+      return next
+    } catch (error) {
+      errorMessage.value = (error as Error).message
+      throw error
+    } finally {
+      saving.value = false
+    }
   }
 
   return {
-    status: status.data,
-    loading: status.isPending,
-    loadError: computed(() => status.error.value?.message ?? ""),
-    saving: computed(() => binding.isPending.value || unbinding.isPending.value),
-    errorMessage: computed(() => (binding.error.value ?? unbinding.error.value)?.message ?? ""),
-    reload: () => void status.refetch(),
-    bind: (cookie: EhCookie) => {
-      beginSubmit()
-      return binding.mutateAsync(cookie)
-    },
-    unbind: () => {
-      beginSubmit()
-      return unbinding.mutateAsync()
-    },
+    status: computed(() => credential.data),
+    loading: computed(() => credential.data === undefined && credential.error === null),
+    loadError: computed(() => credential.error?.message ?? ""),
+    saving,
+    errorMessage,
+    reload: () => void credential.reload(),
+    bind: (cookie: EhCookie) => submit(() => bindCredential(cookie)),
+    unbind: () => submit(unbindCredential),
   }
 }

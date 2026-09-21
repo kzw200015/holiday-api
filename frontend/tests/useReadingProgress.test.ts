@@ -1,17 +1,17 @@
 /* @vitest-environment happy-dom */
-import { VueQueryPlugin, type QueryClient } from "@tanstack/vue-query"
+import { createPinia, disposePinia, type Pinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick } from "vue"
 
 import type * as EhApi from "@/features/eh/api"
-import { saveProgress } from "@/features/eh/api"
+import { fetchGalleryDetail, saveProgress } from "@/features/eh/api"
 import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
-import { ehKeys } from "@/features/eh/keys"
-import type { GalleryDetail, GalleryDetailResult } from "@/features/eh/model"
-import { createQueryClient } from "@/shared/api/queryClient"
+import type { GalleryDetail } from "@/features/eh/model"
+import { useGalleryContentStore } from "@/features/eh/store"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
+  fetchGalleryDetail: vi.fn(),
   saveProgress: vi.fn(),
 }))
 
@@ -35,7 +35,7 @@ const gallery: GalleryDetail = {
   expunged: false,
 }
 
-let queryClient: QueryClient
+let pinia: Pinia
 const cleanups: (() => void)[] = []
 
 function deferred<T>() {
@@ -46,17 +46,18 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-/* 详情已经在缓存里，进度就是它的一个字段——翻页改的正是这一份。 */
-function seedDetail(gid: number, token: string, progress: number | null) {
-  queryClient.setQueryData<GalleryDetailResult>(ehKeys.gallery(gid, token), {
+/* 详情已经读进来了，进度就是它的一个字段——翻页改的正是这一份。 */
+async function seedDetail(gid: number, token: string, progress: number | null) {
+  vi.mocked(fetchGalleryDetail).mockResolvedValueOnce({
     gallery: { ...gallery, gid, token },
     progress,
     imageUrlTemplate: "/image/{page}",
   })
+  await useGalleryContentStore(pinia).loadDetail(gid, token)
 }
 
 function progressOf(gid: number, token: string) {
-  return queryClient.getQueryData<GalleryDetailResult>(ehKeys.gallery(gid, token))?.progress
+  return useGalleryContentStore(pinia).detail(gid, token)?.data.value?.progress
 }
 
 async function mountReader() {
@@ -67,30 +68,30 @@ async function mountReader() {
       return () => null
     },
   })
-  app.use(VueQueryPlugin, { queryClient })
+  app.use(pinia)
   app.mount(document.createElement("div"))
   cleanups.push(() => app.unmount())
   await nextTick()
   return { api }
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.useFakeTimers()
   vi.resetAllMocks()
-  queryClient = createQueryClient()
-  seedDetail(1, "aaaaaaaaaa", 3)
+  pinia = createPinia()
+  await seedDetail(1, "aaaaaaaaaa", 3)
   vi.mocked(saveProgress).mockResolvedValue(null)
 })
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) {
     cleanup()
   }
-  queryClient.clear()
+  disposePinia(pinia)
   vi.useRealTimers()
 })
 
 describe("阅读进度上报", () => {
-  it("翻页当场改详情缓存，连着翻只发最后一页", async () => {
+  it("翻页当场改详情里的进度，连着翻只发最后一页", async () => {
     const { api } = await mountReader()
     api.report(5)
     /* 详情页的「继续阅读第 N 页」读的就是这里，所以不必等网络。 */
@@ -133,7 +134,7 @@ describe("阅读进度上报", () => {
     expect(saveProgress).toHaveBeenCalledTimes(1)
   })
 
-  it("存不上不回退，缓存里仍是用户读到的那一页", async () => {
+  it("存不上不回退，详情里仍是用户读到的那一页", async () => {
     vi.mocked(saveProgress).mockRejectedValue(new Error("断网"))
     const { api } = await mountReader()
     api.report(20)

@@ -1,4 +1,3 @@
-import { VueQueryPlugin } from "@tanstack/vue-query"
 import { createPinia } from "pinia"
 import { createApp } from "vue"
 
@@ -7,7 +6,6 @@ import { AppRouter } from "@/app/router"
 import { useThemeStore } from "@/app/themeStore"
 import { useAuthStore } from "@/features/auth/store"
 import { onUnauthorized } from "@/shared/api/httpClient"
-import { createQueryClient } from "@/shared/api/queryClient"
 
 import "@/styles/index.css"
 
@@ -16,7 +14,6 @@ const pinia = createPinia()
 
 app.use(pinia)
 app.use(AppRouter)
-app.use(VueQueryPlugin, { queryClient: createQueryClient() })
 
 /* 挂载前落地主题，避免暗色用户首帧按亮色绘制再被覆盖 */
 useThemeStore(pinia).initializeTheme()

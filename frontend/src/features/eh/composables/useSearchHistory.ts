@@ -1,8 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query"
 import { computed } from "vue"
 
-import { fetchSearchHistory, saveSearchHistory } from "@/features/eh/api"
-import { ehKeys } from "@/features/eh/keys"
+import { useSearchHistoryStore } from "@/features/eh/store"
 
 /* 最多留几条。后端列上有同样的上限，超了会被退回来，所以这里就是那条规则本身。 */
 const LIMIT = 10
@@ -17,36 +15,23 @@ const MAX_ENTRY_BYTES = 200
  * 服务端只负责校验和存住。关键词进来之前已经去过两端空白，和服务端存下的那份一致。
  */
 export function useSearchHistory() {
-  const queryClient = useQueryClient()
-  const loaded = useQuery({
-    queryKey: ehKeys.searchHistory,
-    queryFn: ({ signal }) => fetchSearchHistory(signal),
-    staleTime: Infinity,
-  })
-  const entries = computed(() => loaded.data.value ?? [])
-
-  const saving = useMutation({
-    mutationFn: (next: string[]) => saveSearchHistory(next),
-    /* 和偏好同一套：整份提交按顺序发，乱序会让旧快照顶掉新的。 */
-    scope: { id: "eh-search-history" },
-    onMutate: (next) => {
-      queryClient.setQueryData(ehKeys.searchHistory, next)
-    },
-  })
+  const store = useSearchHistoryStore()
+  void store.load()
+  const entries = computed(() => store.data ?? [])
 
   return {
     /* 和偏好一样，真的读到了才算就绪：读失败时按空的用，下一次搜索就会把服务端那份历史冲掉。 */
-    ready: computed(() => loaded.data.value !== undefined),
-    loadError: computed(() => loaded.error.value?.message ?? ""),
-    reload: () => void loaded.refetch(),
+    ready: computed(() => store.data !== undefined),
+    loadError: computed(() => store.error?.message ?? ""),
+    reload: () => void store.reload(),
     entries,
     record: (keyword: string) => {
       if (new TextEncoder().encode(keyword).length > MAX_ENTRY_BYTES) {
         return
       }
-      saving.mutate([keyword, ...entries.value.filter((entry) => entry !== keyword)].slice(0, LIMIT))
+      store.set([keyword, ...entries.value.filter((entry) => entry !== keyword)].slice(0, LIMIT))
     },
-    remove: (keyword: string) => saving.mutate(entries.value.filter((entry) => entry !== keyword)),
-    clear: () => saving.mutate([]),
+    remove: (keyword: string) => store.set(entries.value.filter((entry) => entry !== keyword)),
+    clear: () => store.set([]),
   }
 }

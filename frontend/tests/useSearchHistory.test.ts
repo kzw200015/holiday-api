@@ -1,12 +1,11 @@
 /* @vitest-environment happy-dom */
-import { VueQueryPlugin, type QueryClient } from "@tanstack/vue-query"
+import { createPinia, disposePinia, type Pinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick } from "vue"
 
 import type * as EhApi from "@/features/eh/api"
 import { fetchSearchHistory, saveSearchHistory } from "@/features/eh/api"
 import { useSearchHistory } from "@/features/eh/composables/useSearchHistory"
-import { createQueryClient } from "@/shared/api/queryClient"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -14,8 +13,8 @@ vi.mock("@/features/eh/api", async (original) => ({
   saveSearchHistory: vi.fn(),
 }))
 
-/* 账号级的一份数据，同一份缓存下每个页面读到的都是它，所以用例内共用一个 queryClient。 */
-let queryClient: QueryClient
+/* 账号级的一份数据，每个页面读到的都是同一份，所以用例内的几个应用共用一个 pinia。 */
+let pinia: Pinia
 const apps: ReturnType<typeof createApp>[] = []
 
 function mount() {
@@ -26,7 +25,7 @@ function mount() {
       return () => null
     },
   })
-  app.use(VueQueryPlugin, { queryClient })
+  app.use(pinia)
   app.mount(document.createElement("div"))
   apps.push(app)
   return api
@@ -40,7 +39,7 @@ async function settle() {
 beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
-  queryClient = createQueryClient()
+  pinia = createPinia()
   vi.mocked(fetchSearchHistory).mockResolvedValue(["猫", "狗"])
   vi.mocked(saveSearchHistory).mockResolvedValue(null)
 })
@@ -48,7 +47,7 @@ afterEach(() => {
   for (const app of apps.splice(0)) {
     app.unmount()
   }
-  queryClient.clear()
+  disposePinia(pinia)
   vi.useRealTimers()
 })
 

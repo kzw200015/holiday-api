@@ -1,6 +1,5 @@
 /* @vitest-environment happy-dom */
-import { VueQueryPlugin } from "@tanstack/vue-query"
-import { createPinia, disposePinia } from "pinia"
+import { createPinia, disposePinia, setActivePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, KeepAlive, nextTick } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
@@ -13,9 +12,8 @@ import {
   saveSearchHistory,
   searchGalleries,
 } from "@/features/eh/api"
-import { ehKeys } from "@/features/eh/keys"
+import { useGalleryPreferencesStore, useSearchHistoryStore } from "@/features/eh/store"
 import GalleryListView from "@/features/eh/views/GalleryListView.vue"
-import { createQueryClient } from "@/shared/api/queryClient"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -54,21 +52,11 @@ async function mountForm() {
       ),
   })
   pinia = createPinia()
-  const queryClient = createQueryClient()
+  setActivePinia(pinia)
   /* EhLayout 会先把这两份数据等齐再创建页面，这里照做：页面拿到的分类是确定的。 */
-  await queryClient.prefetchQuery({
-    queryKey: ehKeys.preferences,
-    queryFn: ({ signal }) => fetchGalleryPreferences(signal),
-    staleTime: Infinity,
-  })
-  await queryClient.prefetchQuery({
-    queryKey: ehKeys.searchHistory,
-    queryFn: ({ signal }) => fetchSearchHistory(signal),
-    staleTime: Infinity,
-  })
+  await Promise.all([useGalleryPreferencesStore().load(), useSearchHistoryStore().load()])
   app.use(pinia)
   app.use(router)
-  app.use(VueQueryPlugin, { queryClient })
   app.mount(host)
   await settle()
 }
@@ -191,7 +179,7 @@ describe("图库搜索流程", () => {
     onSearch.mockClear()
     await applyCategories("同人志")
     expect(onSearch).toHaveBeenCalledExactlyOnceWith(
-      { keyword: "", categories: ["doujinshi", "manga"], cursor: "" },
+      { keyword: "", categories: ["manga", "doujinshi"], cursor: "" },
       expect.any(AbortSignal),
     )
   })
