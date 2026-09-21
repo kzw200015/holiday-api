@@ -5,6 +5,7 @@ import { useRoute, useRouter } from "vue-router"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useRegistrationOpen } from "@/features/auth/composables/useRegistrationOpen"
 import { useAuthStore } from "@/features/auth/store"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import FormField from "@/shared/components/FormField.vue"
@@ -12,6 +13,7 @@ import FormField from "@/shared/components/FormField.vue"
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const registrationOpen = useRegistrationOpen()
 const username = ref("")
 const password = ref("")
 const registering = ref(false)
@@ -73,7 +75,15 @@ async function submit() {
           />
           <ErrorAlert v-if="errorMessage" :message="errorMessage" :title="registering ? '注册失败' : '登录失败'" />
           <Button :disabled="loading" type="submit">{{ loading ? "请稍候…" : actionLabel }}</Button>
-          <Button class="text-muted-foreground" variant="ghost" type="button" :disabled="loading" @click="switchMode">
+          <!-- 注册关着就不给切换入口，免得填完表单提交了才知道注册不了。 -->
+          <Button
+            v-if="registrationOpen"
+            class="text-muted-foreground"
+            variant="ghost"
+            type="button"
+            :disabled="loading"
+            @click="switchMode"
+          >
             {{ registering ? "已有账号，去登录" : "还没有账号，去注册" }}
           </Button>
         </form>

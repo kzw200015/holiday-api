@@ -34,6 +34,11 @@ func NewService(queries *store.Queries, allowRegistration bool) *Service {
 	return &Service{queries: queries, allowRegistration: allowRegistration}
 }
 
+// RegistrationOpen 报告本站是否开放注册。它是部署时的配置，前端打包时无从知道，只能来问。
+func (s *Service) RegistrationOpen() bool {
+	return s.allowRegistration
+}
+
 // Register 注册新账号，成功后直接返回可用于签发令牌的用户。
 //
 // 用户名判重交给 users_username_key 这个唯一索引，而不是先查再插：

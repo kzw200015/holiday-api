@@ -58,12 +58,23 @@ type authenticated struct {
 	User  currentUser `json:"user"`
 }
 
+// 登录页要先知道的站点设置。
+type options struct {
+	AllowRegistration bool `json:"allowRegistration"`
+}
+
 // Routes 挂在 /api/auth 下。
 //
 // 这里不返回 e 站的绑定状态：那是 eh 模块的事，放在 GET /api/eh/credential，
 // 免得两个模块的类型互相缠住。
 func (h *Handler) Routes() http.Handler {
 	router := web.Routes(chi.NewRouter())
+
+	// GET /api/auth/options，不用登录。登录页据此决定给不给注册入口，
+	// 否则关了注册的站点上，用户要把表单填完提交了才知道注册不了
+	router.Get("/options", func(*http.Request) (options, error) {
+		return options{AllowRegistration: h.service.RegistrationOpen()}, nil
+	})
 
 	// POST /api/auth/register，注册成功即登录。用户名被占用或站点关闭注册时返回 400
 	router.Post("/register", func(ctx context.Context, body credentials) (authenticated, error) {

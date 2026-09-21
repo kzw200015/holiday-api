@@ -82,6 +82,7 @@ func TestApiContract(t *testing.T) {
 		{"/api/holiday/is-holiday?date=2026-01-04", 200, `{"code":200,"data":true,"msg":"OK"}`},
 		{"/api/holiday/is-holiday?date=invalid", 400, `{"code":400,"data":null,"msg":"日期格式错误，应为 YYYY-MM-DD"}`},
 		{"/api/auth/me", 200, `{"code":200,"data":null,"msg":"OK"}`},
+		{"/api/auth/options", 200, `{"code":200,"data":{"allowRegistration":false},"msg":"OK"}`},
 	} {
 		response := do(t, router, each.path, "")
 		if response.Code != each.code || response.Body.String() != each.body+"\n" {

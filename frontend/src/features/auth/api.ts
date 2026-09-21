@@ -12,6 +12,17 @@ interface AuthenticatedUser {
   user: CurrentUser
 }
 
+/** 登录页要先知道的站点设置 */
+export interface AuthOptions {
+  /** 是否开放注册，部署时决定 */
+  allowRegistration: boolean
+}
+
+/** 不用登录也能取 */
+export function fetchAuthOptions(signal?: AbortSignal) {
+  return httpClient.get<AuthOptions>("/auth/options", { signal })
+}
+
 /** 取当前登录者。未登录时返回 null 而不是报错，所以登录页自己也能调 */
 export function fetchCurrentUser() {
   return httpClient.get<CurrentUser | null>("/auth/me")

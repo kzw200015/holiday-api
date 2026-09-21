@@ -30,7 +30,7 @@ import { useCredentialStore, useGalleryContentStore } from "@/features/eh/store"
 import type * as HolidayApi from "@/features/holiday/api"
 import { fetchHolidayDetail } from "@/features/holiday/api"
 
-vi.mock("@/features/auth/api", () => ({ authenticate: vi.fn(), fetchCurrentUser: vi.fn() }))
+vi.mock("@/features/auth/api", () => ({ authenticate: vi.fn(), fetchAuthOptions: vi.fn(), fetchCurrentUser: vi.fn() }))
 vi.mock("@/features/holiday/api", async (original) => ({
   ...(await original<typeof HolidayApi>()),
   fetchHolidayDetail: vi.fn(),
