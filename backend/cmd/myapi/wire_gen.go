@@ -10,13 +10,15 @@ import (
 	"context"
 	"myapi/internal/app"
 	"myapi/internal/auth"
-	store2 "myapi/internal/auth/store"
+	store3 "myapi/internal/auth/store"
 	"myapi/internal/config"
 	"myapi/internal/eh"
-	store3 "myapi/internal/eh/store"
+	store4 "myapi/internal/eh/store"
 	"myapi/internal/holiday"
-	"myapi/internal/holiday/store"
+	store2 "myapi/internal/holiday/store"
 	"myapi/internal/keylock"
+	"myapi/internal/logging"
+	"myapi/internal/store"
 )
 
 import (
@@ -35,20 +37,22 @@ func initApplication(ctx context.Context) (*application, func(), error) {
 		return nil, nil, err
 	}
 	string2 := configConfig.StaticDir
-	logger := provideLogger(configConfig)
-	pool, cleanup, err := provideDatabase(ctx, configConfig, logger)
+	database := configConfig.Database
+	log := configConfig.Log
+	logger := logging.Setup(log)
+	pool, cleanup, err := store.NewPool(ctx, database, logger)
 	if err != nil {
 		return nil, nil, err
 	}
-	queries := store.New(pool)
+	queries := store2.New(pool)
 	remoteClient := holiday.NewRemoteClient()
 	service := holiday.NewService(pool, queries, remoteClient)
 	handler := holiday.NewHandler(service)
-	storeQueries := store2.New(pool)
+	storeQueries := store3.New(pool)
 	authService := provideAuthService(storeQueries, configConfig)
 	tokens := provideTokens(configConfig)
 	authHandler := auth.NewHandler(authService, tokens)
-	queries2 := store3.New(pool)
+	queries2 := store4.New(pool)
 	userState := eh.NewUserState(queries2)
 	client := provideEhClient(configConfig)
 	locker := keylock.New()

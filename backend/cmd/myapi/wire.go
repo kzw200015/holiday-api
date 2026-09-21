@@ -18,6 +18,8 @@ import (
 	"myapi/internal/holiday"
 	holidaystore "myapi/internal/holiday/store"
 	"myapi/internal/keylock"
+	"myapi/internal/logging"
+	"myapi/internal/store"
 )
 
 // initApplication 从零装出整个应用：读配置、建日志器、建连接池、把各层 new 出来。
@@ -26,13 +28,13 @@ import (
 // 中途哪一步失败，已经建好的部分也会被清掉。
 func initApplication(ctx context.Context) (*application, func(), error) {
 	wire.Build(
-		// 配置和日志器都在图里：provideDatabase 收 *slog.Logger，
+		// 配置和日志器都在图里：store.NewPool 收 *slog.Logger，
 		// 「日志先就绪、再连库」这个顺序因此由依赖关系保证
 		config.Load,
-		// app.NewRouter 只要一个 StaticDir，就别把整个 config 递给它
-		wire.FieldsOf(new(config.Config), "StaticDir"),
-		provideLogger,
-		provideDatabase,
+		// 各包只拿自己那一段配置，就别把整个 config 递下去
+		wire.FieldsOf(new(config.Config), "StaticDir", "Log", "Database"),
+		logging.Setup,
+		store.NewPool,
 
 		// 连接池同时充当 sqlc 的 DBTX；事务由需要它的服务自己 Begin，见 holiday.Service.RefreshYear
 		wire.Bind(new(authstore.DBTX), new(*pgxpool.Pool)),
@@ -42,6 +44,7 @@ func initApplication(ctx context.Context) (*application, func(), error) {
 		ehstore.New,
 		holidaystore.New,
 
+		// 四个 provide* 是业务包和 config 之间的衔接，为什么留在装配层见 wiring.go
 		provideTokens,
 		provideAttachmentSigner,
 		keylock.New,

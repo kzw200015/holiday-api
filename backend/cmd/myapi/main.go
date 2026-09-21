@@ -13,7 +13,18 @@ import (
 	"time"
 	// 时区数据编进二进制，运行镜像里就不用装 tzdata；容器里用 TZ 环境变量指定时区
 	_ "time/tzdata"
+
+	"myapi/internal/config"
+	"myapi/internal/holiday"
 )
+
+// application 是 wire 组装出来的成品：一个可以挂到 http.Server 上的 handler、
+// 需要在启动时和后台被主动调用的节假日服务，外加 main 自己要用的那几项配置。
+type application struct {
+	Config  config.Config
+	Router  http.Handler
+	Holiday *holiday.Service
+}
 
 func main() {
 	if err := run(); err != nil {

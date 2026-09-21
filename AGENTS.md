@@ -2,7 +2,7 @@
 
 ## 项目结构与模块划分
 
-MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存放 Go 入口与 Wire 依赖注入代码；`backend/internal/` 包含业务模块（`auth`、`eh`、`holiday`）、HTTP 基础设施、配置和 PostgreSQL 访问代码。HTTP Handler 与业务 Service 保持分离。表结构统一位于 `backend/internal/store/schema.sql`，查询 SQL 及 sqlc 生成代码位于各业务模块的 `store/` 子目录，由 `backend/sqlc.yaml` 统一配置。
+MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存放 Go 入口与 Wire 依赖注入代码，业务包与 config 之间的衔接也留在这里（见 `wiring.go`），业务包本身不引用 config；`backend/internal/` 包含业务模块（`auth`、`eh`、`holiday`）、HTTP 基础设施、配置、日志器（`logging`）和 PostgreSQL 访问代码（连接池与表结构在 `store`）。HTTP Handler 与业务 Service 保持分离。表结构统一位于 `backend/internal/store/schema.sql`，查询 SQL 及 sqlc 生成代码位于各业务模块的 `store/` 子目录，由 `backend/sqlc.yaml` 统一配置。
 
 `frontend/src/` 按业务领域分三块：`app/` 是应用装配（路由、全局布局、导航目录、主题），`features/` 下每块业务自成一体（`auth`、`eh`、`holiday`，与 `backend/internal/` 的模块一一对应），`shared/` 放与业务无关的通用能力（HTTP 客户端、读取状态与写入排队的小工具、通用组件与组合式函数）。`src/components/ui/` 与 `src/lib/utils.ts` 是 shadcn-vue 的生成位置，保持原样。静态资源放在 `frontend/public/`，前端测试放在 `frontend/tests/`，Go 测试与实现文件同目录。领域术语见 `CONTEXT.md`，辅助工作流见 `docs/agents/`。Docker 镜像由 Go 服务统一提供 API 和前端静态文件。
 
