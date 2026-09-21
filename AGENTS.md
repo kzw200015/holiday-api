@@ -56,5 +56,3 @@ Go 测试命名为 `*_test.go`，Vitest 测试命名为 `*.test.ts`。重点验�
 ## 配置与 Agent 执行要求
 
 将 `backend/config.example.yml` 复制为已被 Git 忽略的 `backend/config.yml`，配置密钥和 PostgreSQL 连接。手动执行 `backend/internal/store/schema.sql` 建表，服务启动时不会自动创建表。禁止提交凭据。
-
-安装依赖和构建时，关闭沙箱执行对应命令。
