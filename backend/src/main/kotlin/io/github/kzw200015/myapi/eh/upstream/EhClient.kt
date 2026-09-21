@@ -2,11 +2,6 @@ package io.github.kzw200015.myapi.eh.upstream
 
 import io.github.kzw200015.myapi.AppException
 import io.github.kzw200015.myapi.concurrently
-import java.io.Closeable
-import java.io.InputStream
-import java.net.URI
-import java.net.URLEncoder
-import java.time.Instant
 import kotlinx.coroutines.async
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
@@ -17,6 +12,11 @@ import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import java.io.Closeable
+import java.io.InputStream
+import java.net.URI
+import java.net.URLEncoder
+import java.time.Instant
 
 /**
  * e 站的只读客户端：上游协议、「200 但不是内容」的识别与失败翻译，以及已校验过的图片流。
@@ -68,7 +68,13 @@ class EhClient(private val http: RestClient, private val json: JsonMapper) {
         return parsed
     }
 
-    fun fetchImagePage(access: EhAccess, ref: GalleryRef, page: Int, pageToken: String, reloadToken: String? = null): ImagePage {
+    fun fetchImagePage(
+        access: EhAccess,
+        ref: GalleryRef,
+        page: Int,
+        pageToken: String,
+        reloadToken: String? = null
+    ): ImagePage {
         val reload = reloadToken?.let { "?nl=${URLEncoder.encode(it, Charsets.UTF_8)}" }.orEmpty()
         return parseImagePage(fetchPage(access, "/s/$pageToken/${ref.gid}-$page$reload"))
             ?: throw unavailable("第 $page 页没解析出图片地址，e 站版面可能改了")
@@ -76,7 +82,8 @@ class EhClient(private val http: RestClient, private val json: JsonMapper) {
 
     /** 经 showpage 接口取图片地址；showkey 过期时返回 null，调用方回退到抓图片页。其余协议错误照常抛出。 */
     fun showImage(access: EhAccess, ref: GalleryRef, page: Int, pageToken: String, showKey: String): ImagePage? {
-        val payload = mapOf("method" to "showpage", "gid" to ref.gid, "page" to page, "imgkey" to pageToken, "showkey" to showKey)
+        val payload =
+            mapOf("method" to "showpage", "gid" to ref.gid, "page" to page, "imgkey" to pageToken, "showkey" to showKey)
         val response = callApi(access, payload)
         when (val error = response.path("error").asString("")) {
             "" -> Unit
@@ -155,7 +162,8 @@ class EhClient(private val http: RestClient, private val json: JsonMapper) {
     /** 调 JSON 接口（gdata / showpage）。表站接口免登录，不带用户 Cookie，也就不会把身份漏给它。 */
     private fun callApi(access: EhAccess, payload: Map<String, Any>): JsonNode {
         val credential = access.credential.takeIf { access.site == Site.EX }
-        val response = read(HttpMethod.POST, access.site.apiHost, cookieHeader(credential), json.writeValueAsBytes(payload))
+        val response =
+            read(HttpMethod.POST, access.site.apiHost, cookieHeader(credential), json.writeValueAsBytes(payload))
         assertUsable(response)
         return try {
             json.readTree(response.body)

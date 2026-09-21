@@ -1,8 +1,8 @@
 package io.github.kzw200015.myapi.eh
 
 import io.github.kzw200015.myapi.eh.upstream.GalleryRef
-import java.time.Instant
 import org.apache.ibatis.annotations.Mapper
+import java.time.Instant
 
 /** eh_reading_progress 里的一行：阅读进度与阅读历史共用这张表，每个图集只留一条。 */
 data class ProgressRow(val gid: Long, val token: String, val page: Int, val updatedAt: Instant) {

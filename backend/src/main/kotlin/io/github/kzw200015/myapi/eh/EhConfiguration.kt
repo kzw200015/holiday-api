@@ -2,8 +2,6 @@ package io.github.kzw200015.myapi.eh
 
 import io.github.kzw200015.myapi.eh.upstream.EhClient
 import io.github.kzw200015.myapi.signing.SigningKeys
-import java.net.http.HttpClient
-import java.time.Duration
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -11,6 +9,8 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import tools.jackson.databind.json.JsonMapper
+import java.net.http.HttpClient
+import java.time.Duration
 
 @ConfigurationProperties("myapi.eh")
 data class EhProperties(

@@ -1,20 +1,9 @@
 package io.github.kzw200015.myapi
 
 import io.github.kzw200015.myapi.auth.UserMapper
-import io.github.kzw200015.myapi.eh.CredentialMapper
-import io.github.kzw200015.myapi.eh.CredentialRow
-import io.github.kzw200015.myapi.eh.HistoryCursor
-import io.github.kzw200015.myapi.eh.PreferencesMapper
-import io.github.kzw200015.myapi.eh.PreferencesRow
-import io.github.kzw200015.myapi.eh.ReadingProgressMapper
-import io.github.kzw200015.myapi.eh.StringListTypeHandler
+import io.github.kzw200015.myapi.eh.*
 import io.github.kzw200015.myapi.holiday.HolidayDay
 import io.github.kzw200015.myapi.holiday.HolidayMapper
-import javax.sql.DataSource
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNull
 import org.mybatis.spring.SqlSessionTemplate
 import org.mybatis.spring.boot.test.autoconfigure.MybatisTest
 import org.springframework.beans.factory.annotation.Autowired
@@ -22,6 +11,11 @@ import org.springframework.context.annotation.Import
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.jdbc.Sql
+import javax.sql.DataSource
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 
 /**
  * XML 里的 SQL 编译期不做任何检查，所以每条都在真的 PostgreSQL 上跑一遍。

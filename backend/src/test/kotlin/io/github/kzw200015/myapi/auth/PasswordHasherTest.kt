@@ -9,7 +9,8 @@ class PasswordHasherTest {
     private val hasher = PasswordHasher()
 
     /** Go 版（alexedwards/argon2id）生成的真实哈希：库是沿用的，旧账号的密码必须照样验得过。 */
-    private val goHash = "\$argon2id\$v=19\$m=65536,t=2,p=1\$GWJ0cHAGWKo9G+ZbnLQTDA\$DoZHSlziwVSiiOUfmY5r/+Vzuq4jc9hK6gaeBrbid8c"
+    private val goHash =
+        "\$argon2id\$v=19\$m=65536,t=2,p=1\$GWJ0cHAGWKo9G+ZbnLQTDA\$DoZHSlziwVSiiOUfmY5r/+Vzuq4jc9hK6gaeBrbid8c"
 
     @Test
     fun `验得过旧版生成的哈希`() {

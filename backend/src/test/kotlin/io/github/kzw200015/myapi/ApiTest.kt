@@ -6,9 +6,6 @@ import io.github.kzw200015.myapi.eh.page
 import io.github.kzw200015.myapi.eh.testJson
 import io.github.kzw200015.myapi.eh.upstream.EhClient
 import io.github.kzw200015.myapi.holiday.HolidayRemote
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
@@ -22,6 +19,9 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import org.springframework.web.client.RestClient
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * 用真实的整套应用跑一遍对外契约，只把三处外部依赖换掉：数据库换成 Testcontainers 起的 PostgreSQL（启动时建表），
@@ -59,7 +59,11 @@ class ApiTest {
             200,
             get("/api/holiday/detail?date=2026-01-01"),
         )
-        assertJson("""{"code":400,"data":null,"msg":"日期格式错误，应为 YYYY-MM-DD"}""", 400, get("/api/holiday/is-holiday?date=invalid"))
+        assertJson(
+            """{"code":400,"data":null,"msg":"日期格式错误，应为 YYYY-MM-DD"}""",
+            400,
+            get("/api/holiday/is-holiday?date=invalid")
+        )
 
         // 未登录问「我是谁」是 data 为 null 的 200，不是 401
         assertJson("""{"code":200,"data":null,"msg":"OK"}""", 200, get("/api/auth/me"))
@@ -69,7 +73,11 @@ class ApiTest {
     @Test
     fun `统一的失败响应`() {
         // 鉴权在解请求体之前：不带请求体也是 401
-        assertJson("""{"code":401,"data":null,"msg":"请先登录"}""", 401, send(HttpMethod.POST, "/api/eh/galleries/search"))
+        assertJson(
+            """{"code":401,"data":null,"msg":"请先登录"}""",
+            401,
+            send(HttpMethod.POST, "/api/eh/galleries/search")
+        )
 
         // 未匹配的 /api 路径回 JSON 404
         for (response in listOf(get("/api/unknown"), get("/api"))) {
@@ -80,10 +88,18 @@ class ApiTest {
         val wrongMethod = get("/api/eh/progress", token)
         assertJson("""{"code":405,"data":null,"msg":"Method Not Allowed"}""", 405, wrongMethod)
         assertEquals("POST", wrongMethod.getHeader(HttpHeaders.ALLOW))
-        assertJson("""{"code":400,"data":null,"msg":"请求体格式错误"}""", 400, send(HttpMethod.PUT, "/api/eh/preferences", token, "{"))
+        assertJson(
+            """{"code":400,"data":null,"msg":"请求体格式错误"}""",
+            400,
+            send(HttpMethod.PUT, "/api/eh/preferences", token, "{")
+        )
         // 路径参数连数字都不是，同样回统一结构
         for (gid in listOf("abc", "1.5", "9223372036854775808")) {
-            assertJson("""{"code":400,"data":null,"msg":"请求参数格式错误"}""", 400, send(HttpMethod.DELETE, "/api/eh/history/$gid", token))
+            assertJson(
+                """{"code":400,"data":null,"msg":"请求参数格式错误"}""",
+                400,
+                send(HttpMethod.DELETE, "/api/eh/history/$gid", token)
+            )
         }
     }
 
@@ -107,7 +123,11 @@ class ApiTest {
         val wrongPassword = """{"username":"register-user","password":"这个密码不是那个密码"}"""
         val unknownUser = """{"username":"nobody","password":"这个密码足够长了"}"""
         for (wrong in listOf(wrongPassword, unknownUser)) {
-            assertJson("""{"code":400,"data":null,"msg":"用户名或密码错误"}""", 400, send(HttpMethod.POST, "/api/auth/login", body = wrong))
+            assertJson(
+                """{"code":400,"data":null,"msg":"用户名或密码错误"}""",
+                400,
+                send(HttpMethod.POST, "/api/auth/login", body = wrong)
+            )
         }
     }
 
@@ -118,7 +138,8 @@ class ApiTest {
     @Test
     fun `详情签发的图片地址不带令牌也打得开，改 uid 冒充别人不行`() {
         val token = token()
-        val detail = testJson.readTree(get("/api/eh/galleries/2231376/a7584a5932", token).contentAsString()).path("data")
+        val detail =
+            testJson.readTree(get("/api/eh/galleries/2231376/a7584a5932", token).contentAsString()).path("data")
         val template = detail.path("imageUrlTemplate").asString()
         assertTrue("{page}" in template, template)
 
@@ -137,9 +158,13 @@ class ApiTest {
     @Test
     fun `响应体的 JSON 形状`() {
         val token = token()
-        val gallery = testJson.readTree(get("/api/eh/galleries/2231376/a7584a5932", token).contentAsString()).path("data").path("gallery")
+        val gallery =
+            testJson.readTree(get("/api/eh/galleries/2231376/a7584a5932", token).contentAsString()).path("data")
+                .path("gallery")
         // 详情在卡片基础上多出的字段与卡片字段平铺在一起
-        assertEquals(emptyList(), listOf("gid", "token", "title", "postedAt", "fileSize", "expunged").filterNot { gallery.has(it) })
+        assertEquals(
+            emptyList(),
+            listOf("gid", "token", "title", "postedAt", "fileSize", "expunged").filterNot { gallery.has(it) })
         assertEquals("2022-05-28T01:53:30Z", gallery.path("postedAt").asString())
         assertEquals(4.68, gallery.path("rating").asDouble())
 
@@ -168,7 +193,9 @@ class ApiTest {
             "GET /api/eh/thumbnail",
         )
         val routes = mappings.handlerMethods.keys.flatMap { info ->
-            info.methodsCondition.methods.flatMap { method -> info.patternValues.filter { it.startsWith("/api/") }.map { "$method $it" } }
+            info.methodsCondition.methods.flatMap { method ->
+                info.patternValues.filter { it.startsWith("/api/") }.map { "$method $it" }
+            }
         }
         val open = routes.filter { route ->
             val (method, pattern) = route.split(' ')
@@ -186,7 +213,12 @@ class ApiTest {
 
     private fun get(url: String, token: String? = null) = send(HttpMethod.GET, url, token)
 
-    private fun send(method: HttpMethod, url: String, token: String? = null, body: String? = null): MockHttpServletResponse {
+    private fun send(
+        method: HttpMethod,
+        url: String,
+        token: String? = null,
+        body: String? = null
+    ): MockHttpServletResponse {
         val request = MockMvcRequestBuilders.request(method, url)
         token?.let { request.header(HttpHeaders.AUTHORIZATION, "Bearer $it") }
         body?.let { request.contentType(MediaType.APPLICATION_JSON).content(it) }
@@ -218,12 +250,14 @@ class ApiTest {
                 // 取图要先抓详情页分片拿每页令牌，再抓 /s/ 页面拿真正的图片地址
                 request.uri.path.startsWith("/s/") ->
                     page("""<div id="i3"><a href="#"><img id="img" src="https://ehgt.org/p3.webp"></a></div>""")
+
                 request.uri.path.startsWith("/g/") -> page(
                     """Showing 1 - 20 of 329 <a href="/s/bbbbbbbbbb/2231376-3"></a>""" +
                         """<div id="cdiv"><div class="c1"><div class="c3">Posted on 28 May 2022, 01:53 by: <a>Pokom</a></div>""" +
                         """<div class="c4">Uploader Comment</div><div class="c6" id="comment_0">第一行<br/>""" +
                         """<a href="https://example.com/">链接</a></div></div></div>""",
                 )
+
                 else -> FakeResponse("\u0001\u0002\u0003", contentType = "image/webp")
             }
         }.client()

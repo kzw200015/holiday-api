@@ -4,15 +4,21 @@ import io.github.kzw200015.myapi.AppException
 import io.github.kzw200015.myapi.eh.upstream.GalleryRef
 import io.github.kzw200015.myapi.eh.upstream.checkGid
 import io.github.kzw200015.myapi.eh.upstream.checkPage
-import java.time.Instant
-import java.util.Base64
 import org.springframework.stereotype.Service
+import java.time.Instant
+import java.util.*
 
 /** 一次阅读进度上报，也是 POST /api/eh/progress 的请求体。 */
 data class ReadingPosition(val gid: Long = 0, val token: String = "", val page: Int = 0)
 
 /** 阅读历史的一条。元数据取不到时 gallery 为 null，但记录照样能删。 */
-data class ReadingHistoryItem(val gid: Long, val token: String, val page: Int, val readAt: Instant, val gallery: GalleryCard?)
+data class ReadingHistoryItem(
+    val gid: Long,
+    val token: String,
+    val page: Int,
+    val readAt: Instant,
+    val gallery: GalleryCard?
+)
 
 /** 阅读进度与阅读历史：它们是同一张表，删一条阅读历史，对应的阅读进度也就没了。 */
 @Service
@@ -55,7 +61,8 @@ class ReadingService(private val progress: ReadingProgressMapper, private val ca
         val decoder: Base64.Decoder = Base64.getUrlDecoder()
 
         /** 游标是「上一页最后一条的阅读时间 + gid」，编码成一段 base64 交给前端原样带回。 */
-        fun encodeCursor(last: ProgressRow): String = encoder.encodeToString("${last.updatedAt},${last.gid}".toByteArray())
+        fun encodeCursor(last: ProgressRow): String =
+            encoder.encodeToString("${last.updatedAt},${last.gid}".toByteArray())
 
         fun parseCursor(value: String): HistoryCursor? {
             if (value.isEmpty()) {

@@ -1,20 +1,12 @@
 package io.github.kzw200015.myapi.eh
 
 import io.github.kzw200015.myapi.AppException
-import io.github.kzw200015.myapi.eh.upstream.EhAccess
-import io.github.kzw200015.myapi.eh.upstream.EhCredential
-import io.github.kzw200015.myapi.eh.upstream.GalleryRef
-import io.github.kzw200015.myapi.eh.upstream.ImagePage
-import io.github.kzw200015.myapi.eh.upstream.Site
+import io.github.kzw200015.myapi.eh.upstream.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotEquals
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 class ImageLocatorTest {
     private val ref = GalleryRef(1, "0123456789")
@@ -83,7 +75,13 @@ class ImageLocatorTest {
 
         Executors.newVirtualThreadPerTaskExecutor().use { executor ->
             val results = listOf("first", "second").map { member ->
-                executor.submit<String> { locator.gallerySlice(EhAccess(EhCredential(member, "hash"), Site.E), ref, 0).html }
+                executor.submit<String> {
+                    locator.gallerySlice(
+                        EhAccess(EhCredential(member, "hash"), Site.E),
+                        ref,
+                        0
+                    ).html
+                }
             }
             assertTrue(started.await(5, TimeUnit.SECONDS), "不同凭据的分片请求被合并成了一个")
             release.countDown()
@@ -94,7 +92,11 @@ class ImageLocatorTest {
 
     @Test
     fun `只有 showkey 失效才回退到抓图片页`() {
-        for (response in listOf("""{"error":"Key mismatch"}""", """{"error":"quota denied"}""", """{"i3":"unexpected"}""")) {
+        for (response in listOf(
+            """{"error":"Key mismatch"}""",
+            """{"error":"quota denied"}""",
+            """{"i3":"unexpected"}"""
+        )) {
             val pageCalls = AtomicInteger()
             val locator = ImageLocator(
                 FakeUpstream { request ->
@@ -132,7 +134,10 @@ class ImageLocatorTest {
         val locator = ImageLocator(upstream.client())
         val gallery = ImageLocator.GalleryKey(EhAccess.ANONYMOUS.scope, ref)
         locator.pageTokens.put(ImageLocator.PageKey(gallery, 2), "bbbbbbbbbb")
-        locator.images.put(ImageLocator.PageKey(gallery, 1), ImagePage("https://ehgt.org/first.webp", reloadToken = "another-page"))
+        locator.images.put(
+            ImageLocator.PageKey(gallery, 1),
+            ImagePage("https://ehgt.org/first.webp", reloadToken = "another-page")
+        )
         locator.images.put(ImageLocator.PageKey(gallery, 2), ImagePage("https://ehgt.org/failed.webp"))
 
         assertEquals("https://ehgt.org/replaced.webp", locator.refresh(EhAccess.ANONYMOUS, ref, 2))

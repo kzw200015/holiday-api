@@ -6,9 +6,9 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import io.github.kzw200015.myapi.eh.upstream.EhClient
 import io.github.kzw200015.myapi.eh.upstream.GalleryMetadata
 import io.github.kzw200015.myapi.eh.upstream.GalleryRef
+import org.springframework.stereotype.Component
 import java.time.Duration
 import java.time.Instant
-import org.springframework.stereotype.Component
 
 /** 列表里一张卡片要展示的内容。 */
 data class GalleryCard(

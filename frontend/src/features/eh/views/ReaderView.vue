@@ -68,6 +68,7 @@ function syncUrl() {
     void router.replace(readerLocation(props, current.value, props.source))
   }
 }
+
 const { start: scheduleUrlSync, stop: cancelUrlSync } = useTimeoutFn(syncUrl, URL_SYNC_DELAY, { immediate: false })
 watch(current, scheduleUrlSync)
 /* 已经离开阅读器时那次迟到的 replace 会把人拽回来，所以走之前先取消；

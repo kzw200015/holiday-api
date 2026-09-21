@@ -1,10 +1,6 @@
 package io.github.kzw200015.myapi.eh
 
-import io.github.kzw200015.myapi.eh.upstream.Attachment
-import io.github.kzw200015.myapi.eh.upstream.EhClient
-import io.github.kzw200015.myapi.eh.upstream.GalleryRef
-import io.github.kzw200015.myapi.eh.upstream.ImageNodeFailure
-import io.github.kzw200015.myapi.eh.upstream.checkPage
+import io.github.kzw200015.myapi.eh.upstream.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 

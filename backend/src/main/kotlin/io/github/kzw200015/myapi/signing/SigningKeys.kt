@@ -1,10 +1,10 @@
 package io.github.kzw200015.myapi.signing
 
+import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.stereotype.Component
 import java.security.MessageDigest
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
-import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.stereotype.Component
 
 @ConfigurationProperties("myapi")
 data class SigningProperties(

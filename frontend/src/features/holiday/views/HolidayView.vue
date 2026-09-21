@@ -28,6 +28,7 @@ const summary = computed(() => {
 const weekday = computed(() =>
   detail.value ? weekdayNames[parseDate(detail.value.date).toDate(getLocalTimeZone()).getDay()] : "",
 )
+
 /* 再次点击选中日期可能传出 undefined，此时保持原选中。 */
 function onSelect(value: DateValue | DateValue[] | undefined) {
   if (!value || Array.isArray(value)) {

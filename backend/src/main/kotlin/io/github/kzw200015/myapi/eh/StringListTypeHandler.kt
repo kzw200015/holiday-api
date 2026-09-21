@@ -1,12 +1,12 @@
 package io.github.kzw200015.myapi.eh
 
-import java.sql.CallableStatement
-import java.sql.PreparedStatement
-import java.sql.ResultSet
 import org.apache.ibatis.type.BaseTypeHandler
 import org.apache.ibatis.type.JdbcType
 import org.apache.ibatis.type.MappedTypes
 import org.springframework.stereotype.Component
+import java.sql.CallableStatement
+import java.sql.PreparedStatement
+import java.sql.ResultSet
 
 /**
  * PostgreSQL 的 text[] 列与 List<String> 互转。注册成 Bean，MyBatis starter 会自动收进去。

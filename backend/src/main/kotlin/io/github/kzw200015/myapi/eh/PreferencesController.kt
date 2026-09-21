@@ -3,11 +3,7 @@ package io.github.kzw200015.myapi.eh
 import io.github.kzw200015.myapi.auth.CurrentUser
 import io.github.kzw200015.myapi.web.ApiResponse
 import io.github.kzw200015.myapi.web.ok
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PutMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
 
 /** 账号数据：读一次、之后前端说了算，写入一律整份 PUT，只回成败。 */
 @RestController

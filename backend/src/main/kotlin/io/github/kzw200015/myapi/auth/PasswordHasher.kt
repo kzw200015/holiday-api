@@ -1,11 +1,11 @@
 package io.github.kzw200015.myapi.auth
 
-import java.security.MessageDigest
-import java.security.SecureRandom
-import java.util.Base64
 import org.bouncycastle.crypto.generators.Argon2BytesGenerator
 import org.bouncycastle.crypto.params.Argon2Parameters
 import org.springframework.stereotype.Component
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.*
 
 /**
  * argon2id 密码哈希，存成 PHC 串：`$argon2id$v=19$m=65536,t=2,p=1$<盐>$<哈希>`，盐和哈希是不带填充的标准 Base64。

@@ -2,12 +2,7 @@ package io.github.kzw200015.myapi.eh.upstream
 
 import io.github.kzw200015.myapi.AppException
 import io.github.kzw200015.myapi.eh.fixture
-import kotlin.test.Test
-import kotlin.test.assertContains
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 /** 解析器是最脆的一层，样本全是从真实页面裁下来的（src/test/resources/eh/，2026-08-30 采样）。 */
 class ParserTest {
@@ -17,7 +12,11 @@ class ParserTest {
 
         // 同一个图集在一行里会出现在封面和标题两个链接上，去重后每个只剩一条
         assertEquals(
-            listOf(GalleryRef(4156906, "f15507afa0"), GalleryRef(4156904, "7acd0468d3"), GalleryRef(4156901, "3d43767d8e")),
+            listOf(
+                GalleryRef(4156906, "f15507afa0"),
+                GalleryRef(4156904, "7acd0468d3"),
+                GalleryRef(4156901, "3d43767d8e")
+            ),
             list.refs,
         )
         // href 里的 & 是 &amp; 实体形式，不解码就取不到 next
@@ -106,18 +105,24 @@ class ParserTest {
 
     @Test
     fun `showpage 的 i3 片段顺带给出下一页的令牌与换源令牌`() {
-        val i3 = """<a onclick="return load_image(4, 'cb8cbc96af')" href="https://e-hentai.org/s/cb8cbc96af/2231376-4">""" +
-            """<img id="img" src="https://x.hath.network/h/abc/keystamp=1-2/3834916_3.webp" style="..." /></a>"""
+        val i3 =
+            """<a onclick="return load_image(4, 'cb8cbc96af')" href="https://e-hentai.org/s/cb8cbc96af/2231376-4">""" +
+                """<img id="img" src="https://x.hath.network/h/abc/keystamp=1-2/3834916_3.webp" style="..." /></a>"""
 
         // 下一页的令牌白送，顺序阅读就不用再回头请求详情页了
         assertEquals(
-            ImagePage("https://x.hath.network/h/abc/keystamp=1-2/3834916_3.webp", nextPage = 4, nextToken = "cb8cbc96af"),
+            ImagePage(
+                "https://x.hath.network/h/abc/keystamp=1-2/3834916_3.webp",
+                nextPage = 4,
+                nextToken = "cb8cbc96af"
+            ),
             parseShowPageFragment(i3),
         )
         // 最后一页没有下一页链接
         assertNull(parseShowPageFragment("""<img id="img" src="https://x.hath.network/a.jpg" />""")!!.nextPage)
         // 片段里带着换源令牌就一并取走，换源时不必回头抓图片页
-        val withReload = """<img id="img" src="https://x.hath.network/a.jpg" onerror="this.onerror=null; nl('50398-496692')" />"""
+        val withReload =
+            """<img id="img" src="https://x.hath.network/a.jpg" onerror="this.onerror=null; nl('50398-496692')" />"""
         assertEquals("50398-496692", parseShowPageFragment(withReload)!!.reloadToken)
     }
 

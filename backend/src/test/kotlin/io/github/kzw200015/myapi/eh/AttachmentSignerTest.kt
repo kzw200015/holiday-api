@@ -35,7 +35,12 @@ class AttachmentSignerTest {
     fun `改过期时间就通不过`() {
         // 过期时间也在签名里，不然把 e 往后改一改就是一张永久通行证
         val signature = signer.sign("原文")
-        assertFalse(signer.verify("原文", signature.copy(expiresAt = (signature.expiresAt.toLong() + 60_000).toString())))
+        assertFalse(
+            signer.verify(
+                "原文",
+                signature.copy(expiresAt = (signature.expiresAt.toLong() + 60_000).toString())
+            )
+        )
     }
 
     @Test

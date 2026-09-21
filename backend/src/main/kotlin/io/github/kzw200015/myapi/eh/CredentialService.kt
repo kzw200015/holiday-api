@@ -6,11 +6,11 @@ import io.github.kzw200015.myapi.eh.upstream.EhAccess
 import io.github.kzw200015.myapi.eh.upstream.EhClient
 import io.github.kzw200015.myapi.eh.upstream.EhCredential
 import io.github.kzw200015.myapi.eh.upstream.Site
-import java.time.Duration
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.module.kotlin.readValue
+import java.time.Duration
 
 /** 绑定状态，不含明文 Cookie。 */
 data class CredentialStatus(

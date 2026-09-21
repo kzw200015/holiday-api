@@ -11,11 +11,13 @@ export function usePageScroll(identity?: WatchSource<unknown>) {
     await nextTick()
     window.scrollTo({ top, behavior: "instant" })
   })
+
   async function reset() {
     top = 0
     await nextTick()
     window.scrollTo({ top: 0, behavior: "instant" })
   }
+
   if (identity) {
     watch(identity, reset)
   }

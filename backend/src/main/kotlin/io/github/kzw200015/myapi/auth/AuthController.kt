@@ -2,11 +2,7 @@ package io.github.kzw200015.myapi.auth
 
 import io.github.kzw200015.myapi.AppException
 import io.github.kzw200015.myapi.web.ok
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
 
 /**
  * 登录页要用的这几条都不要求登录。

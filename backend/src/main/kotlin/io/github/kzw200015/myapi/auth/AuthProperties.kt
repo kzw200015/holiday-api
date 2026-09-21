@@ -1,7 +1,7 @@
 package io.github.kzw200015.myapi.auth
 
-import java.time.Duration
 import org.springframework.boot.context.properties.ConfigurationProperties
+import java.time.Duration
 
 @ConfigurationProperties("myapi.auth")
 data class AuthProperties(

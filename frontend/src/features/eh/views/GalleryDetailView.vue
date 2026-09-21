@@ -98,7 +98,7 @@ const groupedTags = computed(() => {
               </RouterLink>
             </Button>
             <Button v-if="canContinue" as-child variant="outline">
-              <RouterLink :to="readerLocation(gallery, 1, source)"> 从头开始 </RouterLink>
+              <RouterLink :to="readerLocation(gallery, 1, source)"> 从头开始</RouterLink>
             </Button>
           </div>
         </div>

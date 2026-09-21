@@ -55,7 +55,10 @@ const { items, loading, loadingMore, hasMore, busy, loadError, changeError, refr
         <p class="text-muted-foreground text-xs">最近阅读：{{ formatDateTime(item.readAt) }} · 第 {{ item.page }} 页</p>
         <div class="flex gap-2">
           <Button v-if="item.gallery" as-child size="sm" variant="outline">
-            <RouterLink :to="readerLocation(item, item.page, 'history')"> <BookOpenIcon />继续阅读 </RouterLink>
+            <RouterLink :to="readerLocation(item, item.page, 'history')">
+              <BookOpenIcon />
+              继续阅读
+            </RouterLink>
           </Button>
           <Button
             size="sm"
@@ -65,7 +68,8 @@ const { items, loading, loadingMore, hasMore, busy, loadError, changeError, refr
             :aria-label="`删除阅读记录：${item.gid}`"
             @click="remove(item)"
           >
-            <Trash2Icon />删除
+            <Trash2Icon />
+            删除
           </Button>
         </div>
       </div>

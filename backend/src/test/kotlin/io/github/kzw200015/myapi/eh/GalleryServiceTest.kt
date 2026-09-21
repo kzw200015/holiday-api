@@ -31,7 +31,8 @@ class GalleryServiceTest {
     @Test
     fun `搜索结果保持页面顺序，缓存里没有的按批补齐，取不到的跳过`() {
         val batches = mutableListOf<Int>()
-        val listing = (1..28).joinToString("") { """<a href="/g/$it/0123456789/">图集</a>""" } + """<a id="unext" href="/?next=100">下一页</a>"""
+        val listing =
+            (1..28).joinToString("") { """<a href="/g/$it/0123456789/">图集</a>""" } + """<a id="unext" href="/?next=100">下一页</a>"""
         val (service, catalog) = service(
             FakeUpstream { request ->
                 if (request.method.name() == "GET") {
@@ -81,7 +82,18 @@ class GalleryServiceTest {
     }
 
     private fun metadata(ref: GalleryRef, title: String) = GalleryMetadata(
-        ref = ref, title = title, titleJpn = "", category = "Manga", thumbnailUrl = "https://ehgt.org/x.webp", uploader = "",
-        postedAt = Instant.EPOCH, fileCount = 1, rating = 0.0, tags = emptyList(), fileSize = 0, torrentCount = 0, expunged = false,
+        ref = ref,
+        title = title,
+        titleJpn = "",
+        category = "Manga",
+        thumbnailUrl = "https://ehgt.org/x.webp",
+        uploader = "",
+        postedAt = Instant.EPOCH,
+        fileCount = 1,
+        rating = 0.0,
+        tags = emptyList(),
+        fileSize = 0,
+        torrentCount = 0,
+        expunged = false,
     )
 }

@@ -1,9 +1,9 @@
 package io.github.kzw200015.myapi
 
-import java.util.concurrent.Executors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
+import java.util.concurrent.Executors
 
 /*
  * 请求内部的并发。请求本身跑在虚拟线程上、直写阻塞代码；只有少数几处要同时等两件互不依赖的事

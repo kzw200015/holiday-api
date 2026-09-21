@@ -3,7 +3,7 @@ package io.github.kzw200015.myapi.eh.upstream
 import io.github.kzw200015.myapi.AppException
 import java.security.MessageDigest
 import java.time.Instant
-import java.util.HexFormat
+import java.util.*
 
 /** 表站与里站。里站内容是表站的超集，只有带里站权限的 e 站凭据才进得去。 */
 enum class Site(val pageHost: String, val apiHost: String) {

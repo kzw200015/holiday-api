@@ -46,7 +46,8 @@ class AuthInterceptor(private val tokens: JwtTokens) : HandlerInterceptor {
 }
 
 class CurrentUserResolver : HandlerMethodArgumentResolver {
-    override fun supportsParameter(parameter: MethodParameter) = parameter.hasParameterAnnotation(CurrentUser::class.java)
+    override fun supportsParameter(parameter: MethodParameter) =
+        parameter.hasParameterAnnotation(CurrentUser::class.java)
 
     override fun resolveArgument(
         parameter: MethodParameter,

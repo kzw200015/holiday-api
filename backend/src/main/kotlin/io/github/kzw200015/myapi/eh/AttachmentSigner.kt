@@ -5,7 +5,7 @@ import io.github.kzw200015.myapi.signing.hmacSha256
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
-import java.util.HexFormat
+import java.util.*
 
 /**
  * 地址上固定的两个签名参数：e 是毫秒时间戳，s 是签名值。
@@ -34,7 +34,11 @@ data class Signature(val expiresAt: String, val value: String) {
  *
  * 签名截成 128 位。地址本身会出现在浏览器历史和转发日志里，签得再长也挡不住转发泄露，所以有效期才是重点。
  */
-class AttachmentSigner(private val key: ByteArray, private val ttl: Duration, private val clock: Clock = Clock.systemUTC()) {
+class AttachmentSigner(
+    private val key: ByteArray,
+    private val ttl: Duration,
+    private val clock: Clock = Clock.systemUTC()
+) {
     /** 过期时间对齐到的粒度：有效期的四分之一。测试会传很短甚至负的有效期，那时退化成不对齐。 */
     private val bucketMillis = (ttl.toMillis() / 4).coerceAtLeast(1)
 
@@ -51,10 +55,10 @@ class AttachmentSigner(private val key: ByteArray, private val ttl: Duration, pr
     /** 签名与有效期都过才算数；垃圾输入返回 false 而不是抛出。 */
     fun verify(subject: String, signature: Signature): Boolean {
         val expiresAt = signature.expiresAt.toLongOrNull() ?: return false
-        if (expiresAt <= clock.millis()) {
-            return false
-        }
-        return MessageDigest.isEqual(signature.value.toByteArray(), digest(subject, expiresAt).toByteArray())
+        return expiresAt > clock.millis() && MessageDigest.isEqual(
+            signature.value.toByteArray(),
+            digest(subject, expiresAt).toByteArray()
+        )
     }
 
     private fun digest(subject: String, expiresAt: Long): String =

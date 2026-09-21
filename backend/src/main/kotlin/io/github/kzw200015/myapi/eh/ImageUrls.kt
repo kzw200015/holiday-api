@@ -2,8 +2,8 @@ package io.github.kzw200015.myapi.eh
 
 import io.github.kzw200015.myapi.AppException
 import io.github.kzw200015.myapi.eh.upstream.GalleryRef
-import java.util.Base64
 import org.springframework.stereotype.Component
+import java.util.*
 
 /**
  * 两类图片地址的签发与校验。签发（拼进详情、列表的响应）和校验（图片接口读回来）写在同一处，
@@ -12,7 +12,8 @@ import org.springframework.stereotype.Component
 @Component
 class ImageUrls(private val signer: AttachmentSigner) {
     /** 缩略图：签的是上游原始地址，校验通过才代理，客户端指定不了主机。 */
-    fun thumbnail(raw: String) = "/api/eh/thumbnail?u=${encoder.encodeToString(raw.toByteArray())}&${signer.sign(raw).query}"
+    fun thumbnail(raw: String) =
+        "/api/eh/thumbnail?u=${encoder.encodeToString(raw.toByteArray())}&${signer.sign(raw).query}"
 
     /** 大图地址模板：前端只把 {page} 换成页码，不必每页再问一次签名。 */
     fun imageTemplate(userId: Long, ref: GalleryRef) =

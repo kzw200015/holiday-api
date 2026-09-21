@@ -1,12 +1,12 @@
 package io.github.kzw200015.myapi.holiday
 
-import java.time.Duration
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import tools.jackson.databind.json.JsonMapper
+import java.time.Duration
 
 @ConfigurationProperties("myapi.holiday")
 data class HolidayProperties(

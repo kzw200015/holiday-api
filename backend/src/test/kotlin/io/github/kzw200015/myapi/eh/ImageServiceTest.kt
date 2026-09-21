@@ -40,9 +40,14 @@ class ImageServiceTest {
                         }
                         page("""<img id="img" src="https://ehgt.org/image.webp" onerror="nl('page-one')">""")
                     }
+
                     else -> {
                         imageRequests++
-                        FakeResponse("image", if (imageRequests == 2) retryStatus else 403, "image/webp").also(responses::add)
+                        FakeResponse(
+                            "image",
+                            if (imageRequests == 2) retryStatus else 403,
+                            "image/webp"
+                        ).also(responses::add)
                     }
                 }
             }
@@ -64,7 +69,8 @@ class ImageServiceTest {
     fun `签名覆盖了 uid，改地址上的 uid 冒充别人不行`() {
         val service = service(FakeUpstream { error("签名不对就不该出网") }.client())
         // 403 而不是 502：签名不对是本站自己的判断，跟 e 站有没有故障无关
-        val failure = assertFailsWith<AppException.PermissionDenied> { service.openGalleryImage(8, ref, 3, signatureFor(7)) }
+        val failure =
+            assertFailsWith<AppException.PermissionDenied> { service.openGalleryImage(8, ref, 3, signatureFor(7)) }
         assertTrue("签名不正确或已过期" in failure.message.orEmpty())
     }
 }

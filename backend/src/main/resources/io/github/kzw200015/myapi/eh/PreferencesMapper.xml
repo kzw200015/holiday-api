@@ -9,16 +9,16 @@
     <insert id="savePreferences">
         INSERT INTO eh_preferences (user_id, categories, reader_interval, created_at, updated_at)
         VALUES (#{userId}, #{categories,typeHandler=io.github.kzw200015.myapi.eh.StringListTypeHandler},
-                #{readerInterval}, now(), now())
+                #{readerInterval}, NOW(), NOW())
         ON CONFLICT (user_id) DO UPDATE
-        SET categories = excluded.categories, reader_interval = excluded.reader_interval, updated_at = now()
+        SET categories = excluded.categories, reader_interval = excluded.reader_interval, updated_at = NOW()
     </insert>
 
     <!-- 同样整份覆盖：顺序、去重、留几条都是前端定好的 -->
     <insert id="saveSearchHistory">
         INSERT INTO eh_preferences (user_id, search_history, created_at, updated_at)
-        VALUES (#{userId}, #{entries,typeHandler=io.github.kzw200015.myapi.eh.StringListTypeHandler}, now(), now())
+        VALUES (#{userId}, #{entries,typeHandler=io.github.kzw200015.myapi.eh.StringListTypeHandler}, NOW(), NOW())
         ON CONFLICT (user_id) DO UPDATE
-        SET search_history = excluded.search_history, updated_at = now()
+        SET search_history = excluded.search_history, updated_at = NOW()
     </insert>
 </mapper>

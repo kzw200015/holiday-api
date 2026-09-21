@@ -52,7 +52,9 @@ function loadVisible() {
   }
   loaded.value = kept
 }
+
 const { start, stop: cancelLoad } = useTimeoutFn(loadVisible, LOAD_DELAY, { immediate: false })
+
 function scheduleLoad() {
   cancelLoad()
   if (dragging.value || props.seeking || scrollTarget !== undefined || !viewport.value) {
@@ -114,6 +116,7 @@ function onPointerDown(event: PointerEvent) {
     event.preventDefault()
   }
 }
+
 function onPointerMove(event: PointerEvent) {
   if (pointer?.id === event.pointerId && viewport.value) {
     if (Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) > 5) {
@@ -122,16 +125,19 @@ function onPointerMove(event: PointerEvent) {
     viewport.value.scrollLeft = pointer.left + pointer.x - event.clientX
   }
 }
+
 function onClick(event: MouseEvent) {
   /* 鼠标拖动结束后浏览器仍可能派发 click，不能把它当作切换操作栏的单击。 */
   if (dragged) {
     event.stopPropagation()
   }
 }
+
 function onPointerEnd() {
   pointer = undefined
   dragging.value = false
 }
+
 function onWheel(event: WheelEvent) {
   interruptScroll()
   if (!viewport.value || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) {
@@ -163,6 +169,7 @@ async function onImageLoad(pageNumber: number, event: Event) {
   viewport.value.scrollLeft = clamp(layout.value.offsets[anchor - 1] + relative, 0, layout.value.maxScroll)
   scheduleLoad()
 }
+
 function retry(pageNumber: number) {
   failed.value.delete(pageNumber)
   nonces.value[pageNumber] = (nonces.value[pageNumber] ?? 0) + 1

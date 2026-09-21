@@ -6,13 +6,7 @@ import io.github.kzw200015.myapi.eh.FakeUpstream
 import io.github.kzw200015.myapi.eh.page
 import java.io.IOException
 import kotlin.reflect.KClass
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 class EhClientTest {
     /**
@@ -83,7 +77,13 @@ class EhClientTest {
 
     @Test
     fun `取图成功时交出图片流，失败时自己关掉响应`() {
-        data class Case(val status: Int, val contentType: String, val failure: KClass<out AppException>?, val retryable: Boolean)
+        data class Case(
+            val status: Int,
+            val contentType: String,
+            val failure: KClass<out AppException>?,
+            val retryable: Boolean
+        )
+
         val cases = listOf(
             Case(200, "image/webp", null, false),
             // 节点失败允许大图换一台节点重试

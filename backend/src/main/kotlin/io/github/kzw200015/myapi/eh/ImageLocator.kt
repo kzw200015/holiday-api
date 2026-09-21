@@ -2,15 +2,10 @@ package io.github.kzw200015.myapi.eh
 
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
-import io.github.kzw200015.myapi.eh.upstream.EhAccess
-import io.github.kzw200015.myapi.eh.upstream.EhClient
-import io.github.kzw200015.myapi.eh.upstream.GalleryRef
-import io.github.kzw200015.myapi.eh.upstream.GallerySlice
-import io.github.kzw200015.myapi.eh.upstream.ImagePage
-import io.github.kzw200015.myapi.eh.upstream.unavailable
+import io.github.kzw200015.myapi.eh.upstream.*
+import org.springframework.stereotype.Component
 import java.time.Duration
 import java.util.concurrent.Executors
-import org.springframework.stereotype.Component
 
 /**
  * 取图链路：从图集定位到某一页真正的图片地址。
@@ -72,7 +67,8 @@ class ImageLocator(private val client: EhClient) {
         return remember(key, image)
     }
 
-    fun gallerySlice(access: EhAccess, ref: GalleryRef, slice: Int) = sliceOf(access, GalleryKey(access.scope, ref), slice)
+    fun gallerySlice(access: EhAccess, ref: GalleryRef, slice: Int) =
+        sliceOf(access, GalleryKey(access.scope, ref), slice)
 
     private fun sliceOf(access: EhAccess, gallery: GalleryKey, index: Int): GallerySlice =
         slices.get(SliceKey(gallery, index)) {

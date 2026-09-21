@@ -2,7 +2,7 @@ package io.github.kzw200015.myapi.eh
 
 import io.github.kzw200015.myapi.AppException
 import java.time.Duration
-import java.util.Base64
+import java.util.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -65,7 +65,10 @@ class ValidationTest {
             override fun delete(userId: Long, gid: Long) = error("不该写库")
         }
         val client = FakeUpstream { error("不该出网") }.client()
-        val service = ReadingService(untouched, GalleryCatalog(client, ImageUrls(AttachmentSigner(ByteArray(1), Duration.ofHours(1)))))
+        val service = ReadingService(
+            untouched,
+            GalleryCatalog(client, ImageUrls(AttachmentSigner(ByteArray(1), Duration.ofHours(1))))
+        )
         val encoder = Base64.getUrlEncoder().withoutPadding()
         val withoutGid = encoder.encodeToString("2026-01-01T00:00:00Z".toByteArray())
         val zeroGid = encoder.encodeToString("2026-01-01T00:00:00Z,0".toByteArray())

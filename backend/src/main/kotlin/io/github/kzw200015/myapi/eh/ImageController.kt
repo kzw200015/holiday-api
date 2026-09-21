@@ -5,17 +5,13 @@ import io.github.kzw200015.myapi.auth.Public
 import io.github.kzw200015.myapi.eh.upstream.Attachment
 import io.github.kzw200015.myapi.eh.upstream.GalleryRef
 import jakarta.servlet.http.HttpServletResponse
-import java.io.IOException
-import java.time.Duration
 import org.slf4j.LoggerFactory
 import org.springframework.http.CacheControl
 import org.springframework.http.HttpHeaders
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
 import org.springframework.web.util.DisconnectedClientHelper
+import java.io.IOException
+import java.time.Duration
 
 /**
  * 两条图片接口。<img> 发的请求带不了 Authorization 头，所以它们不要求登录，改由地址里的签名认人——
@@ -47,7 +43,12 @@ class ImageController(private val images: ImageService) {
 
     /** 缩略图，地址形如 /thumbnail?u=&e=&s=，只接受本服务签发过的地址。 */
     @GetMapping("/thumbnail")
-    fun thumbnail(@RequestParam u: String?, @RequestParam e: String?, @RequestParam s: String?, response: HttpServletResponse) {
+    fun thumbnail(
+        @RequestParam u: String?,
+        @RequestParam e: String?,
+        @RequestParam s: String?,
+        response: HttpServletResponse
+    ) {
         if (u.isNullOrEmpty()) {
             throw AppException.InvalidArgument("缺少缩略图地址")
         }

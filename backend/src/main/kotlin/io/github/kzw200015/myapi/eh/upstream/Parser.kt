@@ -2,17 +2,17 @@ package io.github.kzw200015.myapi.eh.upstream
 
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
+import org.jsoup.nodes.Entities
+import org.jsoup.nodes.TextNode
 import java.net.URLDecoder
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
-import java.util.Locale
-import org.jsoup.Jsoup
-import org.jsoup.nodes.Element
-import org.jsoup.nodes.Entities
-import org.jsoup.nodes.TextNode
+import java.util.*
 
 /*
  * 解析只由 HTML 提供的东西：图集列表、取图用的定位信息与评论。不发请求、不碰缓存。
@@ -207,6 +207,7 @@ private fun parseSegments(body: Element): List<CommentSegment> {
                     val safe = href.startsWith("http://") || href.startsWith("https://")
                     add(if (safe) CommentSegment.Link(text, href) else CommentSegment.Text(text))
                 }
+
                 else -> walk(node)
             }
         }
