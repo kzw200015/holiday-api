@@ -7,7 +7,7 @@ import { useCredentialStore, useGalleryContentStore } from "@/features/eh/store"
 /**
  * e 站账号的绑定状态。
  *
- * 设置页和图库布局读的是同一份，所以绑定成功后图库那条「匿名浏览前站」的提示会立刻消失，
+ * 设置页和图库布局读的是同一份，所以绑定成功后图库那条「匿名浏览表站」的提示会立刻消失，
  * 不需要谁去通知谁。未读取时 status 为 undefined，界面据此区分「还没问过」和「确实没绑」。
  */
 export function useEhCredential() {

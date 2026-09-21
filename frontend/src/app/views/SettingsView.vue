@@ -17,7 +17,7 @@ import FormField from "@/shared/components/FormField.vue"
 const cookieFields = [
   { name: "ipbMemberId", label: "ipb_member_id", hint: "登录 e 站后必有" },
   { name: "ipbPassHash", label: "ipb_pass_hash", hint: "登录 e 站后必有" },
-  { name: "igneous", label: "igneous", hint: "里站专用，没有就留空，留空则只能看前站" },
+  { name: "igneous", label: "igneous", hint: "里站专用，没有就留空，留空则只能看表站" },
 ] as const
 const router = useRouter()
 const authStore = useAuthStore()
@@ -33,7 +33,7 @@ async function submit() {
     const bound = await bind({ ...form.value })
     successMessage.value = bound.hasExAccess
       ? "绑定成功，里站已解锁。"
-      : "绑定成功。这个账号没有里站权限，只能浏览前站。"
+      : "绑定成功。这个账号没有里站权限，只能浏览表站。"
     form.value = { ipbMemberId: "", ipbPassHash: "", igneous: "" }
   } catch {
     /* 失败原因已经在 errorMessage 里，这里只是别让它变成未处理的拒绝。 */
@@ -57,7 +57,7 @@ async function signOut() {
       <CardHeader>
         <CardTitle>e 站账号</CardTitle>
         <CardDescription>
-          不绑也能用：不绑定时匿名浏览前站，绑定后才能进里站，也才会用上你自己账号的过滤器设置。
+          不绑也能用：不绑定时匿名浏览表站，绑定后才能进里站，也才会用上你自己账号的过滤器设置。
         </CardDescription>
       </CardHeader>
       <CardContent class="flex flex-col gap-4">
@@ -72,7 +72,7 @@ async function signOut() {
             <template v-if="status?.bound">
               <Badge>已绑定 {{ status.memberId }}</Badge>
               <Badge v-if="status.hasExAccess" variant="secondary">里站可用</Badge>
-              <Badge v-else variant="outline">仅前站</Badge>
+              <Badge v-else variant="outline">仅表站</Badge>
             </template>
             <Badge v-else variant="outline">{{ status ? "未绑定" : "状态未获取" }}</Badge>
           </div>
@@ -98,7 +98,7 @@ async function signOut() {
               <ConfirmDialog
                 v-if="status?.bound"
                 title="解绑 e 站账号？"
-                description="解绑后回到匿名浏览前站，想再绑定需要重新复制这三个 Cookie。"
+                description="解绑后回到匿名浏览表站，想再绑定需要重新复制这三个 Cookie。"
                 confirm-text="解绑"
                 @confirm="unbind"
               >

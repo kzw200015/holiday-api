@@ -67,7 +67,7 @@ export interface CredentialStatus {
 export interface EhCookie {
   ipbMemberId: string
   ipbPassHash: string
-  /** 里站专用，留空则只能看前站 */
+  /** 里站专用，留空则只能看表站 */
   igneous: string
 }
 
