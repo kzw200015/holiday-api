@@ -6,7 +6,7 @@
     "suspicious": "error",
     "perf": "warn"
   },
-  "ignorePatterns": ["dist", "src/components/ui"],
+  "ignorePatterns": ["src/components/ui"],
   "rules": {
     "curly": ["error", "all"],
     "eqeqeq": ["error", "always"],
@@ -15,7 +15,6 @@
     "typescript/consistent-type-imports": ["error", { "fixStyle": "inline-type-imports" }],
     "import/no-unassigned-import": "off",
     "import/no-named-as-default-member": "off",
-    "unicorn/no-array-sort": "off",
     "oxc/no-map-spread": "off"
   },
   "overrides": [

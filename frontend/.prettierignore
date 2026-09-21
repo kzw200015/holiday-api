@@ -1,5 +1,5 @@
+# Prettier 只读当前目录的 .gitignore，读不到仓库根目录那份，构建产物得在这里自己挡
 dist
-node_modules
 pnpm-lock.yaml
 
 # shadcn-vue 生成的组件源码保持与上游一致，不参与格式化
