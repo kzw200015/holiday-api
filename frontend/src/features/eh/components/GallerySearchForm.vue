@@ -44,7 +44,14 @@ const emit = defineEmits<{
           confirm-text="清空历史"
           @confirm="emit('clearHistory')"
         >
-          <Button variant="ghost" size="xs" class="cursor-pointer" type="button">清空</Button>
+          <Button
+            variant="destructive"
+            size="xs"
+            class="cursor-pointer bg-transparent dark:bg-transparent"
+            type="button"
+          >
+            清空
+          </Button>
         </ConfirmDialog>
       </div>
       <div class="flex flex-wrap gap-1.5">

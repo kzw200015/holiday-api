@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterLink } from "vue-router"
 
+import GalleryCover from "@/features/eh/components/GalleryCover.vue"
 import GalleryMeta from "@/features/eh/components/GalleryMeta.vue"
 import GalleryTag from "@/features/eh/components/GalleryTag.vue"
 import type { GalleryCard } from "@/features/eh/model"
@@ -11,11 +12,12 @@ withDefaults(defineProps<{ item: GalleryCard; source?: GallerySource }>(), { sou
 </script>
 
 <template>
+  <!-- 去掉移动端点按时的系统高亮方块（它不跟圆角走），改由按下时加深底色给反馈。 -->
   <RouterLink
-    class="hover:bg-accent/50 flex gap-3 rounded-lg p-2 transition-colors"
+    class="hover:bg-accent/50 active:bg-accent flex gap-3 rounded-lg p-2 transition-colors [-webkit-tap-highlight-color:transparent]"
     :to="galleryDetailLocation(item, source)"
   >
-    <img alt="" class="bg-muted h-40 w-28 shrink-0 rounded-lg object-cover" loading="lazy" :src="item.thumbnail" />
+    <GalleryCover class="h-40 w-28 shrink-0" lazy :src="item.thumbnail" />
     <div class="flex min-w-0 flex-1 flex-col gap-1.5 py-0.5">
       <p class="line-clamp-2 text-sm leading-snug font-medium">{{ item.title }}</p>
       <div class="flex flex-wrap items-center gap-2 text-xs">

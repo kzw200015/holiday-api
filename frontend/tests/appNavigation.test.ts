@@ -531,6 +531,12 @@ describe("页面缓存与失效范围", () => {
       await settle()
     } else {
       await click("解绑")
+      /* 解绑要先确认：点开的只是对话框，在对话框里再点一次才发请求。 */
+      const confirmation = [...document.querySelectorAll<HTMLElement>('[role="alertdialog"] button')].find(
+        (node) => node.textContent?.trim() === "解绑",
+      )!
+      confirmation.click()
+      await settle()
     }
     const expectedBindCalls = action === "绑定" ? [[{ ipbMemberId: "456", ipbPassHash: "", igneous: "" }]] : []
     expect(vi.mocked(bindCredential).mock.calls).toEqual(expectedBindCalls)
@@ -552,6 +558,15 @@ describe("页面缓存与失效范围", () => {
     await visit("/eh/g/1/aaaaaaaaaa")
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
     expect(fetchGalleryComments).toHaveBeenCalledTimes(2)
+  })
+
+  it("解绑先弹确认，点解绑按钮本身不发请求", async () => {
+    vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: true, memberId: "123", hasExAccess: false })
+    await useCredentialStore(pinia).reload()
+    await visit("/settings")
+    await click("解绑")
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("解绑 e 站账号？")
+    expect(unbindCredential).not.toHaveBeenCalled()
   })
 
   it("绑定失败保留输入和图库缓存，并恢复提交按钮", async () => {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ArrowLeftIcon, BookOpenIcon } from "@lucide/vue"
+import { BookOpenIcon } from "@lucide/vue"
 import { computed } from "vue"
-import { RouterLink, useRouter } from "vue-router"
+import { RouterLink } from "vue-router"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,20 +9,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import CommentBody from "@/features/eh/components/CommentBody.vue"
+import GalleryCover from "@/features/eh/components/GalleryCover.vue"
 import GalleryMeta from "@/features/eh/components/GalleryMeta.vue"
 import GalleryTag from "@/features/eh/components/GalleryTag.vue"
 import { useGalleryComments } from "@/features/eh/composables/useGalleryComments"
 import { useGalleryDetail } from "@/features/eh/composables/useGalleryDetail"
 import { formatNamespace, splitTag } from "@/features/eh/labels"
-import { galleryListLocation, readerLocation, type GallerySource } from "@/features/eh/navigation"
+import { readerLocation, type GallerySource } from "@/features/eh/navigation"
 import EmptyState from "@/shared/components/EmptyState.vue"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
 import { formatDateTime, formatFileSize } from "@/shared/lib/format"
 
+/* 返回列表的按钮在顶栏（见路由的 meta.back），滚到评论区也点得到，页面里不再放一份。 */
 const props = withDefaults(defineProps<{ gid: number; token: string; source?: GallerySource }>(), { source: "search" })
 const identity = () => `${props.gid}/${props.token}`
-const router = useRouter()
 usePageScroll(identity)
 
 const { gallery, progress, loading, errorMessage, reload } = useGalleryDetail(
@@ -53,18 +54,10 @@ const groupedTags = computed(() => {
   }
   return [...groups.entries()]
 })
-
-function returnToList() {
-  void router.replace(galleryListLocation(props.source))
-}
 </script>
 
 <template>
   <div class="page-content flex flex-col gap-4">
-    <Button class="self-start" variant="ghost" @click="returnToList">
-      <ArrowLeftIcon />
-      返回列表
-    </Button>
     <div v-if="loading" class="flex flex-col gap-4 sm:flex-row">
       <Skeleton class="h-72 w-52 shrink-0 rounded-lg" />
       <div class="flex flex-1 flex-col gap-3">
@@ -77,7 +70,7 @@ function returnToList() {
     <ErrorAlert v-else-if="errorMessage" :message="errorMessage" title="加载失败" retryable @retry="reload" />
     <template v-else-if="gallery">
       <div class="flex flex-col gap-4 sm:flex-row">
-        <img alt="" class="bg-muted h-72 w-52 shrink-0 self-start rounded-lg object-cover" :src="gallery.thumbnail" />
+        <GalleryCover class="h-72 w-52 shrink-0 self-start" :src="gallery.thumbnail" />
         <div class="flex min-w-0 flex-1 flex-col gap-3">
           <div class="flex flex-col gap-1">
             <h2 class="text-lg leading-snug font-semibold">{{ gallery.title }}</h2>

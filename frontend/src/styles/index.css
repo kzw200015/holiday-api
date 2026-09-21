@@ -13,9 +13,10 @@
 }
 
 @layer components {
-  /* 普通页面统一左对齐与宽度上限；表单页面采用窄版，登录和阅读器不使用。 */
+  /* 普通页面统一左对齐与宽度上限；表单页面采用窄版，登录和阅读器不使用。
+     进入时轻轻淡入上浮：KeepAlive 把缓存的页面放回文档时动画会重播，切回来也有过渡。 */
   .page-content {
-    @apply w-full min-w-0 max-w-6xl;
+    @apply w-full min-w-0 max-w-6xl animate-in fade-in-0 slide-in-from-bottom-2 duration-200 ease-out motion-reduce:animate-none;
   }
 
   .page-content-form {

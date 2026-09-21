@@ -30,7 +30,8 @@ const chromeButton = {
 </script>
 
 <template>
-  <!-- 上下栏不占图片高度；隐藏后停止接收焦点和点击，但不打断自动翻页。 -->
+  <!-- 上下栏不占图片高度；隐藏后停止接收焦点和点击，但不打断自动翻页。
+       底栏左右和底部多留些空：两端的翻页按钮正好落在屏幕圆角上。 -->
   <div
     :inert="!visible"
     class="absolute inset-x-0 top-0 flex items-center gap-3 bg-gradient-to-b from-black/70 to-transparent p-3 transition-opacity"
@@ -75,7 +76,7 @@ const chromeButton = {
   </div>
   <div
     :inert="!visible"
-    class="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-2 bg-gradient-to-t from-black/80 to-transparent px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity"
+    class="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-2 bg-gradient-to-t from-black/80 to-transparent px-4 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] transition-opacity"
     :class="visible ? 'opacity-100' : 'pointer-events-none opacity-0'"
     @click.stop
   >

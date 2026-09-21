@@ -1,8 +1,14 @@
-import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-router"
+import {
+  createRouter,
+  createWebHashHistory,
+  type RouteLocationNormalizedLoaded,
+  type RouteLocationRaw,
+  type RouteRecordRaw,
+} from "vue-router"
 
 import AppLayout from "@/app/layouts/AppLayout.vue"
 import { useAuthStore } from "@/features/auth/store"
-import { gallerySource } from "@/features/eh/navigation"
+import { galleryListLocation, gallerySource } from "@/features/eh/navigation"
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -12,6 +18,8 @@ declare module "vue-router" {
     requiresAuth?: boolean
     /* 页面被 KeepAlive 保留并用 usePageScroll 自管滚动位置，路由器不再按历史位置滚动 */
     ownScroll?: boolean
+    /* 顶栏的返回按钮：叫什么、回哪去。放在顶栏是因为它钉在顶上，页面滚到哪都点得到 */
+    back?: { label: string; to: (route: RouteLocationNormalizedLoaded) => RouteLocationRaw }
   }
 }
 
@@ -73,7 +81,11 @@ const routes: RouteRecordRaw[] = [
               token: String(route.params.token),
               source: gallerySource(route.query),
             }),
-            meta: { title: "图集详情", ownScroll: true },
+            meta: {
+              title: "图集详情",
+              ownScroll: true,
+              back: { label: "返回列表", to: (route) => galleryListLocation(gallerySource(route.query)) },
+            },
           },
         ],
       },

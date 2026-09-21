@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAuthStore } from "@/features/auth/store"
 import { useEhCredential } from "@/features/eh/composables/useEhCredential"
+import ConfirmDialog from "@/shared/components/ConfirmDialog.vue"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import FormField from "@/shared/components/FormField.vue"
 
@@ -93,9 +94,23 @@ async function signOut() {
             />
             <div class="flex flex-wrap gap-2">
               <Button :disabled="saving" type="submit">{{ saving ? "校验中…" : "保存并校验" }}</Button>
-              <Button v-if="status?.bound" variant="outline" :disabled="saving" type="button" @click="unbind">
-                解绑
-              </Button>
+              <!-- 解绑之后要重新去浏览器里抄三个 Cookie 才能绑回来，所以先确认。 -->
+              <ConfirmDialog
+                v-if="status?.bound"
+                title="解绑 e 站账号？"
+                description="解绑后回到匿名浏览前站，想再绑定需要重新复制这三个 Cookie。"
+                confirm-text="解绑"
+                @confirm="unbind"
+              >
+                <Button
+                  variant="destructive"
+                  class="border-destructive/30 bg-transparent dark:bg-transparent"
+                  :disabled="saving"
+                  type="button"
+                >
+                  解绑
+                </Button>
+              </ConfirmDialog>
             </div>
           </form>
         </template>
