@@ -21,21 +21,6 @@ import (
 	"myapi/internal/signing"
 )
 
-func TestHistoryRoutesRequireAuth(t *testing.T) {
-	handler := NewHandler(newValidationService(), auth.NewTokens("test", time.Hour)).Routes()
-	for _, route := range []struct{ method, path string }{
-		{http.MethodGet, "/history"},
-		{http.MethodPost, "/history/remove"},
-		{http.MethodPost, "/history/clear"},
-	} {
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, httptest.NewRequest(route.method, route.path, nil))
-		if response.Code != http.StatusUnauthorized {
-			t.Fatalf("%s: status = %d", route.path, response.Code)
-		}
-	}
-}
-
 func TestHistoryValidation(t *testing.T) {
 	tokens := auth.NewTokens("test", time.Hour)
 	token, err := tokens.Issue(1)

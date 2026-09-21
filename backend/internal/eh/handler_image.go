@@ -20,57 +20,52 @@ const imageCacheControl = "private, max-age=2592000, immutable"
 // 所以它们挂在没有 tokens.Require 的那一组里，改由地址里的签名认人——
 // 下面每条都自己解出 uid、校验签名，这一段不能省成「反正中间件挡过了」。
 //
-// 响应体是二进制流而不是 ApiResponse，所以也不走 Router 那几个方法。
-func (h *Handler) imageRoutes(router web.Router) {
-	// 这两条一次阅读就是几十个请求，访问日志统一降到 debug
-	router.Use(web.Quiet)
+// 响应体是二进制流而不是 ApiResponse，所以写成 web.Handler，不走 Router 的 Get。
 
-	// GET /api/eh/galleries/{gid}/{token}/pages/{page}/image?uid=&e=&s=，流式转发大图
-	router.Method(http.MethodGet, "/galleries/{gid}/{token}/pages/{page}/image",
-		web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-			ref, err := galleryRefOf(r)
-			if err != nil {
-				return err
-			}
+// galleryImage 流式转发大图，地址形如 .../pages/{page}/image?uid=&e=&s=。
+func (h *Handler) galleryImage(w http.ResponseWriter, r *http.Request) error {
+	ref, err := galleryRefOf(r)
+	if err != nil {
+		return err
+	}
 
-			query := r.URL.Query()
-			// uid 随后由 Service 校验签名，通过后才能用它读取凭据。
-			userID, err := strconv.ParseInt(query.Get("uid"), 10, 64)
-			if err != nil || userID <= 0 {
-				return web.BadRequest("用户标识不合法")
-			}
-			sig, ok := signing.ParseQuery(query)
-			if !ok {
-				return errIncompleteSignature()
-			}
-			// 页码解析失败得到 0，跟「页码为正」那条规则撞在一起，由业务统一报错。
-			page, _ := strconv.Atoi(chi.URLParam(r, "page"))
+	query := r.URL.Query()
+	// uid 随后由 Service 校验签名，通过后才能用它读取凭据。
+	userID, err := strconv.ParseInt(query.Get("uid"), 10, 64)
+	if err != nil || userID <= 0 {
+		return web.BadRequest("用户标识不合法")
+	}
+	sig, ok := signing.ParseQuery(query)
+	if !ok {
+		return errIncompleteSignature()
+	}
+	// 页码解析失败得到 0，跟「页码为正」那条规则撞在一起，由业务统一报错。
+	page, _ := strconv.Atoi(chi.URLParam(r, "page"))
 
-			image, err := h.service.OpenGalleryImage(r.Context(), userID, ref, page, sig)
-			if err != nil {
-				return err
-			}
-			return stream(r.Context(), w, image)
-		}))
+	image, err := h.service.OpenGalleryImage(r.Context(), userID, ref, page, sig)
+	if err != nil {
+		return err
+	}
+	return stream(r.Context(), w, image)
+}
 
-	// GET /api/eh/thumbnail?u=&e=&s=，只接受本服务签发过的地址
-	router.Method(http.MethodGet, "/thumbnail", web.Handler(func(w http.ResponseWriter, r *http.Request) error {
-		query := r.URL.Query()
-		encoded := query.Get("u")
-		if encoded == "" {
-			return web.BadRequest("缺少缩略图地址")
-		}
-		sig, ok := signing.ParseQuery(query)
-		if !ok {
-			return errIncompleteSignature()
-		}
+// thumbnail 转发缩略图，地址形如 /thumbnail?u=&e=&s=，只接受本服务签发过的地址。
+func (h *Handler) thumbnail(w http.ResponseWriter, r *http.Request) error {
+	query := r.URL.Query()
+	encoded := query.Get("u")
+	if encoded == "" {
+		return web.BadRequest("缺少缩略图地址")
+	}
+	sig, ok := signing.ParseQuery(query)
+	if !ok {
+		return errIncompleteSignature()
+	}
 
-		thumbnail, err := h.service.OpenThumbnail(r.Context(), encoded, sig)
-		if err != nil {
-			return err
-		}
-		return stream(r.Context(), w, thumbnail)
-	}))
+	thumbnail, err := h.service.OpenThumbnail(r.Context(), encoded, sig)
+	if err != nil {
+		return err
+	}
+	return stream(r.Context(), w, thumbnail)
 }
 
 // 流式转发，不把整张图读进内存。

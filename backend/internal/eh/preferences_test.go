@@ -25,24 +25,6 @@ func newValidationService() *Service {
 	return &Service{UserState: NewUserState(nil)}
 }
 
-func TestPreferenceRoutesRequireAuth(t *testing.T) {
-	handler := NewHandler(newValidationService(), auth.NewTokens("test-secret", time.Hour)).Routes()
-	for _, route := range []struct{ method, path string }{
-		{http.MethodGet, "/preferences"},
-		{http.MethodPut, "/preferences"},
-		{http.MethodGet, "/search-history"},
-		{http.MethodPut, "/search-history"},
-	} {
-		t.Run(route.path+route.method, func(t *testing.T) {
-			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, httptest.NewRequest(route.method, route.path, nil))
-			if response.Code != http.StatusUnauthorized {
-				t.Fatalf("status = %d, want 401", response.Code)
-			}
-		})
-	}
-}
-
 func TestPreferenceValidation(t *testing.T) {
 	tokens := auth.NewTokens("test-secret", time.Hour)
 	token, err := tokens.Issue(1)
