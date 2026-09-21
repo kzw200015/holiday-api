@@ -24,7 +24,7 @@ export const categoryLabels: Record<string, string> = {
   Private: "私有",
 }
 
-/** 分类筛选项。value 必须和后端 CATEGORY_NAMES 逐字对应，拼错会被后端回 400 */
+/** 分类筛选项。value 必须和后端 categoryBits（eh/category.go）的键逐字对应，拼错会被后端回 400 */
 export const galleryCategories = CATEGORIES.map(({ value, label }) => ({ value, label }))
 
 /* 标签形如 artist:gentsuki；没有冒号的归到空命名空间 */
