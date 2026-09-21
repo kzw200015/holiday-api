@@ -1,7 +1,6 @@
 # ---------- 前端构建 ----------
-FROM node:22-alpine AS frontend-builder
+FROM node:24-alpine AS frontend-builder
 
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /app
 RUN corepack enable
 
