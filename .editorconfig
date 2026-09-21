@@ -13,6 +13,6 @@ trim_trailing_whitespace = false
 [*.{ts,tsx,vue,css,html,json,yml,yaml}]
 indent_size = 2
 
-# Go 的工具链（gofmt / go vet / IDE 格式化）只认 tab，落到上面 [*] 的 space 会被 gofmt 打回
-[*.go]
-indent_style = tab
+# Kotlin 官方代码风格；MyBatis 的 Mapper XML 跟着用同样的缩进
+[*.{kt,kts,xml}]
+indent_size = 4

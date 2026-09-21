@@ -2,9 +2,9 @@
 
 ## 项目结构与模块划分
 
-MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存放 Go 入口与 Wire 依赖注入代码，业务包与 config 之间的衔接也留在这里（见 `wiring.go`），业务包本身不引用 config；`backend/internal/` 包含业务模块（`auth`、`eh`、`holiday`）、HTTP 基础设施、配置、日志器（`logging`）和 PostgreSQL 访问代码（连接池与表结构在 `store`）。HTTP Handler 与业务 Service 保持分离。表结构统一位于 `backend/internal/store/schema.sql`，查询 SQL 及 sqlc 生成代码位于各业务模块的 `store/` 子目录，由 `backend/sqlc.yaml` 统一配置。
+MyAPI 提供账号、图集浏览和节假日查询。后端是 Spring Boot + MyBatis + Kotlin（Java 25，Gradle Kotlin DSL），代码在 `backend/src/main/kotlin/io/github/kzw200015/myapi/`：业务按领域分包（`auth`、`eh`、`holiday`），`eh.upstream` 是与 e 站打交道的协议层（HTTP、HTML 解析、上游失败翻译），只给 `eh` 的 Service 调用；`web` 放统一响应体与异常翻译，`signing` 从主密钥按用途派生子密钥。每个领域一对或几对 Controller + Service，Controller 只做入参转换，不设门面。表结构统一位于 `backend/src/main/resources/schema.sql`，查询 SQL 写在与 Mapper 接口同包路径的 XML 里（如 `resources/io/github/kzw200015/myapi/eh/CredentialMapper.xml`），MyBatis 按路径自动配对。
 
-`frontend/src/` 按业务领域分三块：`app/` 是应用装配（路由、全局布局、导航目录、主题），`features/` 下每块业务自成一体（`auth`、`eh`、`holiday`，与 `backend/internal/` 的模块一一对应），`shared/` 放与业务无关的通用能力（HTTP 客户端、读取状态与写入排队的小工具、通用组件与组合式函数）。`src/components/ui/` 与 `src/lib/utils.ts` 是 shadcn-vue 的生成位置，保持原样。静态资源放在 `frontend/public/`，前端测试放在 `frontend/tests/`，Go 测试与实现文件同目录。领域术语见 `CONTEXT.md`，辅助工作流见 `docs/agents/`。Docker 镜像由 Go 服务统一提供 API 和前端静态文件。
+`frontend/src/` 按业务领域分三块：`app/` 是应用装配（路由、全局布局、导航目录、主题），`features/` 下每块业务自成一体（`auth`、`eh`、`holiday`，与后端的领域包一一对应），`shared/` 放与业务无关的通用能力（HTTP 客户端、读取状态与写入排队的小工具、通用组件与组合式函数）。`src/components/ui/` 与 `src/lib/utils.ts` 是 shadcn-vue 的生成位置，保持原样。静态资源放在 `frontend/public/`，前端测试放在 `frontend/tests/`，后端测试放在 `backend/src/test/`。领域术语见 `CONTEXT.md`，架构决策见 `docs/adr/`，辅助工作流见 `docs/agents/`。Docker 镜像构建时把前端产物放进 jar 的 `static/`，由后端统一提供 API 和前端静态文件。
 
 一块 feature 内部按角色分文件：`model.ts` 是领域类型，`api.ts` 只管 HTTP 调用，`labels.ts` 一类放展示用的中文词汇，`store.ts` 放跨页面共享的状态（pinia，如 `auth` 的会话、`eh` 的账号数据与图集详情），`composables/` 把数据和交互包成页面能直接用的形状，`components/` 与 `views/` 是界面。依赖方向只有一条：`views` → `composables` → `api`/`store` → `shared/`，页面不直接调接口。把多个 feature 拼到一个界面上只发生在 `app/` 层（如设置页同时用到 `auth` 与 `eh`）；feature 之间唯一允许的引用是依赖 `auth` 的会话状态，因为换账号要让各自的缓存与在途请求作废。`shared/` 不得反向引用 `features/` 或 `app/`。
 
@@ -18,18 +18,23 @@ MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存�
 - `cd frontend && pnpm test`：运行一次 Vitest 测试。
 - `cd frontend && pnpm lint`：运行 oxlint 检查，`pnpm lint:fix` 自动修复。
 - `cd frontend && pnpm format`：用 Prettier 格式化，`pnpm format:check` 只校验。
-- `cd backend && go run ./cmd/myapi`：启动后端服务。
-- `cd backend && go build ./cmd/myapi`：编译后端。
-- `cd backend && go test ./...`：运行后端测试。
-- `cd backend && go vet ./...`：检查常见 Go 代码问题。
+- `cd backend && ./gradlew bootRun`：启动后端服务，监听 8000，读取 `backend/config/application.yml`。
+- `cd backend && ./gradlew build`：编译、运行后端测试并打出可执行 jar。
+- `cd backend && ./gradlew test`：运行后端测试。Mapper 与接口测试用 Testcontainers 起 PostgreSQL，需要本机 Docker。
 
 ## 代码风格与命名约定
 
-遵循 `.editorconfig`：UTF-8 编码、LF 换行、文件末尾换行；前端使用两空格缩进，Go 使用制表符并通过 `gofmt` 格式化。组件文件名使用 PascalCase，TypeScript 标识符使用 camelCase，组合式函数使用 `useX` 命名。
+遵循 `.editorconfig`：UTF-8 编码、LF 换行、文件末尾换行；前端使用两空格缩进，Kotlin 与 Mapper XML 使用四空格缩进，按 Kotlin 官方代码风格书写。组件文件名使用 PascalCase，TypeScript 标识符使用 camelCase，组合式函数使用 `useX` 命名。
 
 前端格式由 Prettier 统一（无分号、双引号、120 列），import 顺序由 `@ianvs/prettier-plugin-sort-imports` 自动排序（三方依赖 → `@/` 内部模块），不要手工调整；lint 规则见 `frontend/.oxlintrc.json`，其中 `curly` 要求所有 `if`/`for` 使用花括号。`src/components/ui/` 属于 shadcn-vue 生成源码，已在 `.prettierignore` 与 oxlint 的 `ignorePatterns` 中排除，清理代码时同样保留。
 
 业务组件使用 Vue SFC 与 `<script setup lang="ts">`，组件名默认从 PascalCase 文件名推导，KeepAlive 按该名称匹配；需要不同名称时使用 `defineOptions` 显式声明。模板使用 `v-if`、`v-for`、`v-model`、`@事件` 和事件修饰符，props、emits 与双向绑定分别使用类型化的 `defineProps`、`defineEmits`、`defineModel`；不要用渲染函数模拟模板。可复用的业务状态与副作用放在组合式函数中。危险操作的按钮用 `variant="destructive"` 去掉底色（红字，独立按钮再加一圈淡红描边），代价大、不可撤销的（清空、解绑）先经 `shared/components/ConfirmDialog` 确认，只有对话框里的确认键是实心红。页面「回上一级」的按钮在顶栏，由路由的 `meta.back` 声明，不在页面里另放一份。前端使用 `@/` 路径别名，SFC 导入显式带 `.vue` 后缀，页面经所属 feature 的组合式函数访问后端。脚本注释使用 `/* */`（导出 API 用 `/** */`），模板注释使用 `<!-- -->`；注释、提交信息和文档使用简体中文。
+
+## 后端约定
+
+约定大于配置：Spring Boot 默认就能用的一律不写配置，`application.yml` 里只留默认值不够用的几项（虚拟线程、MyBatis 按参数名映射构造器、静态资源 `no-cache`、端口），每项旁边写明为什么。业务配置按领域放在各自包里的 `@ConfigurationProperties` data class（前缀 `myapi.auth`、`myapi.eh`、`myapi.holiday`），默认值写在代码里；环境变量名按 Spring 的宽松绑定推出，完整清单见 `backend/config/application.example.yml`。主密钥只由 `signing.SigningKeys` 读取并派生子密钥，业务类只拿派生后的那一把。需要组装 RestClient 或派生密钥的 Bean 在所属领域的 `@Configuration` 里用 `@Bean` 造，类本身保持普通构造器，测试里直接 new。
+
+JSON 接口一律返回 `web.ApiResponse`（`ok(data)`，只回成败的用 `ok()`）；失败抛 `AppException` 的子类，状态码映射只在 `web.ApiExceptionHandler` 一处，未预料的异常只回「服务器内部错误」，原文进日志。鉴权手写、不用 Spring Security（见 ADR-0001）：`/api` 下默认要求登录，公开接口标 `@Public`，控制器用 `@CurrentUser userId: Long` 拿当前本站账号，参数可空表示允许未登录；公开接口清单由 `ApiTest` 锁住。Web 层是 Spring MVC + 虚拟线程，代码按阻塞风格直写（见 ADR-0002）；一个请求里要同时等两件互不依赖的事时才用 `concurrently { async { … } }` 开协程，控制器不写成 `suspend`。进程内缓存用 Caffeine，同一个 key 的并发加载只跑一次，不再另加锁或 singleflight。
 
 ## 前端数据层
 
@@ -47,7 +52,7 @@ MyAPI 提供账号、图集浏览和节假日查询。`backend/cmd/myapi/` 存�
 
 ## 测试要求
 
-Go 测试命名为 `*_test.go`，Vitest 测试命名为 `*.test.ts`。重点验证可观察行为，尤其是鉴权、请求取消、缓存和导航回归。模拟外部服务，保证测试结果稳定。项目未配置数值化覆盖率门槛；提交评审前运行相关测试，前端改动还需通过 `pnpm lint`、`pnpm format:check` 与 `pnpm build`。
+后端测试命名为 `*Test.kt`（JUnit 5 + kotlin-test），Vitest 测试命名为 `*.test.ts`。重点验证可观察行为，尤其是鉴权、请求取消、缓存和导航回归。模拟外部服务，保证测试结果稳定：后端不引 mock 库，e 站经 `FakeUpstream` 换成内存响应，Mapper 换成内存实现；XML 里的 SQL 编译期不检查，所以 Mapper 与接口契约在 Testcontainers 起的真 PostgreSQL 上跑。项目未配置数值化覆盖率门槛；提交评审前运行相关测试，前端改动还需通过 `pnpm lint`、`pnpm format:check` 与 `pnpm build`。
 
 ## 提交与 Pull Request 规范
 
@@ -55,4 +60,4 @@ Go 测试命名为 `*_test.go`，Vitest 测试命名为 `*.test.ts`。重点验�
 
 ## 配置与 Agent 执行要求
 
-将 `backend/config.example.yml` 复制为已被 Git 忽略的 `backend/config.yml`，配置密钥和 PostgreSQL 连接。手动执行 `backend/internal/store/schema.sql` 建表，服务启动时不会自动创建表。禁止提交凭据。
+将 `backend/config/application.example.yml` 复制为已被 Git 忽略的 `backend/config/application.yml`，配置密钥和 PostgreSQL 连接；容器部署全用环境变量。手动执行 `backend/src/main/resources/schema.sql` 建表，服务启动时不会自动创建表。禁止提交凭据。

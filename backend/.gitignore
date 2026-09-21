@@ -1,6 +1,13 @@
-### 前端产物落点：只跟踪占位文件，构建产物不入库 ###
-public/*
-!public/.gitkeep
+### Gradle ###
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+### Kotlin ###
+.kotlin
+
+### 前端产物：镜像构建时由 frontend-builder 阶段放进来，不入库 ###
+src/main/resources/static/
 
 ### 本地配置：只跟踪示例文件，真实密钥不入库 ###
-config.yml
+config/application.yml

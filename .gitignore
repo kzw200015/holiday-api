@@ -17,4 +17,4 @@ dist/
 ### 本地配置：只跟踪示例文件，真实密钥不入库 ###
 # Vite 的本地环境变量文件（.env.local、.env.*.local）
 *.local
-# 后端的 config.yml 在 backend/.gitignore 里挡
+# 后端的 config/application.yml 在 backend/.gitignore 里挡

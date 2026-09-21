@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.kzw200015.myapi.eh.ReadingProgressMapper">
+    <select id="findPage" resultType="int">
+        SELECT page FROM eh_reading_progress WHERE user_id = #{userId} AND gid = #{gid}
+    </select>
+
+    <!-- 同一个图集只留一条，重复上报就覆盖 -->
+    <insert id="upsert">
+        INSERT INTO eh_reading_progress (user_id, gid, token, page, created_at, updated_at)
+        VALUES (#{userId}, #{gid}, #{token}, #{page}, now(), now())
+        ON CONFLICT (user_id, gid) DO UPDATE
+        SET token = excluded.token,
+            page = excluded.page,
+            updated_at = now()
+    </insert>
+
+    <!-- 阅读时间相同时用 gid 保证分页顺序稳定，走 eh_reading_progress_user_recent_idx -->
+    <select id="list" resultType="io.github.kzw200015.myapi.eh.ProgressRow">
+        SELECT gid, token, page, updated_at FROM eh_reading_progress
+        WHERE user_id = #{userId}
+        <if test="before != null">
+            AND (updated_at, gid) &lt; (#{before.readAt}, #{before.gid})
+        </if>
+        ORDER BY updated_at DESC, gid DESC
+        LIMIT #{limit}
+    </select>
+
+    <delete id="delete">
+        DELETE FROM eh_reading_progress WHERE user_id = #{userId} AND gid = #{gid}
+    </delete>
+
+    <delete id="clear">
+        DELETE FROM eh_reading_progress WHERE user_id = #{userId}
+    </delete>
+</mapper>

@@ -13,31 +13,27 @@ COPY frontend/ ./
 RUN pnpm build
 
 # ---------- 后端构建 ----------
-# 没有单独的类型检查阶段：go build 本身就是编译，编不过就构建失败
-FROM golang:1.27-alpine AS backend-builder
+FROM eclipse-temurin:25-jdk AS backend-builder
 
 WORKDIR /src
-COPY backend/go.mod backend/go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
-
 COPY backend/ ./
-# CGO 关掉换一个纯静态的二进制，运行镜像里不需要 libc 之外的任何东西。
-# 进程不碰 DDL，建表用 backend/internal/store/schema.sql 由人工上库执行，镜像里不带它
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/myapi ./cmd/myapi
+# 前端产物放进 Spring Boot 默认的静态资源位置，随 jar 一起打包，由后端直接提供
+COPY --from=frontend-builder /app/dist ./src/main/resources/static
+# 测试要起 Testcontainers，镜像构建里没有 Docker，所以只打包；测试在提交前本地跑。
+# 进程不碰 DDL，schema.sql 由人工上库执行
+RUN --mount=type=cache,target=/root/.gradle ./gradlew bootJar --no-daemon
 
 # ---------- 运行时 ----------
-FROM alpine:3
+FROM eclipse-temurin:25-jre-alpine
 
-# 时区数据由 time/tzdata 编进了二进制，这里只需要根证书（要访问 e 站和 GitHub）
-RUN apk add --no-cache ca-certificates && adduser -D -u 10001 app
+RUN adduser -D -u 10001 app
 
 WORKDIR /app
-COPY --from=backend-builder /out/myapi ./myapi
-# 前端产物放进静态资源目录，由后端直接提供（默认就找可执行文件旁边的 public/）
-COPY --from=frontend-builder /app/dist ./public
+# bootJar 只产出这一个可执行 jar
+COPY --from=backend-builder /src/build/libs/*.jar ./app.jar
 
 USER app
 EXPOSE 8000
 
-ENTRYPOINT ["/app/myapi"]
+# 配置全走环境变量，名字见 backend/config/application.example.yml；时区用 TZ 环境变量指定
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

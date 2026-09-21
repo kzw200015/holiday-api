@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.kzw200015.myapi.auth.UserMapper">
+    <!-- 判重交给 users_username_key 这个唯一索引而不是先查再插：先查再插在两个并发请求之间是有窗口的 -->
+    <select id="insert" resultType="io.github.kzw200015.myapi.auth.User">
+        INSERT INTO users (username, password_hash, created_at, updated_at)
+        VALUES (#{username}, #{passwordHash}, now(), now())
+        RETURNING id, username, password_hash
+    </select>
+
+    <!-- 用户名大小写敏感：Alice 和 alice 是两个账号 -->
+    <select id="findByUsername" resultType="io.github.kzw200015.myapi.auth.User">
+        SELECT id, username, password_hash FROM users WHERE username = #{username}
+    </select>
+
+    <select id="findById" resultType="io.github.kzw200015.myapi.auth.User">
+        SELECT id, username, password_hash FROM users WHERE id = #{id}
+    </select>
+</mapper>

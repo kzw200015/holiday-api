@@ -1,0 +1,25 @@
+# 只写默认值不够用的几项，其余一律按 Spring Boot 的约定。
+# 部署时用环境变量覆盖（宽松绑定：myapi.secret-key → MYAPI_SECRETKEY），本地开发写在 config/application.yml 里。
+spring:
+  threads:
+    virtual:
+      # 请求跑在虚拟线程上，查库、请求 e 站这类阻塞调用不占平台线程
+      enabled: true
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          # 默认不带 Cache-Control，浏览器会按 Last-Modified 自行推算缓存时长，发版后可能拿着旧的 index.html
+          # 去请求已经不存在的旧 assets；带 hash 的 assets 因此每次也要 304 验证一下，代价很小
+          no-cache: true
+
+# 前端 dev 代理与 Dockerfile 的 EXPOSE 都指向 8000
+server:
+  port: 8000
+
+mybatis:
+  configuration:
+    # 查询列按名字映射到 data class 的构造器参数（默认是按列的顺序去对，多一列少一列就错位），下划线转驼峰。
+    # 参数名靠 Spring Boot 的 Gradle 插件默认给 Kotlin 编译打开的 -java-parameters 保留下来
+    map-underscore-to-camel-case: true
+    arg-name-based-constructor-auto-mapping: true

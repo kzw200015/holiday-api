@@ -1,6 +1,6 @@
 import { httpClient } from "@/shared/api/httpClient"
 
-/** 节假日查询结果，与后端 HolidayQueryResult 对齐 */
+/** 节假日查询结果，与后端 HolidayDay 对齐 */
 export interface HolidayDetail {
   /** 查询的日期，格式 YYYY-MM-DD */
   date: string
