@@ -56,19 +56,21 @@ class ImageController(private val images: ImageService) {
     }
 
     /** 边读边写，不把整张图读进内存。 */
-    private fun HttpServletResponse.stream(attachment: Attachment) = attachment.use {
-        contentType = it.contentType
-        setHeader(HttpHeaders.CACHE_CONTROL, CACHE_CONTROL)
-        it.contentLength?.let(::setContentLengthLong)
-        try {
-            it.body.transferTo(outputStream)
-        } catch (e: IOException) {
-            // 头已经发出去了，中途断了没法再改成错误响应，只能记一条日志。
-            // 浏览器自己中止的（快速翻页时成批发生）不算故障，降到 debug，免得淹掉真正的上游断流
-            if (DisconnectedClientHelper.isClientDisconnectedException(e)) {
-                log.debug("客户端中途放弃了图片 url={}", it.source)
-            } else {
-                log.warn("转发图片时中断 url={}", it.source, e)
+    private fun HttpServletResponse.stream(attachment: Attachment) {
+        attachment.use {
+            contentType = it.contentType
+            setHeader(HttpHeaders.CACHE_CONTROL, CACHE_CONTROL)
+            it.contentLength?.let(::setContentLengthLong)
+            try {
+                it.body.transferTo(outputStream)
+            } catch (e: IOException) {
+                // 头已经发出去了，中途断了没法再改成错误响应，只能记一条日志。
+                // 浏览器自己中止的（快速翻页时成批发生）不算故障，降到 debug，免得淹掉真正的上游断流
+                if (DisconnectedClientHelper.isClientDisconnectedException(e)) {
+                    log.debug("客户端中途放弃了图片 url={}", it.source)
+                } else {
+                    log.warn("转发图片时中断 url={}", it.source, e)
+                }
             }
         }
     }

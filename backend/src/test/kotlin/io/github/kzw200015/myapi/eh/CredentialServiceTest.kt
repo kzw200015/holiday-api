@@ -91,7 +91,9 @@ class CredentialServiceTest {
     }
 
     /** 换绑成 next；next 为 null 就是解绑。 */
-    private fun CredentialService.change(next: EhCredential?) = if (next == null) unbind(1) else bind(1, next)
+    private fun CredentialService.change(next: EhCredential?) {
+        if (next == null) unbind(1) else bind(1, next)
+    }
 
     private fun expectedAccess(credential: EhCredential?) =
         credential?.let { EhAccess(it, Site.EX) } ?: EhAccess.ANONYMOUS
