@@ -17,7 +17,7 @@ vi.mock("@/features/eh/api", async (importOriginal) => ({
   }),
   saveProgress: vi.fn().mockResolvedValue(undefined),
   fetchGalleryPreferences: vi.fn().mockResolvedValue({ categories: [], readerInterval: 5 }),
-  saveReaderInterval: vi.fn().mockResolvedValue(null),
+  saveGalleryPreferences: vi.fn().mockResolvedValue(null),
 }))
 
 let pinia: ReturnType<typeof createPinia>

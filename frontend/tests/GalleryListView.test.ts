@@ -38,7 +38,8 @@ vi.mock("@/features/eh/api", async (original) => ({
   searchGalleries: vi.fn(),
   fetchGalleryPreferences: vi.fn(),
   fetchSearchHistory: vi.fn().mockResolvedValue([]),
-  recordSearch: vi.fn().mockResolvedValue([]),
+  saveSearchHistory: vi.fn().mockResolvedValue(null),
+  saveGalleryPreferences: vi.fn().mockResolvedValue(null),
 }))
 
 let pinia: ReturnType<typeof createPinia>
