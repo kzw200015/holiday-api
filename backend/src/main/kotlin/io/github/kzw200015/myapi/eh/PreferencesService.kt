@@ -44,12 +44,10 @@ class PreferencesService(private val preferences: PreferencesMapper) {
         if (entries.size > SEARCH_HISTORY_LIMIT) {
             throw AppException.InvalidArgument("搜索历史最多 $SEARCH_HISTORY_LIMIT 条")
         }
-        val keywords = entries.filterNotNull()
-        val invalid = keywords.any { it.isEmpty() || it.toByteArray().size > KEYWORD_MAX_BYTES }
-        if (keywords.size < entries.size || invalid) {
+        if (entries.any { it.isNullOrEmpty() || it.toByteArray().size > KEYWORD_MAX_BYTES }) {
             throw AppException.InvalidArgument("搜索历史关键词应为 1–$KEYWORD_MAX_BYTES 字节")
         }
-        preferences.saveSearchHistory(userId, keywords)
+        preferences.saveSearchHistory(userId, entries.filterNotNull())
     }
 
     private companion object {

@@ -4,6 +4,7 @@ import io.github.kzw200015.myapi.AppException
 import io.github.kzw200015.myapi.auth.Public
 import io.github.kzw200015.myapi.eh.upstream.Attachment
 import io.github.kzw200015.myapi.eh.upstream.GalleryRef
+import io.github.kzw200015.myapi.eh.upstream.unavailable
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.http.CacheControl
@@ -97,7 +98,7 @@ class ImageController(private val images: ImageService) {
             reset()
         }
         // 上游地址挂在 cause 上，只进日志
-        return AppException.UpstreamFailure("图片传到一半，e 站那边断了", IOException("转发 ${attachment.source} 时中断", cause))
+        return unavailable("图片传到一半，e 站那边断了", IOException("转发 ${attachment.source} 时中断", cause))
     }
 
     private companion object {

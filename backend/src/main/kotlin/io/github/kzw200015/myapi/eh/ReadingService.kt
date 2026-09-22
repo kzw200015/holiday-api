@@ -37,7 +37,7 @@ class ReadingService(private val progress: ReadingProgressMapper, private val ca
     fun save(userId: Long, position: ReadingPosition) {
         val ref = GalleryRef.of(position.gid, position.token)
         checkPage(position.page)
-        if (position.writer.isEmpty() || position.writer.length > MAX_WRITER_LENGTH) {
+        if (position.writer.length !in 1..MAX_WRITER_LENGTH) {
             throw AppException.InvalidArgument("上报方标识不合法")
         }
         if (position.seq <= 0) {

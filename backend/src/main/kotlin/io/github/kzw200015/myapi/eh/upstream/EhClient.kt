@@ -178,12 +178,9 @@ class EhClient(
             read(HttpMethod.POST, access.site.apiHost, cookieHeader(access.credential), json.writeValueAsBytes(payload))
         val parsed = runCatching { json.readTree(response.body) }
         // 解得开的 JSON 不按文案判断：标题是任意文本，里面出现「temporarily banned」不代表被封。解不开才交给 assertUsable 认是哪种失败
-        val tree = parsed.getOrNull()?.takeIf { it.isObject && response.status == 200 }
-        if (tree == null) {
-            assertUsable(response)
-            throw AppException.UpstreamFailure("e 站接口返回的不是预期的 JSON", parsed.exceptionOrNull())
-        }
-        return tree
+        parsed.getOrNull()?.takeIf { it.isObject && response.status == 200 }?.let { return it }
+        assertUsable(response)
+        throw unavailable("e 站接口返回的不是预期的 JSON", parsed.exceptionOrNull())
     }
 
     /** 页面、JSON 与凭据探测共用：整个响应读进内存。图片流不走这里。 */

@@ -9,6 +9,8 @@ import kotlin.reflect.KClass
 import kotlin.test.*
 
 class EhClientTest {
+    private val ref = GalleryRef(1, "0123456789")
+
     /**
      * 「200 但不是你要的东西」有好几种，全都必须识别出来：只看状态码的话，IP 被封时会被当成正常页面解析出空列表，
      * 然后继续按原节奏请求，把临时封禁续成长期封禁。
@@ -60,7 +62,6 @@ class EhClientTest {
     /** 这些字眼只在页面没解析出东西之后才认：正常页面里也可能出现它们。 */
     @Test
     fun `页面没解析出来时才认内容警告页与 e 站的说明页`() {
-        val ref = GalleryRef(1, "0123456789")
         fun slice(body: String) = FakeUpstream { page(body) }.client().fetchGallerySlice(EhAccess.ANONYMOUS, ref, 0)
 
         // 评论里写着 Content Warning 的正常页面照常解析
@@ -88,7 +89,6 @@ class EhClientTest {
     /** 配额用尽时 e 站把大图换成一张提示图，而不是报错。 */
     @Test
     fun `大图地址换成了配额提示图时报配额用尽`() {
-        val ref = GalleryRef(1, "0123456789")
         for (quota in listOf("https://ehgt.org/g/509.gif", "https://exhentai.org/img/509s.gif")) {
             val html = FakeUpstream { page("""<img id="img" src="$quota">""") }.client()
             assertFailsWith<AppException.ResourceExhausted>(quota) {
@@ -107,11 +107,11 @@ class EhClientTest {
         val title = "Content Warning - I got temporarily banned for excessive pageloads"
         val gdata = """{"gmetadata":[{"gid":1,"token":"0123456789","title":"$title"}]}"""
         val metadata = FakeUpstream { FakeResponse(gdata, contentType = "application/json") }.client()
-            .fetchMetadata(listOf(GalleryRef(1, "0123456789")))
+            .fetchMetadata(listOf(ref))
         assertEquals(title, metadata.values.single().title)
 
         val banned = FakeUpstream { page("Your IP address has been temporarily banned for excessive pageloads") }.client()
-        assertFailsWith<AppException.ResourceExhausted> { banned.fetchMetadata(listOf(GalleryRef(1, "0123456789"))) }
+        assertFailsWith<AppException.ResourceExhausted> { banned.fetchMetadata(listOf(ref)) }
     }
 
     /** 图片主机白名单是图片代理唯一的 SSRF 防线。这里列的绕过手法都是真会被人试的。 */
@@ -204,7 +204,7 @@ class EhClientTest {
         val client = FakeUpstream { throw IOException("Connection reset") }.client()
 
         val failure = assertFailsWith<AppException.UpstreamFailure> {
-            client.fetchGallerySlice(EhAccess.ANONYMOUS, GalleryRef(1, "0123456789"), 0)
+            client.fetchGallerySlice(EhAccess.ANONYMOUS, ref, 0)
         }
         assertEquals("请求 e 站失败，可能是网络不通或超时", failure.message)
         assertIs<IOException>(failure.cause?.cause)
@@ -240,9 +240,9 @@ class EhClientTest {
         val client = upstream.client()
         val credential = EhCredential("1", "hash", "ig")
 
-        client.showImage(EhAccess(credential, Site.E), GalleryRef(1, "0123456789"), 1, "0123456789", "key")
-        client.showImage(EhAccess(credential, Site.EX), GalleryRef(1, "0123456789"), 1, "0123456789", "key")
-        client.fetchMetadata(listOf(GalleryRef(1, "0123456789")))
+        client.showImage(EhAccess(credential, Site.E), ref, 1, "0123456789", "key")
+        client.showImage(EhAccess(credential, Site.EX), ref, 1, "0123456789", "key")
+        client.fetchMetadata(listOf(ref))
 
         val (front, ex, metadata) = upstream.requests
         // showkey 是登录的会话拿到的，兑换也得是同一个身份，否则按匿名算

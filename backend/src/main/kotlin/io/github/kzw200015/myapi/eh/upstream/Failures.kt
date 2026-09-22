@@ -26,8 +26,8 @@ fun galleryMissing() = AppException.NotFound("这个图集取不到，可能已�
 /** e 站用一段说明代替了页面：图集被删或转私有、令牌不对、页码越界。说明原文照转，它比我们猜的准。 */
 fun upstreamNotice(text: String) = AppException.NotFound("e 站提示：$text")
 
-/** 上游返回了意料之外的东西，通常是版面改了。 */
-fun unavailable(message: String) = AppException.UpstreamFailure(message)
+/** 上游返回了意料之外的东西，通常是版面改了。cause 只进日志。 */
+fun unavailable(message: String, cause: Throwable? = null) = AppException.UpstreamFailure(message, cause)
 
 /** 出网这一步本身失败了。原始异常挂在 cause 上只进日志：`Connection reset` 这种不该出现在前端弹窗里。 */
 fun unreachable(cause: Throwable) = AppException.UpstreamFailure("请求 e 站失败，可能是网络不通或超时", cause)
