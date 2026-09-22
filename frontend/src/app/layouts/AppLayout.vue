@@ -37,7 +37,7 @@ function goBack() {
           <span class="sr-only">{{ route.meta.back.label }}</span>
         </Button>
         <h1 class="flex-1 truncate text-sm font-medium">{{ route.meta.title ?? "" }}</h1>
-        <Button aria-label="切换主题" size="icon-sm" variant="ghost" @click="appStore.setDark(!appStore.isDark)">
+        <Button aria-label="切换主题" size="icon-sm" variant="ghost" @click="appStore.toggle">
           <SunIcon v-if="appStore.isDark" />
           <MoonIcon v-else />
         </Button>
