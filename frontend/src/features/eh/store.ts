@@ -91,32 +91,24 @@ export const useCredentialStore = defineAccountData("CredentialStore", fetchCred
 interface DetailEntry {
   request: ReturnType<typeof createRequest<GalleryDetailResult>>
   fetchedAt: number
-  /* 本地改过几次进度、最近一次改成了什么。重取在途时改过的，响应落地时以本地为准。 */
-  progressEdits: number
-  localProgress: number | null
 }
 
 function fetchDetail(gid: number, token: string, entry: DetailEntry) {
-  const edits = entry.progressEdits
   return entry.request.run(async (signal) => {
     const result = await fetchGalleryDetail(gid, token, signal)
     entry.fetchedAt = Date.now()
-    /* 请求发出之后本地翻过页或删过记录，服务端这份就是旧快照，进度不能拿它盖回去。 */
-    return entry.progressEdits === edits ? result : { ...result, progress: entry.localProgress }
+    return result
   })
 }
 
-/* 详情还没到手时也要记下来：在途的那次落地时照样以这次改动为准。 */
+/* 重取在途时本地翻过页或删过记录，响应落地时以本地为准；详情还没到手时同样如此。 */
 function patchProgress(entry: DetailEntry | undefined, progress: number | null) {
-  if (!entry) {
-    return
-  }
-  entry.progressEdits += 1
-  entry.localProgress = progress
-  const data = entry.request.data
-  if (data.value && data.value.progress !== progress) {
-    data.value = { ...data.value, progress }
-  }
+  entry?.request.patch((detail) => {
+    if (!detail || detail.progress === progress) {
+      return detail
+    }
+    return { ...detail, progress }
+  })
 }
 
 /**
@@ -142,7 +134,7 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
     const key = `${gid}/${token}`
     let entry = details.get(key)
     if (!entry) {
-      entry = { request: createRequest<GalleryDetailResult>(), fetchedAt: 0, progressEdits: 0, localProgress: null }
+      entry = { request: createRequest<GalleryDetailResult>(), fetchedAt: 0 }
       details.set(key, entry)
     }
     return entry

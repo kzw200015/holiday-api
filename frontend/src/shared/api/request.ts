@@ -11,18 +11,21 @@ export function createRequest<T>() {
   const error = shallowRef<Error | null>(null)
   const pending = ref(false)
   let controller: AbortController | undefined
+  /* 在途那次发出之后的本地改动，它落地时要先补上。 */
+  let patches: ((value: T | undefined) => T | undefined)[] = []
 
   /** 发起一次读取。开始时清掉旧错误、保留旧数据；返回的 Promise 不会 reject，失败落在 error 上。 */
   async function run(fetcher: (signal: AbortSignal) => Promise<T>) {
     controller?.abort()
     const current = new AbortController()
     controller = current
+    patches = []
     pending.value = true
     error.value = null
     try {
       const result = await fetcher(current.signal)
       if (controller === current) {
-        data.value = result
+        data.value = patches.reduce<T | undefined>((value, change) => change(value), result)
       }
     } catch (cause) {
       if (controller === current) {
@@ -49,7 +52,18 @@ export function createRequest<T>() {
     error.value = null
   }
 
-  return { data, error, pending, run, abort, clear }
+  /**
+   * 在本地改这份数据，当场生效。有读取在途时，它落地时同样补上这次改动：
+   * 响应是请求发出那一刻的服务端快照，不能把之后本地改过的内容盖回去。
+   */
+  function patch(change: (value: T | undefined) => T | undefined) {
+    data.value = change(data.value)
+    if (controller) {
+      patches.push(change)
+    }
+  }
+
+  return { data, error, pending, run, abort, clear, patch }
 }
 
 /**
