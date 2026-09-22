@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="io.github.kzw200015.myapi.auth.UserMapper">
-    <!-- 判重交给 users_username_key 这个唯一索引而不是先查再插：先查再插在两个并发请求之间是有窗口的 -->
-    <select id="insert" resultType="io.github.kzw200015.myapi.auth.User">
+    <!-- 判重交给 users_username_key 这个唯一索引而不是先查再插：先查再插在两个并发请求之间是有窗口的。
+         用 select 是为了拿回 RETURNING 的那一行。它其实是写入，按 select 的默认会走缓存：同一个会话里（包进事务时）
+         参数相同的第二次插入会直接拿缓存结果、不去撞唯一索引，之前查过的行也不会失效。所以每次执行前清空缓存，也不进二级缓存 -->
+    <select id="insert" resultType="io.github.kzw200015.myapi.auth.User" flushCache="true" useCache="false">
         INSERT INTO users (username, password_hash, created_at, updated_at)
         VALUES (#{username}, #{passwordHash}, now(), now())
         RETURNING id, username, password_hash
