@@ -23,7 +23,12 @@ import java.time.Instant
  *
  * 出网只有这一个出口，要加限速也就只有一处可加。由 eh.EhConfiguration 按配置组装。
  */
-class EhClient(private val http: RestClient, private val json: JsonMapper) {
+class EhClient(
+    private val http: RestClient,
+    /** 取图专用：图片是边读边转发的，超时的算法与页面请求不同，见 eh.EhConfiguration。 */
+    private val images: RestClient,
+    private val json: JsonMapper,
+) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun search(access: EhAccess, keyword: String, categories: List<String>, cursor: String): GalleryList {
@@ -132,15 +137,15 @@ class EhClient(private val http: RestClient, private val json: JsonMapper) {
         log.debug("请求 e 站 GET {}", url)
         // 一个 Cookie 都不带：图床不认 e 站的身份，发过去只是白白泄露给第三方主机
         val response = try {
-            http.get().uri(URI.create(url)).exchange({ _, response -> response }, false)
+            images.get().uri(URI.create(url)).exchange({ _, response -> response }, false)
         } catch (e: ResourceAccessException) {
-            throw unreachable(e)
+            throw ImageNodeFailure("连不上图床节点", e)
         }
         try {
             when (val status = response.statusCode.value()) {
                 200 -> Unit
                 509 -> throw quotaExceeded()
-                else -> throw ImageNodeFailure(status)
+                else -> throw ImageNodeFailure("图床返回了 HTTP $status")
             }
             // 上游出错时回的是 HTML 错误页，原样转发会让浏览器显示一张裂图，日志里也查不出原因
             val contentType = response.headers.getFirst(HttpHeaders.CONTENT_TYPE).orEmpty()
@@ -286,7 +291,13 @@ class Attachment(
 ) : Closeable {
     val body: InputStream get() = response.body
 
-    override fun close() = response.close()
+    override fun close() {
+        // 先关流再关响应：取图走的 SimpleClientHttpResponse 在 close 时会把剩下的内容读完好复用连接，
+        // 浏览器中途放弃一张大图（快速翻页时成批发生）时，那等于在服务端把整张图白下一遍。
+        // 流先关掉，它那一步就读不动了，读失败的异常它自己会吞掉
+        runCatching { response.body.close() }
+        response.close()
+    }
 }
 
 /** 图片主机白名单。 */

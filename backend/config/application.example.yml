@@ -21,7 +21,7 @@ myapi:
   # eh:
   #   # 签名图片地址的有效期，默认 24 小时。                            MYAPI_EH_ATTACHMENTTTL
   #   attachment-ttl: 24h
-  #   # 请求 e 站的超时，默认 30 秒。                                   MYAPI_EH_REQUESTTIMEOUT
+  #   # 请求 e 站的超时，默认 30 秒；取图时按多久没收到数据算。          MYAPI_EH_REQUESTTIMEOUT
   #   request-timeout: 30s
   #   # 请求 e 站时伪装的 User-Agent。                                  MYAPI_EH_USERAGENT
   #   user-agent: "Mozilla/5.0 ..."

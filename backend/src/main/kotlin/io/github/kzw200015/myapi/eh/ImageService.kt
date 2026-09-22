@@ -22,7 +22,7 @@ class ImageService(
         return try {
             client.openImage(locator.resolve(access, ref, page))
         } catch (e: ImageNodeFailure) {
-            log.info("图床节点取图失败，换源重试 gid={} page={} status={}", ref.gid, page, e.status)
+            log.info("图床节点取图失败，换源重试 gid={} page={} reason={}", ref.gid, page, e.message)
             client.openImage(locator.refresh(access, ref, page))
         }
     }

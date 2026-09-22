@@ -29,5 +29,8 @@ fun unavailable(message: String) = AppException.UpstreamFailure(message)
 /** 出网这一步本身失败了。原始异常挂在 cause 上只进日志：`Connection reset` 这种不该出现在前端弹窗里。 */
 fun unreachable(cause: Throwable) = AppException.UpstreamFailure("请求 e 站失败，可能是网络不通或超时", cause)
 
-/** 图床节点取图失败。大图遇到它可以换一台节点重试一次；缩略图和重试后仍失败的，就按上游故障报告。 */
-class ImageNodeFailure(val status: Int) : AppException.UpstreamFailure("图床返回了 HTTP $status")
+/**
+ * 图床节点取图失败：回了错误状态码，或者根本连不上——节点下线多半是后一种。
+ * 大图遇到它可以换一台节点重试一次；缩略图和重试后仍失败的，就按上游故障报告。
+ */
+class ImageNodeFailure(message: String, cause: Throwable? = null) : AppException.UpstreamFailure(message, cause)

@@ -3,6 +3,7 @@ package io.github.kzw200015.myapi.eh
 import io.github.kzw200015.myapi.AppException
 import io.github.kzw200015.myapi.eh.upstream.EhClient
 import io.github.kzw200015.myapi.eh.upstream.GalleryRef
+import java.io.IOException
 import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -63,6 +64,31 @@ class ImageServiceTest {
             assertEquals(2, pageRequests, "status $retryStatus")
             assertTrue(responses.all { it.closes == 1 }, "每个响应体都要恰好关闭一次")
         }
+    }
+
+    /** H@H 节点下线多半表现为连不上：这时同样淘汰失败的地址，换一台节点重试。 */
+    @Test
+    fun `连不上图床节点时同样换源重试`() {
+        var imageRequests = 0
+        val upstream = FakeUpstream { request ->
+            when {
+                request.uri.path.startsWith("/g/") -> page("""<a href="/s/0123456789/1-1">page</a>""")
+                request.uri.path.startsWith("/s/") ->
+                    page("""<img id="img" src="https://x.hath.network/image.webp" onerror="nl('page-one')">""")
+
+                else -> {
+                    imageRequests++
+                    if (imageRequests == 1) throw IOException("Connection refused")
+                    FakeResponse("image", 200, "image/webp")
+                }
+            }
+        }
+
+        service(upstream.client()).openGalleryImage(1, ref, 1, signatureFor(1)).use { image ->
+            assertEquals("image", image.body.readAllBytes().decodeToString())
+        }
+        assertEquals(2, imageRequests)
+        assertEquals("nl=page-one", upstream.requests.last { it.uri.path.startsWith("/s/") }.uri.query)
     }
 
     @Test

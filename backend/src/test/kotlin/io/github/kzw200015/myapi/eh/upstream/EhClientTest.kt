@@ -113,6 +113,14 @@ class EhClientTest {
         }
     }
 
+    /** H@H 节点下线多半表现为连不上，而不是回一个错误状态码：这同样要换一台节点重试。 */
+    @Test
+    fun `连不上图床节点也算节点失败`() {
+        val client = FakeUpstream { throw IOException("Connection refused") }.client()
+        val failure = assertFailsWith<ImageNodeFailure> { client.openImage("https://x.hath.network/h/abc/1.webp") }
+        assertIs<IOException>(failure.cause?.cause)
+    }
+
     @Test
     fun `出网失败翻成上游故障，原始异常只挂在 cause 上`() {
         val client = FakeUpstream { throw IOException("Connection reset") }.client()

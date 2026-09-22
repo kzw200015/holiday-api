@@ -34,7 +34,11 @@ class FakeUpstream(private val respond: (MockClientHttpRequest) -> ClientHttpRes
             }
         }
 
-    fun client() = EhClient(RestClient.builder().requestFactory(this).build(), testJson)
+    /** 页面与取图两条出网通道都换成这一个。 */
+    fun client(): EhClient {
+        val rest = RestClient.builder().requestFactory(this).build()
+        return EhClient(rest, rest, testJson)
+    }
 }
 
 /** 一份内存响应；关闭次数记在 closes 上，用来验证响应体有没有被释放。 */
