@@ -58,6 +58,7 @@ async function createReader(position: { page?: number; total?: number } = {}) {
                 playback: playback.state,
                 onToggleAutoPaging: playback.toggle,
                 onSetInterval: playback.changeInterval,
+                onReloadInterval: playback.reloadInterval,
                 "onUpdate:page": change,
                 "onUpdate:seeking": (value: boolean) => {
                   state.seeking = value
@@ -252,6 +253,35 @@ describe("阅读器自动翻页控件", () => {
     expect(intervalText(host)).toBe("6 秒")
     expect(host.querySelector('[role="alert"]')).toBeNull()
     expect(host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.disabled).toBe(false)
+  })
+
+  /* 阅读器不经过图库布局，偏好可能还没读到或读失败了；这时调了也存不上，按钮不该看起来能用。 */
+  it("偏好读到之前间隔不能调", async () => {
+    const pending = deferred<{ categories: string[]; readerInterval: number }>()
+    vi.mocked(fetchGalleryPreferences).mockReturnValueOnce(pending.promise)
+    const { host } = await createReader()
+    const decrease = host.querySelector<HTMLButtonElement>('[aria-label="减少自动翻页间隔"]')!
+    const increase = host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!
+    expect(decrease.disabled).toBe(true)
+    expect(increase.disabled).toBe(true)
+    expect(intervalText(host)).toBe("…")
+    pending.resolve({ categories: [], readerInterval: 8 })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(intervalText(host)).toBe("8 秒")
+    expect(increase.disabled).toBe(false)
+  })
+
+  it("偏好读失败时间隔不能调，在原处给出重试", async () => {
+    vi.mocked(fetchGalleryPreferences).mockRejectedValueOnce(new Error("断网"))
+    const { host } = await createReader()
+    const increase = host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!
+    expect(increase.disabled).toBe(true)
+    expect(host.querySelector('[aria-label="减少自动翻页间隔"]')!.hasAttribute("disabled")).toBe(true)
+    host.querySelector<HTMLButtonElement>('[aria-label="自动翻页间隔没读到，重试"]')!.click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(intervalText(host)).toBe("5 秒")
+    expect(increase.disabled).toBe(false)
+    expect(saveGalleryPreferences).not.toHaveBeenCalled()
   })
 
   it("秒数只读，不提供下拉选择或手动输入", async () => {

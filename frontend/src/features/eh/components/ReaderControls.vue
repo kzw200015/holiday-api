@@ -11,7 +11,7 @@ const props = defineProps<{
   total: number
   playback: ReaderPlaybackState
 }>()
-const emit = defineEmits<{ exit: []; toggleAutoPaging: []; setInterval: [seconds: number] }>()
+const emit = defineEmits<{ exit: []; toggleAutoPaging: []; setInterval: [seconds: number]; reloadInterval: [] }>()
 const page = defineModel<number>("page", { required: true })
 const seeking = defineModel<boolean>("seeking", { required: true })
 const progressPercent = computed(() => (props.total > 1 ? ((page.value - 1) / (props.total - 1)) * 100 : 0))
@@ -56,18 +56,30 @@ const chromeButton = {
       <Button
         aria-label="减少自动翻页间隔"
         v-bind="chromeButton"
-        :disabled="playback.interval <= 1"
+        :disabled="!playback.intervalReady || playback.interval <= 1"
         @click="emit('setInterval', playback.interval - 1)"
       >
         <MinusIcon />
       </Button>
-      <output aria-label="自动翻页间隔" class="min-w-10 text-center text-sm text-white/90 tabular-nums">
-        {{ playback.interval }} 秒
+      <!-- 偏好没读到时调了也存不上，所以不给调；读失败了就在秒数的位置给个重试。 -->
+      <Button
+        v-if="playback.intervalFailed"
+        aria-label="自动翻页间隔没读到，重试"
+        title="自动翻页间隔没读到，点此重试"
+        class="cursor-pointer text-white hover:bg-white/10 hover:text-white"
+        size="sm"
+        variant="ghost"
+        @click="emit('reloadInterval')"
+      >
+        重试
+      </Button>
+      <output v-else aria-label="自动翻页间隔" class="min-w-10 text-center text-sm text-white/90 tabular-nums">
+        {{ playback.intervalReady ? `${playback.interval} 秒` : "…" }}
       </output>
       <Button
         aria-label="增加自动翻页间隔"
         v-bind="chromeButton"
-        :disabled="playback.interval >= 20"
+        :disabled="!playback.intervalReady || playback.interval >= 20"
         @click="emit('setInterval', playback.interval + 1)"
       >
         <PlusIcon />

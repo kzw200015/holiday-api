@@ -7,6 +7,10 @@ export interface ReaderPlaybackState {
   autoPaging: boolean
   canStart: boolean
   interval: number
+  /* 偏好读到了才能调间隔：没读到时调了也存不上，按钮不该看起来能用。 */
+  intervalReady: boolean
+  /* 偏好读失败了，控件据此给出重试。 */
+  intervalFailed: boolean
 }
 
 /** 一次阅读的自动翻页与间隔；控件只展示状态并发出操作。 */
@@ -75,6 +79,8 @@ export function useReaderPlayback(
     autoPaging,
     canStart,
     interval: preferences.interval,
+    intervalReady: preferences.ready,
+    intervalFailed: computed(() => !preferences.ready.value && preferences.loadError.value !== ""),
   })
-  return { state, changeInterval, toggle }
+  return { state, changeInterval, toggle, reloadInterval: preferences.reload }
 }

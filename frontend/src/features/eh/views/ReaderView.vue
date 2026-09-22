@@ -171,6 +171,7 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
       :playback="playback.state"
       @toggle-auto-paging="playback.toggle"
       @set-interval="playback.changeInterval"
+      @reload-interval="playback.reloadInterval"
       @exit="exit"
     />
   </div>
