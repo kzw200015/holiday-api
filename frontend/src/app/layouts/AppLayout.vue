@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeftIcon, MoonIcon, SunIcon } from "@lucide/vue"
-import { RouterView, useRoute, useRouter } from "vue-router"
+import { RouterView, useRoute } from "vue-router"
 
 import AppSidebar from "@/app/layouts/AppSidebar.vue"
 import { useThemeStore } from "@/app/themeStore"
@@ -8,16 +8,17 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { useAuthStore } from "@/features/auth/store"
+import { useGoBack } from "@/shared/composables/useGoBack"
 
 const appStore = useThemeStore()
 const authStore = useAuthStore()
 const route = useRoute()
-const router = useRouter()
+const returnTo = useGoBack()
 
-/* 用 replace：回上一级不该在浏览器历史里再垫一层，否则按后退又回到刚离开的页面。 */
+/* 回上一级不该在浏览器历史里再垫一层，否则按后退又回到刚离开的页面。 */
 function goBack() {
   if (route.meta.back) {
-    void router.replace(route.meta.back.to(route))
+    returnTo(route.meta.back.to(route))
   }
 }
 </script>

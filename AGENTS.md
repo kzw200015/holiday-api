@@ -29,7 +29,7 @@ feature 内按角色分文件：`model.ts` 是领域类型，`api.ts` 只管 HTT
 
 前端格式由 Prettier 统一（无分号、双引号、120 列），import 顺序由 `@ianvs/prettier-plugin-sort-imports` 自动排，不要手工调整；lint 规则见 `frontend/.oxlintrc.json`，其中 `curly` 要求所有 `if`/`for` 带花括号。组件文件名用 PascalCase，TypeScript 标识符用 camelCase，组合式函数用 `useX`。业务组件用 `<script setup lang="ts">`，组件名从文件名推导，KeepAlive 按它匹配，需要别的名字时用 `defineOptions`；props、emits 与双向绑定用类型化的 `defineProps`、`defineEmits`、`defineModel`，不用渲染函数模拟模板。使用 `@/` 路径别名，SFC 导入显式带 `.vue`。脚本注释用 `/* */`（导出 API 用 `/** */`），模板注释用 `<!-- -->`。
 
-危险操作的按钮用 `variant="destructive"`（红字、无底色，独立按钮再加一圈淡红描边）；代价大、不可撤销的（清空、解绑）先经 `shared/components/ConfirmDialog` 确认，只有对话框里的确认键是实心红。「回上一级」按钮在顶栏，由路由的 `meta.back` 声明，页面里不另放一份。
+危险操作的按钮用 `variant="destructive"`（红字、无底色，独立按钮再加一圈淡红描边）；代价大、不可撤销的（清空、解绑）先经 `shared/components/ConfirmDialog` 确认，只有对话框里的确认键是实心红。「回上一级」按钮在顶栏，由路由的 `meta.back` 声明，页面里不另放一份；浏览器历史的上一条正好是目标页时退回去，否则原地替换（`shared/composables/useGoBack`），历史里不留重复的一条。
 
 ## 后端约定
 

@@ -12,6 +12,7 @@ import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
 import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
 import { galleryDetailLocation, readerLocation, type GallerySource } from "@/features/eh/navigation"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
+import { useGoBack } from "@/shared/composables/useGoBack"
 
 /* 页码写回地址栏的节流时长。滚动是每帧都可能变的，地址栏不该跟着抖。 */
 const URL_SYNC_DELAY = 300
@@ -37,6 +38,7 @@ const props = withDefaults(
   { source: "search" },
 )
 const router = useRouter()
+const returnTo = useGoBack()
 const { gallery, imageUrlTemplate, loaded, loading, errorMessage } = useGalleryDetail(
   () => props.gid,
   () => props.token,
@@ -104,7 +106,7 @@ watch(totalPages, (total) => {
 
 function exit() {
   /* 退出一律回详情页；从阅读历史来的，详情页那边的「返回列表」会继续把人送回历史。 */
-  void router.replace(galleryDetailLocation(props, props.source))
+  returnTo(galleryDetailLocation(props, props.source))
 }
 
 /* 详情到达且页数已知后才报告位置。 */

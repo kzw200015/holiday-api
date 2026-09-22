@@ -225,6 +225,42 @@ describe("阅读历史与二级导航", () => {
     await settle()
   })
 
+  /* 历史的上一条正好就是要回的地方就退回去：原地替换会留下两条一样的记录，按系统后退键时停在原地不动。 */
+  it("返回列表和退出阅读退回上一条历史，不留重复的记录", async () => {
+    /* 首次导航总是替换当前记录，先从首页走进图库，好让图库前面有一条确定的记录。 */
+    await visit("/")
+    await visit("/eh")
+    host
+      .querySelector('a[href="/eh/g/1/aaaaaaaaaa"]')!
+      .dispatchEvent(new MouseEvent("click", { button: 0, bubbles: true, cancelable: true }))
+    await settle()
+    await click("继续阅读（第 3 页）")
+    expect(router.currentRoute.value.name).toBe("reader")
+    host.querySelector<HTMLElement>('[aria-label="退出阅读"]')!.click()
+    await settle()
+    expect(router.currentRoute.value.fullPath).toBe("/eh/g/1/aaaaaaaaaa")
+    await click("返回列表")
+    expect(router.currentRoute.value.fullPath).toBe("/eh")
+    /* 进图库之前在首页：再后退一次就该离开图库，而不是回到刚离开的详情或阅读器。 */
+    router.back()
+    await settle()
+    expect(router.currentRoute.value.fullPath).toBe("/")
+  })
+
+  it("上一条不是要回的地方时原地替换", async () => {
+    await visit("/eh/history")
+    /* 从历史直接进阅读，退出落在详情页：上一条是历史，所以详情顶替阅读器那一条。 */
+    await click("继续阅读")
+    host.querySelector<HTMLElement>('[aria-label="退出阅读"]')!.click()
+    await settle()
+    expect(router.currentRoute.value.fullPath).toBe("/eh/g/1/aaaaaaaaaa?source=history")
+    await click("返回列表")
+    expect(router.currentRoute.value.name).toBe("gallery-history")
+    router.back()
+    await settle()
+    expect(router.currentRoute.value.fullPath).toBe("/eh")
+  })
+
   it("删除失败保留条目，成功后清除缓存详情的继续阅读页码，清空必须确认", async () => {
     await visit("/eh/g/1/aaaaaaaaaa")
     await visit("/eh/history")
