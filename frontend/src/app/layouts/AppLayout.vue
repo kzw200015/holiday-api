@@ -15,7 +15,6 @@ const authStore = useAuthStore()
 const route = useRoute()
 const returnTo = useGoBack()
 
-/* 回上一级不该在浏览器历史里再垫一层，否则按后退又回到刚离开的页面。 */
 function goBack() {
   if (route.meta.back) {
     returnTo(route.meta.back.to(route))

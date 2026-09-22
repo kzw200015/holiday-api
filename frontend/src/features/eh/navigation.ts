@@ -1,4 +1,4 @@
-import type { LocationQuery, RouteLocationNormalizedLoaded, RouteLocationRaw } from "vue-router"
+import type { LocationQuery, RouteLocationNormalized, RouteLocationRaw } from "vue-router"
 
 export interface GalleryIdentity {
   gid: number
@@ -37,6 +37,6 @@ export function readerLocation(gallery: GalleryIdentity, page: number, source: G
  *
  * 只有手改地址才会在原地换图集，整个重建比让每处状态各自复位简单。其它路由不设 key。
  */
-export function readerInstanceKey(route: RouteLocationNormalizedLoaded) {
+export function readerInstanceKey(route: RouteLocationNormalized) {
   return route.name === "reader" ? `${String(route.params.gid)}/${String(route.params.token)}` : undefined
 }

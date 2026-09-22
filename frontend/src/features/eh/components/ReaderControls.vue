@@ -66,9 +66,8 @@ const chromeButton = {
         v-if="playback.intervalFailed"
         aria-label="自动翻页间隔没读到，重试"
         title="自动翻页间隔没读到，点此重试"
-        class="cursor-pointer text-white hover:bg-white/10 hover:text-white"
+        v-bind="chromeButton"
         size="sm"
-        variant="ghost"
         @click="emit('reloadInterval')"
       >
         重试

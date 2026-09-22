@@ -19,19 +19,21 @@ export function useGalleryDetail(gid: MaybeRefOrGetter<number>, token: MaybeRefO
   const request = computed(() => content.detail(toValue(gid), toValue(token)))
   const data = computed(() => request.value?.data.value)
   const error = computed(() => request.value?.error.value ?? null)
+  /* 详情是否已经到手。阅读器要等它确定之后才敢上报位置。 */
+  const loaded = computed(() => data.value !== undefined)
+  const failure = computed(() => error.value?.message ?? "")
 
   return {
     gallery: computed(() => data.value?.gallery),
     imageUrlTemplate: computed(() => data.value?.imageUrlTemplate ?? ""),
     /* 读到第几页。服务端记的和本地刚翻的都落在这份数据上，所以只有这一个出处。 */
     progress: computed(() => data.value?.progress ?? null),
-    /* 详情是否已经到手。阅读器要等它确定之后才敢上报位置。 */
-    loaded: computed(() => data.value !== undefined),
-    loading: computed(() => data.value === undefined && error.value === null),
+    loaded,
+    loading: computed(() => !loaded.value && error.value === null),
     /* 一份都没读到时的失败，页面只能显示错误。 */
-    errorMessage: computed(() => (data.value === undefined ? (error.value?.message ?? "") : "")),
+    errorMessage: computed(() => (loaded.value ? "" : failure.value)),
     /* 手上有旧的一份、过了新鲜期重取却失败了：旧的照常能用（图片地址签的有效期远比新鲜期长），只提示一下。 */
-    refreshError: computed(() => (data.value !== undefined ? (error.value?.message ?? "") : "")),
+    refreshError: computed(() => (loaded.value ? failure.value : "")),
     reload: () => void content.reloadDetail(toValue(gid), toValue(token)),
   }
 }

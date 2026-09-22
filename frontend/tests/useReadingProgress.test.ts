@@ -47,13 +47,13 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
+function detailResult(progress: number | null, gid = 1, token = "aaaaaaaaaa"): GalleryDetailResult {
+  return { gallery: { ...gallery, gid, token }, progress, imageUrlTemplate: "/image/{page}" }
+}
+
 /* 详情已经读进来了，进度就是它的一个字段——翻页改的正是这一份。 */
 async function seedDetail(gid: number, token: string, progress: number | null) {
-  vi.mocked(fetchGalleryDetail).mockResolvedValueOnce({
-    gallery: { ...gallery, gid, token },
-    progress,
-    imageUrlTemplate: "/image/{page}",
-  })
+  vi.mocked(fetchGalleryDetail).mockResolvedValueOnce(detailResult(progress, gid, token))
   await useGalleryContentStore(pinia).loadDetail(gid, token)
 }
 
@@ -196,10 +196,6 @@ describe("阅读进度上报", () => {
 
 /* 本地那份才是用户正在用的：重取期间本地改过的进度，不能被请求发出那一刻的服务端快照盖回去。 */
 describe("详情重取与本地进度", () => {
-  function detailResult(progress: number | null, gid = 1, token = "aaaaaaaaaa"): GalleryDetailResult {
-    return { gallery: { ...gallery, gid, token }, progress, imageUrlTemplate: "/image/{page}" }
-  }
-
   it("重取在途时翻了页，响应回来仍是刚翻到的那页；之后的重取照常用服务端的", async () => {
     const refetch = deferred<GalleryDetailResult>()
     vi.mocked(fetchGalleryDetail).mockReturnValueOnce(refetch.promise)

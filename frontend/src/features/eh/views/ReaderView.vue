@@ -10,7 +10,7 @@ import ReaderStrip from "@/features/eh/components/ReaderStrip.vue"
 import { useGalleryDetail } from "@/features/eh/composables/useGalleryDetail"
 import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
 import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
-import { galleryDetailLocation, readerLocation, type GallerySource } from "@/features/eh/navigation"
+import { galleryDetailLocation, readerInstanceKey, readerLocation, type GallerySource } from "@/features/eh/navigation"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import { useGoBack } from "@/shared/composables/useGoBack"
 
@@ -84,15 +84,16 @@ const { start: scheduleUrlSync, stop: cancelUrlSync } = useTimeoutFn(syncUrl, UR
  * 再排上的那次 replace 会把离开顶掉、把人拽回阅读器，所以离开途中不再写地址栏。
  */
 let leavingTo: RouteLocationNormalized | undefined
-watch(current, () => {
-  if (!leavingTo) {
-    scheduleUrlSync()
-  }
-})
-/* 开头就收回过的越界页码同样要写回地址栏。 */
-if (current.value !== props.page) {
-  scheduleUrlSync()
-}
+/* immediate：开头就收回过的越界页码同样要写回地址栏。 */
+watch(
+  current,
+  () => {
+    if (!leavingTo) {
+      scheduleUrlSync()
+    }
+  },
+  { immediate: true },
+)
 
 /* 这个实例要走了：自动翻页停下，还没发出的那次进度补上，否则最后翻的几页就丢了。 */
 function leave(to: RouteLocationNormalized) {
@@ -102,9 +103,9 @@ function leave(to: RouteLocationNormalized) {
   flushProgress()
 }
 onBeforeRouteLeave(leave)
-/* 手改地址换图集不算离开路由，但这个实例马上要按图集重建，同样当作离开。 */
-onBeforeRouteUpdate((to) => {
-  if (Number(to.params.gid) !== props.gid || String(to.params.token) !== props.token) {
+/* 手改地址换图集不算离开路由，但 App.vue 马上要按同一个 key 重建这个实例，同样当作离开。 */
+onBeforeRouteUpdate((to, from) => {
+  if (readerInstanceKey(to) !== readerInstanceKey(from)) {
     leave(to)
   }
 })

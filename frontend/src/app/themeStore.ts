@@ -32,7 +32,7 @@ export const useThemeStore = defineStore("ThemeStore", () => {
     setDark(stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches)
   }
 
-  /* 手动切换并记下来，下次打开沿用。存不下就只管这一次 */
+  /* 手动切换并记下来，下次打开沿用 */
   function toggle() {
     setDark(!isDark.value)
     try {
