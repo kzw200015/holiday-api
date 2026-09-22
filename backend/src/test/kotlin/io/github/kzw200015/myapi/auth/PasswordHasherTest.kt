@@ -1,6 +1,9 @@
 package io.github.kzw200015.myapi.auth
 
+import io.github.kzw200015.myapi.AppException
+import java.time.Duration
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
@@ -35,5 +38,18 @@ class PasswordHasherTest {
         for (broken in listOf("", "plain", wrongVariant, badParams)) {
             assertFalse(hasher.matches("随便什么", broken), broken)
         }
+    }
+
+    /** 每算一次要占 64 MiB：同时在算的有上限，排不上又等太久的回「稍后再试」，而不是一直往上堆内存。 */
+    @Test
+    fun `同时在算的哈希有上限，排不上的等太久就放弃`() {
+        val busy = PasswordHasher(queueTimeout = Duration.ofMillis(50))
+        val taken = busy.permits.drainPermits()
+        assertTrue(taken > 0)
+        assertFailsWith<AppException.ResourceExhausted> { busy.matches("随便什么", goHash) }
+        assertFailsWith<AppException.ResourceExhausted> { busy.hash("随便什么") }
+
+        busy.permits.release(taken)
+        assertTrue(busy.matches("correct horse 电池", goHash))
     }
 }

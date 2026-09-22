@@ -1,11 +1,15 @@
 package io.github.kzw200015.myapi.auth
 
+import io.github.kzw200015.myapi.AppException
 import org.bouncycastle.crypto.generators.Argon2BytesGenerator
 import org.bouncycastle.crypto.params.Argon2Parameters
 import org.springframework.stereotype.Component
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.time.Duration
 import java.util.*
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 
 /**
  * argon2id 密码哈希，存成 PHC 串：`$argon2id$v=19$m=65536,t=2,p=1$<盐>$<哈希>`，盐和哈希是不带填充的标准 Base64。
@@ -13,7 +17,14 @@ import java.util.*
  * 校验时参数从串里读，所以改下面的参数只影响新建的密码，已有的哈希照样验得过。
  */
 @Component
-class PasswordHasher {
+class PasswordHasher(private val queueTimeout: Duration = QUEUE_TIMEOUT) {
+    /**
+     * 同时在算的哈希不超过这么多个。每算一次要占 64 MiB，登录又是公开接口、跑在不限数量的虚拟线程上：
+     * 不设上限的话，几十个并发的乱填登录就是几个 GB，整个进程跟着 OOM。排不上的等一会儿，等太久就回「稍后再试」。
+     * 顺带把在线猜密码的速度压在每秒几十次。
+     */
+    internal val permits = Semaphore(MAX_CONCURRENT)
+
     fun hash(password: String): String {
         val salt = ByteArray(SALT_LENGTH).also(random::nextBytes)
         val params = Params(MEMORY_KB, ITERATIONS, PARALLELISM)
@@ -33,17 +44,24 @@ class PasswordHasher {
     }
 
     private fun derive(password: String, salt: ByteArray, params: Params, length: Int): ByteArray {
-        val generator = Argon2BytesGenerator()
-        generator.init(
-            Argon2Parameters.Builder(Argon2Parameters.ARGON2_id)
-                .withVersion(Argon2Parameters.ARGON2_VERSION_13)
-                .withMemoryAsKB(params.memoryKb)
-                .withIterations(params.iterations)
-                .withParallelism(params.parallelism)
-                .withSalt(salt)
-                .build(),
-        )
-        return ByteArray(length).also { generator.generateBytes(password.toByteArray(), it) }
+        if (!permits.tryAcquire(queueTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
+            throw AppException.ResourceExhausted("登录请求太多了，请稍后再试")
+        }
+        try {
+            val generator = Argon2BytesGenerator()
+            generator.init(
+                Argon2Parameters.Builder(Argon2Parameters.ARGON2_id)
+                    .withVersion(Argon2Parameters.ARGON2_VERSION_13)
+                    .withMemoryAsKB(params.memoryKb)
+                    .withIterations(params.iterations)
+                    .withParallelism(params.parallelism)
+                    .withSalt(salt)
+                    .build(),
+            )
+            return ByteArray(length).also { generator.generateBytes(password.toByteArray(), it) }
+        } finally {
+            permits.release()
+        }
     }
 
     private fun parse(encoded: String): Phc? {
@@ -71,6 +89,10 @@ class PasswordHasher {
         const val PARALLELISM = 1
         const val SALT_LENGTH = 16
         const val KEY_LENGTH = 32
+
+        // 两个同时算也就 128 MiB；单次约 40 毫秒，排上几秒的队已经是明显的异常流量
+        const val MAX_CONCURRENT = 2
+        val QUEUE_TIMEOUT: Duration = Duration.ofSeconds(5)
 
         /** 账号不存在时拿它顶上，好让校验耗时与真实账号一致。 */
         const val DUMMY_HASH = "\$argon2id\$v=19\$m=65536,t=2,p=1\$V3RDOUgDvIfDcjYEAIfghw\$" +
