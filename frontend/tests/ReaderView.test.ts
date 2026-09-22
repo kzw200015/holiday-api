@@ -243,7 +243,7 @@ describe("阅读器操作栏", () => {
     expect(host.querySelector<HTMLButtonElement>('[aria-label="下一页"]')!.disabled).toBe(true)
   })
 
-  it("键盘翻页继续更新 URL，控件上的键盘操作不触发全局翻页", async () => {
+  it("键盘翻页继续更新 URL；焦点在按钮上时方向键照常翻页，空格和回车留给按钮", async () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "End" }))
     await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("10")
@@ -253,11 +253,30 @@ describe("阅读器操作栏", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }))
     await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("2")
-    host
-      .querySelector('[aria-label="增加自动翻页间隔"]')!
-      .dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }))
+    /* 用鼠标点过「下一页」之后焦点就留在按钮上，键盘翻页不能因此失灵。 */
+    const button = host.querySelector('[aria-label="下一页"]')!
+    button.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }))
     await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
-    expect(router.currentRoute.value.params.page).toBe("2")
+    expect(router.currentRoute.value.params.page).toBe("3")
+    for (const key of [" ", "Enter"]) {
+      const press = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })
+      button.dispatchEvent(press)
+      expect(press.defaultPrevented).toBe(false)
+    }
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
+    expect(router.currentRoute.value.params.page).toBe("3")
+  })
+
+  it("焦点在滑块里或按着修饰键时不接管按键", async () => {
+    host
+      .querySelector('input[type="range"]')!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }))
+    /* Alt+← 与 ⌘+← 是浏览器的后退，Ctrl+End 之类也各有用处。 */
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true }))
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", metaKey: true }))
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "End", ctrlKey: true }))
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
+    expect(router.currentRoute.value.params.page).toBe("1")
   })
 
   /* 连翻几页只在停下之后写一次地址栏：滚动每帧都在变，路由不该跟着抖。 */

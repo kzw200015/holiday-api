@@ -152,11 +152,17 @@ watch(
 )
 
 useEventListener(window, "keydown", (event: KeyboardEvent) => {
-  /* 焦点位于操作按钮时，空格和回车应保留原生激活行为。 */
-  if (
-    event.target instanceof HTMLElement &&
-    event.target.closest("button, input, textarea, select, [contenteditable]")
-  ) {
+  /* 带修饰键的留给浏览器：Alt+←、⌘+← 是后退。 */
+  if (event.altKey || event.ctrlKey || event.metaKey) {
+    return
+  }
+  const target = event.target instanceof HTMLElement ? event.target : undefined
+  /* 输入类控件自己处理按键，进度条上的方向键本来就是翻页。 */
+  if (target?.closest("input, textarea, select, [contenteditable]")) {
+    return
+  }
+  /* 焦点停在按钮上时只把空格和回车留给按钮激活；方向键照常翻页，否则点过一次「下一页」键盘就失灵了。 */
+  if (target?.closest("button") && (event.key === " " || event.key === "Enter")) {
     return
   }
   const step = PAGE_STEPS[event.key]
