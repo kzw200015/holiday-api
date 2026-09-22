@@ -36,6 +36,13 @@ class ParserTest {
         assertFailsWith<AppException.UpstreamFailure> {
             parseGalleryList("""<a href="/g/123/abc/">x</a><a href="/g/456/0123456789abcdef/">y</a>""")
         }
+
+        // 这一页的结果全被账号的过滤设置滤掉了：不是版面改了，下一页照样可能有结果
+        val filtered = parseGalleryList(
+            """<p>No unfiltered results in this page range.</p><a id="unext" href="/?next=100">Next</a>""",
+        )
+        assertEquals(emptyList(), filtered.refs)
+        assertEquals("100", filtered.nextCursor)
     }
 
     @Test
@@ -101,6 +108,20 @@ class ParserTest {
         assertTrue(image.imageUrl.startsWith("https://bvxhifw.isvxwqkwpklu.hath.network:62121/h/"))
 
         assertNull(parseImagePage("<html><body>Content Warning</body></html>"))
+    }
+
+    @Test
+    fun `认得出 e 站代替页面的那几种说明`() {
+        // 图集被删、转私有：详情页整个换成 div.d 里的一段
+        assertEquals(
+            "This gallery has been removed or is unavailable.",
+            parseNotice("""<html><body><div class="d"><p>This gallery has been removed or is unavailable.</p></div></body></html>"""),
+        )
+        // 令牌不对、页码越界：一句不带标签的纯文本
+        assertEquals("Key missing, or incorrect key provided.", parseNotice("Key missing, or incorrect key provided."))
+        // 正常页面不是说明
+        assertNull(parseNotice(fixture("gallery-page.html")))
+        assertNull(parseNotice(""))
     }
 
     @Test

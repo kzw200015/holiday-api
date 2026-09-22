@@ -66,9 +66,10 @@ class EhClient(
         }.associateBy { it.ref }
 
     fun fetchGallerySlice(access: EhAccess, ref: GalleryRef, slice: Int): GallerySlice {
-        val parsed = parseGallerySlice(fetchPage(access, "/g/${ref.gid}/${ref.token}/?p=$slice"))
+        val page = fetchPage(access, "/g/${ref.gid}/${ref.token}/?p=$slice")
+        val parsed = parseGallerySlice(page)
         if (parsed.pageTokens.isEmpty()) {
-            throw unavailable("图集页面没有可识别的图片令牌")
+            unrecognized(page, "图集页面没有可识别的图片令牌")
         }
         return parsed
     }
@@ -81,8 +82,9 @@ class EhClient(
         reloadToken: String? = null
     ): ImagePage {
         val reload = reloadToken?.let { "?nl=${URLEncoder.encode(it, Charsets.UTF_8)}" }.orEmpty()
-        return parseImagePage(fetchPage(access, "/s/$pageToken/${ref.gid}-$page$reload"))
-            ?: throw unavailable("第 $page 页没解析出图片地址，e 站版面可能改了")
+        val html = fetchPage(access, "/s/$pageToken/${ref.gid}-$page$reload")
+        val image = parseImagePage(html) ?: unrecognized(html, "第 $page 页没解析出图片地址，e 站版面可能改了")
+        return image.withinQuota()
     }
 
     /** 经 showpage 接口取图片地址；showkey 过期时返回 null，调用方回退到抓图片页。其余协议错误照常抛出。 */
@@ -95,8 +97,9 @@ class EhClient(
             "Key mismatch" -> return null
             else -> throw unavailable("e 站图片接口拒绝了请求：$error")
         }
-        return parseShowPageFragment(response.path("i3").asString(""))
+        val image = parseShowPageFragment(response.path("i3").asString(""))
             ?: throw unavailable("第 $page 页的图片接口没有返回图片地址")
+        return image.withinQuota()
     }
 
     /**
@@ -173,12 +176,14 @@ class EhClient(
     private fun callApi(access: EhAccess, payload: Map<String, Any>): JsonNode {
         val response =
             read(HttpMethod.POST, access.site.apiHost, cookieHeader(access.credential), json.writeValueAsBytes(payload))
-        assertUsable(response)
-        return try {
-            json.readTree(response.body)
-        } catch (e: Exception) {
-            throw AppException.UpstreamFailure("e 站接口返回的不是预期的 JSON", e)
+        val parsed = runCatching { json.readTree(response.body) }
+        // 解得开的 JSON 不按文案判断：标题是任意文本，里面出现「temporarily banned」不代表被封。解不开才交给 assertUsable 认是哪种失败
+        val tree = parsed.getOrNull()?.takeIf { it.isObject && response.status == 200 }
+        if (tree == null) {
+            assertUsable(response)
+            throw AppException.UpstreamFailure("e 站接口返回的不是预期的 JSON", parsed.exceptionOrNull())
         }
+        return tree
     }
 
     /** 页面、JSON 与凭据探测共用：整个响应读进内存。图片流不走这里。 */
@@ -213,23 +218,52 @@ class EhClient(
         if (status == 509) {
             throw quotaExceeded()
         }
-        // 里站在 Cookie 无效或账号无权限时回 200 加空 body，不是 403
+        // 封禁页是一句不带任何标签的纯文本。只认这个形状：正常页面里的标题、评论、回显的搜索词出现同样的字眼不算
+        if ('<' !in body && ("temporarily banned" in body || "excessive pageloads" in body)) {
+            throw bannedAt(url)
+        }
+        if (status >= 500) {
+            throw unavailable("e 站返回了 HTTP $status")
+        }
         if (body.isBlank()) {
-            throw sadPanda()
-        }
-        // 按上游页面的固定文案识别，版面变更时需要更新样本
-        if ("temporarily banned" in body || "excessive pageloads" in body) {
-            log.warn("出口 IP 被 e 站临时封禁 url={}", url)
-            throw banned()
-        }
-        // 被标记的图集在没有 nw cookie 时回一张插页
-        if ("Content Warning" in body) {
-            throw contentWarning()
+            // 里站在 Cookie 无效或账号无权限时回空 body（200，或 302 回表站），不是 403；表站回空页面则是出口 IP 被封了
+            if (url.startsWith(Site.EX.pageHost) || url.startsWith(Site.EX.apiHost)) {
+                throw sadPanda()
+            }
+            if (status == 200) {
+                throw bannedAt(url)
+            }
         }
         // 正常的页面请求不会重定向，会重定向说明身份没被认下来
         if (status >= 300) {
             throw unavailable("e 站返回了 HTTP $status")
         }
+    }
+
+    private fun bannedAt(url: String): AppException {
+        log.warn("出口 IP 被 e 站临时封禁 url={}", url)
+        return banned()
+    }
+
+    /**
+     * 页面没解析出要的东西时，先认一认是不是 e 站那几种代替页面的说明，认不出来才按版面改了报告。
+     * 放在解析失败之后才认：正常页面里的标题、评论也可能出现这些字眼，先按文案判断会误伤。
+     */
+    private fun unrecognized(page: String, fallback: String): Nothing {
+        // 被标记的图集在没有 nw cookie 时回一张插页
+        if ("Content Warning" in page) {
+            throw contentWarning()
+        }
+        parseNotice(page)?.let { throw upstreamNotice(it) }
+        throw unavailable(fallback)
+    }
+
+    /** 配额用尽时 e 站不报错，而是把大图换成一张提示图。这张图不能当成这一页的内容返回，更不能缓存下来。 */
+    private fun ImagePage.withinQuota(): ImagePage {
+        if (QUOTA_IMAGE.matches(imageUrl)) {
+            throw quotaExceeded()
+        }
+        return this
     }
 
     private companion object {
@@ -238,6 +272,9 @@ class EhClient(
 
         /** 检查账号在表站是否登录成功：未登录时这个页面会 302 走。 */
         val HOME_URL = "${Site.E.pageHost}/home.php"
+
+        /** 配额提示图：表站是 ehgt.org/g/509.gif，里站是 exhentai.org/img/509.gif，小图版本叫 509s.gif（EhViewer 按同样的规则识别）。 */
+        val QUOTA_IMAGE = Regex("""https://(?:ehgt\.org/g|exhentai\.org/img)/509s?\.gif""")
 
         /** 上游的数字、HTML 实体与时间在协议边界统一转换。 */
         fun toMetadata(entry: JsonNode) = GalleryMetadata(

@@ -23,6 +23,9 @@ fun credentialRejected() = AppException.InvalidArgument("这组 Cookie 用不了
 /** 图集在 gdata 里查不到：被删、转私有，或者 gid/token 对不上。 */
 fun galleryMissing() = AppException.NotFound("这个图集取不到，可能已被删除或转为私有")
 
+/** e 站用一段说明代替了页面：图集被删或转私有、令牌不对、页码越界。说明原文照转，它比我们猜的准。 */
+fun upstreamNotice(text: String) = AppException.NotFound("e 站提示：$text")
+
 /** 上游返回了意料之外的东西，通常是版面改了。 */
 fun unavailable(message: String) = AppException.UpstreamFailure(message)
 

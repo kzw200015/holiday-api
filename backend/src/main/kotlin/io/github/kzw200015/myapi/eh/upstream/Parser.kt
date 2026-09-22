@@ -39,6 +39,15 @@ private val nextCursorLink = Regex("""<a[^>]*\bid="unext"[^>]*\bhref="([^"]*)"""
 private val showKeyScript = Regex("""var\s+showkey\s*=\s*"([^"]+)"""")
 private val reloadCall = Regex("""nl\('([^']+)'\)""")
 
+/** 图集被删、转私有时，详情页整个换成 div.d 里的一段说明。 */
+private val galleryNotice = Regex("""<div class="d">\s*<p[^>]*>([^<]+)""")
+
+/**
+ * 搜索没有结果时的两种说法：真没命中，或者这一页的结果全被账号的过滤设置（语言、标签排除）滤掉了。
+ * 后一种不是版面改了，下一页照样可能有结果。
+ */
+private val emptyListMarkers = listOf("No hits found", "No unfiltered results")
+
 /** 评论时间，形如 `28 May 2022, 01:53`，页面上写的是 UTC。 */
 private val commentPostedAt = Regex("""Posted on (\d{1,2} \w+ \d{4}, \d{2}:\d{2})""")
 private val commentTimeFormat = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.ENGLISH)
@@ -78,7 +87,7 @@ fun parseGalleryList(page: String): GalleryList {
         .map { GalleryRef(it.groupValues[1].toLong(), it.groupValues[2]) }
         .distinctBy { it.gid }
         .toList()
-    if (refs.isEmpty() && "No hits found" !in page) {
+    if (refs.isEmpty() && emptyListMarkers.none { it in page }) {
         throw unavailable("没有识别出图集搜索结果，e 站版面可能改了")
     }
     return GalleryList(refs, parseNextCursor(page))
@@ -126,6 +135,15 @@ fun parseShowPageFragment(i3: String): ImagePage? {
         nextToken = next?.groupValues?.get(1),
         reloadToken = reloadCall.find(i3)?.groupValues?.get(1),
     )
+}
+
+/**
+ * e 站用一段说明代替页面时的说明文字，不是这种页面时返回 null。
+ * 图集被删或转私有是 div.d 里的一段；令牌不对、页码越界是一句不带任何标签的纯文本（Key missing、Invalid page）。
+ */
+fun parseNotice(page: String): String? {
+    val text = galleryNotice.find(page)?.groupValues?.get(1) ?: page.takeIf { '<' !in it }
+    return text?.let(::decodeEntities)?.trim()?.take(200)?.takeIf { it.isNotEmpty() }
 }
 
 /**

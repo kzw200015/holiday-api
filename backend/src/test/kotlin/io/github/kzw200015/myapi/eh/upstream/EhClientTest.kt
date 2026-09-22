@@ -16,26 +16,102 @@ class EhClientTest {
     @Test
     fun `识别上游那些看起来正常的失败`() {
         val client = FakeUpstream { page("") }.client()
-        val cases: List<Triple<Int, String, KClass<out AppException>?>> = listOf(
-            Triple(509, "whatever", AppException.ResourceExhausted::class),
+        data class Case(val url: String, val status: Int, val body: String, val expected: KClass<out AppException>?)
+
+        val front = "https://e-hentai.org/"
+        val ex = "https://exhentai.org/"
+        val cases = listOf(
+            Case(front, 509, "whatever", AppException.ResourceExhausted::class),
             // 509 的响应体也可能是空的，先判状态码才能给出准确的提示
-            Triple(509, "", AppException.ResourceExhausted::class),
-            // 里站 Cookie 无效时回 200 加空 body，不是 403
-            Triple(200, "", AppException.InvalidArgument::class),
-            Triple(200, "   \n  ", AppException.InvalidArgument::class),
-            Triple(200, "Your IP address has been temporarily banned", AppException.ResourceExhausted::class),
-            Triple(200, "detected excessive pageloads", AppException.ResourceExhausted::class),
-            Triple(200, "<h1>Content Warning</h1>", AppException.UpstreamFailure::class),
+            Case(front, 509, "", AppException.ResourceExhausted::class),
+            // 里站 Cookie 无效时回空 body（200，或 302 回表站），不是 403
+            Case(ex, 200, "", AppException.InvalidArgument::class),
+            Case(ex, 200, "   \n  ", AppException.InvalidArgument::class),
+            Case(ex, 302, "", AppException.InvalidArgument::class),
+            Case("https://s.exhentai.org/api.php", 200, "", AppException.InvalidArgument::class),
+            // 表站回空页面是出口 IP 被封了，跟 Cookie 无关
+            Case(front, 200, "", AppException.ResourceExhausted::class),
+            // 5xx 是 e 站自己出了状况，不能说成 Cookie 失效
+            Case(ex, 503, "", AppException.UpstreamFailure::class),
+            Case(front, 502, "<html>Bad Gateway</html>", AppException.UpstreamFailure::class),
+            // 封禁页是一句不带标签的纯文本
+            Case(
+                front,
+                200,
+                "Your IP address has been temporarily banned for excessive pageloads. The ban expires in 59 minutes",
+                AppException.ResourceExhausted::class,
+            ),
+            Case(front, 200, "detected excessive pageloads", AppException.ResourceExhausted::class),
+            // 正常页面里的标题、评论、回显的搜索词出现同样的字眼不算
+            Case(front, 200, """<div class="c6">I got temporarily banned lol</div>""", null),
+            Case(front, 200, """<input name="f_search" value="Content Warning">""", null),
             // 正常的页面请求不会重定向，会重定向说明身份没被认下来
-            Triple(302, "<html>go away</html>", AppException.UpstreamFailure::class),
+            Case(front, 302, "<html>go away</html>", AppException.UpstreamFailure::class),
             // 搜索没命中是正常页面，交给解析器返回空列表
-            Triple(200, "<p>No hits found</p>", null),
-            Triple(200, """<table class="itg">...</table>""", null),
+            Case(front, 200, "<p>No hits found</p>", null),
+            Case(front, 200, """<table class="itg">...</table>""", null),
         )
-        for ((status, body, expected) in cases) {
-            val failure = runCatching { client.assertUsable(status, body, "https://e-hentai.org/") }.exceptionOrNull()
-            assertEquals(expected, failure?.let { it::class }, "assertUsable($status, \"$body\")")
+        for ((url, status, body, expected) in cases) {
+            val failure = runCatching { client.assertUsable(status, body, url) }.exceptionOrNull()
+            assertEquals(expected, failure?.let { it::class }, "assertUsable($url, $status, \"$body\")")
         }
+    }
+
+    /** 这些字眼只在页面没解析出东西之后才认：正常页面里也可能出现它们。 */
+    @Test
+    fun `页面没解析出来时才认内容警告页与 e 站的说明页`() {
+        val ref = GalleryRef(1, "0123456789")
+        fun slice(body: String) = FakeUpstream { page(body) }.client().fetchGallerySlice(EhAccess.ANONYMOUS, ref, 0)
+
+        // 评论里写着 Content Warning 的正常页面照常解析
+        val normal = slice("""<a href="/s/aaaaaaaaaa/1-1">1</a><div class="c6">Content Warning 是个游戏</div>""")
+        assertEquals(mapOf(1 to "aaaaaaaaaa"), normal.pageTokens)
+
+        val warning = assertFailsWith<AppException.UpstreamFailure> {
+            slice("""<div class="d"><p>Content Warning</p><p>This gallery has been flagged as Offensive.</p></div>""")
+        }
+        assertEquals(contentWarning().message, warning.message)
+
+        // 图集被删、转私有时 e 站给的是一段说明：原文照转，回 404
+        val removed = assertFailsWith<AppException.NotFound> {
+            slice("""<div class="d"><p>This gallery has been removed or is unavailable.</p></div>""")
+        }
+        assertEquals("e 站提示：This gallery has been removed or is unavailable.", removed.message)
+        assertFailsWith<AppException.NotFound> {
+            FakeUpstream { page("Key missing, or incorrect key provided.") }.client()
+                .fetchImagePage(EhAccess.ANONYMOUS, ref, 1, "0123456789")
+        }
+        // 认不出来的才是版面改了
+        assertFailsWith<AppException.UpstreamFailure> { slice("<html><body>something else</body></html>") }
+    }
+
+    /** 配额用尽时 e 站把大图换成一张提示图，而不是报错。 */
+    @Test
+    fun `大图地址换成了配额提示图时报配额用尽`() {
+        val ref = GalleryRef(1, "0123456789")
+        for (quota in listOf("https://ehgt.org/g/509.gif", "https://exhentai.org/img/509s.gif")) {
+            val html = FakeUpstream { page("""<img id="img" src="$quota">""") }.client()
+            assertFailsWith<AppException.ResourceExhausted>(quota) {
+                html.fetchImagePage(EhAccess.ANONYMOUS, ref, 1, "0123456789")
+            }
+            val api = FakeUpstream { page("""{"i3":"<img id=\"img\" src=\"$quota\">"}""") }.client()
+            assertFailsWith<AppException.ResourceExhausted>(quota) {
+                api.showImage(EhAccess.ANONYMOUS, ref, 1, "0123456789", "key")
+            }
+        }
+    }
+
+    /** 标题是任意文本：JSON 解得开就不按文案判断。解不开的纯文本才可能是封禁页。 */
+    @Test
+    fun `接口返回的标题里有封禁、内容警告的字眼不算失败`() {
+        val title = "Content Warning - I got temporarily banned for excessive pageloads"
+        val gdata = """{"gmetadata":[{"gid":1,"token":"0123456789","title":"$title"}]}"""
+        val metadata = FakeUpstream { FakeResponse(gdata, contentType = "application/json") }.client()
+            .fetchMetadata(listOf(GalleryRef(1, "0123456789")))
+        assertEquals(title, metadata.values.single().title)
+
+        val banned = FakeUpstream { page("Your IP address has been temporarily banned for excessive pageloads") }.client()
+        assertFailsWith<AppException.ResourceExhausted> { banned.fetchMetadata(listOf(GalleryRef(1, "0123456789"))) }
     }
 
     /** 图片主机白名单是图片代理唯一的 SSRF 防线。这里列的绕过手法都是真会被人试的。 */
