@@ -29,7 +29,7 @@ import kotlin.test.assertTrue
  */
 @SpringBootTest(
     properties = [
-        "myapi.secret-key=test-secret",
+        "myapi.secret-key=test-secret-test-secret-test-secret",
         "myapi.auth.allow-registration=true",
         "spring.sql.init.mode=always",
     ],

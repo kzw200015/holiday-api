@@ -12,7 +12,7 @@ data class SigningProperties(
      * 主密钥，登录令牌与图片地址的签名密钥都由它派生。
      *
      * 故意没有可用的默认值：数据库口令泄露只影响这一个库，签名密钥泄露则意味着任何人都能伪造任意账号的令牌。
-     * 为空时绑定失败、进程拒绝启动。
+     * 为空或太短时绑定失败、进程拒绝启动：拿到一个令牌就能离线猜密钥，短密钥猜得出来。
      */
     val secretKey: String = "",
 ) {
@@ -20,6 +20,13 @@ data class SigningProperties(
         require(secretKey.isNotBlank()) {
             "缺少 myapi.secret-key（环境变量 MYAPI_SECRETKEY），用 `openssl rand -hex 32` 生成一个再启动"
         }
+        require(secretKey.toByteArray().size >= MIN_SECRET_BYTES) {
+            "myapi.secret-key 太短，至少要 $MIN_SECRET_BYTES 字节，用 `openssl rand -hex 32` 生成一个再启动"
+        }
+    }
+
+    private companion object {
+        const val MIN_SECRET_BYTES = 32
     }
 }
 
