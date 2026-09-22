@@ -175,7 +175,7 @@ describe("阅读历史分页", () => {
     expect(loadHistory).toHaveBeenCalledTimes(2)
   })
 
-  /* 续取写回的是它开始时拿到的列表，删除在途时放它走，刚删掉的那条会跟着回来。 */
+  /* 读和写都会改动列表，一次只接一个操作：删除在途时不续取，等它落地之后再接着往下取。 */
   it("删除还没回来时不续取下一页", async () => {
     loadHistory.mockResolvedValueOnce(page(1, "cursor-2")).mockResolvedValueOnce(page(2, null))
     await mountHistory()
