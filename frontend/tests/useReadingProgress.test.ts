@@ -6,7 +6,7 @@ import { createApp, nextTick } from "vue"
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryDetail, saveProgress } from "@/features/eh/api"
 import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
-import type { GalleryDetail } from "@/features/eh/model"
+import type { GalleryDetail, GalleryDetailResult } from "@/features/eh/model"
 import { useGalleryContentStore } from "@/features/eh/store"
 
 vi.mock("@/features/eh/api", async (original) => ({
@@ -141,5 +141,50 @@ describe("阅读进度上报", () => {
     await vi.advanceTimersByTimeAsync(SAVE_DELAY)
     await nextTick()
     expect(progressOf(1, "aaaaaaaaaa")).toBe(20)
+  })
+})
+
+/* 本地那份才是用户正在用的：重取期间本地改过的进度，不能被请求发出那一刻的服务端快照盖回去。 */
+describe("详情重取与本地进度", () => {
+  function detailResult(progress: number | null, gid = 1, token = "aaaaaaaaaa"): GalleryDetailResult {
+    return { gallery: { ...gallery, gid, token }, progress, imageUrlTemplate: "/image/{page}" }
+  }
+
+  it("重取在途时翻了页，响应回来仍是刚翻到的那页；之后的重取照常用服务端的", async () => {
+    const refetch = deferred<GalleryDetailResult>()
+    vi.mocked(fetchGalleryDetail).mockReturnValueOnce(refetch.promise)
+    const content = useGalleryContentStore(pinia)
+    const reload = content.reloadDetail(1, "aaaaaaaaaa")
+    const { api } = await mountReader()
+    api.report(15)
+    refetch.resolve(detailResult(3))
+    await reload
+    expect(progressOf(1, "aaaaaaaaaa")).toBe(15)
+
+    vi.mocked(fetchGalleryDetail).mockResolvedValueOnce(detailResult(20))
+    await content.reloadDetail(1, "aaaaaaaaaa")
+    expect(progressOf(1, "aaaaaaaaaa")).toBe(20)
+  })
+
+  it("详情还没到手时删掉了记录，迟到的详情不带回旧进度", async () => {
+    const first = deferred<GalleryDetailResult>()
+    vi.mocked(fetchGalleryDetail).mockReturnValueOnce(first.promise)
+    const content = useGalleryContentStore(pinia)
+    const load = content.loadDetail(2, "bbbbbbbbbb")
+    content.forgetProgress(2, "bbbbbbbbbb")
+    first.resolve(detailResult(17, 2, "bbbbbbbbbb"))
+    await load
+    expect(progressOf(2, "bbbbbbbbbb")).toBeNull()
+  })
+
+  it("重取在途时清空了历史，响应回来进度仍是空的", async () => {
+    const refetch = deferred<GalleryDetailResult>()
+    vi.mocked(fetchGalleryDetail).mockReturnValueOnce(refetch.promise)
+    const content = useGalleryContentStore(pinia)
+    const reload = content.reloadDetail(1, "aaaaaaaaaa")
+    content.forgetAllProgress()
+    refetch.resolve(detailResult(3))
+    await reload
+    expect(progressOf(1, "aaaaaaaaaa")).toBeNull()
   })
 })
