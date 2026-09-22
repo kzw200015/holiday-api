@@ -187,7 +187,8 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
    */
   function persistProgress(gid: number, token: string, page: number) {
     const saving = saveProgress(gid, token, page).catch(() => {})
-    progressSettled = Promise.all([progressSettled, saving])
+    /* 不用 Promise.all：它的结果数组一层套一层，整次会话每一次的结果都留在内存里。 */
+    progressSettled = progressSettled.then(() => saving)
   }
 
   /** 此刻已经发出的进度保存全部回来（成败都算）。读阅读历史前先等它，否则刚退出阅读时读回的还是上报之前的页码。 */
