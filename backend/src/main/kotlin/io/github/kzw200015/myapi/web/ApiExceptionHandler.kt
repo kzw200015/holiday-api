@@ -71,6 +71,10 @@ class ApiExceptionHandler : ResponseEntityExceptionHandler() {
             statusCode.is4xxClientError -> "请求参数格式错误"
             else -> "服务器内部错误"
         }
+        // 5xx 是本站的问题（响应体写不出去、路径变量没配上），回给客户端的只有一句话，原文得进日志
+        if (statusCode.is5xxServerError) {
+            log.error("请求失败 {} {}", statusCode.value(), request.getDescription(false), ex)
+        }
         return super.handleExceptionInternal(ex, ApiResponse(statusCode.value(), null, msg), headers, statusCode, request)
     }
 
