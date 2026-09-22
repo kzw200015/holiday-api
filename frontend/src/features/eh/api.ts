@@ -64,7 +64,14 @@ export function unbindCredential() {
 }
 
 /* 偏好与搜索历史读一次之后由前端说了算，写入都是把当前这份整个推上去，不再逐个动作上报。
- * 以下写接口一律不接 AbortSignal：已经发出的保存不该被取消。 */
+ * 以下写接口一律不接 AbortSignal：已经发出的保存不该因为离开页面被取消，只有挂住太久的才中止（见 SAVE_TIMEOUT）。 */
+
+/*
+ * 排队保存的时限。保存只是落库，正常百毫秒内就回来；十秒还没回来多半是连接半开（移动网络切换时常见），
+ * 再等下去同一条队后面的保存全都跟着卡住。超时即中止，这一次算没存上，队列接着往下走。
+ * 读取不设这个时限：换页面时由调用方取消，搜索这类要抓上游页面的读取本来就可能很慢。
+ */
+const SAVE_TIMEOUT = 10_000
 
 export function fetchGalleryPreferences(signal?: AbortSignal) {
   return httpClient.get<GalleryPreferences>("/eh/preferences", { signal })
@@ -72,7 +79,7 @@ export function fetchGalleryPreferences(signal?: AbortSignal) {
 
 /** 只回成败：本地那份才是用户正在用的，服务端存成什么样不回写。 */
 export function saveGalleryPreferences(preferences: GalleryPreferences) {
-  return httpClient.put<null>("/eh/preferences", preferences)
+  return httpClient.put<null>("/eh/preferences", preferences, { timeout: SAVE_TIMEOUT })
 }
 
 export function fetchSearchHistory(signal?: AbortSignal) {
@@ -81,7 +88,7 @@ export function fetchSearchHistory(signal?: AbortSignal) {
 
 /** 同样只回成败。超过 10 条或含超过 200 字节的关键词会被整份退回。 */
 export function saveSearchHistory(entries: string[]) {
-  return httpClient.put<null>("/eh/search-history", { entries })
+  return httpClient.put<null>("/eh/search-history", { entries }, { timeout: SAVE_TIMEOUT })
 }
 
 export function fetchReadingHistory(cursor: string, signal?: AbortSignal) {
@@ -98,5 +105,5 @@ export function clearReadingHistory() {
 
 /** 上报读到第几页 */
 export function saveProgress(gid: number, token: string, page: number) {
-  return httpClient.post<null>("/eh/progress", { gid, token, page })
+  return httpClient.post<null>("/eh/progress", { gid, token, page }, { timeout: SAVE_TIMEOUT })
 }
