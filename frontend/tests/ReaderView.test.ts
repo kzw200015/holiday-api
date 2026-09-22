@@ -115,23 +115,6 @@ describe("阅读进度保存", () => {
     expect(saveProgress).toHaveBeenLastCalledWith(1, "token", 4)
   })
 
-  it("保存较慢时按顺序提交，旧页码不会晚于新页码写入", async () => {
-    let finish!: (value: null) => void
-    vi.mocked(saveProgress).mockReturnValueOnce(
-      new Promise((resolve) => {
-        finish = resolve
-      }),
-    )
-    await router.replace("/1/token/2")
-    await vi.advanceTimersByTimeAsync(1200)
-    await router.replace("/1/token/3")
-    await vi.advanceTimersByTimeAsync(1200)
-    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 2)
-    finish(null)
-    await vi.advanceTimersByTimeAsync(0)
-    expect(saveProgress).toHaveBeenNthCalledWith(2, 1, "token", 3)
-  })
-
   /* 地址是外部输入：缓存里有详情时页数一开始就知道，越界页码当场收回，不能先把它上报出去。 */
   it("详情已在缓存里时，越界页码当场收回，只上报收回后的页", async () => {
     await router.replace("/2/other/1")

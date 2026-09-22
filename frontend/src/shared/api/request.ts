@@ -75,10 +75,5 @@ export function createQueue() {
     generation += 1
   }
 
-  /** 等到此刻已经排上的写入全部跑完，成败都算。之后再排上的不等。 */
-  function idle(): Promise<void> {
-    return tail.then(() => undefined)
-  }
-
-  return { enqueue, reset, idle }
+  return { enqueue, reset }
 }

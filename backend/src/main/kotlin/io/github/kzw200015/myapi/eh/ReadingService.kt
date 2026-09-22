@@ -8,8 +8,19 @@ import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.*
 
-/** 一次阅读进度上报，也是 POST /api/eh/progress 的请求体。 */
-data class ReadingPosition(val gid: Long = 0, val token: String = "", val page: Int = 0)
+/**
+ * 一次阅读进度上报，也是 POST /api/eh/progress 的请求体。
+ *
+ * writer 是上报方（前端的一次页面加载）的标识，seq 是它的第几次上报。前端不排队，当场发出，
+ * 同一上报方的两次上报可能乱序到达，按 seq 只认新的那次；不同上报方之间照到达顺序覆盖。
+ */
+data class ReadingPosition(
+    val gid: Long = 0,
+    val token: String = "",
+    val page: Int = 0,
+    val writer: String = "",
+    val seq: Int = 0
+)
 
 /** 阅读历史的一条。元数据取不到时 gallery 为 null，但记录照样能删。 */
 data class ReadingHistoryItem(
@@ -26,7 +37,13 @@ class ReadingService(private val progress: ReadingProgressMapper, private val ca
     fun save(userId: Long, position: ReadingPosition) {
         val ref = GalleryRef.of(position.gid, position.token)
         checkPage(position.page)
-        progress.upsert(userId, ref.gid, ref.token, position.page)
+        if (position.writer.isEmpty() || position.writer.length > MAX_WRITER_LENGTH) {
+            throw AppException.InvalidArgument("上报方标识不合法")
+        }
+        if (position.seq <= 0) {
+            throw AppException.InvalidArgument("上报序号不合法")
+        }
+        progress.upsert(userId, ref.gid, ref.token, position.page, position.writer, position.seq)
     }
 
     /** 这本读到第几页，没读过是 null。 */
@@ -57,6 +74,10 @@ class ReadingService(private val progress: ReadingProgressMapper, private val ca
 
     private companion object {
         const val PAGE_SIZE = 25
+
+        /** 前端发的是 32 个十六进制字符，留出余量；只为不让任意长的字符串落库。 */
+        const val MAX_WRITER_LENGTH = 64
+
         val encoder: Base64.Encoder = Base64.getUrlEncoder().withoutPadding()
         val decoder: Base64.Decoder = Base64.getUrlDecoder()
 

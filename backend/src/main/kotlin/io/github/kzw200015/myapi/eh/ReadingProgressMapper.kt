@@ -17,7 +17,8 @@ data class HistoryCursor(val readAt: Instant, val gid: Long)
 interface ReadingProgressMapper {
     fun findPage(userId: Long, gid: Long): Int?
 
-    fun upsert(userId: Long, gid: Long, token: String, page: Int)
+    /** 同一上报方的序号不比库里的新时不写，见 ReadingPosition。 */
+    fun upsert(userId: Long, gid: Long, token: String, page: Int, writer: String, seq: Int)
 
     /** 按最近阅读排序；before 为 null 表示第一页。 */
     fun list(userId: Long, before: HistoryCursor?, limit: Int): List<ProgressRow>

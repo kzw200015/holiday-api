@@ -93,11 +93,11 @@ class MapperTest {
         val user = users.insert("history", "hash").id
         val other = users.insert("history-other", "hash").id
         for (gid in 1L..27L) {
-            progress.upsert(user, gid, "aaaaaaaaaa", gid.toInt())
+            progress.upsert(user, gid, "aaaaaaaaaa", gid.toInt(), "writer", 1)
         }
-        progress.upsert(other, 27, "aaaaaaaaaa", 99)
+        progress.upsert(other, 27, "aaaaaaaaaa", 99, "writer", 1)
         // 重复上报就覆盖
-        progress.upsert(user, 5, "bbbbbbbbbb", 50)
+        progress.upsert(user, 5, "bbbbbbbbbb", 50, "writer", 2)
         assertEquals(50, progress.findPage(user, 5))
 
         // 事务里 now() 不变，时间相同时靠 gid 保证顺序稳定
@@ -120,6 +120,22 @@ class MapperTest {
         progress.clear(user)
         assertEquals(emptyList(), progress.list(user, null, 25))
         assertEquals(99, progress.findPage(other, 27))
+    }
+
+    @Test
+    fun `同一上报方迟到的旧序号不覆盖进度，别的上报方照到达顺序覆盖`() {
+        val user = users.insert("progress-order", "hash").id
+        progress.upsert(user, 1, "aaaaaaaaaa", 30, "tab-a", 2)
+        progress.upsert(user, 1, "aaaaaaaaaa", 3, "tab-a", 1)
+        assertEquals(30, progress.findPage(user, 1))
+        // 同一个序号重放一遍也不算新的
+        progress.upsert(user, 1, "aaaaaaaaaa", 4, "tab-a", 2)
+        assertEquals(30, progress.findPage(user, 1))
+        progress.upsert(user, 1, "aaaaaaaaaa", 31, "tab-a", 3)
+        assertEquals(31, progress.findPage(user, 1))
+
+        progress.upsert(user, 1, "aaaaaaaaaa", 5, "tab-b", 1)
+        assertEquals(5, progress.findPage(user, 1))
     }
 
     @Test

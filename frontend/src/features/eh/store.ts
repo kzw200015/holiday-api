@@ -135,8 +135,8 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
    * 留在闭包里不交给 pinia 当 state：state 的类型会把条目里的 ref 当成已经解包，可运行时它们仍是 ref。
    */
   const details = shallowReactive(new Map<string, DetailEntry>())
-  /* 所有阅读器共用一条：同一本的两次上报一旦乱序，后到的旧页码会把进度按回去。 */
-  const progressSaves = createQueue()
+  /* 此刻已经发出的进度保存全部回来（成败都算）的时刻。 */
+  let progressSettled: Promise<unknown> = Promise.resolve()
 
   function entryOf(gid: number, token: string) {
     const key = `${gid}/${token}`
@@ -182,14 +182,18 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
     }
   }
 
-  /** 往服务端存进度。排在一条队上依次发出，存不上不提示也不回退：下次翻页会再报一次。 */
+  /**
+   * 往服务端存进度。当场发出，不等前一次回来：页面卸载时补发的那次要是排在前一次后面，前一次回来时页面已经没了。
+   * 乱序到达由服务端按上报序号挡住（见 saveProgress）。存不上不提示也不回退：下次翻页会再报一次。
+   */
   function persistProgress(gid: number, token: string, page: number) {
-    progressSaves.enqueue(() => saveProgress(gid, token, page))
+    const saving = saveProgress(gid, token, page).catch(() => {})
+    progressSettled = Promise.all([progressSettled, saving])
   }
 
-  /** 此刻已经排上的进度保存全部跑完（成败都算）。读阅读历史前先等它，否则刚退出阅读时读回的还是上报之前的页码。 */
-  function progressSaved() {
-    return progressSaves.idle()
+  /** 此刻已经发出的进度保存全部回来（成败都算）。读阅读历史前先等它，否则刚退出阅读时读回的还是上报之前的页码。 */
+  async function progressSaved() {
+    await progressSettled
   }
 
   function dropDetails() {
@@ -207,12 +211,9 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
 
   /*
    * 换本站账号时只清空、不动版本号：KeepAlive 会按新 key 把页面全部重建，没有需要通知的旧页面。
-   * 进度队列也一并作废，旧账号排着的上报不该记到新账号头上。
+   * 进度上报不排队，没有会带着新账号令牌出去的旧上报；阅读器那边换过账号就不再报，见 useReadingProgress。
    */
-  onAccountChange(() => {
-    dropDetails()
-    progressSaves.reset()
-  })
+  onAccountChange(dropDetails)
 
   return {
     revision,

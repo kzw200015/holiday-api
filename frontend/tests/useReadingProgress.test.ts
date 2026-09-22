@@ -106,21 +106,17 @@ describe("阅读进度上报", () => {
     expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "aaaaaaaaaa", 7)
   })
 
-  /* 同一本的两次上报一旦乱序，后到的旧页码就会把进度按回去。 */
-  it("前一次还没回来就不发下一次", async () => {
-    const inflight = deferred<null>()
-    vi.mocked(saveProgress).mockReturnValueOnce(inflight.promise)
+  /* 乱序到达由服务端按上报序号挡住。要是等前一次回来，页面卸载时补发的那次就发不出去了：前一次回来时页面已经没了。 */
+  it("前一次还没回来，页面收起时那次也当场发出", async () => {
+    vi.mocked(saveProgress).mockReturnValueOnce(new Promise(() => {}))
     const { api } = await mountReader()
     api.report(5)
     await vi.advanceTimersByTimeAsync(SAVE_DELAY)
     expect(saveProgress).toHaveBeenCalledTimes(1)
 
     api.report(9)
-    await vi.advanceTimersByTimeAsync(SAVE_DELAY)
-    expect(saveProgress).toHaveBeenCalledTimes(1)
-
-    inflight.resolve(null)
-    await vi.advanceTimersByTimeAsync(0)
+    window.dispatchEvent(new Event("pagehide"))
+    /* 不推进时间：卸载中的页面等不到前一次的响应。 */
     expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 9)
   })
 

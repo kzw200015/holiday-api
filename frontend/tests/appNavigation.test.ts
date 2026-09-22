@@ -212,21 +212,20 @@ describe("阅读历史与二级导航", () => {
       items: [{ gid: gallery.gid, token: gallery.token, page: saved, readAt: gallery.postedAt, gallery }],
       nextCursor: null,
     }))
+    const record = async (_gid: number, _token: string, page: number) => {
+      saved = page
+      return null
+    }
     let finish!: () => void
     vi.mocked(saveProgress)
+      .mockImplementationOnce(record)
       .mockImplementationOnce(
-        (_gid, _token, page) =>
+        (gid, token, page) =>
           new Promise((resolve) => {
-            finish = () => {
-              saved = page
-              resolve(null)
-            }
+            finish = () => resolve(record(gid, token, page))
           }),
       )
-      .mockImplementation(async (_gid, _token, page) => {
-        saved = page
-        return null
-      })
+      .mockImplementation(record)
     await visit("/eh/history")
     await click("继续阅读")
     await vi.waitFor(() => expect(saveProgress).toHaveBeenCalledWith(1, "aaaaaaaaaa", 3), {
@@ -236,11 +235,11 @@ describe("阅读历史与二级导航", () => {
     await settle()
     await visit("/eh/history")
     expect(router.currentRoute.value.name).toBe("gallery-history")
-    /* 第一次上报还没回来，补发的第 30 页排在它后面；这时去读，读回来的还是第 3 页。 */
+    /* 退出时补发的第 30 页还没回来；这时去读，读回来的还是第 3 页。 */
+    expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 30)
     expect(fetchReadingHistory).toHaveBeenCalledTimes(1)
     finish()
     await settle()
-    expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 30)
     expect(fetchReadingHistory).toHaveBeenCalledTimes(2)
     expect(host.textContent).toContain("第 30 页")
   })

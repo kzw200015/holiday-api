@@ -5,14 +5,20 @@
         SELECT page FROM eh_reading_progress WHERE user_id = #{userId} AND gid = #{gid}
     </select>
 
-    <!-- 同一个图集只留一条，重复上报就覆盖 -->
+    <!--
+        同一个图集只留一条，重复上报就覆盖；同一上报方的序号不比库里的新，就是迟到的旧上报，不写。
+        冲突的那行会先被锁住，WHERE 按它的最新版本判断，两次上报同时到也不会让旧的写进去。
+    -->
     <insert id="upsert">
-        INSERT INTO eh_reading_progress (user_id, gid, token, page, created_at, updated_at)
-        VALUES (#{userId}, #{gid}, #{token}, #{page}, now(), now())
+        INSERT INTO eh_reading_progress (user_id, gid, token, page, writer, seq, created_at, updated_at)
+        VALUES (#{userId}, #{gid}, #{token}, #{page}, #{writer}, #{seq}, now(), now())
         ON CONFLICT (user_id, gid) DO UPDATE
         SET token = excluded.token,
             page = excluded.page,
+            writer = excluded.writer,
+            seq = excluded.seq,
             updated_at = now()
+        WHERE eh_reading_progress.writer != excluded.writer OR eh_reading_progress.seq &lt; excluded.seq
     </insert>
 
     <!-- 阅读时间相同时用 gid 保证分页顺序稳定，走 eh_reading_progress_user_recent_idx -->

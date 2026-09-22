@@ -26,7 +26,7 @@ open class InMemoryCredentials : CredentialMapper {
 class NoProgress : ReadingProgressMapper {
     override fun findPage(userId: Long, gid: Long): Int? = null
 
-    override fun upsert(userId: Long, gid: Long, token: String, page: Int) = Unit
+    override fun upsert(userId: Long, gid: Long, token: String, page: Int, writer: String, seq: Int) = Unit
 
     override fun list(userId: Long, before: HistoryCursor?, limit: Int): List<ProgressRow> = emptyList()
 

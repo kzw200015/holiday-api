@@ -60,8 +60,11 @@ class ValidationTest {
     }
 
     @Test
-    fun `阅读历史的游标与 gid`() {
+    fun `阅读进度的上报与阅读历史的游标、gid`() {
         val untouched = object : ReadingProgressMapper by NoProgress() {
+            override fun upsert(userId: Long, gid: Long, token: String, page: Int, writer: String, seq: Int) =
+                error("不该写库")
+
             override fun list(userId: Long, before: HistoryCursor?, limit: Int) = error("不该查库")
 
             override fun delete(userId: Long, gid: Long) = error("不该写库")
@@ -71,6 +74,16 @@ class ValidationTest {
             untouched,
             GalleryCatalog(client, ImageUrls(AttachmentSigner(ByteArray(1), Duration.ofHours(1))))
         )
+        val valid = ReadingPosition(1, "aaaaaaaaaa", 1, "writer", 1)
+        val invalid = listOf(
+            valid.copy(page = 0),
+            valid.copy(writer = ""),
+            valid.copy(writer = "a".repeat(65)),
+            valid.copy(seq = 0),
+        )
+        for (position in invalid) {
+            assertFailsWith<AppException.InvalidArgument>("$position") { service.save(1, position) }
+        }
         val encoder = Base64.getUrlEncoder().withoutPadding()
         val withoutGid = encoder.encodeToString("2026-01-01T00:00:00Z".toByteArray())
         val zeroGid = encoder.encodeToString("2026-01-01T00:00:00Z,0".toByteArray())

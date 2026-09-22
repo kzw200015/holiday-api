@@ -24,8 +24,8 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-/* 排队的保存前一次不回来，后面的就都不发；一次挂住的请求不能把之后的保存全部卡死。 */
-describe("排队写入的时限", () => {
+/* 排队的保存前一次不回来，后面的就都不发；阅读历史也要等在途的进度保存落地才读。一次挂住的请求不能把它们全部卡死。 */
+describe("写入的时限", () => {
   it.each([
     { label: "进度", save: () => saveProgress(1, "aaaaaaaaaa", 2) },
     { label: "偏好", save: () => saveGalleryPreferences({ categories: [], readerInterval: 5 }) },
@@ -52,5 +52,23 @@ describe("排队写入的时限", () => {
     void saveProgress(1, "aaaaaaaaaa", 2).catch(() => {})
     await vi.advanceTimersByTimeAsync(0)
     expect(fetch.mock.calls[0]![1]).toMatchObject({ keepalive: true })
+  })
+})
+
+/* 进度上报不排队，同一本的两次可能乱序到达：服务端靠这两个字段只认同一上报方更新的那次。 */
+describe("进度上报的顺序", () => {
+  it("带同一个上报方标识和递增的序号", async () => {
+    void saveProgress(1, "aaaaaaaaaa", 2).catch(() => {})
+    void saveProgress(1, "aaaaaaaaaa", 3).catch(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+    const [first, second] = await Promise.all(fetch.mock.calls.map(([request]) => request.json()))
+    expect(first).toMatchObject({
+      gid: 1,
+      token: "aaaaaaaaaa",
+      page: 2,
+      writer: expect.stringMatching(/^[0-9a-f]{32}$/),
+    })
+    expect(second).toMatchObject({ page: 3, writer: first.writer })
+    expect(second.seq).toBeGreaterThan(first.seq)
   })
 })

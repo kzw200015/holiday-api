@@ -204,6 +204,31 @@ class ApiTest {
         )
     }
 
+    /** 前端不排队地上报进度，同一上报方先发的那次可能后到。 */
+    @Test
+    fun `同一上报方迟到的旧进度不算数`() {
+        val token = token()
+        fun report(page: Int, writer: String, seq: Int) = assertJson(
+            """{"code":200,"data":null,"msg":"OK"}""",
+            200,
+            send(
+                HttpMethod.POST,
+                "/api/eh/progress",
+                token,
+                """{"gid":2231376,"token":"a7584a5932","page":$page,"writer":"$writer","seq":$seq}""",
+            ),
+        )
+
+        fun progress() =
+            testJson.readTree(get("/api/eh/galleries/2231376/a7584a5932", token).contentAsString()).path("data")
+                .path("progress").asInt()
+        report(30, "tab-a", 2)
+        report(3, "tab-a", 1)
+        assertEquals(30, progress())
+        report(5, "tab-b", 1)
+        assertEquals(5, progress())
+    }
+
     /**
      * 鉴权边界按整张路由表扫，每条都不带令牌实际请求一次：不回 401 的恰好是这几条。逐条列路径的话，新加的接口没人记得补进来；
      * 反过来，图片接口要是被误改成要登录，<img> 就全打不开了。看的是响应而不是注解，拦截器的规则怎么改都照样锁得住。
