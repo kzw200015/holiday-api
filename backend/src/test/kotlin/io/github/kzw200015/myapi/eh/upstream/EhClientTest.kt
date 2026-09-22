@@ -153,16 +153,25 @@ class EhClientTest {
     }
 
     @Test
-    fun `表站接口不带用户 Cookie，里站接口带`() {
-        val upstream = FakeUpstream { page("""{"i3":"<img id=\"img\" src=\"https://ehgt.org/a.webp\">"}""") }
+    fun `showpage 带着抓图片页时的同一份身份，元数据一律匿名`() {
+        val upstream = FakeUpstream { request ->
+            if ("gdata" in request.bodyAsString) {
+                FakeResponse("""{"gmetadata":[]}""", contentType = "application/json")
+            } else {
+                page("""{"i3":"<img id=\"img\" src=\"https://ehgt.org/a.webp\">"}""")
+            }
+        }
         val client = upstream.client()
         val credential = EhCredential("1", "hash", "ig")
 
         client.showImage(EhAccess(credential, Site.E), GalleryRef(1, "0123456789"), 1, "0123456789", "key")
         client.showImage(EhAccess(credential, Site.EX), GalleryRef(1, "0123456789"), 1, "0123456789", "key")
+        client.fetchMetadata(listOf(GalleryRef(1, "0123456789")))
 
-        val (front, ex) = upstream.requests
-        assertEquals("nw=1; sl=dm_2", front.headers.getFirst("Cookie"))
+        val (front, ex, metadata) = upstream.requests
+        // showkey 是登录的会话拿到的，兑换也得是同一个身份，否则按匿名算
+        assertEquals("nw=1; sl=dm_2; ipb_member_id=1; ipb_pass_hash=hash; igneous=ig", front.headers.getFirst("Cookie"))
         assertEquals("nw=1; sl=dm_2; ipb_member_id=1; ipb_pass_hash=hash; igneous=ig", ex.headers.getFirst("Cookie"))
+        assertEquals("nw=1; sl=dm_2", metadata.headers.getFirst("Cookie"))
     }
 }

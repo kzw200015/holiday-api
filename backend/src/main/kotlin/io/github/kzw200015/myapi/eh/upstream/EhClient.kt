@@ -166,11 +166,13 @@ class EhClient(
         return read(HttpMethod.GET, url, cookieHeader(access.credential)).also(::assertUsable).body
     }
 
-    /** 调 JSON 接口（gdata / showpage）。表站接口免登录，不带用户 Cookie，也就不会把身份漏给它。 */
+    /**
+     * 调 JSON 接口（gdata / showpage），带着调用方给的身份：gdata 由调用方以匿名身份调，showpage 要和抓图片页时是同一份身份，
+     * 否则 showkey 是登录的会话拿到的，兑换却按匿名算。
+     */
     private fun callApi(access: EhAccess, payload: Map<String, Any>): JsonNode {
-        val credential = access.credential.takeIf { access.site == Site.EX }
         val response =
-            read(HttpMethod.POST, access.site.apiHost, cookieHeader(credential), json.writeValueAsBytes(payload))
+            read(HttpMethod.POST, access.site.apiHost, cookieHeader(access.credential), json.writeValueAsBytes(payload))
         assertUsable(response)
         return try {
             json.readTree(response.body)
