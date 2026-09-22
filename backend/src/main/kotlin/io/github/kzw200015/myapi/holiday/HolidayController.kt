@@ -26,7 +26,7 @@ class HolidayController(private val holidays: HolidayService) {
     /** 省略或空串取当天，否则必须是合法的 YYYY-MM-DD。失败文案是接口契约的一部分，前端和外部调用方都按它显示。 */
     private fun parseDate(text: String?): LocalDate {
         if (text.isNullOrEmpty()) {
-            return LocalDate.now()
+            return LocalDate.now(CHINA_ZONE)
         }
         return try {
             LocalDate.parse(text)

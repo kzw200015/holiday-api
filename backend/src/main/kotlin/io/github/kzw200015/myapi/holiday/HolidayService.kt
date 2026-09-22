@@ -9,6 +9,10 @@ import org.springframework.transaction.support.TransactionTemplate
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.Year
+import java.time.ZoneId
+
+/** 节假日安排是中国的：「今天」「今年」一律按北京时间算，不跟着服务器的时区走（容器默认是 UTC）。 */
+internal val CHINA_ZONE: ZoneId = ZoneId.of("Asia/Shanghai")
 
 /** 休息日查询：节假日安排里有的按安排，没有的按周末判断。 */
 @Service
@@ -42,7 +46,7 @@ class HolidayService(
 
     /** 刷新当年和次年。年份每次重新算，跨年后自然带上新的次年；两年互不依赖所以并行，任一失败即整体失败。 */
     fun refreshUpcomingYears() {
-        val year = Year.now().value
+        val year = Year.now(CHINA_ZONE).value
         concurrently {
             listOf(year, year + 1).map { async { refreshYear(it) } }.awaitAll()
         }
