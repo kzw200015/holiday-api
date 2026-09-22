@@ -19,27 +19,20 @@ export function useSearchHistory() {
   void store.load()
   const entries = computed(() => store.data ?? [])
 
-  /* 没读到就不改也不存：保存是整份提交，拿空列表改出来的那份会把服务端原有的历史冲掉。
-   * 图库页面有布局层挡着到不了这里，这是给布局外的用法留的底。 */
-  function change(next: (current: string[]) => string[]) {
-    if (store.data) {
-      store.set(next(store.data))
-    }
-  }
-
   return {
     /* 和偏好一样，真的读到了才算就绪。 */
     ready: computed(() => store.data !== undefined),
     loadError: computed(() => store.error?.message ?? ""),
     reload: () => void store.reload(),
     entries,
+    /* 记、删、清空在没读到时都不生效，见 store 的 update。 */
     record: (keyword: string) => {
       if (new TextEncoder().encode(keyword).length > MAX_ENTRY_BYTES) {
         return
       }
-      change((current) => [keyword, ...current.filter((entry) => entry !== keyword)].slice(0, LIMIT))
+      store.update((current) => [keyword, ...current.filter((entry) => entry !== keyword)].slice(0, LIMIT))
     },
-    remove: (keyword: string) => change((current) => current.filter((entry) => entry !== keyword)),
-    clear: () => change(() => []),
+    remove: (keyword: string) => store.update((current) => current.filter((entry) => entry !== keyword)),
+    clear: () => store.update(() => []),
   }
 }

@@ -17,12 +17,9 @@ export function useGalleryPreferences() {
   void store.load()
   const current = computed(() => store.data ?? fallback)
 
-  /* 没读到就不存：保存是整份提交，拿占位值拼出来的那份会把服务端原有的偏好冲掉。
-   * 图库页面有布局层挡着，阅读器没读到时也不给调间隔，这里是最后一道底。 */
+  /* 没读到时 store 不改也不存，占位值不会被拼进提交里。 */
   function save(change: Partial<GalleryPreferences>) {
-    if (store.data) {
-      store.set({ ...store.data, ...change })
-    }
+    store.update((preferences) => ({ ...preferences, ...change }))
   }
 
   return {

@@ -71,7 +71,14 @@ function defineAccountData<T>(
       }
     }
 
-    return { data: request.data, error: request.error, load, reload, set }
+    /* 在读到的那份上改。没读到就不改也不存：保存是整份提交，拿没读到的空值改出来的那份会把服务端原有的内容冲掉。 */
+    function update(change: (current: T) => T) {
+      if (request.data.value !== undefined) {
+        set(change(request.data.value))
+      }
+    }
+
+    return { data: request.data, error: request.error, load, reload, set, update }
   })
 }
 
