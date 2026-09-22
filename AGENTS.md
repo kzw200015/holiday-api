@@ -35,7 +35,7 @@ feature 内按角色分文件：`model.ts` 是领域类型，`api.ts` 只管 HTT
 
 约定大于配置：Spring Boot 默认能用的一律不写配置，`application.yml` 只留默认值不够用的几项（虚拟线程、MyBatis 按参数名映射构造器、静态资源 `no-cache`、端口），每项旁边注明原因。业务配置是各领域包里的 `@ConfigurationProperties` data class（前缀 `myapi.auth`、`myapi.eh`、`myapi.holiday`），默认值写在代码里，环境变量名按 Spring 的宽松绑定推出，完整清单见 `backend/config/application.example.yml`。主密钥只由 `signing.SigningKeys` 读取，业务类只拿派生后的子密钥。需要组装 RestClient 或派生密钥的 Bean 在所属领域的 `@Configuration` 里用 `@Bean` 造，类本身保持普通构造器，测试里直接 new。
 
-JSON 接口一律返回 `web.ApiResponse`（`ok(data)`，只回成败的用 `ok()`）；失败抛 `AppException` 的子类，状态码只在 `web.ApiExceptionHandler` 一处映射，未预料的异常只回「服务器内部错误」，原文进日志。鉴权手写、不用 Spring Security（见 ADR-0001）：`/api` 下默认要求登录，公开接口标 `@Public`，控制器用 `@CurrentUser userId: Long` 拿当前本站账号，参数可空表示允许未登录；公开接口清单由 `ApiTest` 锁住。Web 层是 Spring MVC + 虚拟线程，按阻塞风格直写（见 ADR-0002），控制器不写 `suspend`；一个请求里要同时等两件互不依赖的事时，才用 `concurrently { async { … } }` 开协程。进程内缓存用 Caffeine，同一个 key 的并发加载只跑一次，不另加锁或 singleflight。
+JSON 接口一律返回 `web.ApiResponse`（`ok(data)`，只回成败的用 `ok()`）；失败抛 `AppException` 的子类，状态码只在 `web.ApiExceptionHandler` 一处映射，未预料的异常只回「服务器内部错误」，原文进日志。鉴权手写、不用 Spring Security（见 ADR-0001）：`/api` 下默认要求登录，公开接口标 `@Public`，控制器用 `@CurrentUser userId: Long` 拿当前本站账号，参数可空表示允许未登录；公开接口清单由 `ApiTest` 锁住。Web 层是 Spring MVC + 虚拟线程，按阻塞风格直写（见 ADR-0002），控制器不写 `suspend`；一个请求里要同时等两件互不依赖的事时，才用 `concurrently { async { … } }` 开协程。进程内缓存用 Caffeine，同一个 key 的并发加载只跑一次（批量加载用异步缓存的同步视图，同步缓存的 `getAll` 不合并），不另加锁或 singleflight。
 
 ## 前端数据层
 

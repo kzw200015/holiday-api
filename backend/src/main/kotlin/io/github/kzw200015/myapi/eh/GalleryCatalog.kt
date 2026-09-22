@@ -9,6 +9,7 @@ import io.github.kzw200015.myapi.eh.upstream.GalleryRef
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.Executors
 
 /** 列表里一张卡片要展示的内容。 */
 data class GalleryCard(
@@ -41,10 +42,16 @@ data class GalleryDetail(
  */
 @Component
 class GalleryCatalog(private val client: EhClient, private val urls: ImageUrls) {
+    /**
+     * 用异步缓存的同步视图：同步缓存的 getAll 是各加载各的，两个请求同时要同一本就打两次 gdata；
+     * 异步缓存会把还在加载的那一份交给后到的请求，同一本只加载一次。
+     */
     internal val cache: Cache<GalleryRef, GalleryMetadata> = Caffeine.newBuilder()
         .maximumSize(500)
         .expireAfterWrite(Duration.ofMinutes(10))
-        .build()
+        .executor(Executors.newVirtualThreadPerTaskExecutor())
+        .buildAsync<GalleryRef, GalleryMetadata>()
+        .synchronous()
 
     /**
      * 取一批图集的元数据，缓存里没有的一次向上游补齐：翻回上一页、重进详情都会整批命中缓存，一个请求都不用发。

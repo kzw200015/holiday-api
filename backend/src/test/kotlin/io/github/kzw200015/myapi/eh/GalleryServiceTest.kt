@@ -5,6 +5,10 @@ import io.github.kzw200015.myapi.eh.upstream.GalleryMetadata
 import io.github.kzw200015.myapi.eh.upstream.GalleryRef
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -58,6 +62,33 @@ class GalleryServiceTest {
         assertEquals("cached", result.items[0].title)
         assertEquals("100", result.nextCursor)
         assertTrue(result.items.all { it.thumbnail.startsWith("/api/eh/thumbnail?u=") })
+    }
+
+    /** 详情和阅读历史常常同时要同一本：还在加载的那一份交给后到的请求，不再各打一次 gdata。 */
+    @Test
+    fun `同一本图集的元数据同时被要两次，只向上游请求一次`() {
+        val requests = AtomicInteger()
+        val release = CountDownLatch(1)
+        val (_, catalog) = service(
+            FakeUpstream {
+                requests.incrementAndGet()
+                release.await(5, TimeUnit.SECONDS)
+                FakeResponse("""{"gmetadata":[{"gid":1,"token":"0123456789","title":"t"}]}""", contentType = "application/json")
+            },
+        )
+        val ref = GalleryRef(1, "0123456789")
+
+        Executors.newVirtualThreadPerTaskExecutor().use { executor ->
+            val first = executor.submit<String> { catalog.load(listOf(ref))[ref]?.title }
+            // 等第一个请求出网之后再发第二个，它看到的就是还在加载的那一份
+            while (requests.get() == 0) Thread.sleep(10)
+            val second = executor.submit<String> { catalog.load(listOf(ref))[ref]?.title }
+            Thread.sleep(100)
+            release.countDown()
+            assertEquals("t", first.get(5, TimeUnit.SECONDS))
+            assertEquals("t", second.get(5, TimeUnit.SECONDS))
+        }
+        assertEquals(1, requests.get())
     }
 
     @Test
