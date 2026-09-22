@@ -144,6 +144,7 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
 
 <template>
   <div class="fixed inset-0 flex flex-col bg-black" @click="controlsVisible = !controlsVisible">
+    <!-- 只有一份都没读到才挡住阅读；手上有旧详情时重取失败，图片地址照样能用，不打断。 -->
     <div v-if="errorMessage" class="flex flex-1 items-center justify-center p-4">
       <div class="max-w-md">
         <ErrorAlert :message="errorMessage" title="打不开这个图集">

@@ -261,6 +261,23 @@ describe("阅读历史与二级导航", () => {
     expect(router.currentRoute.value.fullPath).toBe("/eh")
   })
 
+  /* 手上有旧的一份时，重取失败不该把整页换成错误：内容照常显示，只提示一下并给重试。 */
+  it("详情过期重取失败时照常显示旧内容，只提示刷新失败", async () => {
+    await visit("/eh/g/1/aaaaaaaaaa")
+    await visit("/eh/g/2/bbbbbbbbbb")
+    const later = Date.now() + 6 * 60 * 1000
+    vi.spyOn(Date, "now").mockReturnValue(later)
+    vi.mocked(fetchGalleryDetail).mockRejectedValueOnce(new Error("刷新失败测试"))
+    await visit("/eh/g/1/aaaaaaaaaa")
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(3)
+    expect(host.querySelector("h2")?.textContent).toBe("测试图集1")
+    expect(host.textContent).toContain("刷新失败测试")
+    await click("重试")
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(4)
+    expect(host.textContent).not.toContain("刷新失败测试")
+    expect(host.querySelector("h2")?.textContent).toBe("测试图集1")
+  })
+
   it("删除失败保留条目，成功后清除缓存详情的继续阅读页码，清空必须确认", async () => {
     await visit("/eh/g/1/aaaaaaaaaa")
     await visit("/eh/history")

@@ -26,7 +26,7 @@ const props = withDefaults(defineProps<{ gid: number; token: string; source?: Ga
 const identity = () => `${props.gid}/${props.token}`
 usePageScroll(identity)
 
-const { gallery, progress, loading, errorMessage, reload } = useGalleryDetail(
+const { gallery, progress, loading, errorMessage, refreshError, reload } = useGalleryDetail(
   () => props.gid,
   () => props.token,
 )
@@ -69,6 +69,14 @@ const groupedTags = computed(() => {
     </div>
     <ErrorAlert v-else-if="errorMessage" :message="errorMessage" title="加载失败" retryable @retry="reload" />
     <template v-else-if="gallery">
+      <!-- 过了新鲜期重取失败：手上这份照常显示，只提示一下。 -->
+      <ErrorAlert
+        v-if="refreshError"
+        :message="refreshError"
+        title="刷新失败，显示的是之前读到的内容"
+        retryable
+        @retry="reload"
+      />
       <div class="flex flex-col gap-4 sm:flex-row">
         <GalleryCover class="h-72 w-52 shrink-0 self-start" :src="gallery.thumbnail" />
         <div class="flex min-w-0 flex-1 flex-col gap-3">

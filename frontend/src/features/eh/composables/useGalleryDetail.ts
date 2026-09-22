@@ -28,7 +28,10 @@ export function useGalleryDetail(gid: MaybeRefOrGetter<number>, token: MaybeRefO
     /* 详情是否已经到手。阅读器要等它确定之后才敢上报位置。 */
     loaded: computed(() => data.value !== undefined),
     loading: computed(() => data.value === undefined && error.value === null),
-    errorMessage: computed(() => error.value?.message ?? ""),
+    /* 一份都没读到时的失败，页面只能显示错误。 */
+    errorMessage: computed(() => (data.value === undefined ? (error.value?.message ?? "") : "")),
+    /* 手上有旧的一份、过了新鲜期重取却失败了：旧的照常能用（图片地址签的有效期远比新鲜期长），只提示一下。 */
+    refreshError: computed(() => (data.value !== undefined ? (error.value?.message ?? "") : "")),
     reload: () => void content.reloadDetail(toValue(gid), toValue(token)),
   }
 }

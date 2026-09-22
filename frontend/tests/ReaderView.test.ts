@@ -5,7 +5,7 @@ import { createApp, h, nextTick, type Component as VueComponent } from "vue"
 import { createMemoryHistory, createRouter, RouterView, type RouteLocationNormalizedLoaded } from "vue-router"
 
 import type * as EhApi from "@/features/eh/api"
-import { saveProgress } from "@/features/eh/api"
+import { fetchGalleryDetail, saveProgress } from "@/features/eh/api"
 import { readerInstanceKey } from "@/features/eh/navigation"
 import ReaderView from "@/features/eh/views/ReaderView.vue"
 
@@ -26,9 +26,12 @@ let host: HTMLDivElement
 let router: ReturnType<typeof createRouter>
 /* 与 ReaderView 里的 URL_SYNC_DELAY 对齐：页码先生效，地址栏节流跟上。 */
 const URL_SYNC_DELAY = 300
+/* 与 store 里的 DETAIL_STALE_TIME 对齐。 */
+const DETAIL_STALE_TIME = 5 * 60 * 1000
 
 beforeEach(async () => {
   vi.mocked(saveProgress).mockClear()
+  vi.mocked(fetchGalleryDetail).mockClear()
   vi.useFakeTimers()
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
   router = createRouter({
@@ -281,5 +284,28 @@ describe("阅读器操作栏", () => {
     area.click()
     await nextTick()
     expect(controlsState()).toEqual(["hidden", "hidden"])
+  })
+})
+
+describe("阅读器的边界情况", () => {
+  it("第一次就读不到详情时显示错误", async () => {
+    vi.mocked(fetchGalleryDetail).mockRejectedValueOnce(new Error("上游超时"))
+    await router.replace("/3/broken/1")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(host.textContent).toContain("打不开这个图集")
+    expect(host.textContent).toContain("上游超时")
+  })
+
+  /* 手上的详情过了新鲜期会在后台重取；重取失败时图片地址照样能用，不该把正在读的图换成错误页。 */
+  it("详情过期重取失败时，阅读器照常可用", async () => {
+    await router.replace("/2/other/1")
+    await vi.advanceTimersByTimeAsync(DETAIL_STALE_TIME)
+    vi.mocked(fetchGalleryDetail).mockRejectedValueOnce(new Error("上游超时"))
+    await router.replace("/1/token/3")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fetchGalleryDetail).toHaveBeenLastCalledWith(1, "token", expect.any(AbortSignal))
+    expect(host.textContent).not.toContain("打不开这个图集")
+    expect(readingArea()).not.toBeNull()
+    expect(host.querySelector<HTMLInputElement>('input[type="range"]')!.value).toBe("3")
   })
 })
