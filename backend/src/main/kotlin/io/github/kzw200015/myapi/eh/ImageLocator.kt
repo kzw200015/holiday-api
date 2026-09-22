@@ -6,7 +6,6 @@ import io.github.kzw200015.myapi.AppException
 import io.github.kzw200015.myapi.eh.upstream.*
 import org.springframework.stereotype.Component
 import java.time.Duration
-import java.util.concurrent.Executors
 
 /**
  * 取图链路：从图集定位到某一页真正的图片地址。
@@ -26,15 +25,9 @@ class ImageLocator(private val client: EhClient) {
 
     /**
      * 详情页分片。评论与取图常常同时要同一片（进详情页时评论和第一页图一起请求），同一个分片同一时刻只发一次请求；
-     * 取到后短暂留一会儿给紧跟着的请求用。加载跑在它自己的虚拟线程上，不占着同一个 key 的锁等网络——
-     * 同步缓存在加载期间会挡住落在同一个桶里的其他 key，所以用异步缓存的同步视图。失败的加载不会留在缓存里。
+     * 取到后短暂留一会儿给紧跟着的请求用。
      */
-    private val slices: Cache<SliceKey, GallerySlice> = Caffeine.newBuilder()
-        .maximumSize(50)
-        .expireAfterWrite(Duration.ofMinutes(1))
-        .executor(Executors.newVirtualThreadPerTaskExecutor())
-        .buildAsync<SliceKey, GallerySlice>()
-        .synchronous()
+    private val slices: Cache<SliceKey, GallerySlice> = coalescingCache(50, Duration.ofMinutes(1))
 
     fun resolve(access: EhAccess, ref: GalleryRef, page: Int): String {
         val gallery = GalleryKey(access.scope, ref)
