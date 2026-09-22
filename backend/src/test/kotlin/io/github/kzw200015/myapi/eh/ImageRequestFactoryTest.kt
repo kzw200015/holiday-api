@@ -6,6 +6,8 @@ import java.net.InetSocketAddress
 import java.net.SocketTimeoutException
 import java.net.URI
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -17,8 +19,14 @@ class ImageRequestFactoryTest {
     private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply { start() }
     private val factory = ImageRequestFactory(Duration.ofMillis(500))
 
+    /** 放行卡住的处理器：它跑在服务的分发线程上，stop 要等它返回。 */
+    private val release = CountDownLatch(1)
+
     @AfterTest
-    fun stop() = server.stop(0)
+    fun stop() {
+        release.countDown()
+        server.stop(0)
+    }
 
     private fun url(path: String) = URI("http://127.0.0.1:${server.address.port}$path")
 
@@ -67,7 +75,7 @@ class ImageRequestFactoryTest {
             exchange.sendResponseHeaders(200, 0)
             exchange.responseBody.write(ByteArray(10))
             exchange.responseBody.flush()
-            Thread.sleep(3000)
+            release.await(5, TimeUnit.SECONDS)
             exchange.close()
         }
 
