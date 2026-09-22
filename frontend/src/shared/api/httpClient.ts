@@ -1,4 +1,4 @@
-import axios, { type AxiosError, type AxiosRequestConfig } from "axios"
+import axios, { AxiosError, type AxiosRequestConfig } from "axios"
 
 /* 后端统一响应结构。解包只发生在这一层，所以类型也留在这里 */
 interface ApiResponse<T> {
@@ -80,9 +80,23 @@ instance.interceptors.response.use(undefined, (error: AxiosError<ApiResponse<unk
     setToken("")
     handleUnauthorized?.()
   }
-  /* data 未必是本站的响应体：反向代理返回的空体或 HTML 走的也是这条路。 */
-  return Promise.reject(new Error(error.response?.data?.msg || error.message))
+  return Promise.reject(new Error(describeFailure(error)))
 })
+
+/*
+ * 失败时给界面看的那句话。有本站响应体就用它的 msg；没有的（断网、超时、反向代理返回的空体或 HTML），
+ * Axios 的原文是英文，还带着「timeout of 10000ms exceeded」这类细节，换成能直接显示的说明。
+ */
+function describeFailure(error: AxiosError<ApiResponse<unknown>>) {
+  const msg = error.response?.data?.msg
+  if (msg) {
+    return msg
+  }
+  if (error.response) {
+    return `服务器返回了 HTTP ${error.response.status}`
+  }
+  return error.code === AxiosError.ETIMEDOUT ? "请求超时" : "网络连接失败"
+}
 
 /** 在 HTTP 边界解包响应，业务接口只返回领域数据。 */
 export const httpClient = {

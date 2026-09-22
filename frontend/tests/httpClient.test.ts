@@ -97,7 +97,7 @@ describe("HTTP 边界", () => {
     expect(unauthorized).not.toHaveBeenCalled()
   })
 
-  it("取消请求保留取消标识，网络错误保留实际错误", async () => {
+  it("取消请求保留取消标识", async () => {
     const canceled = new CanceledError("canceled")
     await expect(
       httpClient.get("/holiday/detail", {
@@ -106,12 +106,41 @@ describe("HTTP 边界", () => {
         },
       }),
     ).rejects.toBe(canceled)
+  })
+
+  /* 没有本站响应体的失败：Axios 的原文是英文，还带着内部细节，换成界面能直接显示的说明。 */
+  it.each([
+    { label: "断网", error: () => new AxiosError("Network Error", AxiosError.ERR_NETWORK), message: "网络连接失败" },
+    {
+      label: "超时",
+      error: () => new AxiosError("timeout of 10000ms exceeded", AxiosError.ETIMEDOUT),
+      message: "请求超时",
+    },
+    {
+      label: "反向代理回 HTML",
+      error: () =>
+        new AxiosError("Request failed with status code 502", AxiosError.ERR_BAD_RESPONSE, undefined, null, {
+          data: "<html>Bad Gateway</html>",
+          status: 502,
+        } as AxiosResponse),
+      message: "服务器返回了 HTTP 502",
+    },
+    {
+      label: "空响应体",
+      error: () =>
+        new AxiosError("Request failed with status code 504", AxiosError.ERR_BAD_RESPONSE, undefined, null, {
+          data: "",
+          status: 504,
+        } as AxiosResponse),
+      message: "服务器返回了 HTTP 504",
+    },
+  ])("$label时给出中文说明", async ({ error, message }) => {
     await expect(
       httpClient.get("/holiday/detail", {
         adapter: async () => {
-          throw new AxiosError("Network Error")
+          throw error()
         },
       }),
-    ).rejects.toThrow("Network Error")
+    ).rejects.toThrow(new Error(message))
   })
 })
