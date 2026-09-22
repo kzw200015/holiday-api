@@ -3,6 +3,7 @@ import { createPinia, disposePinia, type Pinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick } from "vue"
 
+import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryDetail, saveProgress } from "@/features/eh/api"
 import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
@@ -87,6 +88,7 @@ afterEach(() => {
     cleanup()
   }
   disposePinia(pinia)
+  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 
@@ -141,6 +143,58 @@ describe("阅读进度上报", () => {
     await vi.advanceTimersByTimeAsync(SAVE_DELAY)
     await nextTick()
     expect(progressOf(1, "aaaaaaaaaa")).toBe(20)
+  })
+
+  /* 一秒一页的自动翻页比合并窗口还短：窗口从第一次上报起算，不能被后面的翻页一直往后推。 */
+  it("连续翻页期间也按窗口定期上报", async () => {
+    const { api } = await mountReader()
+    api.report(5)
+    await vi.advanceTimersByTimeAsync(1000)
+    api.report(6)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "aaaaaaaaaa", 6)
+    api.report(7)
+    await vi.advanceTimersByTimeAsync(1000)
+    api.report(8)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(saveProgress).toHaveBeenCalledTimes(2)
+    expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 8)
+  })
+
+  /* 刷新、关标签页、移动端切走后被系统回收，都不会再有离开路由那一步。 */
+  it("页面切到后台或被收起时把攒着的发出去", async () => {
+    const { api } = await mountReader()
+    api.report(12)
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
+    document.dispatchEvent(new Event("visibilitychange"))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "aaaaaaaaaa", 12)
+    visibility.mockReturnValue("visible")
+    api.report(13)
+    window.dispatchEvent(new Event("pagehide"))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 13)
+  })
+
+  it("卸载时把还没发出的那次补上", async () => {
+    const { api } = await mountReader()
+    api.report(12)
+    cleanups.pop()!()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "aaaaaaaaaa", 12)
+  })
+
+  /* 令牌失效时先退出再跳登录页：离开阅读器那次补提交排进的已经是新账号的队，不能再发。 */
+  it("换了本站账号，这个阅读器攒着的和之后的页码都不再上报", async () => {
+    const { api } = await mountReader()
+    api.report(12)
+    useAuthStore(pinia).logout()
+    api.flush()
+    api.report(13)
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY)
+    cleanups.pop()!()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(saveProgress).not.toHaveBeenCalled()
   })
 })
 

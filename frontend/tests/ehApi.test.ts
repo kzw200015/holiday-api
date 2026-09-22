@@ -46,4 +46,11 @@ describe("排队写入的时限", () => {
     await vi.advanceTimersByTimeAsync(SAVE_TIMEOUT * 3)
     expect(fetch.mock.calls[0]![0].signal.aborted).toBe(false)
   })
+
+  /* 刷新、关标签页时发出的那次进度要能在页面卸载后继续送完。 */
+  it("进度保存带 keepalive", async () => {
+    void saveProgress(1, "aaaaaaaaaa", 2).catch(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fetch.mock.calls[0]![1]).toMatchObject({ keepalive: true })
+  })
 })

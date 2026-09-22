@@ -103,7 +103,11 @@ export function clearReadingHistory() {
   return httpClient.delete<null>("/eh/history")
 }
 
-/** 上报读到第几页 */
+/** 上报读到第几页。带 keepalive：刷新、关标签页时发出的那次，页面卸载之后浏览器照样把它送完。 */
 export function saveProgress(gid: number, token: string, page: number) {
-  return httpClient.post<null>("/eh/progress", { gid, token, page }, { timeout: SAVE_TIMEOUT })
+  return httpClient.post<null>(
+    "/eh/progress",
+    { gid, token, page },
+    { timeout: SAVE_TIMEOUT, fetchOptions: { keepalive: true } },
+  )
 }

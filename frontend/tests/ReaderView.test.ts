@@ -95,19 +95,20 @@ function controlsState() {
 }
 
 describe("阅读进度保存", () => {
-  it("连续翻页只保存最后一页；卸载把还没发出的那次丢掉", async () => {
+  it("连续翻页只保存最后一页；卸载时把还没发出的那次补上", async () => {
     await router.replace("/1/token/2")
     await vi.advanceTimersByTimeAsync(500)
     expect(saveProgress).not.toHaveBeenCalled()
     await router.replace("/1/token/3")
     await vi.advanceTimersByTimeAsync(1200)
     expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 3)
-    /* 正常离开走的是路由，那条路径会补提交；直接卸载没有这个机会。 */
+    /* 正常离开走的是路由，那条路径会补提交；不经路由直接卸载的，卸载时兜底补一次。 */
     await router.replace("/1/token/4")
     app!.unmount()
     app = undefined
     await vi.advanceTimersByTimeAsync(1200)
-    expect(saveProgress).toHaveBeenCalledTimes(1)
+    expect(saveProgress).toHaveBeenCalledTimes(2)
+    expect(saveProgress).toHaveBeenLastCalledWith(1, "token", 4)
   })
 
   it("保存较慢时按顺序提交，旧页码不会晚于新页码写入", async () => {
