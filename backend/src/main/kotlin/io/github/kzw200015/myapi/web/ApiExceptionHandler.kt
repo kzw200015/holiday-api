@@ -2,6 +2,7 @@ package io.github.kzw200015.myapi.web
 
 import io.github.kzw200015.myapi.AppException
 import jakarta.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
@@ -25,7 +26,11 @@ class ApiExceptionHandler : ResponseEntityExceptionHandler() {
     private val log = LoggerFactory.getLogger(javaClass)
 
     @ExceptionHandler
-    fun handle(e: AppException, request: HttpServletRequest): ResponseEntity<ApiResponse<Nothing?>> {
+    fun handle(
+        e: AppException,
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+    ): ResponseEntity<ApiResponse<Nothing?>> {
         val status = when (e) {
             is AppException.InvalidArgument -> HttpStatus.BAD_REQUEST
             is AppException.Unauthenticated -> HttpStatus.UNAUTHORIZED
@@ -41,11 +46,16 @@ class ApiExceptionHandler : ResponseEntityExceptionHandler() {
         } else {
             log.info(format, request.method, request.requestURI, status.value(), e.message)
         }
+        abortIfCommitted(e, response)
         return failure(status, e.message.orEmpty())
     }
 
     @ExceptionHandler
-    fun handle(e: Exception, request: HttpServletRequest): ResponseEntity<ApiResponse<Nothing?>>? {
+    fun handle(
+        e: Exception,
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+    ): ResponseEntity<ApiResponse<Nothing?>>? {
         // 客户端已经走了（阅读器里快速翻页时浏览器会成批中止图片请求）：既没人收，也不该按故障记
         if (DisconnectedClientHelper.isClientDisconnectedException(e)) {
             log.debug("客户端已断开，放弃响应 {} {}", request.method, request.requestURI)
@@ -53,7 +63,18 @@ class ApiExceptionHandler : ResponseEntityExceptionHandler() {
         }
         // 没预料到的错误原文只进日志，不回给客户端：里面可能带着表名、文件路径这类不该外泄的细节
         log.error("未捕获异常 {} {}", request.method, request.requestURI, e)
+        abortIfCommitted(e, response)
         return failure(HttpStatus.INTERNAL_SERVER_ERROR, "服务器内部错误")
+    }
+
+    /**
+     * 响应已经开始发送（图片转发到一半）时改不成错误响应：再写一个错误体只会接在半截内容后面，照常收尾，
+     * 浏览器就会把它当成一份完整的响应缓存下来。原样抛回去，Spring 不再处理，容器见响应已提交就直接断开连接。
+     */
+    private fun abortIfCommitted(e: Exception, response: HttpServletResponse) {
+        if (response.isCommitted) {
+            throw e
+        }
     }
 
     /** Spring MVC 自己抛的那些（路径不存在、请求体解不开、参数类型不对）也回统一结构，前端拦截器才取得到 msg。 */

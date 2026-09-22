@@ -10,17 +10,26 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
+import jakarta.servlet.ServletException
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.http.client.ClientHttpResponse
+import org.springframework.mock.http.client.MockClientHttpResponse
 import org.springframework.mock.web.MockHttpServletResponse
 import org.springframework.test.context.bean.override.convention.TestBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import org.springframework.web.client.RestClient
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping
+import java.io.ByteArrayInputStream
+import java.io.IOException
+import java.io.InputStream
+import java.io.SequenceInputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
@@ -155,6 +164,25 @@ class ApiTest {
         assertTrue("签名不正确或已过期" in forged.contentAsString())
     }
 
+    /**
+     * 上游在图片传到一半时断了：头还没发出去就改回普通的 502；已经发出去了就不能照常收尾——
+     * 否则浏览器会把半张图当成完整的缓存 30 天——要让异常一路抛到容器，由它直接断开连接。
+     */
+    @Test
+    fun `图片传到一半上游断了，不当成完整的图片收尾`() {
+        val token = token()
+        val template = testJson.readTree(get("/api/eh/galleries/2231376/a7584a5932", token).contentAsString())
+            .path("data").path("imageUrlTemplate").asString()
+
+        val beforeAnyByte = get(template.replace("{page}", "4"))
+        assertEquals(502, beforeAnyByte.status)
+        assertEquals(null, beforeAnyByte.getHeader(HttpHeaders.CACHE_CONTROL), "错误响应带上了图片的缓存头")
+        assertTrue("图片传到一半" in beforeAnyByte.contentAsString())
+
+        val failure = assertFailsWith<ServletException> { get(template.replace("{page}", "5")) }
+        assertTrue(failure.rootCause is AppException.UpstreamFailure, "${failure.rootCause}")
+    }
+
     @Test
     fun `响应体的 JSON 形状`() {
         val token = token()
@@ -254,19 +282,33 @@ class ApiTest {
             when {
                 request.uri.host.startsWith("api.") -> FakeResponse(GDATA, contentType = "application/json")
                 // 取图要先抓详情页分片拿每页令牌，再抓 /s/ 页面拿真正的图片地址
-                request.uri.path.startsWith("/s/") ->
-                    page("""<div id="i3"><a href="#"><img id="img" src="https://ehgt.org/p3.webp"></a></div>""")
+                request.uri.path.startsWith("/s/") -> {
+                    val number = request.uri.path.substringAfterLast('-')
+                    page("""<div id="i3"><a href="#"><img id="img" src="https://ehgt.org/p$number.webp"></a></div>""")
+                }
 
                 request.uri.path.startsWith("/g/") -> page(
                     """Showing 1 - 20 of 329 <a href="/s/bbbbbbbbbb/2231376-3"></a>""" +
+                        """<a href="/s/cccccccccc/2231376-4"></a><a href="/s/dddddddddd/2231376-5"></a>""" +
                         """<div id="cdiv"><div class="c1"><div class="c3">Posted on 28 May 2022, 01:53 by: <a>Pokom</a></div>""" +
                         """<div class="c4">Uploader Comment</div><div class="c6" id="comment_0">第一行<br/>""" +
                         """<a href="https://example.com/">链接</a></div></div></div>""",
                 )
 
+                // 第 4 页一个字节都没传就断了，第 5 页传了一截（超过响应缓冲区，头已经发出去）才断
+                request.uri.path == "/p4.webp" -> brokenImage(0)
+                request.uri.path == "/p5.webp" -> brokenImage(64 * 1024)
                 else -> FakeResponse("\u0001\u0002\u0003", contentType = "image/webp")
             }
         }.client()
+
+        private fun brokenImage(bytesBeforeFailure: Int): ClientHttpResponse {
+            val failing = object : InputStream() {
+                override fun read(): Int = throw IOException("Connection reset")
+            }
+            val body = SequenceInputStream(ByteArrayInputStream(ByteArray(bytesBeforeFailure)), failing)
+            return MockClientHttpResponse(body, HttpStatus.OK).apply { headers.contentType = MediaType.IMAGE_JPEG }
+        }
 
         private const val HOLIDAYS_2026 = """{"name":"元旦","date":"2026-01-01","isOffDay":true},""" +
             """{"name":"元旦","date":"2026-01-04","isOffDay":false}"""

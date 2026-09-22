@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.CacheControl
 import org.springframework.http.HttpHeaders
 import org.springframework.web.bind.annotation.*
-import org.springframework.web.util.DisconnectedClientHelper
 import java.io.IOException
 import java.time.Duration
 
@@ -55,27 +54,52 @@ class ImageController(private val images: ImageService) {
         response.stream(images.openThumbnail(u, Signature.of(e, s)))
     }
 
-    /** 边读边写，不把整张图读进内存。 */
+    /**
+     * 边读边写，不把整张图读进内存。读上游和写给浏览器分开处理，两头断开的含义不一样：
+     * 浏览器自己中止的（快速翻页时成批发生）不算故障；上游断流则不能照常收尾，见 [upstreamBroken]。
+     */
     private fun HttpServletResponse.stream(attachment: Attachment) {
         attachment.use {
             contentType = it.contentType
             setHeader(HttpHeaders.CACHE_CONTROL, CACHE_CONTROL)
             it.contentLength?.let(::setContentLengthLong)
-            try {
-                it.body.transferTo(outputStream)
-            } catch (e: IOException) {
-                // 头已经发出去了，中途断了没法再改成错误响应，只能记一条日志。
-                // 浏览器自己中止的（快速翻页时成批发生）不算故障，降到 debug，免得淹掉真正的上游断流
-                if (DisconnectedClientHelper.isClientDisconnectedException(e)) {
+            val out = outputStream
+            val buffer = ByteArray(BUFFER_SIZE)
+            while (true) {
+                val read = try {
+                    it.body.read(buffer)
+                } catch (e: IOException) {
+                    throw upstreamBroken(it, e)
+                }
+                if (read < 0) {
+                    return
+                }
+                try {
+                    out.write(buffer, 0, read)
+                } catch (_: IOException) {
                     log.debug("客户端中途放弃了图片 url={}", it.source)
-                } else {
-                    log.warn("转发图片时中断 url={}", it.source, e)
+                    return
                 }
             }
         }
     }
 
+    /**
+     * 上游断流。头还没发出去，就撤掉图片的响应头（尤其是 30 天的缓存头），改回普通的错误响应；
+     * 已经发出去了就改不成错误响应了，照常收尾的话浏览器会把半张图当成完整的缓存下来，
+     * 所以原样抛出，由 ApiExceptionHandler 交给容器直接断开连接。
+     */
+    private fun HttpServletResponse.upstreamBroken(attachment: Attachment, cause: IOException): AppException {
+        if (!isCommitted) {
+            reset()
+        }
+        // 上游地址挂在 cause 上，只进日志
+        return AppException.UpstreamFailure("图片传到一半，e 站那边断了", IOException("转发 ${attachment.source} 时中断", cause))
+    }
+
     private companion object {
+        const val BUFFER_SIZE = 16 * 1024
+
         /** 图集内容不会变，浏览器缓存住之后来回翻页就不再回源，也就不再消耗 e 站配额。 */
         val CACHE_CONTROL: String = CacheControl.maxAge(Duration.ofDays(30)).cachePrivate().immutable().headerValue!!
     }
