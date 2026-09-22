@@ -19,7 +19,12 @@ export function useReadingHistory() {
   /* 页面被缓存起来时不再滚动、也不再自动补页，但已发出的删除仍要跑完。 */
   const active = ref(true)
 
-  const history = useCursorPages((cursor, signal) => fetchReadingHistory(cursor, signal))
+  /* 每条记录都带着读到第几页：先等已经发出的进度保存落地，否则刚退出阅读时读回来的还是上报之前的页码，
+   * 点「继续阅读」就会把进度按回去。保存有时限，等不了太久。 */
+  const history = useCursorPages(async (cursor, signal) => {
+    await content.progressSaved()
+    return fetchReadingHistory(cursor, signal)
+  })
   /* 在 setup 里当场发出：KeepAlive 首次挂载也会触发 onActivated，靠 busy 挡住那里的第二次请求。 */
   history.restart()
   /* 每条记录都带着 e 站的图集元数据，换绑 e 站账号后可见性跟着变，所以同样从头读。 */

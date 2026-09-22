@@ -205,24 +205,44 @@ describe("阅读历史与二级导航", () => {
     expect(searchGalleries).toHaveBeenCalledTimes(1)
   })
 
-  it("退出阅读不等进度推送跑完，历史照常立刻重取", async () => {
+  /* 退出阅读时补发的那页还在路上，这时读回来的历史还是旧页码，点「继续阅读」就会把进度按回去。 */
+  it("回到历史时等已发出的进度落地再重取，显示的是刚读到的页", async () => {
+    let saved = 3
+    vi.mocked(fetchReadingHistory).mockImplementation(async () => ({
+      items: [{ gid: gallery.gid, token: gallery.token, page: saved, readAt: gallery.postedAt, gallery }],
+      nextCursor: null,
+    }))
+    let finish!: () => void
+    vi.mocked(saveProgress)
+      .mockImplementationOnce(
+        (_gid, _token, page) =>
+          new Promise((resolve) => {
+            finish = () => {
+              saved = page
+              resolve(null)
+            }
+          }),
+      )
+      .mockImplementation(async (_gid, _token, page) => {
+        saved = page
+        return null
+      })
     await visit("/eh/history")
-    let finish!: (value: null) => void
-    vi.mocked(saveProgress).mockReturnValueOnce(
-      new Promise((resolve) => {
-        finish = resolve
-      }),
-    )
     await click("继续阅读")
     await vi.waitFor(() => expect(saveProgress).toHaveBeenCalledWith(1, "aaaaaaaaaa", 3), {
       timeout: 2000,
     })
+    await router.replace("/eh/read/1/aaaaaaaaaa/30?source=history")
+    await settle()
     await visit("/eh/history")
     expect(router.currentRoute.value.name).toBe("gallery-history")
-    /* 推送在途也不挡读取：两者各走各的，不再共用一条队列。 */
-    expect(fetchReadingHistory).toHaveBeenCalledTimes(2)
-    finish(null)
+    /* 第一次上报还没回来，补发的第 30 页排在它后面；这时去读，读回来的还是第 3 页。 */
+    expect(fetchReadingHistory).toHaveBeenCalledTimes(1)
+    finish()
     await settle()
+    expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 30)
+    expect(fetchReadingHistory).toHaveBeenCalledTimes(2)
+    expect(host.textContent).toContain("第 30 页")
   })
 
   /* 历史的上一条正好就是要回的地方就退回去：原地替换会留下两条一样的记录，按系统后退键时停在原地不动。 */

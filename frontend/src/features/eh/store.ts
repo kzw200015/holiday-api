@@ -187,6 +187,11 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
     progressSaves.enqueue(() => saveProgress(gid, token, page))
   }
 
+  /** 此刻已经排上的进度保存全部跑完（成败都算）。读阅读历史前先等它，否则刚退出阅读时读回的还是上报之前的页码。 */
+  function progressSaved() {
+    return progressSaves.idle()
+  }
+
   function dropDetails() {
     for (const entry of details.values()) {
       entry.request.abort()
@@ -218,6 +223,7 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
     forgetProgress,
     forgetAllProgress,
     persistProgress,
+    progressSaved,
     reset,
   }
 })
