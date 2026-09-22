@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { clamp, useEventListener, useTimeoutFn } from "@vueuse/core"
-import { computed, ref, watch } from "vue"
-import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter } from "vue-router"
+import { computed, onScopeDispose, ref, watch } from "vue"
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter, type RouteLocationNormalized } from "vue-router"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -45,23 +45,30 @@ const { gallery, imageUrlTemplate, loaded, loading, errorMessage } = useGalleryD
 )
 const { report: reportProgress, flush: flushProgress } = useReadingProgress(props.gid, props.token)
 const totalPages = computed(() => gallery.value?.fileCount ?? 0)
+
+/* 详情到手前页数未知，只保证不小于 1，越界的部分等页数到了再收回来；到手之后按实际页数夹住，没有页面的就停在 1。 */
+function withinPages(target: number) {
+  return loaded.value ? clamp(target, 1, Math.max(1, totalPages.value)) : Math.max(1, target)
+}
+
 /**
  * 当前页码的真源在这里，地址栏是它的投影。
  *
  * 反过来（地址栏当真源）意味着翻一页要穿过一次路由导航才能生效，而滚动是每帧都在发生的事：
  * 拖动进度条会先跳回旧值再被纠正，滚动时还会连发好几次同样的 replace。地址栏只需要在
  * 停下来之后对得上，好让刷新和分享落在同一页，所以这里只把页码节流写回去。
+ *
+ * 缓存里有详情时页数一开始就知道，手改地址留下的越界页码当场收回，免得先被上报出去。
  */
-const current = ref(Math.max(1, props.page))
+const current = ref(withinPages(props.page))
 const page = computed({ get: () => current.value, set: goTo })
 const seeking = ref(false)
 const dragging = ref(false)
 const controlsVisible = ref(true)
 const playback = useReaderPlayback(page, totalPages, () => seeking.value || dragging.value)
 
-/* 页数未知时只保证不小于 1，越界的部分等页数到了再收回来。 */
 function goTo(next: number) {
-  current.value = totalPages.value ? clamp(next, 1, totalPages.value) : Math.max(1, next)
+  current.value = withinPages(next)
 }
 
 /* 用 replace 让浏览器后退直接离开阅读，而非逐页回退。 */
@@ -72,20 +79,44 @@ function syncUrl() {
 }
 
 const { start: scheduleUrlSync, stop: cancelUrlSync } = useTimeoutFn(syncUrl, URL_SYNC_DELAY, { immediate: false })
-watch(current, scheduleUrlSync)
-/* 已经离开阅读器时那次迟到的 replace 会把人拽回来，所以走之前先取消；
- * 同时把还没发出的那次进度补上，否则最后翻的几页就丢了。 */
-onBeforeRouteLeave(() => {
-  cancelUrlSync()
-  flushProgress()
-})
-/* 手改地址换图集不算离开路由，但这个实例马上要被重建，攒着的进度同样先发掉。 */
-onBeforeRouteUpdate((to) => {
-  if (Number(to.params.gid) !== props.gid) {
-    cancelUrlSync()
-    flushProgress()
+/*
+ * 正在进行的那次离开。离开要等目标页面的代码下载完才算走成，这期间惯性滚动之类仍会改页码，
+ * 再排上的那次 replace 会把离开顶掉、把人拽回阅读器，所以离开途中不再写地址栏。
+ */
+let leavingTo: RouteLocationNormalized | undefined
+watch(current, () => {
+  if (!leavingTo) {
+    scheduleUrlSync()
   }
 })
+/* 开头就收回过的越界页码同样要写回地址栏。 */
+if (current.value !== props.page) {
+  scheduleUrlSync()
+}
+
+/* 这个实例要走了：自动翻页停下，还没发出的那次进度补上，否则最后翻的几页就丢了。 */
+function leave(to: RouteLocationNormalized) {
+  leavingTo = to
+  cancelUrlSync()
+  playback.stop()
+  flushProgress()
+}
+onBeforeRouteLeave(leave)
+/* 手改地址换图集不算离开路由，但这个实例马上要按图集重建，同样当作离开。 */
+onBeforeRouteUpdate((to) => {
+  if (Number(to.params.gid) !== props.gid || String(to.params.token) !== props.token) {
+    leave(to)
+  }
+})
+/* 离开没走成（被守卫拦下、被新的导航顶掉）就接着同步地址栏；之后任何一次导航走成了，也说明那次离开已经作废。 */
+onScopeDispose(
+  router.afterEach((to, _from, failure) => {
+    if (leavingTo && (failure ? to === leavingTo : to !== leavingTo)) {
+      leavingTo = undefined
+      scheduleUrlSync()
+    }
+  }),
+)
 
 /* 地址栏是外部输入的入口：浏览器前进后退、手改页码都从这里进来。 */
 watch(
@@ -97,9 +128,9 @@ watch(
   },
 )
 
-/* 页数到手后把手改地址留下的越界页码收回来。 */
-watch(totalPages, (total) => {
-  if (total) {
+/* 页数到手（或重取后变了）时把手改地址留下的越界页码收回来。 */
+watch([loaded, totalPages], () => {
+  if (loaded.value) {
     goTo(current.value)
   }
 })
@@ -151,6 +182,10 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
           <Button size="sm" variant="outline" @click="exit">返回</Button>
         </ErrorAlert>
       </div>
+    </div>
+    <div v-else-if="loaded && !totalPages" class="flex flex-1 flex-col items-center justify-center gap-3 p-4">
+      <p role="status" class="text-sm text-white/80">这个图集没有可以阅读的页面。</p>
+      <Button size="sm" variant="outline" @click="exit">返回</Button>
     </div>
     <div v-else class="relative flex min-h-0 flex-1 overflow-hidden">
       <ReaderStrip

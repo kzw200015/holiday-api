@@ -82,5 +82,5 @@ export function useReaderPlayback(
     intervalReady: preferences.ready,
     intervalFailed: computed(() => !preferences.ready.value && preferences.loadError.value !== ""),
   })
-  return { state, changeInterval, toggle, reloadInterval: preferences.reload }
+  return { state, changeInterval, toggle, stop, reloadInterval: preferences.reload }
 }

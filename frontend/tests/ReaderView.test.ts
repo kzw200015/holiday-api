@@ -28,10 +28,13 @@ let router: ReturnType<typeof createRouter>
 const URL_SYNC_DELAY = 300
 /* 与 store 里的 DETAIL_STALE_TIME 对齐。 */
 const DETAIL_STALE_TIME = 5 * 60 * 1000
+/* 离开阅读器要去的页面。默认当场加载完；要模拟首次访问时还在下载页面代码，就换成一个晚点才兑现的。 */
+let awayPage: Promise<VueComponent>
 
 beforeEach(async () => {
   vi.mocked(saveProgress).mockClear()
   vi.mocked(fetchGalleryDetail).mockClear()
+  awayPage = Promise.resolve({ render: () => h("div", "其他页面") })
   vi.useFakeTimers()
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
   router = createRouter({
@@ -47,6 +50,7 @@ beforeEach(async () => {
           page: Number(route.params.page),
         }),
       },
+      { path: "/away", component: () => awayPage },
     ],
   })
   await router.push("/1/token/1")
@@ -126,6 +130,17 @@ describe("阅读进度保存", () => {
     finish(null)
     await vi.advanceTimersByTimeAsync(0)
     expect(saveProgress).toHaveBeenNthCalledWith(2, 1, "token", 3)
+  })
+
+  /* 地址是外部输入：缓存里有详情时页数一开始就知道，越界页码当场收回，不能先把它上报出去。 */
+  it("详情已在缓存里时，越界页码当场收回，只上报收回后的页", async () => {
+    await router.replace("/2/other/1")
+    await router.replace("/1/token/99")
+    await vi.advanceTimersByTimeAsync(1200 + URL_SYNC_DELAY)
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
+    expect(saveProgress).not.toHaveBeenCalledWith(1, "token", 99)
+    expect(saveProgress).toHaveBeenLastCalledWith(1, "token", 10)
+    expect(router.currentRoute.value.params.page).toBe("10")
   })
 
   /* 换图集会重建阅读器，重建前先把上一本攒着的位置发掉。 */
@@ -308,5 +323,57 @@ describe("阅读器的边界情况", () => {
     expect(host.textContent).not.toContain("打不开这个图集")
     expect(readingArea()).not.toBeNull()
     expect(host.querySelector<HTMLInputElement>('input[type="range"]')!.value).toBe("3")
+  })
+
+  it("没有页面的图集直接说明，键盘翻页也不越过第 1 页", async () => {
+    vi.mocked(fetchGalleryDetail).mockResolvedValueOnce({
+      gallery: { title: "空图集", fileCount: 0 },
+      imageUrlTemplate: "/image/{page}",
+    } as Awaited<ReturnType<typeof EhApi.fetchGalleryDetail>>)
+    await router.replace("/3/empty/1")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(host.textContent).toContain("这个图集没有可以阅读的页面")
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }))
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }))
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "End" }))
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
+    expect(router.currentRoute.value.params.page).toBe("1")
+    expect(saveProgress).not.toHaveBeenCalledWith(3, "empty", expect.anything())
+  })
+
+  /* 首次访问时目标页面的代码还在下载，离开导航要等它；这期间迟到的地址栏同步会把离开顶掉。 */
+  it("离开的导航还没完成时，再翻页也不会把人拽回阅读器", async () => {
+    let finish!: (component: VueComponent) => void
+    awayPage = new Promise((resolve) => {
+      finish = resolve
+    })
+    host.querySelector<HTMLButtonElement>('[aria-label="开始自动翻页"]')!.click()
+    await nextTick()
+    const leaving = router.push("/away")
+    await vi.advanceTimersByTimeAsync(0)
+    /* 离开时自动翻页就停了；惯性滚动这类仍可能再改一次页码。 */
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }))
+    await vi.advanceTimersByTimeAsync(10000)
+    finish({ render: () => h("div", "其他页面") })
+    await leaving
+    await vi.advanceTimersByTimeAsync(0)
+    expect(router.currentRoute.value.path).toBe("/away")
+    /* 离开之后才翻到的那页，卸载时补上。 */
+    expect(saveProgress).toHaveBeenLastCalledWith(1, "token", 2)
+  })
+
+  it("离开被新的导航取消后，地址栏照常跟上页码", async () => {
+    let finish!: (component: VueComponent) => void
+    awayPage = new Promise((resolve) => {
+      finish = resolve
+    })
+    const leaving = router.push("/away")
+    await vi.advanceTimersByTimeAsync(0)
+    await router.replace("/1/token/5")
+    finish({ render: () => h("div", "其他页面") })
+    await leaving
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }))
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
+    expect(router.currentRoute.value.params.page).toBe("6")
   })
 })
