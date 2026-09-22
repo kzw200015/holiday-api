@@ -19,6 +19,8 @@ data class HolidayDay(
 interface HolidayMapper {
     fun findByDate(date: String): HolidayDay?
 
+    fun hasYear(year: Int): Boolean
+
     fun deleteYear(year: Int)
 
     /** 不接受空列表：拼出来的 VALUES 后面没有行，是句不合法的 SQL。 */

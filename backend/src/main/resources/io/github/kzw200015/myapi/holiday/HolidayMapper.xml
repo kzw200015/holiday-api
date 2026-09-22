@@ -7,6 +7,10 @@
     </select>
 
     <!-- date 列存的是 YYYY-MM-DD 字符串，年份即前缀 -->
+    <select id="hasYear" resultType="boolean">
+        SELECT EXISTS (SELECT 1 FROM holiday_days WHERE date LIKE concat(#{year}, '-%'))
+    </select>
+
     <delete id="deleteYear">
         DELETE FROM holiday_days WHERE date LIKE concat(#{year}, '-%')
     </delete>

@@ -1,5 +1,6 @@
 package io.github.kzw200015.myapi.holiday
 
+import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.body
@@ -15,6 +16,9 @@ class HolidayRemote(private val http: RestClient, private val json: JsonMapper) 
         // 数据源把 .json 文件按 text/plain 返回，所以先取成字符串再按 JSON 解
         val text = try {
             http.get().uri("/{year}.json", year).retrieve().body<String>().orEmpty()
+        } catch (_: HttpClientErrorException.NotFound) {
+            // 次年的文件要到某个时候才建出来，之前是 404：和「文件有了、安排还没公布」一样，都是还没发布
+            return emptyList()
         } catch (e: RestClientException) {
             throw IllegalStateException("拉取 $year 年节假日数据失败", e)
         }

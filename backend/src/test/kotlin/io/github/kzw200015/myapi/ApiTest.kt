@@ -232,12 +232,18 @@ class ApiTest {
     }
 
     companion object {
-        /** 数据源把 .json 按 text/plain 返回（带 charset=utf-8，照实写上）；只有 2026 年有数据，次年安排还没发布。 */
+        /**
+         * 数据源把 .json 按 text/plain 返回（带 charset=utf-8，照实写上）；只有 2026 年有数据，
+         * 其余年份的文件还没建出来（404），和次年安排还没发布一样处理。
+         */
         @JvmStatic
         fun holidayRemote(): HolidayRemote {
             val upstream = FakeUpstream { request ->
-                val days = if (request.uri.path == "/2026.json") HOLIDAYS_2026 else ""
-                FakeResponse("""{"days":[$days]}""", contentType = "text/plain; charset=utf-8")
+                if (request.uri.path == "/2026.json") {
+                    FakeResponse("""{"days":[$HOLIDAYS_2026]}""", contentType = "text/plain; charset=utf-8")
+                } else {
+                    FakeResponse("404: Not Found", 404, "text/plain; charset=utf-8")
+                }
             }
             return HolidayRemote(RestClient.builder().requestFactory(upstream).build(), testJson)
         }

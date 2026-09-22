@@ -34,12 +34,16 @@ class HolidayService(
     fun refreshYear(year: Int) {
         // 远程拉取放在事务外，免得一次最长 60 秒的 HTTP 调用白占着数据库连接
         val fetched = remote.fetchYear(year)
+        // 还没发布就不动库：一年的安排公布之后不会变回没有，拉到空的只能是还没发布，或者数据源出了岔子（路径变了、全回 404），
+        // 这时先删后插只会把已有的安排清掉
+        if (fetched.isEmpty()) {
+            log.info("节假日安排还没有发布 year={}", year)
+            return
+        }
         // 删和插在一个事务里：中途出错即回滚，不会留下「旧的没了、新的也没进来」的空年份
         transactions.executeWithoutResult {
             days.deleteYear(year)
-            if (fetched.isNotEmpty()) {
-                days.insertAll(fetched)
-            }
+            days.insertAll(fetched)
         }
         log.info("已刷新节假日数据 year={} count={}", year, fetched.size)
     }
@@ -51,6 +55,9 @@ class HolidayService(
             listOf(year, year + 1).map { async { refreshYear(it) } }.awaitAll()
         }
     }
+
+    /** 库里有没有今年的安排。 */
+    fun hasCurrentYear(): Boolean = days.hasYear(Year.now(CHINA_ZONE).value)
 
     private companion object {
         val WEEKEND = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
