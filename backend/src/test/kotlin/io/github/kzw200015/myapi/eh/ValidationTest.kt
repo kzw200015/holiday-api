@@ -28,13 +28,14 @@ class ValidationTest {
         for (preferences in invalid) {
             assertFailsWith<AppException.InvalidArgument>("$preferences") { service.savePreferences(1, preferences) }
         }
-        for (entries in listOf(listOf("   "), listOf("a".repeat(201)), (1..11).map(Int::toString))) {
+        // JSON 里混进 null 也是 400，而不是用到时才空指针
+        for (entries in listOf(listOf(""), listOf(null), listOf("a".repeat(201)), (1..11).map(Int::toString))) {
             assertFailsWith<AppException.InvalidArgument>("$entries") { service.saveSearchHistory(1, entries) }
         }
     }
 
     @Test
-    fun `入库前把偏好整理成同一种写法，关键词去掉两端空白`() {
+    fun `入库前把偏好整理成同一种写法，关键词原样存`() {
         val saved = mutableListOf<Any>()
         val service = PreferencesService(
             object : PreferencesMapper {
@@ -53,8 +54,9 @@ class ValidationTest {
         assertEquals(emptyList(), service.searchHistory(1))
 
         service.savePreferences(1, GalleryPreferences(listOf("manga", "doujinshi", "manga"), 8))
-        service.saveSearchHistory(1, listOf(" 词9 ", "词1"))
-        assertEquals(listOf(listOf("doujinshi", "manga") to 8, listOf("词9", "词1")), saved)
+        // 前端提交前已经去过两端空白。两边对「空白」的定义不一样，这里再去一遍就会退回前端认为合法的词（如 U+001C）
+        service.saveSearchHistory(1, listOf("\u001C", "词1"))
+        assertEquals(listOf(listOf("doujinshi", "manga") to 8, listOf("\u001C", "词1")), saved)
     }
 
     @Test

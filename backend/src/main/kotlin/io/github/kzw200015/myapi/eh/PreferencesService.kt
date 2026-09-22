@@ -7,7 +7,8 @@ import org.springframework.stereotype.Service
 /** 跨设备共享的图集浏览偏好，不包含页面草稿或自动翻页开关。也是读写两个接口的请求体与响应体。 */
 data class GalleryPreferences(val categories: List<String> = emptyList(), val readerInterval: Int = 0)
 
-data class SearchHistoryBody(val entries: List<String> = emptyList())
+/** 元素声明成可空：JSON 里混进 null 时 Jackson 不拦集合元素，得由校验回 400，而不是用到时才空指针。 */
+data class SearchHistoryBody(val entries: List<String?> = emptyList())
 
 /**
  * 浏览偏好与搜索历史：本站账号的数据，「读一次、之后前端说了算」，所以写入一律是整份替换——
@@ -34,17 +35,21 @@ class PreferencesService(private val preferences: PreferencesMapper) {
 
     /**
      * 哪条在前、要不要去重、留几条都是前端定的。条数超了就整份退回而不是替前端截断——
-     * 列上也有同样的 CHECK，两边对不上时报错比静默改数据好排查。关键词两端的空白去掉，前端提交前已经去过，这里是兜底。
+     * 列上也有同样的 CHECK，两边对不上时报错比静默改数据好排查。
+     *
+     * 关键词原样存，不在这里去两端空白：前端提交前已经去过，而两边对「空白」的定义不一样（Kotlin 的 trim 会去掉
+     * U+001C–U+001F，JS 的不会），这里再去一遍，就会退回前端认为合法的词，之后每次整份提交都跟着失败。
      */
-    fun saveSearchHistory(userId: Long, entries: List<String>) {
+    fun saveSearchHistory(userId: Long, entries: List<String?>) {
         if (entries.size > SEARCH_HISTORY_LIMIT) {
             throw AppException.InvalidArgument("搜索历史最多 $SEARCH_HISTORY_LIMIT 条")
         }
-        val cleaned = entries.map(String::trim)
-        if (cleaned.any { it.isEmpty() || it.toByteArray().size > KEYWORD_MAX_BYTES }) {
+        val keywords = entries.filterNotNull()
+        val invalid = keywords.any { it.isEmpty() || it.toByteArray().size > KEYWORD_MAX_BYTES }
+        if (keywords.size < entries.size || invalid) {
             throw AppException.InvalidArgument("搜索历史关键词应为 1–$KEYWORD_MAX_BYTES 字节")
         }
-        preferences.saveSearchHistory(userId, cleaned)
+        preferences.saveSearchHistory(userId, keywords)
     }
 
     private companion object {
