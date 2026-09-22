@@ -91,6 +91,8 @@ class EhClientTest {
             Case(509, "text/html", AppException.ResourceExhausted::class, false),
             // 上游出错时回的是 HTML 错误页，原样转发会让浏览器显示一张裂图
             Case(200, "text/html", AppException.UpstreamFailure::class, false),
+            // SVG 能带脚本，不当成图片转发
+            Case(200, "image/svg+xml", AppException.UpstreamFailure::class, false),
         )
         for (case in cases) {
             val response = FakeResponse("image", case.status, case.contentType)

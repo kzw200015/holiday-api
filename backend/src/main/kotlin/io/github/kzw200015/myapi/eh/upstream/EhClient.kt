@@ -147,9 +147,11 @@ class EhClient(
                 509 -> throw quotaExceeded()
                 else -> throw ImageNodeFailure("图床返回了 HTTP $status")
             }
-            // 上游出错时回的是 HTML 错误页，原样转发会让浏览器显示一张裂图，日志里也查不出原因
+            // 上游出错时回的是 HTML 错误页，原样转发会让浏览器显示一张裂图，日志里也查不出原因。
+            // SVG 也不放行：它能带脚本，图片地址在本站源下被直接打开时就能读到登录令牌，而图床节点是第三方志愿者运营的
             val contentType = response.headers.getFirst(HttpHeaders.CONTENT_TYPE).orEmpty()
-            if (!contentType.startsWith("image/")) {
+            val type = contentType.lowercase()
+            if (!type.startsWith("image/") || type.startsWith("image/svg")) {
                 throw unavailable("图床返回的不是图片（${contentType.ifEmpty { "无类型" }}）")
             }
             return Attachment(contentType, response.headers.contentLength.takeIf { it >= 0 }, url, response)

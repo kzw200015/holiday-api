@@ -62,6 +62,9 @@ class ImageController(private val images: ImageService) {
         attachment.use {
             contentType = it.contentType
             setHeader(HttpHeaders.CACHE_CONTROL, CACHE_CONTROL)
+            // 图片地址在新标签页里被直接打开时，别让浏览器把它当成网页、在本站源下执行里面的东西
+            setHeader("X-Content-Type-Options", "nosniff")
+            setHeader("Content-Security-Policy", "sandbox")
             it.contentLength?.let(::setContentLengthLong)
             val out = outputStream
             val buffer = ByteArray(BUFFER_SIZE)
