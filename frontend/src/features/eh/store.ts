@@ -62,7 +62,9 @@ function defineAccountData<T>(
       return request.run(fetch)
     }
 
+    /* 还在途的读取先取消：它带回来的是服务端的旧值，落地就把刚改的这份盖掉了。 */
     function set(next: T) {
+      request.abort()
       request.data.value = next
       if (persist) {
         saves.enqueue(() => persist(next))

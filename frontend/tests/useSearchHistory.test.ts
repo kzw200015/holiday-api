@@ -6,6 +6,7 @@ import { createApp, nextTick } from "vue"
 import type * as EhApi from "@/features/eh/api"
 import { fetchSearchHistory, saveSearchHistory } from "@/features/eh/api"
 import { useSearchHistory } from "@/features/eh/composables/useSearchHistory"
+import { useSearchHistoryStore } from "@/features/eh/store"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -119,5 +120,33 @@ describe("账号搜索历史", () => {
     await settle()
     await settle()
     expect(history.entries.value).toEqual(["狗"])
+  })
+
+  /* 整份提交：拿没读到的空列表去记一条，就会把服务端原有的历史冲掉。 */
+  it("没读到之前不记、不删、不清空，也不提交", async () => {
+    vi.mocked(fetchSearchHistory).mockRejectedValueOnce(new Error("断网"))
+    const history = mount()
+    await settle()
+    history.record("鸟")
+    history.remove("猫")
+    history.clear()
+    await settle()
+    expect(history.entries.value).toEqual([])
+    expect(saveSearchHistory).not.toHaveBeenCalled()
+  })
+
+  it("本地改动之后，之前还在途的读取不再落地", async () => {
+    let finish!: (value: string[]) => void
+    vi.mocked(fetchSearchHistory).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    const store = useSearchHistoryStore(pinia)
+    void store.load()
+    store.set(["新"])
+    finish(["旧"])
+    await settle()
+    expect(store.data).toEqual(["新"])
   })
 })
