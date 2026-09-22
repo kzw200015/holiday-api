@@ -46,20 +46,33 @@ class ParserTest {
     }
 
     @Test
-    fun `详情分片解出每页令牌与分片大小`() {
-        val slice = parseGallerySlice(fixture("gallery-page.html"))
+    fun `详情分片解出每页令牌、分片大小与总页数`() {
+        val slice = parseGallerySlice(fixture("gallery-page.html"), 2231376)
 
         assertEquals(mapOf(1 to "1ff5e361bb", 2 to "fa27f217a6", 3 to "60f2a8c343"), slice.pageTokens)
         // 样本只裁了 3 个令牌，分片大小照样按 Showing 那行算
         assertEquals(20, slice.sliceSize)
+        assertEquals(329, slice.pageCount)
+    }
+
+    @Test
+    fun `评论里贴的别的图集的图片页链接不算这本的令牌`() {
+        val slice = parseGallerySlice(
+            """<div id="gdt"><a href="/s/aaaaaaaaaa/1-1">1</a></div>""" +
+                """<div id="cdiv">看这页 <a href="https://e-hentai.org/s/bbbbbbbbbb/999999-35">链接</a></div>""",
+            1,
+        )
+        assertEquals(mapOf(1 to "aaaaaaaaaa"), slice.pageTokens)
     }
 
     @Test
     fun `Showing 那行带千分位逗号，最后一片或没有那行时推不出分片大小`() {
-        assertEquals(21, parseGallerySlice("<p>Showing 1,000 - 1,020 of 12,345 images</p>").sliceSize)
-        // 最后一片可能不满，不能拿它当账号的分片大小
-        assertNull(parseGallerySlice("<p>Showing 321 - 329 of 329 images</p>").sliceSize)
-        assertNull(parseGallerySlice("<html></html>").sliceSize)
+        assertEquals(21, parseGallerySlice("<p>Showing 1,000 - 1,020 of 12,345 images</p>", 1).sliceSize)
+        // 最后一片可能不满，不能拿它当账号的分片大小；总页数照样取得到
+        val last = parseGallerySlice("<p>Showing 321 - 329 of 329 images</p>", 1)
+        assertNull(last.sliceSize)
+        assertEquals(329, last.pageCount)
+        assertNull(parseGallerySlice("<html></html>", 1).sliceSize)
     }
 
     @Test
@@ -108,6 +121,20 @@ class ParserTest {
         assertTrue(image.imageUrl.startsWith("https://bvxhifw.isvxwqkwpklu.hath.network:62121/h/"))
 
         assertNull(parseImagePage("<html><body>Content Warning</body></html>"))
+    }
+
+    @Test
+    fun `完整的图片页上，下一页取紧挨着大图的那个链接，不取上方的翻页导航`() {
+        val page = """<div id="i2"><div class="sn">""" +
+            """<a id="first" href="https://e-hentai.org/s/aaaaaaaaaa/2231376-1"></a>""" +
+            """<a id="prev" href="https://e-hentai.org/s/bbbbbbbbbb/2231376-2"></a>""" +
+            """<a id="next" href="https://e-hentai.org/s/cb8cbc96af/2231376-4"></a></div></div>""" +
+            """<div id="i3"><a onclick="return load_image(4, 'cb8cbc96af')" href="https://e-hentai.org/s/cb8cbc96af/2231376-4">""" +
+            """<img id="img" src="https://x.hath.network/h/abc/3.webp" style="..." /></a></div>"""
+
+        val image = parseImagePage(page)!!
+        assertEquals(4, image.nextPage)
+        assertEquals("cb8cbc96af", image.nextToken)
     }
 
     @Test

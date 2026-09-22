@@ -26,7 +26,13 @@ import java.util.*
 private val galleryLink = Regex("""/g/(\d+)/([0-9a-f]{10})/""")
 
 /** 图片页链接，形如 /s/<页令牌>/<gid>-<页码>。 */
-private val imagePageLink = Regex("""/s/([0-9a-f]{10})/\d+-(\d+)""")
+private val imagePageLink = Regex("""/s/([0-9a-f]{10})/(\d+)-(\d+)""")
+
+/**
+ * 包着大图的那个链接，指向下一页。整张图片页里大图上方还有一排翻页导航（首页、上一页……），
+ * 所以不能取页面上第一个图片页链接，要取紧挨着大图的那个。
+ */
+private val nextImageLink = Regex("""<a[^>]*\bhref="[^"]*/s/([0-9a-f]{10})/\d+-(\d+)"[^>]*>\s*<img[^>]*\bid="img"""")
 
 /** 详情页上的「Showing 1 - 20 of 329」，数字过千会带千分位逗号。 */
 private val showing = Regex("""Showing\s+([\d,]+)\s*-\s*([\d,]+)\s+of\s+([\d,]+)""")
@@ -104,18 +110,23 @@ fun parseNextCursor(page: String): String? {
         ?.takeIf { it.isNotEmpty() }
 }
 
-/** 详情页一个分片里的每页令牌与分片大小。取图用不着评论，所以这里不建 DOM。 */
-fun parseGallerySlice(page: String): GallerySlice {
+/**
+ * 详情页一个分片里这本图集的每页令牌与分片大小。取图用不着评论，所以这里不建 DOM。
+ *
+ * 只收 gid 对得上的链接：评论区也在这页上，里面贴的别的图集的图片页链接不能混进来。
+ */
+fun parseGallerySlice(page: String, gid: Long): GallerySlice {
     val tokens = linkedMapOf<Int, String>()
     for (match in imagePageLink.findAll(page)) {
-        val number = match.groupValues[2].toIntOrNull() ?: continue
+        if (match.groupValues[2].toLongOrNull() != gid) continue
+        val number = match.groupValues[3].toIntOrNull() ?: continue
         tokens.putIfAbsent(number, match.groupValues[1])
     }
+    val range = showing.find(page)?.groupValues?.drop(1)?.map { it.replace(",", "").toIntOrNull() ?: 0 }
     // 本片之后还有页（to < total），才说明本片是满的；总页数只能从这一行取，不能拿 pageTokens.size 顶
-    val sliceSize = showing.find(page)?.groupValues?.drop(1)
-        ?.map { it.replace(",", "").toIntOrNull() ?: 0 }
-        ?.let { (from, to, total) -> if (from in 1..to && to < total) to - from + 1 else null }
-    return GallerySlice(html = page, pageTokens = tokens, sliceSize = sliceSize)
+    val sliceSize = range?.let { (from, to, total) -> if (from in 1..to && to < total) to - from + 1 else null }
+    val pageCount = range?.let { (_, _, total) -> total.takeIf { it > 0 } }
+    return GallerySlice(html = page, pageTokens = tokens, sliceSize = sliceSize, pageCount = pageCount)
 }
 
 /** /s/ 图片页。不是图片页（找不到大图）时返回 null。 */
@@ -128,7 +139,7 @@ fun parseImagePage(page: String): ImagePage? =
  */
 fun parseShowPageFragment(i3: String): ImagePage? {
     val imageUrl = mainImage.find(i3)?.groupValues?.get(1) ?: return null
-    val next = imagePageLink.find(i3)
+    val next = nextImageLink.find(i3)
     return ImagePage(
         imageUrl = imageUrl,
         nextPage = next?.groupValues?.get(2)?.toIntOrNull(),

@@ -67,7 +67,7 @@ class EhClient(
 
     fun fetchGallerySlice(access: EhAccess, ref: GalleryRef, slice: Int): GallerySlice {
         val page = fetchPage(access, "/g/${ref.gid}/${ref.token}/?p=$slice")
-        val parsed = parseGallerySlice(page)
+        val parsed = parseGallerySlice(page, ref.gid)
         if (parsed.pageTokens.isEmpty()) {
             unrecognized(page, "图集页面没有可识别的图片令牌")
         }

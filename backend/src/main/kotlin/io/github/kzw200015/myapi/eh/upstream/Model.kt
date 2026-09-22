@@ -117,6 +117,8 @@ data class GallerySlice(
      * 最后一片可能不满，只有中间的分片能确定；确定不了（或没有那一行）是 null。
      */
     val sliceSize: Int?,
+    /** 整本的页数，同样取自那一行；没有那一行是 null。 */
+    val pageCount: Int? = null,
 )
 
 /** 图片页（/s/ 页面或 showpage 的 i3 片段）里取图要用的东西。 */

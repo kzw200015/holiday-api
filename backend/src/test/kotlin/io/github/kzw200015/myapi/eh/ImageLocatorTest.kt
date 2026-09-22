@@ -34,6 +34,44 @@ class ImageLocatorTest {
         assertEquals(1, sliceCalls.get())
     }
 
+    /**
+     * 假的详情页：账号每片 [size] 个缩略图，整本 [total] 页。分片序号超出范围时 e 站退回最后一片。
+     * 记下每次请求的是第几片。
+     */
+    private fun galleryOf(total: Int, size: Int, requested: MutableList<Int>) = FakeUpstream { request ->
+        if (request.uri.path.startsWith("/g/")) {
+            val index = request.uri.query.substringAfter("p=").toInt()
+            requested += index
+            val from = minOf(index, (total - 1) / size) * size + 1
+            val to = minOf(from + size - 1, total)
+            page("Showing $from - $to of $total" + (from..to).joinToString("") { """<a href="/s/${"%010x".format(it)}/1-$it">""" })
+        } else {
+            page("""<img id="img" src="https://ehgt.org/${request.uri.path.substringAfterLast('-')}.webp">""")
+        }
+    }.client()
+
+    @Test
+    fun `分片大小猜错、又落在最后一片时，从第一片推出真实的分片大小`() {
+        // 账号设的是每片 40 个：按默认的 20 猜，第 30 页在第 1 片，而 e 站的第 1 片是 41–50，不满，推不出分片大小
+        val requested = mutableListOf<Int>()
+        val small = ImageLocator(galleryOf(total = 50, size = 40, requested))
+        assertEquals("https://ehgt.org/30.webp", small.resolve(EhAccess.ANONYMOUS, ref, 30))
+        assertEquals(listOf(1, 0), requested)
+
+        // 猜的第 3 片超出了范围，e 站退回最后一片 81–100；第一片给出分片大小 40，第 70 页在第 1 片
+        requested.clear()
+        val large = ImageLocator(galleryOf(total = 100, size = 40, requested))
+        assertEquals("https://ehgt.org/70.webp", large.resolve(EhAccess.ANONYMOUS, ref, 70))
+        assertEquals(listOf(3, 0, 1), requested)
+    }
+
+    @Test
+    fun `页码超出图集页数时回 404`() {
+        val locator = ImageLocator(galleryOf(total = 50, size = 40, mutableListOf()))
+        val failure = assertFailsWith<AppException.NotFound> { locator.resolve(EhAccess.ANONYMOUS, ref, 60) }
+        assertEquals("第 60 页超出了图集的页数（共 50 页）", failure.message)
+    }
+
     @Test
     fun `图片缓存按凭据、站点与完整的图集定位信息隔离`() {
         val imageCalls = AtomicInteger()

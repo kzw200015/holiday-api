@@ -2,6 +2,7 @@ package io.github.kzw200015.myapi.eh
 
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
+import io.github.kzw200015.myapi.AppException
 import io.github.kzw200015.myapi.eh.upstream.*
 import org.springframework.stereotype.Component
 import java.time.Duration
@@ -78,16 +79,25 @@ class ImageLocator(private val client: EhClient) {
             }
         }
 
-    /** 这一页的图片页令牌。分片大小受账号设置影响（20/40/50），没记过就按 20 猜，猜错了按实际区间校正一次。 */
+    /**
+     * 这一页的图片页令牌。分片大小受账号设置影响（20/40/50），没记过就按 20 猜，猜错了按实际分片大小再取一次。
+     *
+     * 猜的那片若是满的，它自己就给出了分片大小；若是最后一片（不满，或者猜的序号超出范围、e 站退回了最后一片），
+     * 就从第一片推：第一片要么是满的，要么整本只有这一片、这一页也就在里面。
+     */
     private fun pageToken(access: EhAccess, gallery: GalleryKey, page: Int): String {
         pageTokens.getIfPresent(PageKey(gallery, page))?.let { return it }
         val guessed = sliceSizes.getIfPresent(gallery.scope) ?: DEFAULT_SLICE_SIZE
         val slice = sliceOf(access, gallery, (page - 1) / guessed)
         // 直接用本次结果：缓存淘汰不影响已经取到的令牌
         slice.pageTokens[page]?.let { return it }
-        val corrected = slice.sliceSize
-        if (corrected != null && corrected != guessed) {
-            sliceOf(access, gallery, (page - 1) / corrected).pageTokens[page]?.let { return it }
+        slice.pageCount?.let { if (page > it) throw AppException.NotFound("第 $page 页超出了图集的页数（共 $it 页）") }
+        val size = slice.sliceSize ?: sliceOf(access, gallery, 0).let { first ->
+            first.pageTokens[page]?.let { return it }
+            first.sliceSize
+        }
+        if (size != null && size != guessed) {
+            sliceOf(access, gallery, (page - 1) / size).pageTokens[page]?.let { return it }
         }
         throw unavailable("没能取到第 $page 页的图片令牌")
     }
