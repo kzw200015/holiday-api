@@ -6,11 +6,11 @@ import io.github.kzw200015.myapi.eh.page
 import io.github.kzw200015.myapi.eh.testJson
 import io.github.kzw200015.myapi.eh.upstream.EhClient
 import io.github.kzw200015.myapi.holiday.HolidayRemote
+import jakarta.servlet.ServletException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
-import jakarta.servlet.ServletException
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
@@ -21,7 +21,6 @@ import org.springframework.mock.web.MockHttpServletResponse
 import org.springframework.test.context.bean.override.convention.TestBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-import org.springframework.web.client.RestClient
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping
 import java.io.ByteArrayInputStream
 import java.io.IOException
@@ -298,7 +297,7 @@ class ApiTest {
                     FakeResponse("404: Not Found", 404, "text/plain; charset=utf-8")
                 }
             }
-            return HolidayRemote(RestClient.builder().requestFactory(upstream).build(), testJson)
+            return HolidayRemote(upstream.restClient(), testJson)
         }
 
         /** 假的 e 站：gdata 回一条能过解析的元数据，两种页面各回一份最小样本，取图回一张图。 */

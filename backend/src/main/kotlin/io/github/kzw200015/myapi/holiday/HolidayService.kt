@@ -5,7 +5,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import org.springframework.transaction.support.TransactionTemplate
+import org.springframework.transaction.support.TransactionOperations
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.Year
@@ -19,7 +19,7 @@ internal val CHINA_ZONE: ZoneId = ZoneId.of("Asia/Shanghai")
 class HolidayService(
     private val days: HolidayMapper,
     private val remote: HolidayRemote,
-    private val transactions: TransactionTemplate,
+    private val transactions: TransactionOperations,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 

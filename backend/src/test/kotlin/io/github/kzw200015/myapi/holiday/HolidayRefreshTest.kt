@@ -3,12 +3,7 @@ package io.github.kzw200015.myapi.holiday
 import io.github.kzw200015.myapi.eh.FakeResponse
 import io.github.kzw200015.myapi.eh.FakeUpstream
 import io.github.kzw200015.myapi.eh.testJson
-import org.springframework.transaction.PlatformTransactionManager
-import org.springframework.transaction.TransactionDefinition
-import org.springframework.transaction.TransactionStatus
-import org.springframework.transaction.support.SimpleTransactionStatus
-import org.springframework.transaction.support.TransactionTemplate
-import org.springframework.web.client.RestClient
+import org.springframework.transaction.support.TransactionOperations
 import java.io.IOException
 import java.time.Duration
 import java.time.Year
@@ -32,22 +27,15 @@ class HolidayRefreshTest {
         }
 
         override fun insertAll(days: List<HolidayDay>) {
-            days.groupBy { it.date.take(4).toInt() }.forEach { (year, list) -> years[year] = list }
+            years.putAll(days.groupBy { it.date.take(4).toInt() })
         }
     }
 
-    private val noTransactions = TransactionTemplate(object : PlatformTransactionManager {
-        override fun getTransaction(definition: TransactionDefinition?): TransactionStatus = SimpleTransactionStatus()
-
-        override fun commit(status: TransactionStatus) = Unit
-
-        override fun rollback(status: TransactionStatus) = Unit
-    })
-
     private fun refresh(days: InMemoryHolidays, respond: (year: Int) -> FakeResponse): HolidayRefresh {
         val upstream = FakeUpstream { request -> respond(request.uri.path.removePrefix("/").removeSuffix(".json").toInt()) }
-        val remote = HolidayRemote(RestClient.builder().requestFactory(upstream).build(), testJson)
-        return HolidayRefresh(HolidayService(days, remote, noTransactions), HolidayProperties(Duration.ofHours(24)))
+        val remote = HolidayRemote(upstream.restClient(), testJson)
+        val service = HolidayService(days, remote, TransactionOperations.withoutTransaction())
+        return HolidayRefresh(service, HolidayProperties(Duration.ofHours(24)))
     }
 
     private fun day(year: Int) = HolidayDay("$year-01-01", true, "元旦")
