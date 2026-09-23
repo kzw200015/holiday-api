@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@11.17.0",
   "scripts": {
-    "dev": "pnpm --parallel -r dev",
+    "dev": "pnpm --filter @myapi/shared build && pnpm --parallel -r dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "oxlint",

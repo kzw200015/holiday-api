@@ -12,7 +12,3 @@ trim_trailing_whitespace = false
 
 [*.{ts,tsx,vue,css,html,json,yml,yaml}]
 indent_size = 2
-
-# Kotlin 官方代码风格；MyBatis 的 Mapper XML 跟着用同样的缩进
-[*.{kt,kts,xml}]
-indent_size = 4

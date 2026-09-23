@@ -10,9 +10,7 @@ beforeEach(() => {
 
 describe("HTTP 边界", () => {
   it("默认使用 fetch 适配器，保留查询参数、鉴权头和 JSON 请求体", async () => {
-    const fetch = vi
-      .fn<typeof globalThis.fetch>()
-      .mockImplementation(async () => Response.json({ code: 200, data: { id: 1 }, msg: "" }))
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => Response.json({ id: 1 }))
     const config = { baseURL: "https://myapi.test/api", env: { fetch } }
     setToken("current")
 
@@ -37,24 +35,29 @@ describe("HTTP 边界", () => {
     expect(fetch).toHaveBeenCalledTimes(3)
   })
 
-  it("GET 和 POST 都直接返回业务数据，保留 null", async () => {
-    const adapter: AxiosAdapter = async (config) => ({
-      config,
-      data: { code: 200, data: { id: 1 }, msg: "" },
-      headers: {},
-      status: 200,
-      statusText: "OK",
-    })
-    expect(await httpClient.get("/auth/me", { adapter })).toEqual({ id: 1 })
-    expect(await httpClient.post("/auth/login", {}, { adapter })).toEqual({ id: 1 })
-    const emptyResponse: AxiosAdapter = async (config) => ({
-      config,
-      data: { code: 200, data: null, msg: "" },
-      headers: {},
-      status: 200,
-      statusText: "OK",
-    })
-    expect(await httpClient.post("/eh/progress", {}, { adapter: emptyResponse })).toBeNull()
+  it("响应体就是业务数据；空体交出 null", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockImplementationOnce(async () => Response.json({ id: 1 }))
+      .mockImplementationOnce(async () => Response.json(false))
+      .mockImplementation(async () => new Response(null, { status: 201 }))
+    const config = { baseURL: "https://myapi.test/api", env: { fetch } }
+    expect(await httpClient.get("/auth/me", config)).toEqual({ id: 1 })
+    expect(await httpClient.get("/holiday/is-holiday", config)).toBe(false)
+    expect(await httpClient.post("/eh/progress", {}, config)).toBeNull()
+    expect(await httpClient.get("/auth/me", config)).toBeNull()
+  })
+
+  it("校验失败时的一组文案连成一句", async () => {
+    const adapter: AxiosAdapter = async (config) => {
+      throw new AxiosError("Bad Request", "ERR_BAD_REQUEST", config, null, {
+        data: { statusCode: 400, message: ["页码不合法", "上报方标识不合法"], error: "Bad Request" },
+        status: 400,
+      } as AxiosResponse)
+    }
+    await expect(httpClient.post("/eh/progress", {}, { adapter })).rejects.toThrow(
+      new Error("页码不合法；上报方标识不合法"),
+    )
   })
 
   it("当前令牌失效时清理会话，并使用后端错误文案", async () => {
@@ -64,7 +67,7 @@ describe("HTTP 边界", () => {
     const adapter: AxiosAdapter = async (config) => {
       expect(config.headers.Authorization).toBe("Bearer expired")
       throw new AxiosError("Unauthorized", "ERR_BAD_REQUEST", config, null, {
-        data: { msg: "请重新登录" },
+        data: { statusCode: 401, message: "请重新登录", error: "Unauthorized" },
         status: 401,
       } as AxiosResponse)
     }
@@ -83,7 +86,7 @@ describe("HTTP 边界", () => {
         fail = () =>
           reject(
             new AxiosError("Unauthorized", "ERR_BAD_REQUEST", config, null, {
-              data: { msg: "已过期" },
+              data: { statusCode: 401, message: "已过期", error: "Unauthorized" },
               status: 401,
             } as AxiosResponse),
           )

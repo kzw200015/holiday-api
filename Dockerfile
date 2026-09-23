@@ -1,42 +1,38 @@
-# ---------- 前端构建 ----------
-FROM node:24-alpine AS frontend-builder
+# ---------- 构建：共享包、前端、后端 ----------
+FROM node:24-alpine AS build
 
 WORKDIR /app
 RUN corepack enable
 
 # 先复制依赖清单，利用镜像层缓存避免每次改代码都重新安装依赖
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
+COPY apps/web/package.json apps/web/
+COPY apps/server/package.json apps/server/
 RUN pnpm install --frozen-lockfile
 
-COPY apps/web/ apps/web/
-COPY packages/shared/ packages/shared/
-# 末尾的 ... 表示连同它依赖的工作区包一起、按依赖顺序构建
-RUN pnpm --filter web... build
+COPY packages/ packages/
+COPY apps/ apps/
+# 按依赖顺序构建：共享包先于前后端。测试要起 Testcontainers，镜像构建里没有 Docker，所以只构建；测试在提交前本地跑
+RUN pnpm build
 
-# ---------- 后端构建 ----------
-FROM eclipse-temurin:25-jdk AS backend-builder
+# ---------- 裁出后端的生产依赖 ----------
+FROM build AS deploy
 
-WORKDIR /src
-COPY backend/ ./
-# 前端产物放进 Spring Boot 默认的静态资源位置，随 jar 一起打包，由后端直接提供
-COPY --from=frontend-builder /app/apps/web/dist ./src/main/resources/static
-# 测试要起 Testcontainers，镜像构建里没有 Docker，所以只打包；测试在提交前本地跑。
-# 进程不碰 DDL，schema.sql 由人工上库执行
-RUN --mount=type=cache,target=/root/.gradle ./gradlew bootJar --no-daemon
+# 工作区没有开 inject-workspace-packages（开了开发时共享包就不会随改随生效），所以用 legacy 方式部署
+RUN pnpm --filter server deploy --prod --legacy /deploy
+# 前端产物放在后端旁边，由后端的静态文件模块统一提供
+RUN cp -R apps/web/dist /deploy/client
 
 # ---------- 运行时 ----------
-FROM eclipse-temurin:25-jre-alpine
-
-RUN adduser -D -u 10001 app
+FROM node:24-alpine
 
 WORKDIR /app
-# bootJar 只产出这一个可执行 jar
-COPY --from=backend-builder /src/build/libs/*.jar ./app.jar
+COPY --from=deploy /deploy ./
 
-USER app
+# 官方镜像自带的非 root 用户
+USER node
 EXPOSE 8000
 
-# 配置全走环境变量，名字见 backend/config/application.example.yml；时区用 TZ 环境变量指定
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+# 配置全走环境变量，清单见 apps/server/.env.example；时区用 TZ 环境变量指定。启动时自动执行数据库迁移
+CMD ["node", "dist/main.js"]

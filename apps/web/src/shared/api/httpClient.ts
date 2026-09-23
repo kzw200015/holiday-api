@@ -1,10 +1,10 @@
-import axios, { AxiosError, type AxiosRequestConfig } from "axios"
+import axios, { AxiosError, type AxiosRequestConfig, type AxiosResponse } from "axios"
 
-/* 后端统一响应结构。解包只发生在这一层，所以类型也留在这里 */
-interface ApiResponse<T> {
-  code: number
-  data: T
-  msg: string
+/* 后端失败时的响应体（NestJS 的默认结构）。校验失败时 message 是一组文案，其余情况是一句 */
+interface ErrorBody {
+  statusCode: number
+  message: string | string[]
+  error?: string
 }
 
 /* 令牌在 localStorage 里的键名 */
@@ -70,7 +70,7 @@ export function onUnauthorized(handler: () => void) {
   handleUnauthorized = handler
 }
 
-instance.interceptors.response.use(undefined, (error: AxiosError<ApiResponse<unknown>>) => {
+instance.interceptors.response.use(undefined, (error: AxiosError<ErrorBody>) => {
   /* 取消请求是页面切换的一部分，保留 Axios 的取消标识。 */
   if (axios.isCancel(error)) {
     return Promise.reject(error)
@@ -84,13 +84,14 @@ instance.interceptors.response.use(undefined, (error: AxiosError<ApiResponse<unk
 })
 
 /*
- * 失败时给界面看的那句话。有本站响应体就用它的 msg；没有的（断网、超时、反向代理返回的空体或 HTML），
+ * 失败时给界面看的那句话。有本站响应体就用它的 message（一组文案时连成一句）；没有的（断网、超时、反向代理返回的空体或 HTML），
  * Axios 的原文是英文，还带着「timeout of 10000ms exceeded」这类细节，换成能直接显示的说明。
  */
-function describeFailure(error: AxiosError<ApiResponse<unknown>>) {
-  const msg = error.response?.data?.msg
-  if (msg) {
-    return msg
+function describeFailure(error: AxiosError<ErrorBody>) {
+  const message = error.response?.data?.message
+  const text = Array.isArray(message) ? message.join("；") : message
+  if (typeof text === "string" && text) {
+    return text
   }
   if (error.response) {
     return `服务器返回了 HTTP ${error.response.status}`
@@ -98,27 +99,28 @@ function describeFailure(error: AxiosError<ApiResponse<unknown>>) {
   return error.code === AxiosError.ETIMEDOUT ? "请求超时" : "网络连接失败"
 }
 
-/** 在 HTTP 边界解包响应，业务接口只返回领域数据。 */
+/* 成功时响应体就是数据本身；只回成败的接口（以及「没登录」时的「我是谁」）回空体，统一交出 null。 */
+function dataOf<T>(response: AxiosResponse<T | "">): T {
+  return (response.data === "" ? null : response.data) as T
+}
+
+/** HTTP 边界：业务接口只拿到领域数据，失败一律变成带中文说明的 Error。 */
 export const httpClient = {
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response = await instance.get<ApiResponse<T>>(url, config)
-    return response.data.data
+    return dataOf(await instance.get<T | "">(url, config))
   },
 
   async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await instance.post<ApiResponse<T>>(url, data, config)
-    return response.data.data
+    return dataOf(await instance.post<T | "">(url, data, config))
   },
 
   /** 整份替换：同一份重复提交结果不变，重试是安全的。（乱序提交仍会用旧快照盖掉新的，由调用方自己串行。） */
   async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await instance.put<ApiResponse<T>>(url, data, config)
-    return response.data.data
+    return dataOf(await instance.put<T | "">(url, data, config))
   },
 
   /** 删的是哪一个写在地址上，不带请求体：DELETE 的请求体没有约定的含义，后端也不读。 */
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response = await instance.delete<ApiResponse<T>>(url, config)
-    return response.data.data
+    return dataOf(await instance.delete<T | "">(url, config))
   },
 }

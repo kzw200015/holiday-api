@@ -9,6 +9,8 @@
 
 node_modules/
 dist/
+# TypeScript 增量编译的缓存
+*.tsbuildinfo
 *.log
 # pnpm 的本地内容寻址存储，几十 MB 且随时可重建
 .pnpm-store/
@@ -17,4 +19,5 @@ dist/
 ### 本地配置：只跟踪示例文件，真实密钥不入库 ###
 # Vite 的本地环境变量文件（.env.local、.env.*.local）
 *.local
-# 后端的 config/application.yml 在 backend/.gitignore 里挡
+# 后端的本地配置（apps/server/.env），示例见同目录的 .env.example
+.env

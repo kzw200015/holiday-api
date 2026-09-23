@@ -23,11 +23,33 @@
     "oxc/no-map-spread": "off"
   },
   "overrides": [
+    // 测试里顺序发请求是有意的（后一次依赖前一次的结果）；vitest 的 expect 可以带第二个参数作说明
     {
       "files": ["**/tests/**/*.ts", "**/test/**/*.ts"],
       "rules": {
         "vitest/require-mock-type-parameters": "off",
-        "unicorn/consistent-function-scoping": "off"
+        "unicorn/consistent-function-scoping": "off",
+        "eslint/no-await-in-loop": "off",
+        "vitest/valid-expect": [
+          "error",
+          {
+            "maxArgs": 2
+          }
+        ]
+      }
+    },
+    // Nest 靠装饰器元数据在运行时拿到构造器参数的类，注入的类必须按值导入，改成 import type 依赖注入就失效了；
+    // @Module 装饰的空类是 Nest 声明模块的写法
+    {
+      "files": ["apps/server/src/**/*.ts"],
+      "rules": {
+        "typescript/consistent-type-imports": "off",
+        "typescript/no-extraneous-class": [
+          "error",
+          {
+            "allowWithDecorator": true
+          }
+        ]
       }
     }
   ]

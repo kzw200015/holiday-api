@@ -4,5 +4,10 @@ packages:
 
 # 显式放行需要执行构建脚本的依赖，避免 pnpm 以 ERR_PNPM_IGNORED_BUILDS 非零退出
 allowBuilds:
+  argon2: true
   esbuild: true
   vue-demi: true
+  # Testcontainers 经 ssh2 带进来的可选原生加速，本地连 Docker 用不到
+  cpu-features: false
+  protobufjs: false
+  ssh2: false
