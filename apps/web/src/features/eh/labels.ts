@@ -1,5 +1,7 @@
 /* 分类与标签的中文词汇表。这些是展示用的说法，跟接口无关，所以不放在 api 里。 */
 
+import type { GalleryCategory } from "@myapi/shared"
+
 /**
  * 分类的三种叫法：value 是后端筛选参数认的名字，name 是 gdata 返回的展示名，label 是界面文案。
  * 合成一张表是因为中文标签本来两处都要用，分开写就会出现「卡片上写『漫画』、筛选按钮上写别的」。
@@ -15,7 +17,7 @@ const CATEGORIES = [
   { value: "cosplay", name: "Cosplay", label: "Cosplay" },
   { value: "asianporn", name: "Asian Porn", label: "亚洲写真" },
   { value: "misc", name: "Misc", label: "杂项" },
-] as const
+] as const satisfies readonly { value: GalleryCategory; name: string; label: string }[]
 
 /** e 站返回的分类名到中文的映射。没收录的分类原样显示 */
 export const categoryLabels: Record<string, string> = {
@@ -24,7 +26,7 @@ export const categoryLabels: Record<string, string> = {
   Private: "私有",
 }
 
-/** 分类筛选项。value 必须和后端 categoryBits（eh/upstream/Categories.kt）的键逐字对应，拼错会被后端回 400 */
+/** 分类筛选项。value 的取值由共享包的 GalleryCategory 约束，拼错编译不过 */
 export const galleryCategories = CATEGORIES.map(({ value, label }) => ({ value, label }))
 
 /* 标签形如 artist:gentsuki；没有冒号的归到空命名空间 */

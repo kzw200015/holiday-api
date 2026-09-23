@@ -1,4 +1,5 @@
 /* @vitest-environment happy-dom */
+import type { GalleryPreferences } from "@myapi/shared"
 import { createPinia, disposePinia, type Pinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick } from "vue"
@@ -7,7 +8,6 @@ import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, saveGalleryPreferences } from "@/features/eh/api"
 import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
-import type { GalleryPreferences } from "@/features/eh/model"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -127,7 +127,7 @@ describe("账号浏览偏好", () => {
     const before = mount()
     await settle()
     useAuthStore(pinia).logout()
-    finish({ categories: ["旧账号的分类"], readerInterval: 9 })
+    finish({ categories: ["cosplay"], readerInterval: 9 })
     await settle()
     expect(before.ready.value).toBe(false)
 

@@ -1,10 +1,10 @@
+import type { GalleryCategory } from "@myapi/shared"
 import { useInfiniteScroll } from "@vueuse/core"
 import { computed, onActivated, onDeactivated, reactive, ref, watch } from "vue"
 
-import { searchGalleries } from "@/features/eh/api"
+import { searchGalleries, type GallerySearch } from "@/features/eh/api"
 import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
 import { useSearchHistory } from "@/features/eh/composables/useSearchHistory"
-import type { GallerySearch } from "@/features/eh/model"
 import { useGalleryContentStore } from "@/features/eh/store"
 import { useCursorPages } from "@/shared/composables/useCursorPages"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
@@ -29,7 +29,7 @@ export function useGallerySearch() {
   )
 
   /* 分类由调用方给：刚应用的那组直接传进来，不指望它此刻已经落进偏好。 */
-  function submit(categories: string[] = preferences.categories) {
+  function submit(categories: GalleryCategory[] = preferences.categories) {
     keyword.value = keyword.value.trim()
     /* 列表按时间倒序，重按搜索就是想看有没有新的，所以哪怕条件没变也从第一页重来。 */
     query = { keyword: keyword.value, categories: [...new Set(categories)] }
@@ -40,7 +40,7 @@ export function useGallerySearch() {
     void resetScroll()
   }
 
-  function applyCategories(categories: string[]) {
+  function applyCategories(categories: GalleryCategory[]) {
     preferences.applyCategories(categories)
     submit(categories)
   }

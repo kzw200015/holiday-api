@@ -1,7 +1,7 @@
+import type { CredentialStatus, EhCookie } from "@myapi/shared"
 import { computed, ref } from "vue"
 
 import { bindCredential, unbindCredential } from "@/features/eh/api"
-import type { CredentialStatus, EhCookie } from "@/features/eh/model"
 import { useCredentialStore, useGalleryContentStore } from "@/features/eh/store"
 
 /**

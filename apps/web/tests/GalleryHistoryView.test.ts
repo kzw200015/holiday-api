@@ -1,4 +1,5 @@
 /* @vitest-environment happy-dom */
+import type { CursorPage, GalleryCard, ReadingHistoryItem } from "@myapi/shared"
 import type * as VueUse from "@vueuse/core"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -8,7 +9,6 @@ import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"
-import type { GalleryCard, ReadingHistoryPage } from "@/features/eh/model"
 import GalleryHistoryView from "@/features/eh/views/GalleryHistoryView.vue"
 
 /* 触底加载靠滚动位置触发，happy-dom 不做布局，所以把入口接出来手动调用。 */
@@ -60,7 +60,7 @@ function gallery(gid: number): GalleryCard {
   }
 }
 
-function page(gid: number, nextCursor: string | null): ReadingHistoryPage {
+function page(gid: number, nextCursor: string | null): CursorPage<ReadingHistoryItem> {
   return {
     items: [{ gid, token: `token${gid}`, page: gid, readAt: "2026-09-05T00:00:00Z", gallery: gallery(gid) }],
     nextCursor,

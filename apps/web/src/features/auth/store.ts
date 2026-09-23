@@ -1,3 +1,4 @@
+import type { CurrentUser } from "@myapi/shared"
 import { defineStore } from "pinia"
 import { ref } from "vue"
 
@@ -5,7 +6,7 @@ import * as authApi from "@/features/auth/api"
 import { hasToken, setToken } from "@/shared/api/httpClient"
 
 export const useAuthStore = defineStore("AuthStore", () => {
-  const user = ref<authApi.CurrentUser | null>(null)
+  const user = ref<CurrentUser | null>(null)
 
   /* 是否已经问过后端「我是谁」。路由守卫要等这一步完成才敢判断放不放行 */
   const ready = ref(false)

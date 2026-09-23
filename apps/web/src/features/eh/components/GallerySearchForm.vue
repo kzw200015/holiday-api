@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { SearchIcon, XIcon } from "@lucide/vue"
+import type { GalleryCategory } from "@myapi/shared"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,11 +9,11 @@ import CategoryFilter from "@/features/eh/components/CategoryFilter.vue"
 import ConfirmDialog from "@/shared/components/ConfirmDialog.vue"
 import EmptyState from "@/shared/components/EmptyState.vue"
 
-defineProps<{ categories: string[]; history: string[] }>()
+defineProps<{ categories: GalleryCategory[]; history: string[] }>()
 const keyword = defineModel<string>("keyword", { required: true })
 const emit = defineEmits<{
   submit: []
-  applyCategories: [categories: string[]]
+  applyCategories: [categories: GalleryCategory[]]
   selectHistory: [entry: string]
   removeHistory: [entry: string]
   clearHistory: []

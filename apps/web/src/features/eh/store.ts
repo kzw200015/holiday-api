@@ -1,3 +1,4 @@
+import type { GalleryDetailResult } from "@myapi/shared"
 import { defineStore } from "pinia"
 import { onScopeDispose, ref, shallowReactive, watch } from "vue"
 
@@ -11,7 +12,6 @@ import {
   saveProgress,
   saveSearchHistory,
 } from "@/features/eh/api"
-import type { GalleryDetailResult } from "@/features/eh/model"
 import { createQueue, createRequest } from "@/shared/api/request"
 
 /* 图集详情的新鲜期。要抓上游页面才拿得到，慢，而且短时间内不会变。 */

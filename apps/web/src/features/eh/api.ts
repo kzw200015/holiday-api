@@ -1,14 +1,22 @@
 import type {
   CredentialStatus,
+  CursorPage,
   EhCookie,
+  GalleryCard,
+  GalleryCategory,
   GalleryComment,
   GalleryDetailResult,
-  GalleryPage,
   GalleryPreferences,
-  GallerySearch,
-  ReadingHistoryPage,
-} from "@/features/eh/model"
+  ReadingHistoryItem,
+} from "@myapi/shared"
+
 import { httpClient } from "@/shared/api/httpClient"
+
+/** 一次搜索提交的条件：关键词已去两端空白，分类已去重。 */
+export interface GallerySearch {
+  keyword: string
+  categories: GalleryCategory[]
+}
 
 /**
  * 搜索图集。cursor 为空表示第一页，翻页时关键词和分类要一起带上。
@@ -17,7 +25,7 @@ import { httpClient } from "@/shared/api/httpClient"
  * 用 POST 只是为了带这段 JSON，它仍是一次读取——所以照常接 AbortSignal，离开页面要能取消。
  */
 export function searchGalleries(params: GallerySearch & { cursor: string }, signal?: AbortSignal) {
-  return httpClient.post<GalleryPage>(
+  return httpClient.post<CursorPage<GalleryCard>>(
     "/eh/galleries/search",
     { keyword: params.keyword, categories: params.categories, cursor: params.cursor },
     { signal },
@@ -92,7 +100,7 @@ export function saveSearchHistory(entries: string[]) {
 }
 
 export function fetchReadingHistory(cursor: string, signal?: AbortSignal) {
-  return httpClient.get<ReadingHistoryPage>("/eh/history", { params: { cursor }, signal })
+  return httpClient.get<CursorPage<ReadingHistoryItem>>("/eh/history", { params: { cursor }, signal })
 }
 
 export function removeReadingHistory(gid: number) {

@@ -1,8 +1,8 @@
+import type { ReadingHistoryItem } from "@myapi/shared"
 import { useInfiniteScroll } from "@vueuse/core"
 import { computed, onActivated, onDeactivated, ref, watch } from "vue"
 
 import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"
-import type { ReadingHistoryItem } from "@/features/eh/model"
 import { useGalleryContentStore } from "@/features/eh/store"
 import { useCursorPages } from "@/shared/composables/useCursorPages"
 import { usePageScroll } from "@/shared/composables/usePageScroll"

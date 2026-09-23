@@ -1,6 +1,6 @@
+import type { GalleryCategory, GalleryPreferences } from "@myapi/shared"
 import { computed } from "vue"
 
-import type { GalleryPreferences } from "@/features/eh/model"
 import { useGalleryPreferencesStore } from "@/features/eh/store"
 
 /* 读到之前的占位，和后端没有偏好行时回的值一致。页面要等读到才创建，所以它不会被存回去。 */
@@ -32,6 +32,6 @@ export function useGalleryPreferences() {
       get: () => current.value.readerInterval,
       set: (seconds: number) => save({ readerInterval: seconds }),
     }),
-    applyCategories: (next: string[]) => save({ categories: [...next] }),
+    applyCategories: (next: GalleryCategory[]) => save({ categories: [...next] }),
   }
 }

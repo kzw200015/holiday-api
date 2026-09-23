@@ -1,12 +1,7 @@
+import { SEARCH_HISTORY_LIMIT, searchHistoryEntrySchema } from "@myapi/shared"
 import { computed } from "vue"
 
 import { useSearchHistoryStore } from "@/features/eh/store"
-
-/* 最多留几条。后端列上有同样的上限，超了会被退回来，所以这里就是那条规则本身。 */
-const LIMIT = 10
-
-/* 后端拒收超过这么多字节的关键词。整份提交里混进一条，之后每次保存都会跟着失败，所以超长的干脆不记。 */
-const MAX_ENTRY_BYTES = 200
 
 /**
  * 账号共享的搜索历史。
@@ -27,10 +22,14 @@ export function useSearchHistory() {
     entries,
     /* 记、删、清空在没读到时都不生效，见 store 的 update。 */
     record: (keyword: string) => {
-      if (new TextEncoder().encode(keyword).length > MAX_ENTRY_BYTES) {
+      /* 服务端会退回的词（超长）整份提交里混进一条，之后每次保存都会跟着失败，所以干脆不记。 */
+      if (!searchHistoryEntrySchema.safeParse(keyword).success) {
         return
       }
-      store.update((current) => [keyword, ...current.filter((entry) => entry !== keyword)].slice(0, LIMIT))
+      /* 最多留几条是服务端也会校验的规则，超了会被整份退回，所以直接用同一个数。 */
+      store.update((current) =>
+        [keyword, ...current.filter((entry) => entry !== keyword)].slice(0, SEARCH_HISTORY_LIMIT),
+      )
     },
     remove: (keyword: string) => store.update((current) => current.filter((entry) => entry !== keyword)),
     clear: () => store.update(() => []),

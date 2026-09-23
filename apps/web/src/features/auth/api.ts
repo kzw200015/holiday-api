@@ -1,22 +1,6 @@
+import type { Authenticated, AuthOptions, CurrentUser } from "@myapi/shared"
+
 import { httpClient } from "@/shared/api/httpClient"
-
-/** 当前登录的本站账号 */
-export interface CurrentUser {
-  id: number
-  username: string
-}
-
-/** 登录与注册的返回：令牌加用户本身 */
-interface AuthenticatedUser {
-  token: string
-  user: CurrentUser
-}
-
-/** 登录页要先知道的站点设置 */
-export interface AuthOptions {
-  /** 是否开放注册，部署时决定 */
-  allowRegistration: boolean
-}
 
 /** 不用登录也能取 */
 export function fetchAuthOptions(signal?: AbortSignal) {
@@ -32,5 +16,5 @@ export type AuthAction = "login" | "register"
 
 /** 登录与注册都返回新会话，持久化和账号切换交给 AuthStore。 */
 export function authenticate(action: AuthAction, username: string, password: string) {
-  return httpClient.post<AuthenticatedUser>(`/auth/${action}`, { username, password })
+  return httpClient.post<Authenticated>(`/auth/${action}`, { username, password })
 }

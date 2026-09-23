@@ -1,4 +1,5 @@
 /* @vitest-environment happy-dom */
+import type { CursorPage, GalleryCard } from "@myapi/shared"
 import type * as VueUse from "@vueuse/core"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -7,7 +8,6 @@ import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, searchGalleries } from "@/features/eh/api"
-import type { GalleryCard, GalleryPage } from "@/features/eh/model"
 import GalleryListView from "@/features/eh/views/GalleryListView.vue"
 
 const scroll = vi.hoisted(() => ({
@@ -66,9 +66,9 @@ function card(gid: number): GalleryCard {
 }
 
 function deferredPage() {
-  let resolve!: (value: GalleryPage) => void
+  let resolve!: (value: CursorPage<GalleryCard>) => void
   let reject!: (error: Error) => void
-  const promise = new Promise<GalleryPage>((yes, no) => {
+  const promise = new Promise<CursorPage<GalleryCard>>((yes, no) => {
     resolve = yes
     reject = no
   })

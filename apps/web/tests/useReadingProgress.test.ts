@@ -1,4 +1,5 @@
 /* @vitest-environment happy-dom */
+import type { GalleryDetail, GalleryDetailResult } from "@myapi/shared"
 import { createPinia, disposePinia, type Pinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick } from "vue"
@@ -7,7 +8,6 @@ import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryDetail, saveProgress } from "@/features/eh/api"
 import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
-import type { GalleryDetail, GalleryDetailResult } from "@/features/eh/model"
 import { useGalleryContentStore } from "@/features/eh/store"
 
 vi.mock("@/features/eh/api", async (original) => ({

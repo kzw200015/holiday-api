@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { CheckIcon } from "@lucide/vue"
+import type { GalleryCategory } from "@myapi/shared"
 
 import { Button } from "@/components/ui/button"
 import { galleryCategories } from "@/features/eh/labels"
 
 /* block：放在底部弹层里时两个按钮平分整行并加高，离屏幕圆角远一些，拇指也好按。 */
 defineProps<{ block?: boolean }>()
-const selected = defineModel<string[]>({ required: true })
+const selected = defineModel<GalleryCategory[]>({ required: true })
 const emit = defineEmits<{ apply: [] }>()
 
-function toggle(value: string) {
+function toggle(value: GalleryCategory) {
   selected.value = selected.value.includes(value)
     ? selected.value.filter((item) => item !== value)
     : [...selected.value, value]

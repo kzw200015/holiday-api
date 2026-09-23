@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { SlidersHorizontalIcon } from "@lucide/vue"
+import type { GalleryCategory } from "@myapi/shared"
 import { useMediaQuery } from "@vueuse/core"
 import { onDeactivated, ref, watch } from "vue"
 
@@ -8,11 +9,11 @@ import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } 
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import CategoryChoices from "@/features/eh/components/CategoryChoices.vue"
 
-const props = defineProps<{ selected: string[] }>()
-const emit = defineEmits<{ apply: [categories: string[]] }>()
+const props = defineProps<{ selected: GalleryCategory[] }>()
+const emit = defineEmits<{ apply: [categories: GalleryCategory[]] }>()
 const mobile = useMediaQuery("(max-width: 639px)")
 const open = ref(false)
-const draft = ref<string[]>([])
+const draft = ref<GalleryCategory[]>([])
 /* 每次打开才从已应用条件建立草稿，关闭不提交。 */
 watch(open, (value) => {
   if (value) {

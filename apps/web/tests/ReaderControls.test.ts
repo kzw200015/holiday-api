@@ -1,4 +1,5 @@
 /* @vitest-environment happy-dom */
+import type { GalleryPreferences } from "@myapi/shared"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { computed, createApp, h, nextTick, reactive } from "vue"
@@ -244,6 +245,21 @@ describe("阅读器自动翻页控件", () => {
     expect(intervalText(host)).toBe("7 秒")
   })
 
+  /* 范围外的间隔会被服务端整份退回，之后每次保存都跟着失败，所以到头了就不让再调。 */
+  it.each([
+    [1, "减少自动翻页间隔"],
+    [20, "增加自动翻页间隔"],
+  ])("间隔到了 %i 秒就不能再往外调", async (readerInterval, label) => {
+    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval })
+    const { host } = await createReader()
+    const button = host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!
+    expect(button.disabled).toBe(true)
+    button.click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(intervalText(host)).toBe(`${readerInterval} 秒`)
+    expect(saveGalleryPreferences).not.toHaveBeenCalled()
+  })
+
   it("推送失败不改动当前间隔，也不拿失败打扰用户", async () => {
     vi.mocked(saveGalleryPreferences).mockRejectedValue(new Error("断网"))
     const { host } = await createReader()
@@ -257,7 +273,7 @@ describe("阅读器自动翻页控件", () => {
 
   /* 阅读器不经过图库布局，偏好可能还没读到或读失败了；这时调了也存不上，按钮不该看起来能用。 */
   it("偏好读到之前间隔不能调", async () => {
-    const pending = deferred<{ categories: string[]; readerInterval: number }>()
+    const pending = deferred<GalleryPreferences>()
     vi.mocked(fetchGalleryPreferences).mockReturnValueOnce(pending.promise)
     const { host } = await createReader()
     const decrease = host.querySelector<HTMLButtonElement>('[aria-label="减少自动翻页间隔"]')!

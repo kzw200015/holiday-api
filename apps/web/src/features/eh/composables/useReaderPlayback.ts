@@ -1,3 +1,4 @@
+import { readerIntervalSchema } from "@myapi/shared"
 import { useDocumentVisibility, useIntervalFn } from "@vueuse/core"
 import { computed, reactive, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue"
 
@@ -26,6 +27,10 @@ export function useReaderPlayback(
 
   /* 间隔改了当场生效，存哪去、什么时候存都不是这里的事。 */
   function changeInterval(seconds: number) {
+    /* 超出范围的整份提交会被服务端退回，之后每次保存都跟着失败，所以当场挡掉。 */
+    if (!readerIntervalSchema.safeParse(seconds).success) {
+      return
+    }
     preferences.interval.value = seconds
   }
 

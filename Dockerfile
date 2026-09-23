@@ -7,10 +7,13 @@ RUN corepack enable
 # 先复制依赖清单，利用镜像层缓存避免每次改代码都重新安装依赖
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/
+COPY packages/shared/package.json packages/shared/
 RUN pnpm install --frozen-lockfile
 
 COPY apps/web/ apps/web/
-RUN pnpm --filter web build
+COPY packages/shared/ packages/shared/
+# 末尾的 ... 表示连同它依赖的工作区包一起、按依赖顺序构建
+RUN pnpm --filter web... build
 
 # ---------- 后端构建 ----------
 FROM eclipse-temurin:25-jdk AS backend-builder

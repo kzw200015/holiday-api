@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import type { GalleryCategory, GalleryDetail } from "@myapi/shared"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, type App as VueApp } from "vue"
@@ -25,7 +26,6 @@ import {
   searchGalleries,
   unbindCredential,
 } from "@/features/eh/api"
-import type { GalleryDetail } from "@/features/eh/model"
 import { useCredentialStore, useGalleryContentStore } from "@/features/eh/store"
 import type * as HolidayApi from "@/features/holiday/api"
 import { fetchHolidayDetail } from "@/features/holiday/api"
@@ -128,7 +128,7 @@ beforeEach(async () => {
   vi.mocked(clearReadingHistory).mockResolvedValue(null)
   vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
   vi.mocked(fetchHolidayDetail).mockImplementation(async (date) => ({ date, name: "", isOffDay: false }))
-  let preferences = { categories: [] as string[], readerInterval: 5 }
+  let preferences = { categories: [] as GalleryCategory[], readerInterval: 5 }
   let history: string[] = []
   vi.mocked(fetchGalleryPreferences).mockImplementation(async () => structuredClone(preferences))
   /* 两份账号数据都是整份提交：推上来什么就存什么，服务端不再自己算结果。 */

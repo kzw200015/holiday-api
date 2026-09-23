@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ChevronLeftIcon, ChevronRightIcon, MinusIcon, PauseIcon, PlayIcon, PlusIcon, XIcon } from "@lucide/vue"
+import { READER_INTERVAL_MAX, READER_INTERVAL_MIN } from "@myapi/shared"
 import { computed } from "vue"
 
 import { Button } from "@/components/ui/button"
@@ -56,7 +57,7 @@ const chromeButton = {
       <Button
         aria-label="减少自动翻页间隔"
         v-bind="chromeButton"
-        :disabled="!playback.intervalReady || playback.interval <= 1"
+        :disabled="!playback.intervalReady || playback.interval <= READER_INTERVAL_MIN"
         @click="emit('setInterval', playback.interval - 1)"
       >
         <MinusIcon />
@@ -78,7 +79,7 @@ const chromeButton = {
       <Button
         aria-label="增加自动翻页间隔"
         v-bind="chromeButton"
-        :disabled="!playback.intervalReady || playback.interval >= 20"
+        :disabled="!playback.intervalReady || playback.interval >= READER_INTERVAL_MAX"
         @click="emit('setInterval', playback.interval + 1)"
       >
         <PlusIcon />
