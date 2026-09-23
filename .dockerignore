@@ -6,8 +6,8 @@
 .ruff_cache
 docs
 
-frontend/node_modules
-frontend/dist
+**/node_modules
+apps/web/dist
 # 本地构建产物与缓存，镜像内重新构建
 backend/build
 backend/.gradle

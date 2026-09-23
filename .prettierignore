@@ -1,0 +1,11 @@
+dist
+pnpm-lock.yaml
+# 文档是手写的中文散文，不交给 Prettier 重排
+*.md
+.claude
+.codex
+backend
+
+# shadcn-vue 生成的组件源码保持与上游一致，不参与格式化
+apps/web/src/components/ui
+.mcp.json

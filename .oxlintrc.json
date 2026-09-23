@@ -6,20 +6,25 @@
     "suspicious": "error",
     "perf": "warn"
   },
-  "ignorePatterns": ["src/components/ui"],
+  "ignorePatterns": ["apps/web/src/components/ui"],
   "rules": {
     "curly": ["error", "all"],
     "eqeqeq": ["error", "always"],
     "no-console": "error",
     "import/no-cycle": "error",
-    "typescript/consistent-type-imports": ["error", { "fixStyle": "inline-type-imports" }],
+    "typescript/consistent-type-imports": [
+      "error",
+      {
+        "fixStyle": "inline-type-imports"
+      }
+    ],
     "import/no-unassigned-import": "off",
     "import/no-named-as-default-member": "off",
     "oxc/no-map-spread": "off"
   },
   "overrides": [
     {
-      "files": ["tests/**/*.ts"],
+      "files": ["**/tests/**/*.ts", "**/test/**/*.ts"],
       "rules": {
         "vitest/require-mock-type-parameters": "off",
         "unicorn/consistent-function-scoping": "off"

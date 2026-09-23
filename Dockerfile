@@ -5,11 +5,12 @@ WORKDIR /app
 RUN corepack enable
 
 # 先复制依赖清单，利用镜像层缓存避免每次改代码都重新安装依赖
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile
 
-COPY frontend/ ./
-RUN pnpm build
+COPY apps/web/ apps/web/
+RUN pnpm --filter web build
 
 # ---------- 后端构建 ----------
 FROM eclipse-temurin:25-jdk AS backend-builder
@@ -17,7 +18,7 @@ FROM eclipse-temurin:25-jdk AS backend-builder
 WORKDIR /src
 COPY backend/ ./
 # 前端产物放进 Spring Boot 默认的静态资源位置，随 jar 一起打包，由后端直接提供
-COPY --from=frontend-builder /app/dist ./src/main/resources/static
+COPY --from=frontend-builder /app/apps/web/dist ./src/main/resources/static
 # 测试要起 Testcontainers，镜像构建里没有 Docker，所以只打包；测试在提交前本地跑。
 # 进程不碰 DDL，schema.sql 由人工上库执行
 RUN --mount=type=cache,target=/root/.gradle ./gradlew bootJar --no-daemon
