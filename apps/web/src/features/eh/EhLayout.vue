@@ -42,7 +42,7 @@ function reload() {
     <AlertTitle>当前以匿名身份浏览表站</AlertTitle>
     <AlertDescription>
       绑定 e 站账号后才能浏览里站，也才会用上你自己账号的过滤器设置。
-      <RouterLink class="underline underline-offset-4" :to="{ name: 'settings' }">去设置绑定</RouterLink>
+      <RouterLink :to="{ name: 'settings' }">去设置绑定</RouterLink>
     </AlertDescription>
   </Alert>
   <div v-if="!ready && loadError" class="page-content">

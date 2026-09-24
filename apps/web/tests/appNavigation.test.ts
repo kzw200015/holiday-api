@@ -476,13 +476,13 @@ describe("页面缓存与失效范围", () => {
     await enterKeyword("cat")
     await click("搜索")
     const history = query(host, '[aria-label="搜索历史"]')
-    expect(history.querySelector('[data-slot="badge"]')?.tagName).toBe("SPAN")
+    expect(query(history, '[role="group"]').querySelectorAll("button")).toHaveLength(2)
     expect(history.querySelector("button button")).toBeNull()
     const count = vi.mocked(searchGalleries).mock.calls.length
     query<HTMLElement>(history, '[aria-label="删除历史：cat"]').click()
     await settle()
     expect(searchGalleries).toHaveBeenCalledTimes(count)
-    expect(history.querySelector('[data-slot="badge"]')).toBeNull()
+    expect(history.querySelector('[role="group"]')).toBeNull()
     /* 界面当场就没了；整份历史随后才推上去。 */
     await vi.waitFor(() => expect(saveSearchHistory).toHaveBeenCalledWith([]))
   })

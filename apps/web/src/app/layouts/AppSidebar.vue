@@ -4,6 +4,7 @@ import { ref, watch } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
 
 import { getNavigationItems } from "@/app/navigation"
+import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Sidebar,
@@ -84,19 +85,23 @@ function isActive(name: string) {
                       <span>{{ item.label }}</span>
                     </SidebarMenuButton>
                   </PopoverTrigger>
-                  <PopoverContent side="right" align="start" class="w-44 p-2">
+                  <PopoverContent side="right" align="start" class="w-44">
                     <nav :aria-label="item.label" class="flex flex-col gap-1">
-                      <RouterLink
+                      <Button
                         v-for="child in item.children"
                         :key="child.name"
-                        :to="{ name: child.name }"
-                        class="hover:bg-accent rounded-md px-3 py-2 text-sm"
-                        :class="{ 'bg-accent': isActive(child.name) }"
-                        :aria-current="isActive(child.name) ? 'page' : undefined"
-                        @click="closeNavigation"
+                        as-child
+                        :variant="isActive(child.name) ? 'secondary' : 'ghost'"
+                        class="justify-start"
                       >
-                        {{ child.label }}
-                      </RouterLink>
+                        <RouterLink
+                          :to="{ name: child.name }"
+                          :aria-current="isActive(child.name) ? 'page' : undefined"
+                          @click="closeNavigation"
+                        >
+                          {{ child.label }}
+                        </RouterLink>
+                      </Button>
                     </nav>
                   </PopoverContent>
                 </Popover>

@@ -23,8 +23,9 @@ function startSeeking(event: PointerEvent) {
   input.setPointerCapture(event.pointerId)
 }
 
+/* 阅读器底色固定是黑的，不随主题变：按钮文字和悬停色按黑底改成白色系。 */
 const chromeButton = {
-  class: "cursor-pointer text-white hover:bg-white/10 hover:text-white",
+  class: "text-white hover:bg-white/10 hover:text-white",
   size: "icon-sm",
   variant: "ghost",
 } as const

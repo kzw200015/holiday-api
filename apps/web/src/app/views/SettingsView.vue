@@ -102,14 +102,7 @@ async function signOut() {
                 confirm-text="解绑"
                 @confirm="unbind"
               >
-                <Button
-                  variant="destructive"
-                  class="border-destructive/30 bg-transparent dark:bg-transparent"
-                  :disabled="saving"
-                  type="button"
-                >
-                  解绑
-                </Button>
+                <Button variant="destructive" :disabled="saving" type="button">解绑</Button>
               </ConfirmDialog>
             </div>
           </form>

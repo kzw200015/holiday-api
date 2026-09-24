@@ -31,12 +31,7 @@ const { items, loading, loadingMore, hasMore, busy, loadError, changeError, refr
           confirm-text="清空"
           @confirm="clear"
         >
-          <Button
-            variant="destructive"
-            size="sm"
-            class="border-destructive/30 bg-transparent dark:bg-transparent"
-            :disabled="busy || items.length === 0"
-          >
+          <Button variant="destructive" size="sm" :disabled="busy || items.length === 0">
             <Trash2Icon />
             清空全部
           </Button>
@@ -63,7 +58,6 @@ const { items, loading, loadingMore, hasMore, busy, loadError, changeError, refr
           <Button
             size="sm"
             variant="destructive"
-            class="bg-transparent dark:bg-transparent"
             :disabled="busy"
             :aria-label="`删除阅读记录：${item.gid}`"
             @click="remove(item)"

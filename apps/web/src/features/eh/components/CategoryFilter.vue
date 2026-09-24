@@ -42,15 +42,12 @@ function apply() {
       底部留白给足：页面没开 viewport-fit=cover，env(safe-area-inset-bottom) 在手机上取到的是 0，
       只靠它的话按钮会贴进屏幕圆角和底部横条里。
     -->
-    <SheetContent
-      side="bottom"
-      class="max-h-[85svh] overflow-y-auto rounded-t-2xl px-4 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
-    >
-      <SheetHeader class="p-0">
+    <SheetContent side="bottom" class="max-h-[85svh] overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <SheetHeader>
         <SheetTitle>分类筛选</SheetTitle>
         <SheetDescription>选择分类后点击应用。</SheetDescription>
       </SheetHeader>
-      <CategoryChoices v-model="draft" block @apply="apply" />
+      <CategoryChoices v-model="draft" class="px-4" block @apply="apply" />
     </SheetContent>
   </Sheet>
   <Popover v-else v-model:open="open">
@@ -60,7 +57,7 @@ function apply() {
         分类{{ selected.length ? ` (${selected.length})` : "" }}
       </Button>
     </PopoverTrigger>
-    <PopoverContent align="end" :side-offset="8" class="w-80 p-4" aria-label="分类筛选">
+    <PopoverContent align="end" aria-label="分类筛选">
       <PopoverHeader>
         <PopoverTitle>分类筛选</PopoverTitle>
       </PopoverHeader>

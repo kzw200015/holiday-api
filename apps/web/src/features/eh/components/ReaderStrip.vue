@@ -227,7 +227,7 @@ onScopeDispose(() => {
         class="flex h-full flex-col items-center justify-center gap-3 p-4 text-white/80"
       >
         <p class="text-sm">第 {{ pageNumber }} 页加载失败</p>
-        <Button variant="outline" class="cursor-pointer" @click.stop="retry(pageNumber)">重试</Button>
+        <Button variant="outline" @click.stop="retry(pageNumber)">重试</Button>
       </div>
       <template v-else>
         <div class="absolute inset-0 flex items-center justify-center text-sm text-white/40">

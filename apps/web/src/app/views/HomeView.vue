@@ -21,7 +21,7 @@ const items = getNavigationItems(useRouter()).filter((item) => item.name !== "ho
           <CardTitle>{{ item.label }}</CardTitle>
           <CardDescription>{{ item.description }}</CardDescription>
         </CardHeader>
-        <CardContent class="text-primary text-sm">进入{{ item.label }} →</CardContent>
+        <CardContent>进入{{ item.label }} →</CardContent>
       </Card>
     </RouterLink>
   </div>
