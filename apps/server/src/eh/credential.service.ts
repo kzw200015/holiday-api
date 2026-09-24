@@ -2,10 +2,10 @@ import type { CredentialStatus, EhCredential } from "@myapi/shared"
 import { Inject, Injectable, Logger } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
 
-import { DATABASE, type Database } from "../database/database.module.js"
-import { ehCredentials } from "../database/schema.js"
-import { accessOf, ANONYMOUS, type EhAccess, type Site } from "./upstream/access.js"
-import { EhClient } from "./upstream/eh-client.js"
+import { DATABASE, type Database } from "@/database/database.module.js"
+import { ehCredentials } from "@/database/schema.js"
+import { accessOf, ANONYMOUS, type EhAccess, type Site } from "@/eh/upstream/access.js"
+import { EhClient } from "@/eh/upstream/eh-client.js"
 
 const UNBOUND: CredentialStatus = { bound: false, memberId: "", hasExAccess: false }
 

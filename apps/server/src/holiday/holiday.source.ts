@@ -2,7 +2,7 @@ import { isCalendarDate, type HolidayDetail } from "@myapi/shared"
 import { Inject, Injectable } from "@nestjs/common"
 import { z } from "zod"
 
-import { OUTBOUND, type Outbound } from "../outbound/outbound.module.js"
+import { OUTBOUND, type Outbound } from "@/outbound/outbound.module.js"
 
 const payloadSchema = z.object({
   days: z.array(

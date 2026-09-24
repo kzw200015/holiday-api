@@ -1,9 +1,8 @@
 import type { EhCredential, GalleryDetail, GallerySearch } from "@myapi/shared"
 import { Inject, Injectable, Logger } from "@nestjs/common"
 
-import { OUTBOUND, type Outbound } from "../../outbound/outbound.module.js"
-import { ANONYMOUS, cookieHeader, SITES, type EhAccess } from "./access.js"
-import { categoryFilter } from "./categories.js"
+import { ANONYMOUS, cookieHeader, SITES, type EhAccess } from "@/eh/upstream/access.js"
+import { categoryFilter } from "@/eh/upstream/categories.js"
 import {
   banned,
   contentWarning,
@@ -14,9 +13,9 @@ import {
   unavailable,
   unreachable,
   upstreamNotice,
-} from "./failures.js"
-import { refKey, type GalleryRef } from "./gallery-ref.js"
-import { isAllowedImageUrl } from "./image-hosts.js"
+} from "@/eh/upstream/failures.js"
+import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref.js"
+import { isAllowedImageUrl } from "@/eh/upstream/image-hosts.js"
 import {
   decodeEntities,
   parseGalleryList,
@@ -26,7 +25,8 @@ import {
   type GalleryList,
   type GallerySlice,
   type ImagePage,
-} from "./parse.js"
+} from "@/eh/upstream/parse.js"
+import { OUTBOUND, type Outbound } from "@/outbound/outbound.module.js"
 
 /** 标准化后的上游元数据：详情的字段，只是缩略图还是上游原地址、没签成本站的代理地址。 */
 export type GalleryMetadata = Omit<GalleryDetail, "thumbnail"> & { thumbnailUrl: string }

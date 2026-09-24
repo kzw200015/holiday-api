@@ -11,14 +11,14 @@ import { APP_PIPE, RouterModule } from "@nestjs/core"
 import { ScheduleModule } from "@nestjs/schedule"
 import { ServeStaticModule } from "@nestjs/serve-static"
 
-import { AuthModule } from "./auth/auth.module.js"
-import { validateEnv } from "./config.js"
-import { DatabaseModule } from "./database/database.module.js"
-import { EhModule } from "./eh/eh.module.js"
-import { HolidayModule } from "./holiday/holiday.module.js"
-import { OutboundModule } from "./outbound/outbound.module.js"
-import { requestLog } from "./request-log.js"
-import { SigningModule } from "./signing/signing.module.js"
+import { AuthModule } from "@/auth/auth.module.js"
+import { validateEnv } from "@/config.js"
+import { DatabaseModule } from "@/database/database.module.js"
+import { EhModule } from "@/eh/eh.module.js"
+import { HolidayModule } from "@/holiday/holiday.module.js"
+import { OutboundModule } from "@/outbound/outbound.module.js"
+import { requestLog } from "@/request-log.js"
+import { SigningModule } from "@/signing/signing.module.js"
 
 @Module({
   imports: [

@@ -3,7 +3,7 @@ import { Test } from "@nestjs/testing"
 import request from "supertest"
 import type TestAgent from "supertest/lib/agent.js"
 
-import { OUTBOUND } from "../../src/outbound/outbound.module.js"
+import { OUTBOUND } from "@/outbound/outbound.module.js"
 import { FakeOutbound, withHolidays } from "./outbound.js"
 
 export const SECRET_KEY = "test-secret-test-secret-test-secret"
@@ -38,7 +38,7 @@ export async function startApp(
     ATTACHMENT_TTL: "24h",
     ...env,
   })
-  const { AppModule } = await import("../../src/app.module.js")
+  const { AppModule } = await import("@/app.module.js")
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(OUTBOUND)
     .useValue(outbound.fetch)

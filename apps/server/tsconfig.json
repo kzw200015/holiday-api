@@ -19,6 +19,9 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "strictPropertyInitialization": false,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   }
 }

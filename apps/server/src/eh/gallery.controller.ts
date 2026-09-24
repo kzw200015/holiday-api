@@ -1,10 +1,10 @@
 import { gallerySearchSchema, type GallerySearch } from "@myapi/shared"
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from "@nestjs/common"
 
-import { CurrentUser } from "../auth/auth.decorators.js"
-import { GalleryService } from "./gallery.service.js"
-import { galleryParams } from "./params.js"
-import type { GalleryRef } from "./upstream/gallery-ref.js"
+import { CurrentUser } from "@/auth/auth.decorators.js"
+import { GalleryService } from "@/eh/gallery.service.js"
+import { galleryParams } from "@/eh/params.js"
+import type { GalleryRef } from "@/eh/upstream/gallery-ref.js"
 
 @Controller("eh/galleries")
 export class GalleryController {

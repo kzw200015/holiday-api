@@ -1,4 +1,3 @@
-import path from "node:path"
 import tailwindcss from "@tailwindcss/vite"
 import vue from "@vitejs/plugin-vue"
 import { VitePWA } from "vite-plugin-pwa"
@@ -33,9 +32,8 @@ export default defineConfig({
     }),
   ],
   resolve: {
-    alias: {
-      "@": path.resolve(import.meta.dirname, "./src"),
-    },
+    // @/ 别名只在 tsconfig 的 paths 里定义一份，打包与测试照它解析
+    tsconfigPaths: true,
   },
   test: {
     include: ["tests/**/*.test.ts"],

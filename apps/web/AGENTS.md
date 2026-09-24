@@ -10,7 +10,7 @@ feature 内按角色分文件：`api.ts` 只管 HTTP 调用，领域类型直接
 
 ## 组件与界面
 
-组件文件名用 PascalCase，组合式函数用 `useX`。业务组件用 `<script setup lang="ts">`，组件名从文件名推导，KeepAlive 按它匹配，需要别的名字时用 `defineOptions`；props、emits 与双向绑定用类型化的 `defineProps`、`defineEmits`、`defineModel`，不用渲染函数模拟模板。使用 `@/` 路径别名，SFC 导入显式带 `.vue`。模板注释用 `<!-- -->`。
+组件文件名用 PascalCase，组合式函数用 `useX`。业务组件用 `<script setup lang="ts">`，组件名从文件名推导，KeepAlive 按它匹配，需要别的名字时用 `defineOptions`；props、emits 与双向绑定用类型化的 `defineProps`、`defineEmits`、`defineModel`，不用渲染函数模拟模板。使用 `@/` 路径别名（只在 tsconfig 的 `paths` 里定义，Vite 经 `resolve.tsconfigPaths` 解析），SFC 导入显式带 `.vue`。模板注释用 `<!-- -->`。
 
 危险操作的按钮用 `variant="destructive"`（红字、无底色，独立按钮再加一圈淡红描边）；代价大、不可撤销的（清空、解绑）先经 `shared/components/ConfirmDialog` 确认，只有对话框里的确认键是实心红。「回上一级」按钮在顶栏，由路由的 `meta.back` 声明，页面里不另放一份；浏览器历史的上一条正好是目标页时退回去，否则原地替换（`shared/composables/useGoBack`），历史里不留重复的一条。
 

@@ -1,8 +1,8 @@
 import { ConfigService } from "@nestjs/config"
 import { NestFactory } from "@nestjs/core"
 
-import { AppModule } from "./app.module.js"
-import type { Env } from "./config.js"
+import { AppModule } from "@/app.module.js"
+import type { Env } from "@/config.js"
 
 const app = await NestFactory.create(AppModule)
 /* 容器停止时收到 SIGTERM，要先关掉连接池再退出 */

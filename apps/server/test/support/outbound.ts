@@ -1,4 +1,4 @@
-import type { Outbound, OutboundInit } from "../../src/outbound/outbound.module.js"
+import type { Outbound, OutboundInit } from "@/outbound/outbound.module.js"
 import { present } from "./present.js"
 
 /** 发往外部网站的一次请求，按发出的顺序记下来。 */

@@ -1,7 +1,7 @@
 import { SchedulerRegistry } from "@nestjs/schedule"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
-import { HOLIDAY_REFRESH_JOB } from "../src/holiday/holiday.service.js"
+import { HOLIDAY_REFRESH_JOB } from "@/holiday/holiday.service.js"
 import { startApp, type TestApp } from "./support/app.js"
 import { createDatabase } from "./support/database.js"
 import { holidaySource, json, type Responder } from "./support/outbound.js"

@@ -2,7 +2,7 @@ import { Global, Module } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
 import { Agent, fetch } from "undici"
 
-import type { Env } from "../config.js"
+import type { Env } from "@/config.js"
 
 /** 出网请求里用得到的那几项。 */
 export interface OutboundInit {

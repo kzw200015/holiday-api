@@ -1,7 +1,7 @@
 import { readingHistoryQuerySchema } from "@myapi/shared"
 import { z } from "zod"
 
-import { gidParam } from "./params.js"
+import { gidParam } from "@/eh/params.js"
 
 /*
  * 阅读历史的游标：上一页最后一条的阅读时间与 gid，拿去和库里的原值比较。

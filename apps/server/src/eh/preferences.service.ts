@@ -2,8 +2,8 @@ import { DEFAULT_GALLERY_PREFERENCES, type GalleryPreferences } from "@myapi/sha
 import { Inject, Injectable } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
 
-import { DATABASE, type Database } from "../database/database.module.js"
-import { ehPreferences } from "../database/schema.js"
+import { DATABASE, type Database } from "@/database/database.module.js"
+import { ehPreferences } from "@/database/schema.js"
 
 /**
  * 浏览偏好与搜索历史：「读一次、之后前端说了算」，所以写入一律是整份替换——前端推上来的就是它当前的样子，

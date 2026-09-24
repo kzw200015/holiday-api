@@ -1,8 +1,8 @@
 import { Module } from "@nestjs/common"
 
-import { HolidayController } from "./holiday.controller.js"
-import { HolidayService } from "./holiday.service.js"
-import { HolidaySource } from "./holiday.source.js"
+import { HolidayController } from "@/holiday/holiday.controller.js"
+import { HolidayService } from "@/holiday/holiday.service.js"
+import { HolidaySource } from "@/holiday/holiday.source.js"
 
 @Module({
   controllers: [HolidayController],

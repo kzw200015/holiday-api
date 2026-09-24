@@ -1,10 +1,10 @@
 import { readingProgressSchema, type ReadingProgress } from "@myapi/shared"
 import { Body, Controller, Delete, Get, Param, Post, Query } from "@nestjs/common"
 
-import { CurrentUser } from "../auth/auth.decorators.js"
-import { readingHistoryQuery, type HistoryCursor } from "./history-cursor.js"
-import { gidParam } from "./params.js"
-import { ReadingService } from "./reading.service.js"
+import { CurrentUser } from "@/auth/auth.decorators.js"
+import { readingHistoryQuery, type HistoryCursor } from "@/eh/history-cursor.js"
+import { gidParam } from "@/eh/params.js"
+import { ReadingService } from "@/eh/reading.service.js"
 
 @Controller("eh")
 export class ReadingController {

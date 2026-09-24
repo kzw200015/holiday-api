@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException } from "@nestjs/common"
 import { LRUCache } from "lru-cache"
 
-import type { EhAccess } from "./upstream/access.js"
-import { EhClient } from "./upstream/eh-client.js"
-import { unavailable } from "./upstream/failures.js"
-import { refKey, type GalleryRef } from "./upstream/gallery-ref.js"
-import type { GallerySlice, ImagePage } from "./upstream/parse.js"
+import type { EhAccess } from "@/eh/upstream/access.js"
+import { EhClient } from "@/eh/upstream/eh-client.js"
+import { unavailable } from "@/eh/upstream/failures.js"
+import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref.js"
+import type { GallerySlice, ImagePage } from "@/eh/upstream/parse.js"
 
 interface SliceRequest {
   access: EhAccess

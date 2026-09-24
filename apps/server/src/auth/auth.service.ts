@@ -5,10 +5,10 @@ import { JwtService } from "@nestjs/jwt"
 import { eq } from "drizzle-orm"
 import { DatabaseError } from "pg"
 
-import type { Env } from "../config.js"
-import { DATABASE, type Database } from "../database/database.module.js"
-import { users } from "../database/schema.js"
-import { hashPassword, verifyPassword } from "./passwords.js"
+import { hashPassword, verifyPassword } from "@/auth/passwords.js"
+import type { Env } from "@/config.js"
+import { DATABASE, type Database } from "@/database/database.module.js"
+import { users } from "@/database/schema.js"
 
 /** PostgreSQL 的唯一约束冲突 */
 const UNIQUE_VIOLATION = "23505"

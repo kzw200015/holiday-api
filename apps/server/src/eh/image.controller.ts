@@ -3,8 +3,8 @@ import type { ReadableStream } from "node:stream/web"
 import { Controller, Get, Logger, Param, Query, Res, StreamableFile } from "@nestjs/common"
 import type { Response } from "express"
 
-import { Public } from "../auth/auth.decorators.js"
-import { ImageService } from "./image.service.js"
+import { Public } from "@/auth/auth.decorators.js"
+import { ImageService } from "@/eh/image.service.js"
 import {
   galleryImageQuery,
   galleryPageParams,
@@ -12,9 +12,9 @@ import {
   type GalleryImageQuery,
   type GalleryPageParams,
   type ThumbnailQuery,
-} from "./params.js"
-import type { ImageStream } from "./upstream/eh-client.js"
-import { imageBroken } from "./upstream/failures.js"
+} from "@/eh/params.js"
+import type { ImageStream } from "@/eh/upstream/eh-client.js"
+import { imageBroken } from "@/eh/upstream/failures.js"
 
 /** 图集内容不会变，浏览器缓存住之后来回翻页就不再回源，也就不再消耗 e 站配额。 */
 const CACHE_CONTROL = "max-age=2592000, private, immutable"

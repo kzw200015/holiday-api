@@ -1,11 +1,11 @@
 import { Injectable, Logger } from "@nestjs/common"
 
-import { AttachmentUrls, type Signature } from "./attachment-urls.js"
-import { CredentialService } from "./credential.service.js"
-import { ImageLocator } from "./image-locator.js"
-import { EhClient, type ImageStream } from "./upstream/eh-client.js"
-import { ImageNodeFailure } from "./upstream/failures.js"
-import type { GalleryRef } from "./upstream/gallery-ref.js"
+import { AttachmentUrls, type Signature } from "@/eh/attachment-urls.js"
+import { CredentialService } from "@/eh/credential.service.js"
+import { ImageLocator } from "@/eh/image-locator.js"
+import { EhClient, type ImageStream } from "@/eh/upstream/eh-client.js"
+import { ImageNodeFailure } from "@/eh/upstream/failures.js"
+import type { GalleryRef } from "@/eh/upstream/gallery-ref.js"
 
 /** 图片代理：签名校验通过才取图，交回可以直接转发的图片流。 */
 @Injectable()
