@@ -36,7 +36,7 @@ export class ImageLocator {
   private readonly sliceSizes = new LRUCache<string, number>({ max: 200, ttl: 30 * 60_000 })
   private readonly showKeys = new LRUCache<string, string>({ max: 200, ttl: 30 * 60_000 })
 
-  constructor(private readonly client: EhClient) {}
+  constructor(private readonly ehClient: EhClient) {}
 
   /** 详情页的某一片。评论也从第 0 片里取。fetchSlice 要么给出分片要么抛出，forceFetch 在没拿到值时也会抛出。 */
   gallerySlice(access: EhAccess, ref: GalleryRef, index: number): Promise<GallerySlice> {
@@ -48,11 +48,11 @@ export class ImageLocator {
     const gallery = galleryKey(access, ref)
     const pageToken = await this.pageToken(access, ref, page)
     const showKey = this.showKeys.get(gallery)
-    let image = showKey ? await this.client.showImage(access, ref, page, pageToken, showKey) : null
+    let image = showKey ? await this.ehClient.showImage(access, ref, page, pageToken, showKey) : null
     if (showKey && !image) {
       this.showKeys.delete(gallery)
     }
-    image ??= await this.client.fetchImagePage(access, ref, page, pageToken)
+    image ??= await this.ehClient.fetchImagePage(access, ref, page, pageToken)
     return this.remember(gallery, image)
   }
 
@@ -62,15 +62,15 @@ export class ImageLocator {
    */
   async relocate(access: EhAccess, ref: GalleryRef, page: number, failed: ImagePage): Promise<ImagePage> {
     const pageToken = await this.pageToken(access, ref, page)
-    let image = await this.client.fetchImagePage(access, ref, page, pageToken, failed.reloadToken)
+    let image = await this.ehClient.fetchImagePage(access, ref, page, pageToken, failed.reloadToken)
     if (!failed.reloadToken && image.reloadToken) {
-      image = await this.client.fetchImagePage(access, ref, page, pageToken, image.reloadToken)
+      image = await this.ehClient.fetchImagePage(access, ref, page, pageToken, image.reloadToken)
     }
     return this.remember(galleryKey(access, ref), image)
   }
 
   private async fetchSlice({ access, ref, index }: SliceRequest): Promise<GallerySlice> {
-    const slice = await this.client.fetchGallerySlice(access, ref, index)
+    const slice = await this.ehClient.fetchGallerySlice(access, ref, index)
     const gallery = galleryKey(access, ref)
     for (const [page, token] of slice.pageTokens) {
       this.pageTokens.set(`${gallery}@${page}`, token)

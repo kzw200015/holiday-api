@@ -6,11 +6,10 @@ import { migrate } from "drizzle-orm/node-postgres/migrator"
 import { Pool } from "pg"
 
 import type { Env } from "@/config.js"
-import * as schema from "@/database/schema.js"
 
-export type Database = NodePgDatabase<typeof schema> & { $client: Pool }
+export type Database = NodePgDatabase & { $client: Pool }
 
-/** 注入数据库用的令牌：`@Inject(DATABASE) db: Database`。 */
+/** 注入数据库用的令牌：`@Inject(DATABASE) database: Database`。 */
 export const DATABASE = Symbol("DATABASE")
 
 /* 迁移文件随包发布在 apps/server/drizzle，源码与编译产物都在它往上两级。 */
@@ -23,9 +22,9 @@ const MIGRATIONS = fileURLToPath(new URL("../../drizzle", import.meta.url))
     {
       provide: DATABASE,
       inject: [ConfigService],
-      useFactory: async (config: ConfigService<Env, true>) => {
-        const pool = new Pool({ connectionString: config.get("DATABASE_URL", { infer: true }) })
-        const db = drizzle({ client: pool, schema })
+      useFactory: async (configService: ConfigService<Env, true>) => {
+        const pool = new Pool({ connectionString: configService.get("DATABASE_URL", { infer: true }) })
+        const db = drizzle({ client: pool })
         try {
           await migrate(db, { migrationsFolder: MIGRATIONS })
         } catch (error) {
@@ -39,9 +38,9 @@ const MIGRATIONS = fileURLToPath(new URL("../../drizzle", import.meta.url))
   exports: [DATABASE],
 })
 export class DatabaseModule implements OnApplicationShutdown {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(@Inject(DATABASE) private readonly database: Database) {}
 
   async onApplicationShutdown() {
-    await this.db.$client.end()
+    await this.database.$client.end()
   }
 }

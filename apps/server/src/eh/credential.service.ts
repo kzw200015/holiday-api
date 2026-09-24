@@ -3,7 +3,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
 
 import { DATABASE, type Database } from "@/database/database.module.js"
-import { ehCredentials } from "@/database/schema.js"
+import { ehCredentials } from "@/eh/eh.tables.js"
 import { accessOf, ANONYMOUS, type EhAccess, type Site } from "@/eh/upstream/access.js"
 import { EhClient } from "@/eh/upstream/eh-client.js"
 
@@ -19,8 +19,8 @@ export class CredentialService {
   private readonly logger = new Logger(CredentialService.name)
 
   constructor(
-    @Inject(DATABASE) private readonly db: Database,
-    private readonly client: EhClient,
+    @Inject(DATABASE) private readonly database: Database,
+    private readonly ehClient: EhClient,
   ) {}
 
   async status(userId: number): Promise<CredentialStatus> {
@@ -29,9 +29,9 @@ export class CredentialService {
 
   /** 绑定前先拿这组 Cookie 实际请求一次，用不了直接回 400，免得把一组坏凭据存进库再让人一脸茫然。 */
   async bind(userId: number, credential: EhCredential): Promise<CredentialStatus> {
-    const hasExAccess = await this.client.verifyCredential(credential)
+    const hasExAccess = await this.ehClient.verifyCredential(credential)
     const row = { ...credential, hasExAccess }
-    await this.db
+    await this.database
       .insert(ehCredentials)
       .values({ userId, ...row })
       .onConflictDoUpdate({ target: ehCredentials.userId, set: { ...row, updatedAt: sql`now()` } })
@@ -41,7 +41,7 @@ export class CredentialService {
 
   /** 解绑后退回匿名浏览表站，回一份解绑后的状态。 */
   async unbind(userId: number): Promise<CredentialStatus> {
-    await this.db.delete(ehCredentials).where(eq(ehCredentials.userId, userId))
+    await this.database.delete(ehCredentials).where(eq(ehCredentials.userId, userId))
     return UNBOUND
   }
 
@@ -55,7 +55,7 @@ export class CredentialService {
   }
 
   private async find(userId: number) {
-    const [row] = await this.db
+    const [row] = await this.database
       .select({
         ipbMemberId: ehCredentials.ipbMemberId,
         ipbPassHash: ehCredentials.ipbPassHash,

@@ -8,7 +8,7 @@ import { ReadingService } from "@/eh/reading.service.js"
 
 @Controller("eh")
 export class ReadingController {
-  constructor(private readonly reading: ReadingService) {}
+  constructor(private readonly readingService: ReadingService) {}
 
   /** 记下读到第几页。前端不排队、当场发出，靠上报方与序号挡住迟到的旧上报。 */
   @Post("progress")
@@ -16,22 +16,22 @@ export class ReadingController {
     @CurrentUser() userId: number,
     @Body({ schema: readingProgressSchema }) body: ReadingProgress,
   ): Promise<void> {
-    await this.reading.save(userId, body)
+    await this.readingService.save(userId, body)
   }
 
   @Get("history")
   history(@CurrentUser() userId: number, @Query({ schema: readingHistoryQuery }) before: HistoryCursor | null) {
-    return this.reading.history(userId, before)
+    return this.readingService.history(userId, before)
   }
 
   /** 按 gid 认记录，跟表上的唯一约束一致。 */
   @Delete("history/:gid")
   async remove(@CurrentUser() userId: number, @Param("gid", { schema: gidParam }) gid: number): Promise<void> {
-    await this.reading.remove(userId, gid)
+    await this.readingService.remove(userId, gid)
   }
 
   @Delete("history")
   async clear(@CurrentUser() userId: number): Promise<void> {
-    await this.reading.clear(userId)
+    await this.readingService.clear(userId)
   }
 }

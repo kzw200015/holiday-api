@@ -4,9 +4,9 @@
 
 ## 结构
 
-代码在 `src/`，顶层按领域分模块：`auth`、`eh`、`holiday`，与前端的 feature 一一对应；另有基础模块 `config.ts`（环境变量）、`numeric.ts`（从字符串认数字）、`database/`（连接池、表结构 `schema.ts`、启动时迁移）、`outbound/`（出网）、`signing/`（从主密钥派生子密钥）、`request-log.ts`（`/api` 下每个请求结束时记一行方法、路径、状态码与耗时）。迁移文件在 `drizzle/`，测试在 `test/`。镜像里前端产物放在 `client/`，由本服务一并提供静态文件。
+代码在 `src/`，顶层按领域分模块：`auth`、`eh`、`holiday`，与前端的 feature 一一对应；另有基础模块 `config.ts`（环境变量）、`numeric.ts`（从字符串认数字）、`database/`（连接池、建表共用的列 `columns.ts`、启动时迁移）、`outbound/`（出网）、`signing/`（从主密钥派生子密钥）、`request-log.ts`（`/api` 下每个请求结束时记一行方法、路径、状态码与耗时）。迁移文件在 `drizzle/`，测试在 `test/`。镜像里前端产物放在 `client/`，由本服务一并提供静态文件。
 
-改了 `src/database/schema.ts` 之后，在本目录跑 `pnpm exec drizzle-kit generate` 生成迁移（要连一个库做对比时给 `DATABASE_URL`）。
+表结构按领域写在各自模块的 `*.tables.ts` 里（`auth.tables.ts`、`eh.tables.ts`、`holiday.tables.ts`），改了之后，在本目录跑 `pnpm exec drizzle-kit generate` 生成迁移（要连一个库做对比时给 `DATABASE_URL`）。
 
 ## 代码风格
 
@@ -24,7 +24,7 @@
 
 鉴权不用 Passport（见 ADR-0001）：全局 `AuthGuard` 用 `@nestjs/jwt` 认 `Authorization: Bearer` 令牌，接口默认要求登录，公开接口标 `@Public()`；控制器用 `@CurrentUser()` 拿当前本站账号 id，公开接口上没登录时是 `null`。公开接口清单由接口测试按整张路由表锁住。
 
-数据访问用 Drizzle（`drizzle-orm/node-postgres`），表结构写在 `database/schema.ts`，经 `@Inject(DATABASE)` 注入。时间列只存到毫秒（`timestamp(3)`），取出来是 `Date`：阅读历史的游标要把阅读时间原样交回数据库比较，库里存着微秒的话经 `Date` 一截就会漏行，upsert 的冲突分支自己写 `` updatedAt: sql`now()` ``。服务启动时由迁移器自动执行 `drizzle/` 下没执行过的迁移；基线迁移是幂等的，对着已有的库只登记不改动。
+数据访问用 Drizzle（`drizzle-orm/node-postgres`），表结构写在各领域的 `*.tables.ts`，服务直接从那里引用表，连接经 `@Inject(DATABASE)` 注入；不用 Drizzle 的关系查询，所以连接上不挂表结构，`database` 模块也就不必认识各领域的表。时间列只存到毫秒（`timestamp(3)`），取出来是 `Date`：阅读历史的游标要把阅读时间原样交回数据库比较，库里存着微秒的话经 `Date` 一截就会漏行，upsert 的冲突分支自己写 `` updatedAt: sql`now()` ``。服务启动时由迁移器自动执行 `drizzle/` 下没执行过的迁移；基线迁移是幂等的，对着已有的库只登记不改动。
 
 出网只有一个出口：`outbound` 模块提供的 `Outbound`（形状就是 fetch，底下是 undici），不跟随重定向，等响应头与两次数据之间各有超时，所有出网请求共用同一个 User-Agent 与超时配置；访问 e 站、图床、节假日数据源都经它，测试也只在这里替换。一个请求里要同时等两件互不依赖的事时用 `Promise.all`。进程内缓存用 `lru-cache`：同一个 key 的并发加载靠它的 `fetch()`（一定有值的用 `forceFetch()`）只跑一次、失败不进缓存，不另加锁。
 

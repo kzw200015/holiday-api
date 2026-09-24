@@ -13,31 +13,31 @@ export class ImageService {
   private readonly logger = new Logger(ImageService.name)
 
   constructor(
-    private readonly urls: AttachmentUrls,
-    private readonly credentials: CredentialService,
-    private readonly locator: ImageLocator,
-    private readonly client: EhClient,
+    private readonly attachmentUrls: AttachmentUrls,
+    private readonly credentialService: CredentialService,
+    private readonly imageLocator: ImageLocator,
+    private readonly ehClient: EhClient,
   ) {}
 
   /** 校验签名后用签发对象的凭据取图。uid 要等签名校验通过，才能拿它去读凭据。图床节点失败时换源重试一次。 */
   async openGalleryImage(userId: number, ref: GalleryRef, page: number, signature: Signature): Promise<ImageStream> {
-    this.urls.checkImage(userId, ref, signature)
-    const access = await this.credentials.access(userId)
-    const image = await this.locator.locate(access, ref, page)
+    this.attachmentUrls.checkImage(userId, ref, signature)
+    const access = await this.credentialService.access(userId)
+    const image = await this.imageLocator.locate(access, ref, page)
     try {
-      return await this.client.openImage(image.imageUrl)
+      return await this.ehClient.openImage(image.imageUrl)
     } catch (error) {
       if (!(error instanceof ImageNodeFailure)) {
         throw error
       }
       /* 失败原因在创建 ImageNodeFailure 时已经连同地址记过了，这里记下是哪本哪页、按地址对得上 */
       this.logger.log(`图床节点取图失败，换源重试 gid=${ref.gid} page=${page} url=${image.imageUrl}`)
-      return this.client.openImage((await this.locator.relocate(access, ref, page, image)).imageUrl)
+      return this.ehClient.openImage((await this.imageLocator.relocate(access, ref, page, image)).imageUrl)
     }
   }
 
   /** 缩略图落在图床上，图床不认 e 站的 Cookie，取图与是谁在看无关，所以不需要账号。 */
   openThumbnail(encoded: string, signature: Signature): Promise<ImageStream> {
-    return this.client.openImage(this.urls.checkThumbnail(encoded, signature))
+    return this.ehClient.openImage(this.attachmentUrls.checkThumbnail(encoded, signature))
   }
 }

@@ -18,7 +18,7 @@ const subject = numeric(z.int().positive(), "令牌载荷不合法")
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
-    private readonly jwt: JwtService,
+    private readonly jwtService: JwtService,
     private readonly reflector: Reflector,
   ) {}
 
@@ -42,7 +42,7 @@ export class AuthGuard implements CanActivate {
       return null
     }
     try {
-      const { sub } = await this.jwt.verifyAsync<{ sub?: unknown }>(token)
+      const { sub } = await this.jwtService.verifyAsync<{ sub?: unknown }>(token)
       const parsed = subject.safeParse(sub)
       return parsed.success ? parsed.data : null
     } catch {

@@ -12,11 +12,11 @@ import { PreferencesService } from "@/eh/preferences.service.js"
 /** 本站账号的浏览数据：读一次、之后前端说了算，写入一律整份 PUT，只回成败。 */
 @Controller("eh")
 export class PreferencesController {
-  constructor(private readonly preferences: PreferencesService) {}
+  constructor(private readonly preferencesService: PreferencesService) {}
 
   @Get("preferences")
   getPreferences(@CurrentUser() userId: number): Promise<GalleryPreferences> {
-    return this.preferences.preferences(userId)
+    return this.preferencesService.preferences(userId)
   }
 
   @Put("preferences")
@@ -24,12 +24,12 @@ export class PreferencesController {
     @CurrentUser() userId: number,
     @Body({ schema: galleryPreferencesSchema }) body: GalleryPreferences,
   ): Promise<void> {
-    await this.preferences.savePreferences(userId, body)
+    await this.preferencesService.savePreferences(userId, body)
   }
 
   @Get("search-history")
   searchHistory(@CurrentUser() userId: number): Promise<string[]> {
-    return this.preferences.searchHistory(userId)
+    return this.preferencesService.searchHistory(userId)
   }
 
   @Put("search-history")
@@ -37,6 +37,6 @@ export class PreferencesController {
     @CurrentUser() userId: number,
     @Body({ schema: searchHistorySchema }) body: SearchHistory,
   ): Promise<void> {
-    await this.preferences.saveSearchHistory(userId, body.entries)
+    await this.preferencesService.saveSearchHistory(userId, body.entries)
   }
 }

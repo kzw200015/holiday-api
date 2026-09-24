@@ -56,8 +56,11 @@ export function createOutbound(userAgent: string, timeout: number): Outbound {
     {
       provide: OUTBOUND,
       inject: [ConfigService],
-      useFactory: (config: ConfigService<Env, true>) =>
-        createOutbound(config.get("EH_USER_AGENT", { infer: true }), config.get("EH_REQUEST_TIMEOUT", { infer: true })),
+      useFactory: (configService: ConfigService<Env, true>) =>
+        createOutbound(
+          configService.get("EH_USER_AGENT", { infer: true }),
+          configService.get("EH_REQUEST_TIMEOUT", { infer: true }),
+        ),
     },
   ],
   exports: [OUTBOUND],

@@ -3,7 +3,7 @@ import { Inject, Injectable } from "@nestjs/common"
 import { and, desc, eq, sql } from "drizzle-orm"
 
 import { DATABASE, type Database } from "@/database/database.module.js"
-import { ehReadingProgress } from "@/database/schema.js"
+import { ehReadingProgress } from "@/eh/eh.tables.js"
 import { GalleryCatalog } from "@/eh/gallery-catalog.js"
 import { encodeHistoryCursor, type HistoryCursor } from "@/eh/history-cursor.js"
 import { refKey } from "@/eh/upstream/gallery-ref.js"
@@ -16,8 +16,8 @@ const PAGE_SIZE = 25
 @Injectable()
 export class ReadingService {
   constructor(
-    @Inject(DATABASE) private readonly db: Database,
-    private readonly catalog: GalleryCatalog,
+    @Inject(DATABASE) private readonly database: Database,
+    private readonly galleryCatalog: GalleryCatalog,
   ) {}
 
   /**
@@ -25,7 +25,7 @@ export class ReadingService {
    * 冲突的那行会先被锁住，条件按它的最新版本判断，两次上报同时到也不会让旧的写进去。
    */
   async save(userId: number, { gid, token, page, writer, seq }: ReadingProgress) {
-    await this.db
+    await this.database
       .insert(ehReadingProgress)
       .values({ userId, gid, token, page, writer, seq })
       .onConflictDoUpdate({
@@ -43,7 +43,7 @@ export class ReadingService {
 
   /** 这本读到第几页，没读过是 null。 */
   async progressOf(userId: number, gid: number): Promise<number | null> {
-    const [row] = await this.db
+    const [row] = await this.database
       .select({ page: ehReadingProgress.page })
       .from(ehReadingProgress)
       .where(and(eq(ehReadingProgress.userId, userId), eq(ehReadingProgress.gid, gid)))
@@ -52,7 +52,7 @@ export class ReadingService {
 
   /** 一页阅读历史，按最近阅读排序：记录来自本站的库，每条的展示信息再向上游补齐。before 为 null 是第一页。 */
   async history(userId: number, before: HistoryCursor | null): Promise<CursorPage<ReadingHistoryItem>> {
-    const rows = await this.db
+    const rows = await this.database
       .select({
         gid: ehReadingProgress.gid,
         token: ehReadingProgress.token,
@@ -73,7 +73,7 @@ export class ReadingService {
       .limit(PAGE_SIZE + 1)
     const page = rows.slice(0, PAGE_SIZE)
     /* 整批元数据请求失败照常抛出：那是可以重试的错误，不能把网络故障伪装成所有图集都失效了 */
-    const cards = await this.catalog.cards(page)
+    const cards = await this.galleryCatalog.cards(page)
     const last = page.at(-1)
     return {
       items: page.map((row) => ({
@@ -89,12 +89,12 @@ export class ReadingService {
   }
 
   async remove(userId: number, gid: number) {
-    await this.db
+    await this.database
       .delete(ehReadingProgress)
       .where(and(eq(ehReadingProgress.userId, userId), eq(ehReadingProgress.gid, gid)))
   }
 
   async clear(userId: number) {
-    await this.db.delete(ehReadingProgress).where(eq(ehReadingProgress.userId, userId))
+    await this.database.delete(ehReadingProgress).where(eq(ehReadingProgress.userId, userId))
   }
 }

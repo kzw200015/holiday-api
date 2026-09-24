@@ -29,8 +29,8 @@ export class GalleryCatalog {
   private waiting: Waiting[] = []
 
   constructor(
-    private readonly client: EhClient,
-    private readonly urls: AttachmentUrls,
+    private readonly ehClient: EhClient,
+    private readonly attachmentUrls: AttachmentUrls,
   ) {}
 
   /** 一批图集的卡片，按 refKey 查；元数据取不到的（被删、转私有）不在结果里，整批请求失败则抛出。搜索结果与阅读历史都用它。 */
@@ -65,7 +65,7 @@ export class GalleryCatalog {
       title: metadata.title,
       titleJpn: metadata.titleJpn,
       category: metadata.category,
-      thumbnail: this.urls.thumbnail(metadata.thumbnailUrl),
+      thumbnail: this.attachmentUrls.thumbnail(metadata.thumbnailUrl),
       uploader: metadata.uploader,
       postedAt: metadata.postedAt,
       fileCount: metadata.fileCount,
@@ -88,7 +88,7 @@ export class GalleryCatalog {
     this.waiting = []
     for (let start = 0; start < waiting.length; start += METADATA_BATCH_SIZE) {
       const batch = waiting.slice(start, start + METADATA_BATCH_SIZE)
-      this.client.fetchMetadata(batch.map(({ ref }) => ref)).then(
+      this.ehClient.fetchMetadata(batch.map(({ ref }) => ref)).then(
         (found) => batch.forEach(({ ref, resolve }) => resolve(found.get(refKey(ref)))),
         (error: unknown) => batch.forEach(({ reject }) => reject(error)),
       )

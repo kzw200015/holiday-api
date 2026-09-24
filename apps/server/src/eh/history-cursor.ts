@@ -5,7 +5,7 @@ import { gidParam } from "@/eh/params.js"
 
 /*
  * 阅读历史的游标：上一页最后一条的阅读时间与 gid，拿去和库里的原值比较。
- * 时间列只存到毫秒（见 database/schema.ts），经过 Date 一来一回不丢精度，比较才不会漏行。
+ * 时间列只存到毫秒（见 database/columns.ts），经过 Date 一来一回不丢精度，比较才不会漏行。
  */
 
 export interface HistoryCursor {

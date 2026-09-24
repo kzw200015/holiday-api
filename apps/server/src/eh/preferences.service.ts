@@ -3,7 +3,7 @@ import { Inject, Injectable } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
 
 import { DATABASE, type Database } from "@/database/database.module.js"
-import { ehPreferences } from "@/database/schema.js"
+import { ehPreferences } from "@/eh/eh.tables.js"
 
 /**
  * 浏览偏好与搜索历史：「读一次、之后前端说了算」，所以写入一律是整份替换——前端推上来的就是它当前的样子，
@@ -14,10 +14,10 @@ import { ehPreferences } from "@/database/schema.js"
  */
 @Injectable()
 export class PreferencesService {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(@Inject(DATABASE) private readonly database: Database) {}
 
   async preferences(userId: number): Promise<GalleryPreferences> {
-    const [row] = await this.db
+    const [row] = await this.database
       .select({ categories: ehPreferences.categories, readerInterval: ehPreferences.readerInterval })
       .from(ehPreferences)
       .where(eq(ehPreferences.userId, userId))
@@ -27,14 +27,14 @@ export class PreferencesService {
   /** 分类排序去重后入库，存的始终是同一种写法。 */
   async savePreferences(userId: number, { categories, readerInterval }: GalleryPreferences) {
     const value = { categories: [...new Set(categories)].toSorted(), readerInterval }
-    await this.db
+    await this.database
       .insert(ehPreferences)
       .values({ userId, ...value })
       .onConflictDoUpdate({ target: ehPreferences.userId, set: { ...value, updatedAt: sql`now()` } })
   }
 
   async searchHistory(userId: number): Promise<string[]> {
-    const [row] = await this.db
+    const [row] = await this.database
       .select({ searchHistory: ehPreferences.searchHistory })
       .from(ehPreferences)
       .where(eq(ehPreferences.userId, userId))
@@ -46,7 +46,7 @@ export class PreferencesService {
    * 这里再按另一套「空白」的定义去一遍，就会存下与前端不同的词。
    */
   async saveSearchHistory(userId: number, entries: string[]) {
-    await this.db
+    await this.database
       .insert(ehPreferences)
       .values({ userId, searchHistory: entries })
       .onConflictDoUpdate({

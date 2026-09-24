@@ -8,7 +8,7 @@ import { HolidayService } from "@/holiday/holiday.service.js"
 @Public()
 @Controller("holiday")
 export class HolidayController {
-  constructor(private readonly holidays: HolidayService) {}
+  constructor(private readonly holidayService: HolidayService) {}
 
   /**
    * 只回这天是不是休息日，响应体就是一个 JSON 布尔值。
@@ -17,13 +17,13 @@ export class HolidayController {
   @Get("is-holiday")
   @Header("Content-Type", "application/json; charset=utf-8")
   async isHoliday(@Query({ schema: holidayQuerySchema }) { date }: HolidayQuery): Promise<string> {
-    const day = await this.holidays.query(date)
+    const day = await this.holidayService.query(date)
     return JSON.stringify(day.isOffDay)
   }
 
   /** 是不是休息日，外加对应的节假日名称。 */
   @Get("detail")
   detail(@Query({ schema: holidayQuerySchema }) { date }: HolidayQuery): Promise<HolidayDetail> {
-    return this.holidays.query(date)
+    return this.holidayService.query(date)
   }
 }

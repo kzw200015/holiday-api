@@ -4,8 +4,8 @@ import { Cron } from "@nestjs/schedule"
 import { eq, like } from "drizzle-orm"
 
 import { DATABASE, type Database } from "@/database/database.module.js"
-import { holidayDays } from "@/database/schema.js"
 import { HolidaySource } from "@/holiday/holiday.source.js"
+import { holidayDays } from "@/holiday/holiday.tables.js"
 
 /** 节假日安排是中国的：「今天」「今年」一律按北京时间算，不跟着服务器的时区走（容器默认是 UTC）。 */
 const CHINA_ZONE = "Asia/Shanghai"
@@ -27,8 +27,8 @@ export class HolidayService implements OnModuleInit {
   private readonly logger = new Logger(HolidayService.name)
 
   constructor(
-    @Inject(DATABASE) private readonly db: Database,
-    private readonly source: HolidaySource,
+    @Inject(DATABASE) private readonly database: Database,
+    private readonly holidaySource: HolidaySource,
   ) {}
 
   /**
@@ -62,7 +62,7 @@ export class HolidayService implements OnModuleInit {
   /** 表中没有安排的日期按周末判断，此时名称为空。省略日期或给空串时查北京时间的今天。 */
   async query(requested?: string): Promise<HolidayDetail> {
     const date = requested || chinaToday()
-    const [day] = await this.db
+    const [day] = await this.database
       .select({ date: holidayDays.date, isOffDay: holidayDays.isOffDay, name: holidayDays.name })
       .from(holidayDays)
       .where(eq(holidayDays.date, date))
@@ -82,7 +82,7 @@ export class HolidayService implements OnModuleInit {
   /** 以「先删后插」替换一整年。 */
   private async refreshYear(year: number) {
     /* 拉取放在事务外，免得一次慢请求白占着数据库连接 */
-    const days = await this.source.fetchYear(year)
+    const days = await this.holidaySource.fetchYear(year)
     /*
      * 拉到空的就不动库：一年的安排公布之后不会变回没有，拉到空的只能是还没发布，
      * 或者数据源出了岔子（路径变了、全回 404），这时先删后插只会把已有的安排清掉
@@ -92,7 +92,7 @@ export class HolidayService implements OnModuleInit {
       return
     }
     /* 删和插在一个事务里：中途出错即回滚，不会留下「旧的没了、新的也没进来」的空年份 */
-    await this.db.transaction(async (tx) => {
+    await this.database.transaction(async (tx) => {
       await tx.delete(holidayDays).where(like(holidayDays.date, `${year}-%`))
       await tx.insert(holidayDays).values(days)
     })
@@ -100,7 +100,7 @@ export class HolidayService implements OnModuleInit {
   }
 
   private async hasYear(year: number): Promise<boolean> {
-    const rows = await this.db
+    const rows = await this.database
       .select({ id: holidayDays.id })
       .from(holidayDays)
       .where(like(holidayDays.date, `${year}-%`))

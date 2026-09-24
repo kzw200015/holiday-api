@@ -28,7 +28,7 @@ const CACHE_CONTROL = "max-age=2592000, private, immutable"
 export class ImageController {
   private readonly logger = new Logger(ImageController.name)
 
-  constructor(private readonly images: ImageService) {}
+  constructor(private readonly imageService: ImageService) {}
 
   /** 大图，地址形如 .../pages/{page}/image?uid=&e=&s=，由详情接口签发。 */
   @Get("galleries/:gid/:token/pages/:page/image")
@@ -37,7 +37,7 @@ export class ImageController {
     @Query({ schema: galleryImageQuery }) { uid, e, s }: GalleryImageQuery,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.forward(await this.images.openGalleryImage(uid, { gid, token }, page, { e, s }), response)
+    return this.forward(await this.imageService.openGalleryImage(uid, { gid, token }, page, { e, s }), response)
   }
 
   /** 缩略图，地址形如 /thumbnail?u=&e=&s=，只接受本服务签发过的地址。 */
@@ -46,7 +46,7 @@ export class ImageController {
     @Query({ schema: thumbnailQuery }) { u, e, s }: ThumbnailQuery,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.forward(await this.images.openThumbnail(u, { e, s }), response)
+    return this.forward(await this.imageService.openThumbnail(u, { e, s }), response)
   }
 
   private forward(image: ImageStream, response: Response): StreamableFile {

@@ -16,8 +16,8 @@ export class SigningKeys {
   readonly token: Buffer
   readonly attachment: Buffer
 
-  constructor(config: ConfigService<Env, true>) {
-    const secret = config.get("SECRET_KEY", { infer: true })
+  constructor(configService: ConfigService<Env, true>) {
+    const secret = configService.get("SECRET_KEY", { infer: true })
     this.token = derive(secret, "token-v1")
     this.attachment = derive(secret, "attachment-v1")
   }

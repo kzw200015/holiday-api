@@ -26,9 +26,9 @@ export class AttachmentUrls {
   private readonly key: Buffer
   private readonly ttl: number
 
-  constructor(keys: SigningKeys, config: ConfigService<Env, true>) {
-    this.key = keys.attachment
-    this.ttl = config.get("ATTACHMENT_TTL", { infer: true })
+  constructor(signingKeys: SigningKeys, configService: ConfigService<Env, true>) {
+    this.key = signingKeys.attachment
+    this.ttl = configService.get("ATTACHMENT_TTL", { infer: true })
   }
 
   /** 缩略图：签的是上游原始地址，校验通过才代理，客户端指定不了主机。 */

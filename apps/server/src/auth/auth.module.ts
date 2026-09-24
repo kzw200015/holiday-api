@@ -13,10 +13,13 @@ import { SigningKeys } from "@/signing/signing.module.js"
   imports: [
     JwtModule.registerAsync({
       inject: [SigningKeys, ConfigService],
-      useFactory: (keys: SigningKeys, config: ConfigService<Env, true>) => ({
-        secret: keys.token,
+      useFactory: (signingKeys: SigningKeys, configService: ConfigService<Env, true>) => ({
+        secret: signingKeys.token,
         /* 只认 HS256：照令牌头里自称的 alg 去验，等于让攻击者自己挑用哪把锁（alg: none） */
-        signOptions: { algorithm: "HS256", expiresIn: Math.floor(config.get("TOKEN_TTL", { infer: true }) / 1000) },
+        signOptions: {
+          algorithm: "HS256",
+          expiresIn: Math.floor(configService.get("TOKEN_TTL", { infer: true }) / 1000),
+        },
         verifyOptions: { algorithms: ["HS256"] },
       }),
     }),
