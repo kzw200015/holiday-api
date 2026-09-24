@@ -9,6 +9,7 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryDetail, saveProgress } from "@/features/eh/api"
 import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
 import { useGalleryContentStore } from "@/features/eh/store"
+import { deferred } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -38,14 +39,6 @@ const gallery: GalleryDetail = {
 
 let pinia: Pinia
 const cleanups: (() => void)[] = []
-
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((done) => {
-    resolve = done
-  })
-  return { promise, resolve }
-}
 
 function detailResult(progress: number | null, gid = 1, token = "aaaaaaaaaa"): GalleryDetailResult {
   return { gallery: { ...gallery, gid, token }, progress, imageUrlTemplate: "/image/{page}" }
@@ -217,7 +210,7 @@ describe("详情重取与本地进度", () => {
     vi.mocked(fetchGalleryDetail).mockReturnValueOnce(first.promise)
     const content = useGalleryContentStore(pinia)
     const load = content.loadDetail(2, "bbbbbbbbbb")
-    content.forgetProgress(2, "bbbbbbbbbb")
+    content.setProgress(2, "bbbbbbbbbb", null)
     first.resolve(detailResult(17, 2, "bbbbbbbbbb"))
     await load
     expect(progressOf(2, "bbbbbbbbbb")).toBeNull()

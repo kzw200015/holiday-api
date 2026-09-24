@@ -1,12 +1,12 @@
-import { readingHistoryQuerySchema, readingProgressSchema, type ReadingProgress } from "@myapi/shared"
+import { readingProgressSchema, type ReadingProgress } from "@myapi/shared"
 import { Body, Controller, Delete, Get, Param, Post, Query } from "@nestjs/common"
-import type { z } from "zod"
 
 import { CurrentUser } from "../auth/auth.decorators.js"
+import { readingHistoryQuery, type HistoryCursor } from "./history-cursor.js"
 import { gidParam } from "./params.js"
 import { ReadingService } from "./reading.service.js"
 
-@Controller("api/eh")
+@Controller("eh")
 export class ReadingController {
   constructor(private readonly reading: ReadingService) {}
 
@@ -20,11 +20,8 @@ export class ReadingController {
   }
 
   @Get("history")
-  history(
-    @CurrentUser() userId: number,
-    @Query({ schema: readingHistoryQuerySchema }) { cursor }: z.output<typeof readingHistoryQuerySchema>,
-  ) {
-    return this.reading.history(userId, cursor)
+  history(@CurrentUser() userId: number, @Query({ schema: readingHistoryQuery }) before: HistoryCursor | null) {
+    return this.reading.history(userId, before)
   }
 
   /** 按 gid 认记录，跟表上的唯一约束一致。 */

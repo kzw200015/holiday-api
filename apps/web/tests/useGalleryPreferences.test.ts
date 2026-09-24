@@ -2,12 +2,13 @@
 import type { GalleryPreferences } from "@myapi/shared"
 import { createPinia, disposePinia, type Pinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createApp, nextTick } from "vue"
+import { createApp } from "vue"
 
 import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, saveGalleryPreferences } from "@/features/eh/api"
 import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
+import { settleFakeTimers } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -33,11 +34,6 @@ function mount() {
   return api
 }
 
-async function settle() {
-  await vi.advanceTimersByTimeAsync(0)
-  await nextTick()
-}
-
 beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
@@ -60,7 +56,7 @@ describe("账号浏览偏好", () => {
     expect(preferences.ready.value).toBe(false)
     /* 另一个页面同时用到，不该再读一遍。 */
     const reader = mount()
-    await settle()
+    await settleFakeTimers()
     expect(preferences.ready.value).toBe(true)
     expect(preferences.categories.value).toEqual(["manga"])
     expect(reader.interval.value).toBe(8)
@@ -71,13 +67,13 @@ describe("账号浏览偏好", () => {
   it("改动当场生效、跨页面可见；连着改就按顺序提交两次", async () => {
     const list = mount()
     const reader = mount()
-    await settle()
+    await settleFakeTimers()
     reader.interval.value = 12
     expect(list.interval.value).toBe(12)
     list.applyCategories(["misc"])
     expect(reader.categories.value).toEqual(["misc"])
-    await settle()
-    await settle()
+    await settleFakeTimers()
+    await settleFakeTimers()
     /* 不做合并：改几次就提交几次，scope 保证它们按操作顺序到达。 */
     expect(saveGalleryPreferences).toHaveBeenCalledTimes(2)
     expect(saveGalleryPreferences).toHaveBeenNthCalledWith(1, { categories: ["manga"], readerInterval: 12 })
@@ -87,14 +83,14 @@ describe("账号浏览偏好", () => {
   it("推送失败不回滚本地，也不打断用户", async () => {
     vi.mocked(saveGalleryPreferences).mockRejectedValue(new Error("断网"))
     const preferences = mount()
-    await settle()
+    await settleFakeTimers()
     preferences.interval.value = 3
-    await settle()
+    await settleFakeTimers()
     expect(preferences.interval.value).toBe(3)
     /* 失败不会自己重来；下一次改动会把最新的整份再推一遍。 */
     expect(saveGalleryPreferences).toHaveBeenCalledTimes(1)
     preferences.interval.value = 4
-    await settle()
+    await settleFakeTimers()
     expect(saveGalleryPreferences).toHaveBeenLastCalledWith({ categories: ["manga"], readerInterval: 4 })
   })
 
@@ -102,16 +98,16 @@ describe("账号浏览偏好", () => {
   it("读失败不算就绪，也不拿占位值去保存；重试读到后恢复正常", async () => {
     vi.mocked(fetchGalleryPreferences).mockRejectedValueOnce(new Error("断网"))
     const preferences = mount()
-    await settle()
+    await settleFakeTimers()
     expect(preferences.ready.value).toBe(false)
     expect(preferences.loadError.value).toBe("断网")
     preferences.interval.value = 9
     preferences.applyCategories(["manga"])
-    await settle()
+    await settleFakeTimers()
     expect(saveGalleryPreferences).not.toHaveBeenCalled()
 
     preferences.reload()
-    await settle()
+    await settleFakeTimers()
     expect(preferences.ready.value).toBe(true)
     expect(preferences.loadError.value).toBe("")
   })
@@ -125,14 +121,14 @@ describe("账号浏览偏好", () => {
       }),
     )
     const before = mount()
-    await settle()
+    await settleFakeTimers()
     useAuthStore(pinia).logout()
     finish({ categories: ["cosplay"], readerInterval: 9 })
-    await settle()
+    await settleFakeTimers()
     expect(before.ready.value).toBe(false)
 
     const after = mount()
-    await settle()
+    await settleFakeTimers()
     expect(after.categories.value).toEqual(["manga"])
     expect(fetchGalleryPreferences).toHaveBeenCalledTimes(2)
   })
@@ -146,15 +142,15 @@ describe("账号浏览偏好", () => {
       }),
     )
     const preferences = mount()
-    await settle()
+    await settleFakeTimers()
     preferences.interval.value = 6
     preferences.interval.value = 7
-    await settle()
+    await settleFakeTimers()
     expect(saveGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ categories: ["manga"], readerInterval: 6 })
 
     useAuthStore(pinia).logout()
     finish(null)
-    await settle()
+    await settleFakeTimers()
     expect(saveGalleryPreferences).toHaveBeenCalledTimes(1)
   })
 })

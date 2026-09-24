@@ -10,7 +10,7 @@ MyAPI 提供账号、图集浏览和节假日查询。领域术语见 `CONTEXT.m
 
 镜像里前端产物放在后端旁边（`apps/server/client`），由后端统一提供 API 与静态文件。
 
-后端代码在 `apps/server/src/`，顶层按领域分模块：`auth`、`eh`、`holiday`，与前端的 feature 一一对应；另有基础模块 `config.ts`（环境变量）、`database/`（连接池、表结构 `schema.ts`、启动时迁移）、`outbound/`（出网）、`signing/`（从主密钥派生子密钥）。`eh/upstream/` 是与 e 站打交道的协议层（身份与站点、请求与「200 但不是内容」的失败识别、HTML 解析、图片主机白名单），只在 `eh` 模块内使用。迁移文件在 `apps/server/drizzle/`，测试在 `apps/server/test/`。
+后端代码在 `apps/server/src/`，顶层按领域分模块：`auth`、`eh`、`holiday`，与前端的 feature 一一对应；另有基础模块 `config.ts`（环境变量）、`numeric.ts`（从字符串认数字）、`database/`（连接池、表结构 `schema.ts`、启动时迁移）、`outbound/`（出网）、`signing/`（从主密钥派生子密钥）。`eh/upstream/` 是与 e 站打交道的协议层（身份与站点、请求与「200 但不是内容」的失败识别、HTML 解析、图片主机白名单），只在 `eh` 模块内使用。迁移文件在 `apps/server/drizzle/`，测试在 `apps/server/test/`。
 
 前端 `apps/web/src/` 分三块：`app/` 是应用装配（路由、全局布局、导航目录、主题）；`features/` 下每块业务自成一体（`auth`、`eh`、`holiday`，与后端领域模块对应）；`shared/` 放与业务无关的通用能力（HTTP 客户端、读取与写入排队的工具、通用组件与组合式函数）。`src/components/ui/` 与 `src/lib/utils.ts` 是 shadcn-vue 生成的源码，保持原样：已排除在 Prettier 与 oxlint 之外，清理代码或用 IDE 格式化时也别碰。静态资源在 `apps/web/public/`，测试在 `apps/web/tests/`。
 
@@ -42,13 +42,13 @@ feature 内按角色分文件：`api.ts` 只管 HTTP 调用，领域类型直接
 
 约定大于配置：Nest 与各官方模块默认能用的一律不写配置，非配不可的几处（静态文件只在根路径回 `index.html`、校验失败的文案不带字段路径、登录与搜索回 200）旁边注明原因。配置全来自环境变量，由 `config.ts` 用 zod 在启动时校验，缺了或写错进程拒绝启动；清单与默认值见 `apps/server/.env.example`，业务代码经 `ConfigService<Env, true>` 读取。主密钥只由 `signing` 模块读取，业务类只拿派生后的子密钥；子密钥的派生方式与图片地址的签名算法是已签发令牌、已发出地址的一部分，不能改。
 
-入参校验统一走全局的 `StandardSchemaValidationPipe`：控制器参数上挂 schema（`@Body({ schema })`、`@Query({ schema })`、`@Param({ schema })`），请求体与查询串的 schema 放在 `@myapi/shared`，前端预校验用的是同一份；路径与查询串里的数字先认成一串十进制数字再交给共享的规则（见 `eh/params.ts`）。控制器只做入参转换，业务在服务里。
+入参校验统一走全局的 `StandardSchemaValidationPipe`：控制器参数上挂 schema（`@Body({ schema })`、`@Query({ schema })`、`@Param({ schema })`），请求体与查询串的 schema 放在 `@myapi/shared`，前端预校验用的是同一份；路径与查询串里的数字先认成一串十进制数字再交给共享的规则（见 `numeric.ts`）。每个请求 schema 都在旁边导出命名类型，控制器参数与前端提交一律用它，不就地写 `z.output<typeof …>`：输入输出一样的用 `z.infer`；带默认值或转换、两者不一样的，输出类型叫 `Xxx`（服务端用），输入类型叫 `XxxRequest`（前端提交用）；服务端私有的 schema（`eh/params.ts` 一类）只导出输出类型。控制器只做入参转换，业务在服务里；接口统一由 `AppModule` 里的 `RouterModule` 挂到 `/api` 下，控制器只写领域内的路径。
 
 响应用 Nest 的默认结构：成功直接返回数据，只回成败的接口回空体；失败抛 Nest 自带的 HTTP 异常，响应体是 `{statusCode, message, error}`，`message` 是给用户看的中文（校验失败时是一组文案）。未预料的异常由 Nest 回 500，原文只进日志。e 站那些可预期的失败与文案集中在 `eh/upstream/failures.ts`：「过会儿再试」的回 429，要用户自己处理的（Cookie 不对）回 400，e 站没连上或回了意料之外的东西回 502，细节只进日志。
 
 鉴权不用 Passport（见 ADR-0001）：全局 `AuthGuard` 用 `@nestjs/jwt` 认 `Authorization: Bearer` 令牌，接口默认要求登录，公开接口标 `@Public()`；控制器用 `@CurrentUser()` 拿当前本站账号 id，公开接口上没登录时是 `null`。公开接口清单由接口测试按整张路由表锁住。
 
-数据访问用 Drizzle（`drizzle-orm/node-postgres`），表结构写在 `database/schema.ts`，经 `@Inject(DATABASE)` 注入。时间列按字符串取出（保留微秒，阅读历史的游标要原样交回数据库比较），upsert 的冲突分支自己写 `` updatedAt: sql`now()` ``。服务启动时由迁移器自动执行 `drizzle/` 下没执行过的迁移；基线迁移是幂等的，对着已有的库只登记不改动。
+数据访问用 Drizzle（`drizzle-orm/node-postgres`），表结构写在 `database/schema.ts`，经 `@Inject(DATABASE)` 注入。时间列只存到毫秒（`timestamp(3)`），取出来是 `Date`：阅读历史的游标要把阅读时间原样交回数据库比较，库里存着微秒的话经 `Date` 一截就会漏行，upsert 的冲突分支自己写 `` updatedAt: sql`now()` ``。服务启动时由迁移器自动执行 `drizzle/` 下没执行过的迁移；基线迁移是幂等的，对着已有的库只登记不改动。
 
 出网只有一个出口：`outbound` 模块提供的 `Outbound`（形状就是 fetch，底下是 undici），不跟随重定向，等响应头与两次数据之间各有超时；访问 e 站、图床、节假日数据源都经它，测试也只在这里替换。图片地址只接受 `ehgt.org` 与 `*.hath.network` 的 https 地址（`eh/upstream/image-hosts.ts`），取图不带 Cookie。一个请求里要同时等两件互不依赖的事时用 `Promise.all`。进程内缓存用 `lru-cache`：同一个 key 的并发加载靠它的 `fetch()` 只跑一次、失败不进缓存，不另加锁；图集元数据把同一轮事件循环里缺的攒成一批向上游要（`eh/gallery-catalog.ts`）。本站账号的 e 站凭据每次从库里读，不缓存。
 

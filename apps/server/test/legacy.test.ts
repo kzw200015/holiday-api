@@ -45,6 +45,18 @@ beforeAll(async () => {
     `INSERT INTO eh_reading_progress (user_id, gid, token, page, writer, seq, created_at, updated_at)
      VALUES (42, 2231376, 'a7584a5932', 17, 'w', 3, now(), now())`,
   )
+  /* Kotlin 版把凭据存成一列 JSON：一行三项齐全，一行缺了 igneous */
+  await sql(
+    legacyUrl,
+    `INSERT INTO users (id, username, password_hash, created_at, updated_at) VALUES (43, 'older-reader', $1, now(), now())`,
+    [LEGACY_HASH],
+  )
+  await sql(
+    legacyUrl,
+    `INSERT INTO eh_credentials (user_id, member_id, cookie, has_ex_access, created_at, updated_at) VALUES
+       (42, '777', '{"ipbMemberId":"777","ipbPassHash":"legacy","igneous":"ig"}', true, now(), now()),
+       (43, '888', '{"ipbMemberId":"888","ipbPassHash":"older"}', false, now(), now())`,
+  )
   t = await startApp(legacyUrl, { env: { SECRET_KEY: GOLDEN_SECRET } })
   t.outbound.respond = withHolidays((request) => {
     if (isMetadataApi(request)) {
@@ -69,7 +81,7 @@ afterAll(async () => {
 describe("旧库升级", () => {
   it("迁移登记齐全，时间列有了默认值，旧数据原样保留", async () => {
     expect(await sql(legacyUrl, "SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations")).toEqual([
-      { count: 3 },
+      { count: 5 },
     ])
     const defaults = await sql<{ table_name: string; column_name: string; column_default: string }>(
       legacyUrl,
@@ -79,6 +91,19 @@ describe("旧库升级", () => {
     expect(defaults).toHaveLength(10)
     expect(defaults.every((column) => column.column_default === "now()")).toBe(true)
     await t.http.post("/api/auth/login").send({ username: "old-reader", password: "correct horse 电池" }).expect(200)
+  })
+
+  it("凭据从一列 JSON 拆成三列，缺的项按空串算，绑定状态照旧", async () => {
+    expect(
+      await sql(legacyUrl, "SELECT user_id, ipb_member_id, ipb_pass_hash, igneous FROM eh_credentials ORDER BY 1"),
+    ).toEqual([
+      { user_id: "42", ipb_member_id: "777", ipb_pass_hash: "legacy", igneous: "ig" },
+      { user_id: "43", ipb_member_id: "888", ipb_pass_hash: "older", igneous: "" },
+    ])
+    await t.http
+      .get("/api/eh/credential")
+      .set({ Authorization: `Bearer ${GOLDEN_TOKEN}` })
+      .expect(200, { bound: true, memberId: "777", hasExAccess: true })
   })
 
   /** 基线迁移是幂等的：空库上建出来的结构，与旧库升级后的结构逐项一致。 */

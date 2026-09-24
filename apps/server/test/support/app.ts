@@ -52,8 +52,9 @@ export async function startApp(
   return { app, http: request(await app.getUrl()), outbound, close: () => app.close() }
 }
 
-/** 注册一个新账号，交回它的令牌。 */
+/** 注册一个新账号，交回它的令牌与带上令牌的请求头。 */
 export async function register(http: TestAgent, username = `user_${Math.random().toString(36).slice(2, 12)}`) {
   const response = await http.post("/api/auth/register").send({ username, password: "这个密码足够长了" }).expect(201)
-  return { token: response.body.token as string, userId: response.body.user.id as number, username }
+  const token = response.body.token as string
+  return { token, auth: { Authorization: `Bearer ${token}` }, userId: response.body.user.id as number, username }
 }

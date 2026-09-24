@@ -33,19 +33,32 @@ export class GalleryCatalog {
     private readonly urls: AttachmentUrls,
   ) {}
 
-  /** 取一批图集的元数据，按 refKey 查。取不到的图集（被删、转私有）不在结果里；整批请求失败则抛出。 */
-  async load(refs: GalleryRef[]): Promise<Map<string, GalleryMetadata>> {
-    const found = await Promise.all(refs.map((ref) => this.cache.fetch(refKey(ref), { context: ref })))
-    return new Map(found.filter((metadata) => metadata !== undefined).map((metadata) => [refKey(metadata), metadata]))
-  }
-
-  /** 一批图集的卡片，按 refKey 查；元数据取不到的不在结果里。搜索结果与阅读历史都用它。 */
+  /** 一批图集的卡片，按 refKey 查；元数据取不到的（被删、转私有）不在结果里，整批请求失败则抛出。搜索结果与阅读历史都用它。 */
   async cards(refs: GalleryRef[]): Promise<Map<string, GalleryCard>> {
-    const found = await this.load(refs)
-    return new Map([...found].map(([key, metadata]) => [key, this.card(metadata)]))
+    const found = await Promise.all(refs.map((ref) => this.load(ref)))
+    return new Map(
+      found.filter((metadata) => metadata !== undefined).map((metadata) => [refKey(metadata), this.card(metadata)]),
+    )
   }
 
-  card(metadata: GalleryMetadata): GalleryCard {
+  /** 一本图集的详情；元数据取不到时是 undefined。 */
+  async detail(ref: GalleryRef): Promise<GalleryDetail | undefined> {
+    const metadata = await this.load(ref)
+    return (
+      metadata && {
+        ...this.card(metadata),
+        fileSize: metadata.fileSize,
+        torrentCount: metadata.torrentCount,
+        expunged: metadata.expunged,
+      }
+    )
+  }
+
+  private load(ref: GalleryRef): Promise<GalleryMetadata | undefined> {
+    return this.cache.fetch(refKey(ref), { context: ref })
+  }
+
+  private card(metadata: GalleryMetadata): GalleryCard {
     return {
       gid: metadata.gid,
       token: metadata.token,
@@ -58,15 +71,6 @@ export class GalleryCatalog {
       fileCount: metadata.fileCount,
       rating: metadata.rating,
       tags: metadata.tags,
-    }
-  }
-
-  detail(metadata: GalleryMetadata): GalleryDetail {
-    return {
-      ...this.card(metadata),
-      fileSize: metadata.fileSize,
-      torrentCount: metadata.torrentCount,
-      expunged: metadata.expunged,
     }
   }
 

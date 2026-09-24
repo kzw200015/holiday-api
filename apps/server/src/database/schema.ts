@@ -1,3 +1,4 @@
+import type { GalleryCategory } from "@myapi/shared"
 import { sql } from "drizzle-orm"
 import {
   bigint,
@@ -27,11 +28,15 @@ const userId = () => bigint("user_id", { mode: "number" }).notNull()
 const ownedByUser = (table: { userId: PgColumn }, name: string) =>
   foreignKey({ name: `${name}_user_id_fkey`, columns: [table.userId], foreignColumns: [users.id] }).onDelete("cascade")
 
-/* 时间按字符串取出，保留数据库里的微秒：阅读历史的游标要拿它原样比较，转成 JS 的 Date 会截到毫秒。 */
+/*
+ * 时间只存到毫秒，与 JS 的 Date 一致，取出来就是 Date。阅读历史的游标要拿阅读时间原样交回数据库比较：
+ * 库里要是存着微秒，经过 Date 截到毫秒再比，同一毫秒里的几行就会在翻页时漏掉。精度由列类型保证，
+ * 写入时不管是 now() 还是别的，存进去都已经是毫秒。
+ */
 const timestamps = {
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   /* 经 drizzle 的 update 改动一行时自动刷新；upsert 的冲突分支不走这里，要在 set 里自己写上。 */
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
     .notNull()
     .defaultNow()
     .$onUpdate(() => sql`now()`),
@@ -50,17 +55,18 @@ export const users = pgTable(
 )
 
 /*
- * 每个本站账号绑定的 e 站 Cookie。cookie 列存 JSON 明文，不加密——注册不开放，库里只有自己人的凭据。
- * 代价要认清：这一列等同于 e 站账号本身，数据库备份、从库、只读账号都要按凭据的标准对待。
- * member_id 单独一列，设置页显示「已绑定 xxx」时不必解析 JSON。
+ * 每个本站账号绑定的 e 站 Cookie，一项一列，明文不加密——注册不开放，库里只有自己人的凭据。
+ * 代价要认清：这几列等同于 e 站账号本身，数据库备份、从库、只读账号都要按凭据的标准对待。
+ * igneous 是里站专用的，没有时存空串。
  */
 export const ehCredentials = pgTable(
   "eh_credentials",
   {
     id: id(),
     userId: userId(),
-    memberId: text("member_id").notNull(),
-    cookie: text().notNull(),
+    ipbMemberId: text("ipb_member_id").notNull(),
+    ipbPassHash: text("ipb_pass_hash").notNull(),
+    igneous: text().notNull(),
     hasExAccess: boolean("has_ex_access").notNull(),
     ...timestamps,
   },
@@ -102,8 +108,10 @@ export const ehPreferences = pgTable(
   {
     id: id(),
     userId: userId(),
+    /* 列上不限定取值，分类名由写入口的共享 schema 把关 */
     categories: text()
       .array()
+      .$type<GalleryCategory[]>()
       .notNull()
       .default(sql`'{}'`),
     readerInterval: integer("reader_interval").notNull().default(5),

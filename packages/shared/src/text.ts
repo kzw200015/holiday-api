@@ -5,11 +5,7 @@
 
 /** 码点个数。落单的代理项各算一个。 */
 export function codePointLength(text: string): number {
-  let count = 0
-  for (const _ of text) {
-    count += 1
-  }
-  return count
+  return [...text].length
 }
 
 /** 按 UTF-8 编码后的字节数。落单的代理项按替换字符 U+FFFD 算 3 字节，与 TextEncoder 一致。 */

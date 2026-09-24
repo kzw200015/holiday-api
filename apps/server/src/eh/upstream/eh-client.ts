@@ -1,8 +1,8 @@
-import type { GalleryCategory } from "@myapi/shared"
+import type { EhCredential, GalleryDetail, GallerySearch } from "@myapi/shared"
 import { Inject, Injectable, Logger, type HttpException } from "@nestjs/common"
 
 import { OUTBOUND, type Outbound } from "../../outbound/outbound.module.js"
-import { ANONYMOUS, cookieHeader, refKey, SITES, type EhAccess, type EhCredential, type GalleryRef } from "./access.js"
+import { ANONYMOUS, cookieHeader, refKey, SITES, type EhAccess, type GalleryRef } from "./access.js"
 import { categoryFilter } from "./categories.js"
 import {
   banned,
@@ -27,25 +27,8 @@ import {
   type ImagePage,
 } from "./parse.js"
 
-/** 标准化后的上游元数据，不含本站的签名地址或账号的阅读状态。 */
-export interface GalleryMetadata {
-  gid: number
-  token: string
-  title: string
-  titleJpn: string
-  category: string
-  thumbnailUrl: string
-  uploader: string
-  /** ISO 8601 */
-  postedAt: string
-  fileCount: number
-  rating: number
-  /** 形如 `artist:gentsuki` 的带命名空间标签 */
-  tags: string[]
-  fileSize: number
-  torrentCount: number
-  expunged: boolean
-}
+/** 标准化后的上游元数据：详情的字段，只是缩略图还是上游原地址、没签成本站的代理地址。 */
+export type GalleryMetadata = Omit<GalleryDetail, "thumbnail"> & { thumbnailUrl: string }
 
 /** 已校验过的图片流，外加转发时要带的响应头。 */
 export interface ImageStream {
@@ -82,10 +65,7 @@ export class EhClient {
 
   constructor(@Inject(OUTBOUND) private readonly outbound: Outbound) {}
 
-  async search(
-    access: EhAccess,
-    { keyword, categories, cursor }: { keyword: string; categories: GalleryCategory[]; cursor: string },
-  ): Promise<GalleryList> {
+  async search(access: EhAccess, { keyword, categories, cursor }: GallerySearch): Promise<GalleryList> {
     /* 表单编码（空格编成 +），与 e 站自己的搜索表单一致 */
     const query = new URLSearchParams()
     if (keyword) {

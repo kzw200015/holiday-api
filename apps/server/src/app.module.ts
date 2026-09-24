@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url"
 import { BadRequestException, Module, StandardSchemaValidationPipe } from "@nestjs/common"
 import { ConfigModule } from "@nestjs/config"
-import { APP_PIPE } from "@nestjs/core"
+import { APP_PIPE, RouterModule } from "@nestjs/core"
 import { ScheduleModule } from "@nestjs/schedule"
 import { ServeStaticModule } from "@nestjs/serve-static"
 
@@ -28,6 +28,8 @@ import { SigningModule } from "./signing/signing.module.js"
     AuthModule,
     EhModule,
     HolidayModule,
+    /* 接口一律挂在 /api 下，控制器只写领域内的路径，漏写前缀的控制器不会挂到根路径上和前端静态文件抢地址。 */
+    RouterModule.register([{ path: "api", children: [AuthModule, EhModule, HolidayModule] }]),
   ],
   providers: [
     {

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { register, startApp, type TestApp } from "./support/app.js"
 import { createDatabase, sql } from "./support/database.js"
 import { isMetadataApi, metadataApi } from "./support/eh.js"
-import { withHolidays } from "./support/outbound.js"
+import { unconfigured, withHolidays } from "./support/outbound.js"
 
 let t: TestApp
 let databaseUrl: string
@@ -11,18 +11,13 @@ let databaseUrl: string
 beforeAll(async () => {
   databaseUrl = await createDatabase()
   t = await startApp(databaseUrl)
-  t.outbound.respond = withHolidays((request) =>
-    isMetadataApi(request) ? metadataApi(request, [3]) : new Response("", { status: 599 }),
-  )
+  t.outbound.respond = withHolidays((request) => (isMetadataApi(request) ? metadataApi(request, [3]) : unconfigured()))
 })
 afterAll(async () => {
   await t?.close()
 })
 
-async function user() {
-  const { token, userId } = await register(t.http)
-  return { userId, auth: { Authorization: `Bearer ${token}` } }
-}
+const user = () => register(t.http)
 
 const TOKEN = "0123456789"
 
@@ -59,7 +54,10 @@ describe("阅读历史", () => {
   it("按最近阅读排序、游标翻页；同一时刻的多行不漏不重；按账号隔离", async () => {
     const { auth, userId } = await user()
     const other = await user()
-    /* 60 条，前 30 条的阅读时间一模一样（微秒都相同），靠 gid 排出稳定的顺序 */
+    /*
+     * 60 条，前 30 条的阅读时间一模一样，其余各差 1 微秒。列只存到毫秒，存进去之后大多挤在同一毫秒里，
+     * 靠 gid 排出稳定的顺序；游标经过 Date 一来一回，照样不漏不重
+     */
     await sql(
       databaseUrl,
       `INSERT INTO eh_reading_progress (user_id, gid, token, page, writer, seq, updated_at)

@@ -108,6 +108,8 @@ function fetchDetail(gid: number, token: string, entry: DetailEntry) {
   })
 }
 
+const detailKey = (gid: number, token: string) => `${gid}/${token}`
+
 /* 重取在途时本地翻过页或删过记录，响应落地时以本地为准；详情还没到手时同样如此。 */
 function patchProgress(entry: DetailEntry | undefined, progress: number | null) {
   entry?.request.patch((detail) => {
@@ -138,7 +140,7 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
   let progressSettled: Promise<unknown> = Promise.resolve()
 
   function entryOf(gid: number, token: string) {
-    const key = `${gid}/${token}`
+    const key = detailKey(gid, token)
     let entry = details.get(key)
     if (!entry) {
       entry = { request: createRequest<GalleryDetailResult>(), fetchedAt: 0 }
@@ -149,7 +151,7 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
 
   /** 这本图集详情的读取状态；还没读过时为 undefined。 */
   function detail(gid: number, token: string) {
-    return details.get(`${gid}/${token}`)?.request
+    return details.get(detailKey(gid, token))?.request
   }
 
   /** 在途、或者新鲜期内读过，就不再请求。 */
@@ -165,14 +167,12 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
     return fetchDetail(gid, token, entryOf(gid, token))
   }
 
-  /** 翻页当场改这本详情里的进度，详情页不必等网络就能显示新页码。 */
-  function setProgress(gid: number, token: string, page: number) {
-    patchProgress(details.get(`${gid}/${token}`), page)
-  }
-
-  /** 删掉阅读记录时一并抹掉进度，否则重进详情会显示一个服务端已经没有的页码。 */
-  function forgetProgress(gid: number, token: string) {
-    patchProgress(details.get(`${gid}/${token}`), null)
+  /**
+   * 当场改这本详情里的进度：翻页时详情页不必等网络就能显示新页码；删掉阅读记录时传 null 一并抹掉，
+   * 否则重进详情会显示一个服务端已经没有的页码。
+   */
+  function setProgress(gid: number, token: string, page: number | null) {
+    patchProgress(details.get(detailKey(gid, token)), page)
   }
 
   function forgetAllProgress() {
@@ -192,8 +192,8 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
   }
 
   /** 此刻已经发出的进度保存全部回来（成败都算）。读阅读历史前先等它，否则刚退出阅读时读回的还是上报之前的页码。 */
-  async function progressSaved() {
-    await progressSettled
+  function progressSaved() {
+    return progressSettled
   }
 
   function dropDetails() {
@@ -221,7 +221,6 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
     loadDetail,
     reloadDetail,
     setProgress,
-    forgetProgress,
     forgetAllProgress,
     persistProgress,
     progressSaved,

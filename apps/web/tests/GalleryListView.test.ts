@@ -9,6 +9,7 @@ import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, searchGalleries } from "@/features/eh/api"
 import GalleryListView from "@/features/eh/views/GalleryListView.vue"
+import { deferred, galleryCard, settle } from "./support"
 
 const scroll = vi.hoisted(() => ({
   load: async () => {},
@@ -48,37 +49,6 @@ let router: ReturnType<typeof createRouter>
 let host: HTMLDivElement
 const search = vi.mocked(searchGalleries)
 const query = { keyword: "language:chinese", categories: ["manga"] }
-
-function card(gid: number): GalleryCard {
-  return {
-    gid,
-    token: `token${gid}`,
-    title: `图集 ${gid}`,
-    titleJpn: "",
-    category: "Manga",
-    thumbnail: "/thumbnail",
-    uploader: "tester",
-    postedAt: "2026-09-05T00:00:00Z",
-    fileCount: 10,
-    rating: 4,
-    tags: [],
-  }
-}
-
-function deferredPage() {
-  let resolve!: (value: CursorPage<GalleryCard>) => void
-  let reject!: (error: Error) => void
-  const promise = new Promise<CursorPage<GalleryCard>>((yes, no) => {
-    resolve = yes
-    reject = no
-  })
-  return { promise, resolve, reject }
-}
-
-async function settle() {
-  await new Promise((resolve) => setTimeout(resolve, 0))
-  await nextTick()
-}
 
 async function mountList() {
   router = createRouter({
@@ -137,7 +107,7 @@ afterEach(() => {
 describe("图库列表分页", () => {
   it("翻页保留已提交条件，失败暂停触底加载，重试沿用失败游标", async () => {
     await mountList()
-    search.mockResolvedValueOnce({ items: [card(1)], nextCursor: "next" })
+    search.mockResolvedValueOnce({ items: [galleryCard(1)], nextCursor: "next" })
     await submit()
     search.mockRejectedValueOnce(new Error("上游限速"))
     await scroll.load()
@@ -146,7 +116,7 @@ describe("图库列表分页", () => {
     await scroll.load()
     expect(search).toHaveBeenCalledTimes(2)
     expect(host.textContent).toContain("上游限速")
-    search.mockResolvedValueOnce({ items: [card(2)], nextCursor: null })
+    search.mockResolvedValueOnce({ items: [galleryCard(2)], nextCursor: null })
     const retry = [...host.querySelectorAll("button")].find((button) => button.textContent?.trim() === "重试")!
     retry.click()
     await settle()
@@ -161,12 +131,12 @@ describe("图库列表分页", () => {
 
   it("切换条件立即请求新结果，取消并忽略旧响应", async () => {
     await mountList()
-    const old = deferredPage()
-    search.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ items: [card(2)], nextCursor: null })
+    const old = deferred<CursorPage<GalleryCard>>()
+    search.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ items: [galleryCard(2)], nextCursor: null })
     await submit()
     await submit("new")
     expect(search.mock.calls[0]![1]?.aborted).toBe(true)
-    old.resolve({ items: [card(1)], nextCursor: "old-next" })
+    old.resolve({ items: [galleryCard(1)], nextCursor: "old-next" })
     await settle()
     expect(host.textContent).toContain("图集 2")
     expect(host.textContent).not.toContain("图集 1")
@@ -175,8 +145,8 @@ describe("图库列表分页", () => {
 
   it("旧请求失败不影响新请求的加载状态", async () => {
     await mountList()
-    const old = deferredPage()
-    const current = deferredPage()
+    const old = deferred<CursorPage<GalleryCard>>()
+    const current = deferred<CursorPage<GalleryCard>>()
     search.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise)
     await submit()
     await submit("new")
@@ -184,7 +154,7 @@ describe("图库列表分页", () => {
     await settle()
     expect(host.textContent).not.toContain("旧请求失败")
     expect(host.querySelector('[data-slot="skeleton"]')).not.toBeNull()
-    current.resolve({ items: [card(2)], nextCursor: null })
+    current.resolve({ items: [galleryCard(2)], nextCursor: null })
     await settle()
     expect(host.querySelector('[data-slot="skeleton"]')).toBeNull()
     expect(host.textContent).toContain("图集 2")
@@ -196,7 +166,7 @@ describe("图库列表分页", () => {
       readerInterval: 5,
     })
     await mountList()
-    search.mockResolvedValue({ items: [card(1)], nextCursor: null })
+    search.mockResolvedValue({ items: [galleryCard(1)], nextCursor: null })
     await submit("a|b")
     expect(search).toHaveBeenCalledExactlyOnceWith(
       { keyword: "a|b", categories: ["manga", "doujinshi"], cursor: "" },
@@ -214,7 +184,7 @@ describe("图库列表分页", () => {
 
   it("同一页加载中再次触底不会重复请求", async () => {
     await mountList()
-    const pending = deferredPage()
+    const pending = deferred<CursorPage<GalleryCard>>()
     search.mockReturnValue(pending.promise)
     await submit()
     expect(scroll.canLoad()).toBe(false)
@@ -227,13 +197,13 @@ describe("图库列表分页", () => {
 
   it("销毁时取消在途请求，迟到响应不能恢复列表", async () => {
     await mountList()
-    const pending = deferredPage()
+    const pending = deferred<CursorPage<GalleryCard>>()
     search.mockReturnValueOnce(pending.promise)
     await submit()
     app!.unmount()
     app = undefined
     expect(search.mock.calls[0]![1]?.aborted).toBe(true)
-    pending.resolve({ items: [card(1)], nextCursor: "next" })
+    pending.resolve({ items: [galleryCard(1)], nextCursor: "next" })
     await settle()
     expect(host.textContent).toBe("")
   })

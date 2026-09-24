@@ -1,15 +1,16 @@
 /* @vitest-environment happy-dom */
-import type { CursorPage, GalleryCard, ReadingHistoryItem } from "@myapi/shared"
+import type { CursorPage, ReadingHistoryItem } from "@myapi/shared"
 import type * as VueUse from "@vueuse/core"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createApp, h, KeepAlive, nextTick } from "vue"
+import { createApp, h, KeepAlive } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
 import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"
 import GalleryHistoryView from "@/features/eh/views/GalleryHistoryView.vue"
+import { galleryCard, settle } from "./support"
 
 /* 触底加载靠滚动位置触发，happy-dom 不做布局，所以把入口接出来手动调用。 */
 const scroll = vi.hoisted(() => ({
@@ -44,32 +45,11 @@ let router: ReturnType<typeof createRouter>
 let host: HTMLDivElement
 const loadHistory = vi.mocked(fetchReadingHistory)
 
-function gallery(gid: number): GalleryCard {
-  return {
-    gid,
-    token: `token${gid}`,
-    title: `图集 ${gid}`,
-    titleJpn: "",
-    category: "Manga",
-    thumbnail: "/thumbnail",
-    uploader: "tester",
-    postedAt: "2026-09-05T00:00:00Z",
-    fileCount: 10,
-    rating: 4,
-    tags: [],
-  }
-}
-
 function page(gid: number, nextCursor: string | null): CursorPage<ReadingHistoryItem> {
   return {
-    items: [{ gid, token: `token${gid}`, page: gid, readAt: "2026-09-05T00:00:00Z", gallery: gallery(gid) }],
+    items: [{ gid, token: `token${gid}`, page: gid, readAt: "2026-09-05T00:00:00Z", gallery: galleryCard(gid) }],
     nextCursor,
   }
-}
-
-async function settle() {
-  await new Promise((resolve) => setTimeout(resolve, 0))
-  await nextTick()
 }
 
 async function mountHistory() {

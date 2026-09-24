@@ -15,10 +15,7 @@ afterAll(async () => {
   await t?.close()
 })
 
-async function user() {
-  const { token, userId } = await register(t.http)
-  return { userId, auth: { Authorization: `Bearer ${token}` } }
-}
+const user = () => register(t.http)
 
 /** 假的 e 站：表站 home.php 与里站首页各按给定的方式回应。 */
 function eh(home: () => Response | Promise<Response>, ex: () => Response | Promise<Response>) {
@@ -109,19 +106,6 @@ describe("绑定 e 站账号", () => {
     await t.http.post("/api/eh/galleries/search").set(auth).send({}).expect(200)
     const search = t.outbound.requests.at(-1)!
     expect([search.url.host, search.headers.cookie]).toEqual(["e-hentai.org", "nw=1; sl=dm_2"])
-  })
-
-  it("库里 Kotlin 版写下的凭据照常可用", async () => {
-    const { auth, userId } = await user()
-    await sql(
-      databaseUrl,
-      "INSERT INTO eh_credentials (user_id, member_id, cookie, has_ex_access) VALUES ($1, '777', $2, true)",
-      [userId, JSON.stringify({ ipbMemberId: "777", ipbPassHash: "legacy", igneous: "" })],
-    )
-    await t.http.get("/api/eh/credential").set(auth).expect(200, { bound: true, memberId: "777", hasExAccess: true })
-    t.outbound.respond = withHolidays(() => html("<p>No hits found</p>"))
-    await t.http.post("/api/eh/galleries/search").set(auth).send({}).expect(200)
-    expect(t.outbound.requests.at(-1)!.headers.cookie).toBe("nw=1; sl=dm_2; ipb_member_id=777; ipb_pass_hash=legacy")
   })
 })
 

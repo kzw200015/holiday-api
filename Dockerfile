@@ -3,13 +3,15 @@ FROM node:24-alpine AS build
 
 WORKDIR /app
 RUN corepack enable
+# 照 pnpm 官方的 Docker 写法：store 放在 $PNPM_HOME/store，挂成构建缓存，依赖清单变了也不必整份重新下载
+ENV PNPM_HOME=/pnpm
 
 # 先复制依赖清单，利用镜像层缓存避免每次改代码都重新安装依赖
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/web/package.json apps/web/
 COPY apps/server/package.json apps/server/
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 COPY packages/ packages/
 COPY apps/ apps/
@@ -20,7 +22,7 @@ RUN pnpm build
 FROM build AS deploy
 
 # 工作区没有开 inject-workspace-packages（开了开发时共享包就不会随改随生效），所以用 legacy 方式部署
-RUN pnpm --filter server deploy --prod --legacy /deploy
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm --filter server deploy --prod --legacy /deploy
 # 前端产物放在后端旁边，由后端的静态文件模块统一提供
 RUN cp -R apps/web/dist /deploy/client
 

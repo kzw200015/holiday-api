@@ -63,7 +63,7 @@ describe("登录表单", () => {
     form.dispatchEvent(submit)
     expect(submit.defaultPrevented).toBe(true)
     await vi.waitFor(() => expect(host.textContent).toContain("暂时无法登录"))
-    expect(authenticate).toHaveBeenCalledWith(action, "tester", "test-password")
+    expect(authenticate).toHaveBeenCalledWith(action, { username: "tester", password: "test-password" })
     expect(username.value).toBe("tester")
     expect(password.value).toBe("test-password")
     expect(form.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false)

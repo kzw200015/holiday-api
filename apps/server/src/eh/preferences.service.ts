@@ -1,12 +1,9 @@
-import type { GalleryPreferences } from "@myapi/shared"
+import { DEFAULT_GALLERY_PREFERENCES, type GalleryPreferences } from "@myapi/shared"
 import { Inject, Injectable } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
 
 import { DATABASE, type Database } from "../database/database.module.js"
 import { ehPreferences } from "../database/schema.js"
-
-/** 没有偏好行时的默认值，与表上的列默认值一致。 */
-const DEFAULT_PREFERENCES: GalleryPreferences = { categories: [], readerInterval: 5 }
 
 /**
  * 浏览偏好与搜索历史：「读一次、之后前端说了算」，所以写入一律是整份替换——前端推上来的就是它当前的样子，
@@ -24,7 +21,7 @@ export class PreferencesService {
       .select({ categories: ehPreferences.categories, readerInterval: ehPreferences.readerInterval })
       .from(ehPreferences)
       .where(eq(ehPreferences.userId, userId))
-    return (row as GalleryPreferences | undefined) ?? DEFAULT_PREFERENCES
+    return row ?? DEFAULT_GALLERY_PREFERENCES
   }
 
   /** 分类排序去重后入库，存的始终是同一种写法。 */

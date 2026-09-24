@@ -1,24 +1,26 @@
-import type { GalleryCategory } from "@myapi/shared"
-import { useInfiniteScroll } from "@vueuse/core"
-import { computed, onActivated, onDeactivated, reactive, ref, watch } from "vue"
+import type { GalleryCategory, GallerySearchRequest } from "@myapi/shared"
+import { computed, reactive, ref, watch } from "vue"
 
-import { searchGalleries, type GallerySearch } from "@/features/eh/api"
+import { searchGalleries } from "@/features/eh/api"
 import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
 import { useSearchHistory } from "@/features/eh/composables/useSearchHistory"
 import { useGalleryContentStore } from "@/features/eh/store"
 import { useCursorPages } from "@/shared/composables/useCursorPages"
+import { useInfiniteLoad } from "@/shared/composables/useInfiniteLoad"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
 
 /** 草稿、已提交条件与分页在同一个页面作用域内协调。 */
 export function useGallerySearch() {
   const keyword = ref("")
-  const active = ref(true)
   const preferences = reactive(useGalleryPreferences())
   const history = reactive(useSearchHistory())
   const content = useGalleryContentStore()
   const resetScroll = usePageScroll()
-  /* 已提交的条件。偏好进页面前就备齐了，首次条件当场定得下来，不必先挂一个「还不能查」的状态等它。 */
-  let query: GallerySearch = { keyword: "", categories: preferences.categories }
+  /*
+   * 已提交的条件：关键词已去两端空白，分类已去重。
+   * 偏好进页面前就备齐了，首次条件当场定得下来，不必先挂一个「还不能查」的状态等它。
+   */
+  let query: GallerySearchRequest = { keyword: "", categories: preferences.categories }
 
   const paging = useCursorPages((cursor, signal) => searchGalleries({ ...query, cursor }, signal))
   paging.restart()
@@ -50,18 +52,7 @@ export function useGallerySearch() {
     submit()
   }
 
-  onActivated(() => {
-    active.value = true
-  })
-  onDeactivated(() => {
-    active.value = false
-  })
-
-  useInfiniteScroll(
-    () => (active.value ? window : null),
-    () => void paging.fetchNext(),
-    { distance: 600, canLoadMore: () => paging.hasMore.value && !paging.pending.value && !paging.error.value },
-  )
+  useInfiniteLoad(paging.fetchNext, () => paging.hasMore.value && !paging.pending.value && !paging.error.value)
 
   return {
     keyword,
@@ -75,6 +66,6 @@ export function useGallerySearch() {
     applyCategories,
     selectHistory,
     /* 第一页失败就重取第一页，续取失败则重试那一页，fetchNext 自己分得清。 */
-    retry: () => void paging.fetchNext(),
+    retry: paging.fetchNext,
   }
 }

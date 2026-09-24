@@ -1,12 +1,13 @@
 /* @vitest-environment happy-dom */
 import { createPinia, disposePinia, type Pinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createApp, nextTick } from "vue"
+import { createApp } from "vue"
 
 import type * as EhApi from "@/features/eh/api"
 import { fetchSearchHistory, saveSearchHistory } from "@/features/eh/api"
 import { useSearchHistory } from "@/features/eh/composables/useSearchHistory"
 import { useSearchHistoryStore } from "@/features/eh/store"
+import { settleFakeTimers } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -32,11 +33,6 @@ function mount() {
   return api
 }
 
-async function settle() {
-  await vi.advanceTimersByTimeAsync(0)
-  await nextTick()
-}
-
 beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
@@ -56,7 +52,7 @@ afterEach(() => {
 describe("账号搜索历史", () => {
   it("新搜的排最前，同一个词只留一条", async () => {
     const history = mount()
-    await settle()
+    await settleFakeTimers()
     history.record("鸟")
     expect(history.entries.value).toEqual(["鸟", "猫", "狗"])
     history.record("狗")
@@ -66,7 +62,7 @@ describe("账号搜索历史", () => {
   it("最多留十条，更早的挤出去", async () => {
     vi.mocked(fetchSearchHistory).mockResolvedValue([])
     const history = mount()
-    await settle()
+    await settleFakeTimers()
     for (let index = 1; index <= 12; index++) {
       history.record(`词${index}`)
     }
@@ -78,9 +74,9 @@ describe("账号搜索历史", () => {
   /* 后端拒收超过 200 字节的关键词；记进去的话，之后每次整份提交都会带着它一起失败。 */
   it("超长关键词不记", async () => {
     const history = mount()
-    await settle()
+    await settleFakeTimers()
     history.record("长".repeat(67))
-    await settle()
+    await settleFakeTimers()
     expect(history.entries.value).toEqual(["猫", "狗"])
     expect(saveSearchHistory).not.toHaveBeenCalled()
     history.record("长".repeat(66))
@@ -90,35 +86,35 @@ describe("账号搜索历史", () => {
   it("读失败不算就绪", async () => {
     vi.mocked(fetchSearchHistory).mockRejectedValueOnce(new Error("断网"))
     const history = mount()
-    await settle()
+    await settleFakeTimers()
     expect(history.ready.value).toBe(false)
     expect(history.loadError.value).toBe("断网")
     history.reload()
-    await settle()
+    await settleFakeTimers()
     expect(history.ready.value).toBe(true)
   })
 
   it("删除与清空当场生效，各自整份提交", async () => {
     const history = mount()
-    await settle()
+    await settleFakeTimers()
     history.remove("猫")
     expect(history.entries.value).toEqual(["狗"])
-    await settle()
+    await settleFakeTimers()
     expect(saveSearchHistory).toHaveBeenCalledExactlyOnceWith(["狗"])
 
     history.clear()
     expect(history.entries.value).toEqual([])
-    await settle()
+    await settleFakeTimers()
     expect(saveSearchHistory).toHaveBeenLastCalledWith([])
   })
 
   it("推送失败不把已经删掉的词放回来", async () => {
     vi.mocked(saveSearchHistory).mockRejectedValue(new Error("断网"))
     const history = mount()
-    await settle()
+    await settleFakeTimers()
     history.remove("猫")
-    await settle()
-    await settle()
+    await settleFakeTimers()
+    await settleFakeTimers()
     expect(history.entries.value).toEqual(["狗"])
   })
 
@@ -126,11 +122,11 @@ describe("账号搜索历史", () => {
   it("没读到之前不记、不删、不清空，也不提交", async () => {
     vi.mocked(fetchSearchHistory).mockRejectedValueOnce(new Error("断网"))
     const history = mount()
-    await settle()
+    await settleFakeTimers()
     history.record("鸟")
     history.remove("猫")
     history.clear()
-    await settle()
+    await settleFakeTimers()
     expect(history.entries.value).toEqual([])
     expect(saveSearchHistory).not.toHaveBeenCalled()
   })
@@ -146,7 +142,7 @@ describe("账号搜索历史", () => {
     void store.load()
     store.set(["新"])
     finish(["旧"])
-    await settle()
+    await settleFakeTimers()
     expect(store.data).toEqual(["新"])
   })
 })

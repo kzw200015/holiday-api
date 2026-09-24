@@ -1,22 +1,19 @@
 import type {
   CredentialStatus,
   CursorPage,
-  EhCookie,
+  EhCredentialRequest,
   GalleryCard,
-  GalleryCategory,
   GalleryComment,
   GalleryDetailResult,
   GalleryPreferences,
+  GallerySearchRequest,
   ReadingHistoryItem,
+  ReadingHistoryQueryRequest,
+  ReadingProgress,
+  SearchHistory,
 } from "@myapi/shared"
 
 import { httpClient } from "@/shared/api/httpClient"
-
-/** 一次搜索提交的条件：关键词已去两端空白，分类已去重。 */
-export interface GallerySearch {
-  keyword: string
-  categories: GalleryCategory[]
-}
 
 /**
  * 搜索图集。cursor 为空表示第一页，翻页时关键词和分类要一起带上。
@@ -24,12 +21,8 @@ export interface GallerySearch {
  * 条件整条放在请求体里：分类是一组名字，塞进查询串就得两头各写一份拼装和拆解的规则。
  * 用 POST 只是为了带这段 JSON，它仍是一次读取——所以照常接 AbortSignal，离开页面要能取消。
  */
-export function searchGalleries(params: GallerySearch & { cursor: string }, signal?: AbortSignal) {
-  return httpClient.post<CursorPage<GalleryCard>>(
-    "/eh/galleries/search",
-    { keyword: params.keyword, categories: params.categories, cursor: params.cursor },
-    { signal },
-  )
+export function searchGalleries(search: GallerySearchRequest, signal?: AbortSignal) {
+  return httpClient.post<CursorPage<GalleryCard>>("/eh/galleries/search", search, { signal })
 }
 
 /** 图集详情，顺带返回这个账号读到第几页，以及这本图集的大图地址模板 */
@@ -62,7 +55,7 @@ export function fetchCredentialStatus(signal?: AbortSignal) {
 }
 
 /** 绑定 e 站 Cookie。后端会先拿它实际请求一次，无效就不入库 */
-export function bindCredential(cookie: EhCookie) {
+export function bindCredential(cookie: EhCredentialRequest) {
   return httpClient.post<CredentialStatus>("/eh/credential", cookie)
 }
 
@@ -96,11 +89,14 @@ export function fetchSearchHistory(signal?: AbortSignal) {
 
 /** 同样只回成败。超过 10 条或含超过 200 字节的关键词会被整份退回。 */
 export function saveSearchHistory(entries: string[]) {
-  return httpClient.put<null>("/eh/search-history", { entries }, { timeout: SAVE_TIMEOUT })
+  return httpClient.put<null>("/eh/search-history", { entries } satisfies SearchHistory, { timeout: SAVE_TIMEOUT })
 }
 
 export function fetchReadingHistory(cursor: string, signal?: AbortSignal) {
-  return httpClient.get<CursorPage<ReadingHistoryItem>>("/eh/history", { params: { cursor }, signal })
+  return httpClient.get<CursorPage<ReadingHistoryItem>>("/eh/history", {
+    params: { cursor } satisfies ReadingHistoryQueryRequest,
+    signal,
+  })
 }
 
 export function removeReadingHistory(gid: number) {
@@ -126,7 +122,7 @@ export function saveProgress(gid: number, token: string, page: number) {
   progressSeq += 1
   return httpClient.post<null>(
     "/eh/progress",
-    { gid, token, page, writer: progressWriter, seq: progressSeq },
+    { gid, token, page, writer: progressWriter, seq: progressSeq } satisfies ReadingProgress,
     { timeout: SAVE_TIMEOUT, fetchOptions: { keepalive: true } },
   )
 }

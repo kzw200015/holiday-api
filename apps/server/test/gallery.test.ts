@@ -10,7 +10,7 @@ let auth: { Authorization: string }
 
 beforeAll(async () => {
   t = await startApp(await createDatabase())
-  auth = { Authorization: `Bearer ${(await register(t.http)).token}` }
+  auth = (await register(t.http)).auth
 })
 afterAll(async () => {
   await t?.close()
@@ -175,8 +175,7 @@ describe("上游失败的识别", () => {
   })
 
   it("里站回空页面是 Cookie 失效或没有权限，要用户自己处理", async () => {
-    const { token } = await register(t.http)
-    const exAuth = { Authorization: `Bearer ${token}` }
+    const { auth: exAuth } = await register(t.http)
     eh((request) => (request.url.host === "exhentai.org" ? html("gallery list") : html("home")))
     await t.http.post("/api/eh/credential").set(exAuth).send({ ipbMemberId: "1", ipbPassHash: "h", igneous: "i" })
     for (const response of [html(""), html("   \n  "), new Response("", { status: 302 })]) {

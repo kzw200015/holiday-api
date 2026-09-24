@@ -1,4 +1,4 @@
-import type { Authenticated, AuthOptions, CurrentUser } from "@myapi/shared"
+import type { Authenticated, AuthOptions, Credentials, CurrentUser } from "@myapi/shared"
 
 import { httpClient } from "@/shared/api/httpClient"
 
@@ -15,6 +15,6 @@ export function fetchCurrentUser() {
 export type AuthAction = "login" | "register"
 
 /** 登录与注册都返回新会话，持久化和账号切换交给 AuthStore。 */
-export function authenticate(action: AuthAction, username: string, password: string) {
-  return httpClient.post<Authenticated>(`/auth/${action}`, { username, password })
+export function authenticate(action: AuthAction, credentials: Credentials) {
+  return httpClient.post<Authenticated>(`/auth/${action}`, credentials)
 }

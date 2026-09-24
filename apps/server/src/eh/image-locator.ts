@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common"
 import { LRUCache } from "lru-cache"
 
-import type { EhAccess, GalleryRef } from "./upstream/access.js"
+import { refKey, type EhAccess, type GalleryRef } from "./upstream/access.js"
 import { EhClient } from "./upstream/eh-client.js"
 import { unavailable } from "./upstream/failures.js"
 import type { GallerySlice, ImagePage } from "./upstream/parse.js"
@@ -130,5 +130,5 @@ export class ImageLocator {
 }
 
 function galleryKey(access: EhAccess, ref: GalleryRef) {
-  return `${access.scope}|${ref.gid}:${ref.token}`
+  return `${access.scope}|${refKey(ref)}`
 }

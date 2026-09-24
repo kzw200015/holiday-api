@@ -7,7 +7,7 @@ import { gallerySlice, image, imagePage, isMetadataApi, metadataApi, REF } from 
 import { withHolidays } from "./support/outbound.js"
 
 let t: TestApp
-let token: string
+let auth: { Authorization: string }
 
 beforeAll(async () => {
   t = await startApp(await createDatabase())
@@ -16,26 +16,23 @@ beforeAll(async () => {
       return metadataApi(request)
     }
     if (request.url.pathname.startsWith("/g/")) {
-      return gallerySlice(
-        REF.gid,
-        5,
-        `<div id="cdiv"><div class="c1"><div class="c3">Posted on 28 May 2022, 01:53 by: &nbsp; <a>Pokom</a></div>` +
+      return gallerySlice(REF.gid, 5, {
+        extra:
+          `<div id="cdiv"><div class="c1"><div class="c3">Posted on 28 May 2022, 01:53 by: &nbsp; <a>Pokom</a></div>` +
           `<div class="c4">Uploader Comment</div><div class="c6" id="comment_0">第一行<br/>` +
           `<a href="https://example.com/">链接</a></div></div></div>`,
-      )
+      })
     }
     if (request.url.pathname.startsWith("/s/")) {
       return imagePage(`https://ehgt.org/p${request.url.pathname.split("-").at(-1)}.webp`)
     }
     return image()
   })
-  token = (await register(t.http)).token
+  auth = (await register(t.http)).auth
 })
 afterAll(async () => {
   await t?.close()
 })
-
-const auth = () => ({ Authorization: `Bearer ${token}` })
 
 describe("鉴权边界", () => {
   /**
@@ -51,9 +48,9 @@ describe("鉴权边界", () => {
           )
         : [],
     )
-    const apiRoutes = routes.filter((route) => route.split(" ")[1]!.startsWith("/api/"))
+    /* 扫整张路由表，不只扫 /api 下的：漏写前缀的接口同样要被锁住 */
     const open: string[] = []
-    for (const route of apiRoutes) {
+    for (const route of routes) {
       const [method, path] = route.split(" ") as [string, string]
       const response = await t.http[method.toLowerCase() as "get"](path.replaceAll(/:\w+/g, "1"))
       if (response.status !== 401) {
@@ -72,7 +69,7 @@ describe("鉴权边界", () => {
         "GET /api/eh/thumbnail",
       ]),
     )
-    expect(apiRoutes.length - open.length).toBeGreaterThan(10)
+    expect(routes.length - open.length).toBeGreaterThan(10)
   })
 
   it("未匹配的路径回 JSON 404，不先回 401；方法不对同样是 404", async () => {
@@ -81,33 +78,29 @@ describe("鉴权边界", () => {
       expect(response.status).toBe(404)
       expect(response.body).toMatchObject({ statusCode: 404, error: "Not Found" })
     }
-    expect((await t.http.get("/api/eh/progress").set(auth())).status).toBe(404)
+    expect((await t.http.get("/api/eh/progress").set(auth)).status).toBe(404)
   })
 
   it("请求体不是合法 JSON 回 400", async () => {
-    const response = await t.http
-      .put("/api/eh/preferences")
-      .set(auth())
-      .set("Content-Type", "application/json")
-      .send("{")
+    const response = await t.http.put("/api/eh/preferences").set(auth).set("Content-Type", "application/json").send("{")
     expect(response.status).toBe(400)
     expect(response.body).toMatchObject({ statusCode: 400, error: "Bad Request" })
   })
 
   it("路径上的数字不是正整数、超出范围都回 400，文案与共享 schema 一致", async () => {
     for (const gid of ["abc", "1.5", "0", "-1", "0x10", "9223372036854775808", "9999999999999999"]) {
-      const response = await t.http.delete(`/api/eh/history/${gid}`).set(auth())
+      const response = await t.http.delete(`/api/eh/history/${gid}`).set(auth)
       expect(response.status, gid).toBe(400)
       expect(response.body.message).toEqual(["图集编号不合法"])
     }
-    const badToken = await t.http.get("/api/eh/galleries/1/NOTATOKEN").set(auth())
+    const badToken = await t.http.get("/api/eh/galleries/1/NOTATOKEN").set(auth)
     expect(badToken.body.message).toEqual(["图集令牌不合法"])
   })
 })
 
 describe("响应体的 JSON 形状", () => {
   it("详情在卡片字段之上平铺出详情字段，时间是 ISO 8601，数字是数字", async () => {
-    const response = await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}`).set(auth()).expect(200)
+    const response = await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}`).set(auth).expect(200)
     expect(response.body).toEqual({
       gallery: {
         gid: REF.gid,
@@ -135,7 +128,7 @@ describe("响应体的 JSON 形状", () => {
   })
 
   it("评论正文拆成文本、换行与链接片段", async () => {
-    const response = await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}/comments`).set(auth()).expect(200)
+    const response = await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}/comments`).set(auth).expect(200)
     expect(response.body).toEqual([
       {
         id: 0,
@@ -155,7 +148,7 @@ describe("响应体的 JSON 形状", () => {
   it("只回成败的接口回空体", async () => {
     const response = await t.http
       .put("/api/eh/preferences")
-      .set(auth())
+      .set(auth)
       .send({ categories: ["manga"], readerInterval: 5 })
       .expect(200)
     expect(response.text).toBe("")
@@ -163,7 +156,7 @@ describe("响应体的 JSON 形状", () => {
 
   /** 签名地址的闭环：详情签发的地址，图片接口必须认得出来。两边哪天拼法不一致，表现是所有图片突然打不开。 */
   it("详情签发的大图与缩略图地址不带令牌也打得开", async () => {
-    const detail = (await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}`).set(auth())).body
+    const detail = (await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}`).set(auth)).body
     const picture = await t.http.get(detail.imageUrlTemplate.replace("{page}", "3")).expect(200)
     expect(picture.headers["content-type"]).toBe("image/webp")
     expect(picture.headers["cache-control"]).toBe("max-age=2592000, private, immutable")

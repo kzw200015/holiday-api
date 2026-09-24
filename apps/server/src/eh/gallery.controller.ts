@@ -1,14 +1,11 @@
-import { gallerySearchSchema } from "@myapi/shared"
+import { gallerySearchSchema, type GallerySearch } from "@myapi/shared"
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from "@nestjs/common"
-import type { z } from "zod"
 
 import { CurrentUser } from "../auth/auth.decorators.js"
-import { GalleryService, type GallerySearch } from "./gallery.service.js"
-import { galleryParams } from "./params.js"
+import { GalleryService } from "./gallery.service.js"
+import { galleryParams, type GalleryParams } from "./params.js"
 
-type GalleryParams = z.output<typeof galleryParams>
-
-@Controller("api/eh/galleries")
+@Controller("eh/galleries")
 export class GalleryController {
   constructor(private readonly galleries: GalleryService) {}
 

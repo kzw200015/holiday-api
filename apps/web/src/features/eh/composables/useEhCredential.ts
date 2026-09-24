@@ -1,4 +1,4 @@
-import type { CredentialStatus, EhCookie } from "@myapi/shared"
+import type { CredentialStatus, EhCredentialRequest } from "@myapi/shared"
 import { computed, ref } from "vue"
 
 import { bindCredential, unbindCredential } from "@/features/eh/api"
@@ -46,7 +46,7 @@ export function useEhCredential() {
     saving,
     errorMessage,
     reload: () => void credential.reload(),
-    bind: (cookie: EhCookie) => submit(() => bindCredential(cookie)),
+    bind: (cookie: EhCredentialRequest) => submit(() => bindCredential(cookie)),
     unbind: () => submit(unbindCredential),
   }
 }

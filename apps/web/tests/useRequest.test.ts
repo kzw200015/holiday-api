@@ -3,16 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, ref } from "vue"
 
 import { useRequest } from "@/shared/composables/useRequest"
-
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  let reject!: (error: Error) => void
-  const promise = new Promise<T>((yes, no) => {
-    resolve = yes
-    reject = no
-  })
-  return { promise, resolve, reject }
-}
+import { deferred } from "./support"
 
 const apps: ReturnType<typeof createApp>[] = []
 

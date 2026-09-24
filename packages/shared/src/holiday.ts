@@ -3,7 +3,7 @@ import { z } from "zod"
 const DATE_RULE = "日期格式错误，应为 YYYY-MM-DD"
 
 /** 严格的日历日期：格式是 YYYY-MM-DD，且这一天真实存在（2026-02-30 不算）。 */
-function isCalendarDate(text: string): boolean {
+export function isCalendarDate(text: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text)
   if (!match) {
     return false
@@ -22,6 +22,8 @@ export const holidayQuerySchema = z.object({
     .refine((date) => date === "" || isCalendarDate(date), DATE_RULE)
     .optional(),
 })
+
+export type HolidayQuery = z.infer<typeof holidayQuerySchema>
 
 /** 某一天的节假日安排 */
 export interface HolidayDetail {

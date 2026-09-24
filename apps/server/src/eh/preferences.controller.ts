@@ -1,12 +1,16 @@
-import { galleryPreferencesSchema, searchHistorySchema, type GalleryPreferences } from "@myapi/shared"
+import {
+  galleryPreferencesSchema,
+  searchHistorySchema,
+  type GalleryPreferences,
+  type SearchHistory,
+} from "@myapi/shared"
 import { Body, Controller, Get, Put } from "@nestjs/common"
-import type { z } from "zod"
 
 import { CurrentUser } from "../auth/auth.decorators.js"
 import { PreferencesService } from "./preferences.service.js"
 
 /** 本站账号的浏览数据：读一次、之后前端说了算，写入一律整份 PUT，只回成败。 */
-@Controller("api/eh")
+@Controller("eh")
 export class PreferencesController {
   constructor(private readonly preferences: PreferencesService) {}
 
@@ -31,7 +35,7 @@ export class PreferencesController {
   @Put("search-history")
   async saveSearchHistory(
     @CurrentUser() userId: number,
-    @Body({ schema: searchHistorySchema }) body: z.output<typeof searchHistorySchema>,
+    @Body({ schema: searchHistorySchema }) body: SearchHistory,
   ): Promise<void> {
     await this.preferences.saveSearchHistory(userId, body.entries)
   }

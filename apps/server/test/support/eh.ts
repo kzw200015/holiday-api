@@ -53,14 +53,16 @@ export function image(body: BodyInit = "\u0001\u0002\u0003", contentType = "imag
   return new Response(body, { status, headers: { "content-type": contentType } })
 }
 
-/** 只有一片的图集：第 1–pages 页的图片页链接，外加一段评论。 */
-export function gallerySlice(gid: number, pages: number, extra = "") {
-  const links = Array.from(
-    { length: pages },
-    (_, index) =>
-      `<a href="https://e-hentai.org/s/${(index + 1).toString(16).padStart(10, "0")}/${gid}-${index + 1}"></a>`,
-  ).join("")
-  return html(`Showing 1 - ${pages} of ${pages} images ${links}${extra}`)
+/** 测试里第 page 页的页令牌：页码的十六进制补到 10 位。 */
+export const pageToken = (page: number) => page.toString(16).padStart(10, "0")
+
+/** 整本 total 页的图集详情页的一片：第 from–to 页的图片页链接，外加 extra（评论之类）。默认整本只有一片。 */
+export function gallerySlice(gid: number, total: number, { from = 1, to = total, extra = "" } = {}) {
+  const links = Array.from({ length: to - from + 1 }, (_, index) => {
+    const page = from + index
+    return `<a href="https://e-hentai.org/s/${pageToken(page)}/${gid}-${page}"></a>`
+  }).join("")
+  return html(`Showing ${from} - ${to} of ${total} images ${links}${extra}`)
 }
 
 /** 图片页：大图指向 imageUrl。 */

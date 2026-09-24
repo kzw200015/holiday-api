@@ -10,6 +10,9 @@ export interface RecordedRequest {
 
 export type Responder = (request: RecordedRequest) => Response | Promise<Response>
 
+/** 测试没给出响应的请求：599 不是哪个真实网站会回的状态码，一眼认得出是测试漏配了。 */
+export const unconfigured = () => new Response("未配置的请求", { status: 599 })
+
 /**
  * 假的外部网站：替换掉出网 provider，按请求回放内存里的响应，并记下每个请求。
  * 请求照样走完服务端的整条链路（拼地址、带 Cookie、认「200 但不是内容」），只在出网这一步换掉。
@@ -17,7 +20,7 @@ export type Responder = (request: RecordedRequest) => Response | Promise<Respons
 export class FakeOutbound {
   readonly requests: RecordedRequest[] = []
 
-  constructor(public respond: Responder = () => new Response("未配置的请求", { status: 599 })) {}
+  constructor(public respond: Responder = unconfigured) {}
 
   readonly fetch: Outbound = async (url: string, init: OutboundInit = {}) => {
     const request: RecordedRequest = {
@@ -63,6 +66,6 @@ export function holidaySource(request: RecordedRequest): Response | undefined {
 }
 
 /** 节假日数据源照常回放，其余请求交给 respond。 */
-export function withHolidays(respond: Responder = () => new Response("未配置的请求", { status: 599 })): Responder {
+export function withHolidays(respond: Responder = unconfigured): Responder {
   return (request) => holidaySource(request) ?? respond(request)
 }

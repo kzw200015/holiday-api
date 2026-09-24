@@ -14,6 +14,7 @@ import {
 } from "@/features/eh/api"
 import { useGalleryPreferencesStore, useSearchHistoryStore } from "@/features/eh/store"
 import GalleryListView from "@/features/eh/views/GalleryListView.vue"
+import { settleFakeTimers } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -28,11 +29,6 @@ let app: ReturnType<typeof createApp> | undefined
 let host: HTMLDivElement
 let pinia: ReturnType<typeof createPinia>
 const onSearch = vi.mocked(searchGalleries)
-
-async function settle() {
-  await vi.advanceTimersByTimeAsync(0)
-  await nextTick()
-}
 
 async function mountForm() {
   host = document.createElement("div")
@@ -58,7 +54,7 @@ async function mountForm() {
   app.use(pinia)
   app.use(router)
   app.mount(host)
-  await settle()
+  await settleFakeTimers()
 }
 
 async function submit(keyword: string) {
@@ -67,28 +63,28 @@ async function submit(keyword: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }))
   await nextTick()
   host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
-  await settle()
+  await settleFakeTimers()
 }
 
 /* 走真实控件：打开分类筛选、点几个分类、按应用。 */
 async function applyCategories(...labels: string[]) {
   host.querySelector<HTMLButtonElement>('[aria-label="分类筛选"]')!.click()
-  await settle()
+  await settleFakeTimers()
   const click = (label: string) =>
     [...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === label)!.click()
   labels.forEach(click)
-  await settle()
+  await settleFakeTimers()
   click("应用")
-  await settle()
+  await settleFakeTimers()
 }
 
 async function clearHistory() {
   const trigger = [...host.querySelectorAll("button")].find((button) => button.textContent?.trim() === "清空")!
   trigger.click()
-  await settle()
+  await settleFakeTimers()
   const confirm = [...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === "清空历史")!
   confirm.click()
-  await settle()
+  await settleFakeTimers()
 }
 
 beforeEach(() => {
@@ -136,7 +132,7 @@ describe("图库搜索流程", () => {
     expect(saveSearchHistory).toHaveBeenLastCalledWith(["dog", "cat"])
 
     host.querySelector<HTMLButtonElement>('[aria-label="删除历史：cat"]')!.click()
-    await settle()
+    await settleFakeTimers()
     expect(host.querySelector('[title="cat"]')).toBeNull()
     expect(saveSearchHistory).toHaveBeenLastCalledWith(["dog"])
 
@@ -155,7 +151,7 @@ describe("图库搜索流程", () => {
       { keyword: "dog", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
-    await settle()
+    await settleFakeTimers()
     /* 存不上也不回滚：界面上这一条就是有了。 */
     expect(host.querySelector('[title="dog"]')).not.toBeNull()
     expect(host.textContent).not.toContain("失败")
@@ -165,7 +161,7 @@ describe("图库搜索流程", () => {
     await mountForm()
     onSearch.mockClear()
     host.querySelector<HTMLButtonElement>('[title="cat"]')!.click()
-    await settle()
+    await settleFakeTimers()
     expect(host.querySelector("input")!.value).toBe("cat")
     expect(onSearch).toHaveBeenCalledExactlyOnceWith(
       { keyword: "cat", categories: ["manga"], cursor: "" },

@@ -1,8 +1,13 @@
 import { Injectable, UnauthorizedException, type CanActivate, type ExecutionContext } from "@nestjs/common"
 import { Reflector } from "@nestjs/core"
 import { JwtService } from "@nestjs/jwt"
+import { z } from "zod"
 
+import { numeric } from "../numeric.js"
 import { IS_PUBLIC, type AuthenticatedRequest } from "./auth.decorators.js"
+
+/** 令牌载荷里的 sub：本站账号 id 的十进制写法。 */
+const subject = numeric(z.int().positive(), "令牌载荷不合法")
 
 /**
  * 鉴权边界：接口默认要求登录，标了 @Public() 的放行。公开接口上带着有效令牌时照样认出登录者（「我是谁」要用）。
@@ -38,8 +43,8 @@ export class AuthGuard implements CanActivate {
     }
     try {
       const { sub } = await this.jwt.verifyAsync<{ sub?: unknown }>(token)
-      const userId = typeof sub === "string" && /^\d+$/.test(sub) ? Number(sub) : 0
-      return Number.isSafeInteger(userId) && userId > 0 ? userId : null
+      const parsed = subject.safeParse(sub)
+      return parsed.success ? parsed.data : null
     } catch {
       return null
     }

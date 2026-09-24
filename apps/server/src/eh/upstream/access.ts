@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import type { EhCredential } from "@myapi/shared"
 
 /** 表站与里站。里站内容是表站的超集，只有带里站权限的 e 站凭据才进得去。 */
 export type Site = "e" | "ex"
@@ -7,18 +8,6 @@ export const SITES = {
   e: { page: "https://e-hentai.org", api: "https://api.e-hentai.org/api.php" },
   ex: { page: "https://exhentai.org", api: "https://s.exhentai.org/api.php" },
 } as const satisfies Record<Site, { page: string; api: string }>
-
-/**
- * e 站凭据：用户从浏览器里复制出来的三个 Cookie。
- *
- * 让人手动粘贴而不是代填账号密码：论坛的登录接口挂在 Cloudflare 盾后面，服务端直接 POST 会被 challenge 拦掉。
- */
-export interface EhCredential {
-  ipbMemberId: string
-  ipbPassHash: string
-  /** 里站专用，没有它就只能看表站 */
-  igneous: string
-}
 
 /** 图集定位信息：gid 加 10 位十六进制的 token。 */
 export interface GalleryRef {

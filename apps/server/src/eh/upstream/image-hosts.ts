@@ -5,10 +5,8 @@
  * 之类绕过去；user@host 的形式能让粗心的主机名判断认错域。H@H 节点用的是非标准端口（实测有 62121），所以端口不限制。
  */
 export function isAllowedImageUrl(raw: string): boolean {
-  let url: URL
-  try {
-    url = new URL(raw)
-  } catch {
+  const url = URL.parse(raw)
+  if (!url) {
     return false
   }
   const host = url.hostname

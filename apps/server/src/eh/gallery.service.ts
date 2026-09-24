@@ -1,12 +1,5 @@
-import {
-  gallerySearchSchema,
-  type CursorPage,
-  type GalleryCard,
-  type GalleryComment,
-  type GalleryDetailResult,
-} from "@myapi/shared"
+import type { CursorPage, GalleryCard, GalleryComment, GalleryDetailResult, GallerySearch } from "@myapi/shared"
 import { Injectable } from "@nestjs/common"
-import type { z } from "zod"
 
 import { AttachmentUrls } from "./attachment-urls.js"
 import { CredentialService } from "./credential.service.js"
@@ -17,8 +10,6 @@ import { refKey, type GalleryRef } from "./upstream/access.js"
 import { EhClient } from "./upstream/eh-client.js"
 import { galleryMissing } from "./upstream/failures.js"
 import { parseGalleryComments } from "./upstream/parse.js"
-
-export type GallerySearch = z.output<typeof gallerySearchSchema>
 
 /** 图集浏览：搜索 → 详情 → 评论。 */
 @Injectable()
@@ -45,15 +36,11 @@ export class GalleryService {
 
   /** 详情只查一次元数据，评论另有接口懒加载；顺带签发这本图集的大图地址模板。阅读进度与元数据互不依赖，一起读。 */
   async detail(userId: number, ref: GalleryRef): Promise<GalleryDetailResult> {
-    const [progress, galleries] = await Promise.all([
-      this.reading.progressOf(userId, ref.gid),
-      this.catalog.load([ref]),
-    ])
-    const gallery = galleries.get(refKey(ref))
+    const [progress, gallery] = await Promise.all([this.reading.progressOf(userId, ref.gid), this.catalog.detail(ref)])
     if (!gallery) {
       throw galleryMissing()
     }
-    return { gallery: this.catalog.detail(gallery), progress, imageUrlTemplate: this.urls.imageTemplate(userId, ref) }
+    return { gallery, progress, imageUrlTemplate: this.urls.imageTemplate(userId, ref) }
   }
 
   /** 评论是详情页 HTML 里唯一拿不到 JSON 替代的东西；它与取图共用详情的第 0 片。 */

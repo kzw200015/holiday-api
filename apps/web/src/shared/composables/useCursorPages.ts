@@ -1,12 +1,7 @@
+import type { CursorPage } from "@myapi/shared"
 import { computed, onScopeDispose, ref } from "vue"
 
 import { createRequest } from "@/shared/api/request"
-
-/** 按游标分页的一页。nextCursor 为 null 表示已经是最后一页。 */
-export interface CursorPage<T> {
-  items: T[]
-  nextCursor: string | null
-}
 
 /**
  * 按游标往后触底加载的一串页，数据只活在当前组件里。
@@ -16,51 +11,39 @@ export interface CursorPage<T> {
  */
 export function useCursorPages<T>(fetchPage: (cursor: string, signal: AbortSignal) => Promise<CursorPage<T>>) {
   const request = createRequest<CursorPage<T>[]>()
-  /* 在途的是不是续取。区分出来是为了让刷新不在列表底部冒出续取的骨架屏。 */
+  /* 最近发起的那次是不是续取；只在有请求在途时才看它。区分出来是为了让刷新不在列表底部冒出续取的骨架屏。 */
   const fetchingNext = ref(false)
-  let latestNext: Promise<void> | undefined
 
   function lastPage() {
     return request.data.value?.at(-1)
   }
 
-  function stopTrackingNext() {
-    latestNext = undefined
-    fetchingNext.value = false
-  }
-
   /** 丢掉已有的页，从第一页重来。 */
   function restart() {
     request.clear()
-    stopTrackingNext()
+    fetchingNext.value = false
     void request.run(async (signal) => [await fetchPage("", signal)])
   }
 
   /** 接着最后一页往下取；一页都没有时取第一页，所以第一页失败后的重试也走这里。 */
-  async function fetchNext() {
+  function fetchNext() {
     const last = lastPage()
     const cursor = last ? last.nextCursor : ""
     if (request.pending.value || cursor === null) {
       return
     }
-    const run = request.run(async (signal) => {
+    fetchingNext.value = true
+    void request.run(async (signal) => {
       const page = await fetchPage(cursor, signal)
       /* 接到回来那一刻的列表上，而不是发出时的那份：中间被 update 改过的内容不会被旧快照带回来。 */
       return [...(request.data.value ?? []), page]
     })
-    latestNext = run
-    fetchingNext.value = true
-    await run
-    /* 被 restart 或 refetch 顶掉的那次回来得晚，不能替后来的请求收尾。 */
-    if (latestNext === run) {
-      stopTrackingNext()
-    }
   }
 
   /** 按已加载的页数从头重读一遍，读完整份替换。内容刷新了，翻到的深度不变，滚动位置也就还对得上。 */
   async function refetch() {
     const count = Math.max(1, request.data.value?.length ?? 0)
-    stopTrackingNext()
+    fetchingNext.value = false
     await request.run(async (signal) => {
       const pages: CursorPage<T>[] = []
       let cursor: string | null = ""

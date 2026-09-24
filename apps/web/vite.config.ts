@@ -17,11 +17,7 @@ export default defineConfig({
         description: "图库阅读与节假日查询",
         lang: "zh-CN",
         id: "/",
-        start_url: "/",
-        scope: "/",
-        display: "standalone",
         theme_color: "#ffffff",
-        background_color: "#ffffff",
         icons: [
           { src: "/pwa-192.png", sizes: "192x192", type: "image/png" },
           { src: "/pwa-512.png", sizes: "512x512", type: "image/png" },
@@ -33,7 +29,6 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,woff2}"],
         // 哈希路由只需兜底入口；API 与不存在的静态路径保持后端原有响应。
         navigateFallbackAllowlist: [/^\/(?:index\.html)?$/],
-        cleanupOutdatedCaches: true,
       },
     }),
   ],
@@ -47,11 +42,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      /* 身份走 Authorization 头，后端不看 Origin，所以这里不需要改写来源 */
-      "/api": {
-        target: "http://localhost:8000",
-        changeOrigin: true,
-      },
+      "/api": "http://localhost:8000",
     },
   },
 })

@@ -6,7 +6,7 @@ import { AuthService } from "./auth.service.js"
 
 /** 登录页要用的这几条都不要求登录。e 站的绑定状态是 eh 的事，不在这里返回。 */
 @Public()
-@Controller("api/auth")
+@Controller("auth")
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 

@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 import { register, startApp, type TestApp } from "./support/app.js"
 import { createDatabase } from "./support/database.js"
-import { image, isMetadataApi, metadata, metadataApi } from "./support/eh.js"
+import { gallerySlice, image, imagePage, isMetadataApi, metadata, metadataApi, pageToken } from "./support/eh.js"
 import { html, json, withHolidays, type RecordedRequest, type Responder } from "./support/outbound.js"
 
 let t: TestApp
@@ -32,16 +32,11 @@ function gallery(total: number, size: number) {
       const gid = Number(pathname.split("/")[2])
       const index = Math.min(Number(searchParams.get("p")), Math.floor((total - 1) / size))
       const from = index * size + 1
-      const to = Math.min(from + size - 1, total)
-      const links = Array.from({ length: to - from + 1 }, (_, i) => {
-        const page = from + i
-        return `<a href="https://e-hentai.org/s/${page.toString(16).padStart(10, "0")}/${gid}-${page}"></a>`
-      })
-      return html(`Showing ${from} - ${to} of ${total} images ${links.join("")}`)
+      return gallerySlice(gid, total, { from, to: Math.min(from + size - 1, total) })
     }
     if (pathname.startsWith("/s/")) {
       const [gid, page] = pathname.split("/")[3]!.split("-")
-      return html(`<div id="i3"><a href="#"><img id="img" src="https://ehgt.org/${gid}/${page}.webp"></a></div>`)
+      return imagePage(`https://ehgt.org/${gid}/${page}.webp`)
     }
     return undefined
   }
@@ -49,8 +44,7 @@ function gallery(total: number, size: number) {
 
 /** 一位读者：注册、按需绑上一组独有的凭据（各自一个缓存作用域），拿到某本图集的大图地址模板。 */
 async function reader(respond: Responder) {
-  const { token } = await register(t.http)
-  const auth = { Authorization: `Bearer ${token}` }
+  const { auth } = await register(t.http)
   t.outbound.respond = withHolidays((request) => (request.url.host === "exhentai.org" ? html("") : html("home")))
   const member = String(++gidSeed)
   await t.http.post("/api/eh/credential").set(auth).send({ ipbMemberId: member, ipbPassHash: "hash" }).expect(201)
@@ -258,7 +252,7 @@ describe("大图定位", () => {
     expect(pagesRequested(since)).toEqual([
       `/g/${ref.gid}/${ref.token}/?p=1`,
       `/g/${ref.gid}/${ref.token}/?p=0`,
-      `/s/${(30).toString(16).padStart(10, "0")}/${ref.gid}-30`,
+      `/s/${pageToken(30)}/${ref.gid}-30`,
     ])
 
     /* 猜的第 3 片超出了范围，e 站退回最后一片 81–100；第一片给出分片大小 40，第 70 页在第 1 片 */
@@ -307,7 +301,7 @@ describe("大图定位", () => {
     await t.http.get(pageUrl(template, 3)).expect(200)
     expect(pagesRequested(since)).toEqual([
       `/g/${ref.gid}/${ref.token}/?p=0`,
-      `/s/${(1).toString(16).padStart(10, "0")}/${ref.gid}-1`,
+      `/s/${pageToken(1)}/${ref.gid}-1`,
       /* 第 2、3 页用的是前一页顺带给出的令牌，不是分片里的 */
       `/s/${"f".repeat(10)}/${ref.gid}-2`,
       `/s/${"f".repeat(10)}/${ref.gid}-3`,
@@ -345,7 +339,7 @@ describe("大图定位", () => {
     showpage = () => json({ error: "Key mismatch" })
     since = t.outbound.requests.length
     await t.http.get(pageUrl(template, 3)).expect(200)
-    expect(pagesRequested(since)).toContain(`/s/${(3).toString(16).padStart(10, "0")}/${ref.gid}-3`)
+    expect(pagesRequested(since)).toContain(`/s/${pageToken(3)}/${ref.gid}-3`)
 
     showpage = () => json({ error: "quota denied" })
     since = t.outbound.requests.length

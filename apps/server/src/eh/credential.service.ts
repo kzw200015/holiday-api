@@ -1,10 +1,10 @@
-import type { CredentialStatus } from "@myapi/shared"
+import type { CredentialStatus, EhCredential } from "@myapi/shared"
 import { Inject, Injectable, Logger } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
 
 import { DATABASE, type Database } from "../database/database.module.js"
 import { ehCredentials } from "../database/schema.js"
-import { accessOf, ANONYMOUS, type EhAccess, type EhCredential, type Site } from "./upstream/access.js"
+import { accessOf, ANONYMOUS, type EhAccess, type Site } from "./upstream/access.js"
 import { EhClient } from "./upstream/eh-client.js"
 
 const UNBOUND: CredentialStatus = { bound: false, memberId: "", hasExAccess: false }
@@ -30,7 +30,7 @@ export class CredentialService {
   /** 绑定前先拿这组 Cookie 实际请求一次，用不了直接回 400，免得把一组坏凭据存进库再让人一脸茫然。 */
   async bind(userId: number, credential: EhCredential): Promise<CredentialStatus> {
     const hasExAccess = await this.client.verifyCredential(credential)
-    const row = { memberId: credential.ipbMemberId, cookie: JSON.stringify(credential), hasExAccess }
+    const row = { ...credential, hasExAccess }
     await this.db
       .insert(ehCredentials)
       .values({ userId, ...row })
@@ -55,18 +55,22 @@ export class CredentialService {
   }
 
   private async find(userId: number) {
-    const [row] = await this.db.select().from(ehCredentials).where(eq(ehCredentials.userId, userId))
+    const [row] = await this.db
+      .select({
+        ipbMemberId: ehCredentials.ipbMemberId,
+        ipbPassHash: ehCredentials.ipbPassHash,
+        igneous: ehCredentials.igneous,
+        hasExAccess: ehCredentials.hasExAccess,
+      })
+      .from(ehCredentials)
+      .where(eq(ehCredentials.userId, userId))
     if (!row) {
       return null
     }
-    const cookie = JSON.parse(row.cookie) as Partial<EhCredential>
+    const { hasExAccess, ...credential } = row
     return {
-      credential: {
-        ipbMemberId: cookie.ipbMemberId ?? "",
-        ipbPassHash: cookie.ipbPassHash ?? "",
-        igneous: cookie.igneous ?? "",
-      },
-      status: { bound: true, memberId: row.memberId, hasExAccess: row.hasExAccess } satisfies CredentialStatus,
+      credential,
+      status: { bound: true, memberId: credential.ipbMemberId, hasExAccess } satisfies CredentialStatus,
     }
   }
 }

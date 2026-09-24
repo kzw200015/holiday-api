@@ -1,10 +1,10 @@
 import type { ReadingHistoryItem } from "@myapi/shared"
-import { useInfiniteScroll } from "@vueuse/core"
-import { computed, onActivated, onDeactivated, ref, watch } from "vue"
+import { computed, onActivated, ref, watch } from "vue"
 
 import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"
 import { useGalleryContentStore } from "@/features/eh/store"
 import { useCursorPages } from "@/shared/composables/useCursorPages"
+import { useInfiniteLoad } from "@/shared/composables/useInfiniteLoad"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
 
 /**
@@ -16,8 +16,6 @@ import { usePageScroll } from "@/shared/composables/usePageScroll"
 export function useReadingHistory() {
   const content = useGalleryContentStore()
   const resetScroll = usePageScroll()
-  /* 页面被缓存起来时不再滚动、也不再自动补页，但已发出的删除仍要跑完。 */
-  const active = ref(true)
 
   /* 每条记录都带着读到第几页：先等已经发出的进度保存落地，否则刚退出阅读时读回来的还是上报之前的页码，
    * 点「继续阅读」就会把进度按回去。保存有时限，等不了太久。 */
@@ -55,7 +53,7 @@ export function useReadingHistory() {
     void change(
       () => removeReadingHistory(item.gid),
       () => {
-        content.forgetProgress(item.gid, item.token)
+        content.setProgress(item.gid, item.token, null)
         history.update((pages) =>
           pages.map((page) => ({ ...page, items: page.items.filter((entry) => entry.gid !== item.gid) })),
         )
@@ -75,6 +73,8 @@ export function useReadingHistory() {
 
   /* 读和写都会改动列表，谁在跑都不该再接第二个操作。 */
   const busy = computed(() => history.pending.value || changing.value)
+  /* 忙着的时候不续取；续取失败后也不自己往下取，等用户点重试。页面被缓存起来时不再滚动，但已发出的删除仍要跑完。 */
+  const active = useInfiniteLoad(history.fetchNext, () => history.hasMore.value && !busy.value && !history.error.value)
 
   async function refresh() {
     await history.refetch()
@@ -85,21 +85,10 @@ export function useReadingHistory() {
 
   /* 保留滚动位置，但重新读取，以反映本次阅读及其他设备的修改。 */
   onActivated(() => {
-    active.value = true
     if (!busy.value) {
       void history.refetch()
     }
   })
-  onDeactivated(() => {
-    active.value = false
-  })
-
-  /* 忙着的时候不续取；续取失败后也不自己往下取，等用户点重试。 */
-  useInfiniteScroll(
-    () => (active.value ? window : null),
-    () => void history.fetchNext(),
-    { distance: 600, canLoadMore: () => history.hasMore.value && !busy.value && !history.error.value },
-  )
 
   return {
     items: history.items,

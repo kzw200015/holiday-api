@@ -38,6 +38,9 @@ export const upstreamNotice = (text: string) => new NotFoundException(`e 站提�
 /** 上游返回了意料之外的东西，通常是版面改了。细节由抛出的地方记进日志。 */
 export const unavailable = (message: string) => new BadGatewayException(message)
 
+/** 图片流开始转发之后上游断了。 */
+export const imageBroken = () => new BadGatewayException("图片传到一半，e 站那边断了")
+
 /** 出网这一步本身失败了。原始错误只挂在 cause 上：「fetch failed」这种不该出现在前端弹窗里。 */
 export const unreachable = (cause: unknown) => new BadGatewayException("请求 e 站失败，可能是网络不通或超时", { cause })
 

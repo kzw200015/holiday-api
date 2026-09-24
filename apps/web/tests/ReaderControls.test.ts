@@ -9,6 +9,7 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, saveGalleryPreferences } from "@/features/eh/api"
 import ReaderControls from "@/features/eh/components/ReaderControls.vue"
 import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
+import { deferred } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -17,14 +18,6 @@ vi.mock("@/features/eh/api", async (original) => ({
 }))
 
 const cleanups: (() => void)[] = []
-
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((done) => {
-    resolve = done
-  })
-  return { promise, resolve }
-}
 
 async function createReader(position: { page?: number; total?: number } = {}) {
   const state = reactive({

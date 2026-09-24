@@ -1,10 +1,7 @@
-import type { GalleryCategory, GalleryPreferences } from "@myapi/shared"
+import { DEFAULT_GALLERY_PREFERENCES, type GalleryCategory, type GalleryPreferences } from "@myapi/shared"
 import { computed } from "vue"
 
 import { useGalleryPreferencesStore } from "@/features/eh/store"
-
-/* 读到之前的占位，和后端没有偏好行时回的值一致。页面要等读到才创建，所以它不会被存回去。 */
-const fallback: GalleryPreferences = { categories: [], readerInterval: 5 }
 
 /**
  * 浏览偏好。
@@ -15,7 +12,8 @@ const fallback: GalleryPreferences = { categories: [], readerInterval: 5 }
 export function useGalleryPreferences() {
   const store = useGalleryPreferencesStore()
   void store.load()
-  const current = computed(() => store.data ?? fallback)
+  /* 读到之前拿默认值占位。页面要等读到才创建，所以它不会被存回去。 */
+  const current = computed(() => store.data ?? DEFAULT_GALLERY_PREFERENCES)
 
   /* 没读到时 store 不改也不存，占位值不会被拼进提交里。 */
   function save(change: Partial<GalleryPreferences>) {

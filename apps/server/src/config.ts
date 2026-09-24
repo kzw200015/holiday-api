@@ -53,7 +53,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8000),
 })
 
-export type Env = z.infer<typeof envSchema>
+export type Env = z.output<typeof envSchema>
 
 /** 交给 ConfigModule 的校验函数：失败时把每一项的问题列出来。 */
 export function validateEnv(env: Record<string, unknown>): Env {

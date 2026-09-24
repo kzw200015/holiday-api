@@ -9,8 +9,9 @@ import type { GalleryRef } from "./access.js"
  * 解析只由 HTML 提供的东西：图集列表、取图用的定位信息与评论。不发请求、不碰缓存。
  * 这是整套东西里最脆的一层，e 站随时可能改版面；测试里的样本全是从真实页面裁下来的。
  *
- * 有稳定 id 的元素（大图、下一页、评论）用选择器取；散落在各处的链接用正则扫全文，
+ * 有稳定 id 的元素（大图、评论）用选择器取；散落在各处的链接用正则扫全文，
  * 因为搜索结果有好几种显示模式，有的模式下整个表格都不存在，只有链接的形状是不变的。
+ * 搜索结果页只要一个下一页链接，也用正则取，免得每次搜索都为它把整页建成 DOM。
  */
 
 /** 搜索结果一页的图集顺序；nextCursor 为 null 表示已经是最后一页。 */
@@ -46,6 +47,8 @@ export interface ImagePage {
 export const decodeEntities = decodeHTMLStrict
 
 const GALLERY_LINK = /\/g\/(\d+)\/([0-9a-f]{10})\//g
+const NEXT_LINK = /<a\b[^>]*\bid="unext"[^>]*>/
+const HREF = /\bhref="([^"]*)"/
 
 /**
  * 搜索没有结果时的两种说法：真没命中，或者这一页的结果全被账号的过滤设置（语言、标签排除）滤掉了。
@@ -67,8 +70,8 @@ export function parseGalleryList(html: string): GalleryList | null {
     return null
   }
   /* 翻到最后一页时 unext 从 <a> 变成 <span>，没有 href */
-  const href = load(html)("a#unext").attr("href")
-  const next = href ? new URL(href, "https://e-hentai.org").searchParams.get("next") : null
+  const href = HREF.exec(NEXT_LINK.exec(html)?.[0] ?? "")?.[1]
+  const next = href ? new URL(decodeEntities(href), "https://e-hentai.org").searchParams.get("next") : null
   return { refs: [...refs.values()], nextCursor: next || null }
 }
 

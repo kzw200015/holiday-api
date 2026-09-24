@@ -5,4 +5,4 @@
 export * from "./auth.js"
 export * from "./eh.js"
 export * from "./holiday.js"
-export { codePointLength, utf8Length } from "./text.js"
+export { utf8Length } from "./text.js"

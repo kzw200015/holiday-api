@@ -1,11 +1,11 @@
 import type { CursorPage, ReadingHistoryItem, ReadingProgress } from "@myapi/shared"
-import { BadRequestException, Inject, Injectable } from "@nestjs/common"
+import { Inject, Injectable } from "@nestjs/common"
 import { and, desc, eq, sql } from "drizzle-orm"
 
 import { DATABASE, type Database } from "../database/database.module.js"
 import { ehReadingProgress } from "../database/schema.js"
 import { GalleryCatalog } from "./gallery-catalog.js"
-import { isDecimal } from "./params.js"
+import { encodeHistoryCursor, type HistoryCursor } from "./history-cursor.js"
 import { refKey } from "./upstream/access.js"
 
 const PAGE_SIZE = 25
@@ -50,13 +50,8 @@ export class ReadingService {
     return row?.page ?? null
   }
 
-  /**
-   * 一页阅读历史，按最近阅读排序：记录来自本站的库，每条的展示信息再向上游补齐。
-   * 游标是上一页最后一条的阅读时间与 gid。时间按数据库给的字符串原样放进游标、原样交回数据库比较：
-   * 转成 JS 的 Date 会把微秒截掉，同一毫秒里的几行就会在翻页时漏掉。
-   */
-  async history(userId: number, cursor: string): Promise<CursorPage<ReadingHistoryItem>> {
-    const before = parseCursor(cursor)
+  /** 一页阅读历史，按最近阅读排序：记录来自本站的库，每条的展示信息再向上游补齐。before 为 null 是第一页。 */
+  async history(userId: number, before: HistoryCursor | null): Promise<CursorPage<ReadingHistoryItem>> {
     const rows = await this.db
       .select({
         gid: ehReadingProgress.gid,
@@ -85,10 +80,11 @@ export class ReadingService {
         gid: row.gid,
         token: row.token,
         page: row.page,
-        readAt: new Date(toIso(row.updatedAt)).toISOString(),
+        readAt: row.updatedAt.toISOString(),
         gallery: cards.get(refKey(row)) ?? null,
       })),
-      nextCursor: last && rows.length > PAGE_SIZE ? encodeCursor(last.updatedAt, last.gid) : null,
+      nextCursor:
+        last && rows.length > PAGE_SIZE ? encodeHistoryCursor({ readAt: last.updatedAt, gid: last.gid }) : null,
     }
   }
 
@@ -101,27 +97,4 @@ export class ReadingService {
   async clear(userId: number) {
     await this.db.delete(ehReadingProgress).where(eq(ehReadingProgress.userId, userId))
   }
-}
-
-/** PostgreSQL 输出的时间形如 `2026-09-24 01:02:03.123456+08`（时区偏移可能带分钟），交给数据库之前先认一认形状。 */
-const PG_TIMESTAMP = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,6})?[+-]\d{2}(:\d{2})?$/
-
-function encodeCursor(readAt: string, gid: number): string {
-  return Buffer.from(`${readAt},${gid}`).toString("base64url")
-}
-
-function parseCursor(cursor: string): { readAt: string; gid: number } | null {
-  if (!cursor) {
-    return null
-  }
-  const [readAt = "", gid = ""] = Buffer.from(cursor, "base64url").toString().split(",")
-  if (!PG_TIMESTAMP.test(readAt) || !isDecimal(gid) || gid === "0") {
-    throw new BadRequestException("阅读历史游标不合法")
-  }
-  return { readAt, gid: Number(gid) }
-}
-
-/** 把 PostgreSQL 的时间写法改成 ISO 8601，交给 Date 解析。 */
-function toIso(timestamp: string): string {
-  return timestamp.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00")
 }

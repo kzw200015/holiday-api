@@ -75,6 +75,9 @@ export const gallerySearchSchema = z.object({
 
 export type GallerySearchRequest = z.input<typeof gallerySearchSchema>
 
+/** 校验并补齐默认值之后的搜索条件，服务端按它干活。 */
+export type GallerySearch = z.output<typeof gallerySearchSchema>
+
 const COOKIE_CHARS = "Cookie 值里有不允许的字符，检查是不是多复制了分号、空格或引号"
 
 /** RFC 6265 的 cookie-octet：可见 ASCII，去掉空格、双引号、逗号、分号和反斜杠。这三个值会被原样拼进 Cookie 请求头。 */
@@ -84,7 +87,11 @@ const cookieValue = z
 
 const REQUIRED_COOKIES = "ipb_member_id 和 ipb_pass_hash 都不能为空"
 
-/** 用户从浏览器复制出来的三个 Cookie，也是绑定接口的请求体。 */
+/**
+ * 用户从浏览器复制出来的三个 Cookie，也是绑定接口的请求体。
+ *
+ * 让人手动粘贴而不是代填账号密码：论坛的登录接口挂在 Cloudflare 盾后面，服务端直接 POST 会被 challenge 拦掉。
+ */
 export const ehCookieSchema = z.object({
   ipbMemberId: cookieValue.min(1, REQUIRED_COOKIES),
   ipbPassHash: cookieValue.min(1, REQUIRED_COOKIES),
@@ -92,7 +99,10 @@ export const ehCookieSchema = z.object({
   igneous: cookieValue.default(""),
 })
 
-export type EhCookie = z.input<typeof ehCookieSchema>
+export type EhCredentialRequest = z.input<typeof ehCookieSchema>
+
+/** 校验并补齐默认值之后的三个 Cookie。 */
+export type EhCredential = z.output<typeof ehCookieSchema>
 
 const READER_INTERVAL_RULE = `自动翻页间隔应为 ${READER_INTERVAL_MIN}–${READER_INTERVAL_MAX} 秒`
 
@@ -109,6 +119,9 @@ export const galleryPreferencesSchema = z.object({
 
 export type GalleryPreferences = z.infer<typeof galleryPreferencesSchema>
 
+/** 还没存过偏好时的样子，与表上的列默认值一致。 */
+export const DEFAULT_GALLERY_PREFERENCES: GalleryPreferences = { categories: [], readerInterval: 5 }
+
 const SEARCH_HISTORY_ENTRY_RULE = `搜索历史关键词应为 1–${KEYWORD_MAX_BYTES} 字节`
 
 /** 搜索历史里的一条。空串存下来没有意义，超长的整份提交会被退回。 */
@@ -123,6 +136,8 @@ export const searchHistorySchema = z.object({
     .array(searchHistoryEntrySchema, { error: `搜索历史最多 ${SEARCH_HISTORY_LIMIT} 条` })
     .max(SEARCH_HISTORY_LIMIT, `搜索历史最多 ${SEARCH_HISTORY_LIMIT} 条`),
 })
+
+export type SearchHistory = z.infer<typeof searchHistorySchema>
 
 /**
  * 一次阅读进度上报。
@@ -147,6 +162,9 @@ export type ReadingProgress = z.infer<typeof readingProgressSchema>
 export const readingHistoryQuerySchema = z.object({
   cursor: z.string({ error: "阅读历史游标不合法" }).max(256, "阅读历史游标不合法").default(""),
 })
+
+/* 只导出输入类型：服务端不直接用这份的输出，而是在它之上把游标解开（见服务端的 history-cursor.ts） */
+export type ReadingHistoryQueryRequest = z.input<typeof readingHistoryQuerySchema>
 
 /* ---------- 响应体 ---------- */
 

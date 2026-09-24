@@ -1,15 +1,12 @@
-import { holidayQuerySchema, type HolidayDetail } from "@myapi/shared"
+import { holidayQuerySchema, type HolidayDetail, type HolidayQuery } from "@myapi/shared"
 import { Controller, Get, Header, Query } from "@nestjs/common"
-import type { z } from "zod"
 
 import { Public } from "../auth/auth.decorators.js"
 import { HolidayService } from "./holiday.service.js"
 
-type HolidayQuery = z.infer<typeof holidayQuerySchema>
-
 /** 这两条有外部调用方，不要求登录。 */
 @Public()
-@Controller("api/holiday")
+@Controller("holiday")
 export class HolidayController {
   constructor(private readonly holidays: HolidayService) {}
 

@@ -32,7 +32,7 @@ export const useAuthStore = defineStore("AuthStore", () => {
   }
 
   async function authenticate(action: authApi.AuthAction, username: string, password: string) {
-    const session = await authApi.authenticate(action, username, password)
+    const session = await authApi.authenticate(action, { username, password })
     pageRevision.value += 1
     setToken(session.token)
     user.value = session.user
