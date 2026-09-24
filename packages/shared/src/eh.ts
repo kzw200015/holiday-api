@@ -150,6 +150,15 @@ export const readingHistoryQuerySchema = z.object({
 
 /* ---------- 响应体 ---------- */
 
+/** 一个标签：原文拆成命名空间与值（female:big breasts），外加两者的中文名。没有译名的，中文名就是原文 */
+export interface GalleryTag {
+  /** e 站给临时标签不带前缀，归到 temp */
+  namespace: string
+  namespaceName: string
+  value: string
+  name: string
+}
+
 /** 列表里一张卡片的内容 */
 export interface GalleryCard {
   gid: number
@@ -166,8 +175,7 @@ export interface GalleryCard {
   postedAt: string
   fileCount: number
   rating: number
-  /** 形如 artist:gentsuki 的带命名空间标签 */
-  tags: string[]
+  tags: GalleryTag[]
 }
 
 /** 详情页比卡片多出来的字段，与卡片的字段平铺在一起 */
@@ -211,6 +219,19 @@ export interface CredentialStatus {
   memberId: string
   /** 能否访问里站 */
   hasExAccess: boolean
+}
+
+/** 标签译名的同步状态 */
+export interface TagTranslationStatus {
+  /** 从未同步过时为 null */
+  lastSync: {
+    /** 上游 EhTagTranslation 数据库的提交 sha */
+    sha: string
+    /** 译名条数，含命名空间本身的译名 */
+    count: number
+    /** ISO 8601 */
+    syncedAt: string
+  } | null
 }
 
 /** 触底加载的一页。nextCursor 为 null 表示已经是最后一页 */

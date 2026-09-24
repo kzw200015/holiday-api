@@ -1,4 +1,4 @@
-/* 展示用的通用格式化，与具体业务无关。图集分类、标签的中文说法见 features/eh/labels.ts */
+/* 展示用的通用格式化，与具体业务无关。图集分类的中文说法见 features/eh/labels.ts */
 
 const dateTimeFormat = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",

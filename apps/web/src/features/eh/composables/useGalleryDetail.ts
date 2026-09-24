@@ -1,11 +1,11 @@
-import { computed, toValue, watch, type MaybeRefOrGetter } from "vue"
+import { computed, onActivated, toValue, watch, type MaybeRefOrGetter } from "vue"
 
 import { useGalleryContentStore } from "@/features/eh/store"
 
 /**
  * 一本图集的元数据、大图地址模板与阅读进度。
  *
- * 详情页和阅读器读的是同一份，所以从详情点进阅读不会再请求一次。进度也在这份数据里——
+ * 详情页和阅读器读的是同一份，每次进入都重读一次，手上有的那份在重读期间照常显示。进度也在这份数据里——
  * 它本来就是详情接口返回的字段，翻页时由 useReadingProgress 改这同一份，不另存一处。
  */
 export function useGalleryDetail(gid: MaybeRefOrGetter<number>, token: MaybeRefOrGetter<string>) {
@@ -16,6 +16,8 @@ export function useGalleryDetail(gid: MaybeRefOrGetter<number>, token: MaybeRefO
     ([nextGid, nextToken]) => void content.loadDetail(nextGid, nextToken),
     { immediate: true },
   )
+  /* 详情页被 KeepAlive 留着，回到同一本时参数没变，靠这里重读。首次挂载也会触发，那次已经在读，loadDetail 不会再发。 */
+  onActivated(() => void content.loadDetail(toValue(gid), toValue(token)))
   const request = computed(() => content.detail(toValue(gid), toValue(token)))
   const data = computed(() => request.value?.data.value)
   const error = computed(() => request.value?.error.value ?? null)
@@ -32,7 +34,7 @@ export function useGalleryDetail(gid: MaybeRefOrGetter<number>, token: MaybeRefO
     loading: computed(() => !loaded.value && error.value === null),
     /* 一份都没读到时的失败，页面只能显示错误。 */
     errorMessage: computed(() => (loaded.value ? "" : failure.value)),
-    /* 手上有旧的一份、过了新鲜期重取却失败了：旧的照常能用（图片地址签的有效期远比新鲜期长），只提示一下。 */
+    /* 手上有旧的一份、重读却失败了：旧的照常能用（图片地址签的有效期默认有一天），只提示一下。 */
     refreshError: computed(() => (loaded.value ? failure.value : "")),
     reload: () => void content.reloadDetail(toValue(gid), toValue(token)),
   }

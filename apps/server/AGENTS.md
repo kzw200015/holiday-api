@@ -36,7 +36,7 @@
 
 测试用 Vitest，跑在 Bun 运行时下（`bun --bun vitest run`），源码里的 `Bun.*` 才照常可用。主接缝是 HTTP 边界：`test/support/app.ts` 起一份完整的应用，用 supertest 发请求，断言状态码、响应体、响应头与库里的最终状态；数据库是 Testcontainers 里的真 PostgreSQL（连接上限调到 200：各测试文件的应用同时在跑，每份都把连接池开满；每个测试文件一个独立的库，应用启动时照常跑迁移），唯一的替换点是出网——`FakeOutbound` 按请求回放内存响应、记下每个请求，缓存合并、换源重试这类行为就靠数发往上游的请求来验证。测试给的响应函数返回 `undefined` 表示没配这个请求，回一个一眼认得出的 599；最近一个请求用 `last()` 取，测试依赖的值用 `test/support/present.ts` 的 `present` 取，没有就当场失败。时间用 Vitest 的假时钟（只假 `Date`）。应用的配置在模块导入时就读定了，需要另一套环境变量的测试放进单独的文件。
 
-次接缝是 `test/outbound.test.ts`：真实的出网实现对着本机 HTTP 服务，验证重定向、超时与断流这些主接缝测不到的网络语义。`test/legacy.test.ts` 里的令牌与图片地址是 Kotlin 版签出的原样结果，用来锁住兼容性，不要改。
+次接缝是 `test/outbound.test.ts`：真实的出网实现对着本机 HTTP 服务，验证重定向、超时与断流这些主接缝测不到的网络语义。
 
 ## 配置
 

@@ -58,7 +58,11 @@ export function json(value: unknown, status = 200): Response {
 
 /** holiday-cn 数据源：只有 2026 年有数据，其余年份的文件还没建出来（404）。2026-01-04 是调休上班的周日。 */
 export function holidaySource(request: RecordedRequest): Response | undefined {
-  if (request.url.host !== "raw.githubusercontent.com") {
+  /* 只认 holiday-cn 仓库下的文件，同一台主机上的其他仓库交给测试自己回放 */
+  if (
+    request.url.host !== "raw.githubusercontent.com" ||
+    !request.url.pathname.startsWith("/NateScarlet/holiday-cn/")
+  ) {
     return undefined
   }
   if (request.url.pathname.endsWith("/2026.json")) {

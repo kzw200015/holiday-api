@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { BookOpenIcon } from "@lucide/vue"
+import type { GalleryDetail } from "@myapi/shared/eh"
 import { computed } from "vue"
 import { RouterLink } from "vue-router"
 
@@ -14,7 +15,6 @@ import GalleryMeta from "@/features/eh/components/GalleryMeta.vue"
 import GalleryTag from "@/features/eh/components/GalleryTag.vue"
 import { useGalleryComments } from "@/features/eh/composables/useGalleryComments"
 import { useGalleryDetail } from "@/features/eh/composables/useGalleryDetail"
-import { formatNamespace, splitTag } from "@/features/eh/labels"
 import { readerLocation, type GallerySource } from "@/features/eh/navigation"
 import EmptyState from "@/shared/components/EmptyState.vue"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
@@ -41,15 +41,15 @@ const {
   () => props.gid,
   () => props.token,
 )
+/* 按命名空间分组，组的顺序就是命名空间第一次出现的顺序。 */
 const groupedTags = computed(() => {
-  const groups = new Map<string, string[]>()
+  const groups = new Map<string, { namespaceName: string; tags: GalleryDetail["tags"] }>()
   for (const tag of gallery.value?.tags ?? []) {
-    const { namespace, value } = splitTag(tag)
-    const group = groups.get(namespace)
+    const group = groups.get(tag.namespace)
     if (group) {
-      group.push(value)
+      group.tags.push(tag)
     } else {
-      groups.set(namespace, [value])
+      groups.set(tag.namespace, { namespaceName: tag.namespaceName, tags: [tag] })
     }
   }
   return [...groups.entries()]
@@ -69,7 +69,7 @@ const groupedTags = computed(() => {
     </div>
     <ErrorAlert v-else-if="errorMessage" :message="errorMessage" title="加载失败" retryable @retry="reload" />
     <template v-else-if="gallery">
-      <!-- 过了新鲜期重取失败：手上这份照常显示，只提示一下。 -->
+      <!-- 重读失败：手上这份照常显示，只提示一下。 -->
       <ErrorAlert
         v-if="refreshError"
         :message="refreshError"
@@ -115,17 +115,25 @@ const groupedTags = computed(() => {
         <CardHeader>
           <CardTitle>标签</CardTitle>
         </CardHeader>
-        <CardContent class="flex flex-col gap-2">
+        <CardContent>
           <EmptyState v-if="!groupedTags.length" compact message="这个图集还没有标签。" />
-          <div
-            v-for="[namespace, values] in groupedTags"
-            :key="namespace"
-            class="grid grid-cols-[5rem_minmax(0,1fr)] items-baseline gap-2"
-          >
-            <span class="text-muted-foreground text-xs">{{ formatNamespace(namespace) || "未分类" }}</span>
-            <div class="flex flex-wrap gap-1">
-              <GalleryTag v-for="value in values" :key="value">{{ value }}</GalleryTag>
-            </div>
+          <!--
+            所有命名空间共用一个网格：左列宽度随最长的命名空间名走，各组标签的起点仍然对齐。
+            译名后面跟着浅色的原文；没有译名时两者相同，只显示一次。
+          -->
+          <div v-else class="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2">
+            <template v-for="[namespace, group] in groupedTags" :key="namespace">
+              <span class="text-xs whitespace-nowrap">
+                {{ group.namespaceName }}
+                <span v-if="group.namespaceName !== namespace" class="text-muted-foreground">{{ namespace }}</span>
+              </span>
+              <div class="flex flex-wrap gap-1">
+                <GalleryTag v-for="tag in group.tags" :key="tag.value">
+                  {{ tag.name }}
+                  <span v-if="tag.name !== tag.value" class="text-muted-foreground">{{ tag.value }}</span>
+                </GalleryTag>
+              </div>
+            </template>
           </div>
         </CardContent>
       </Card>

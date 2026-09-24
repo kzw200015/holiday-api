@@ -14,9 +14,6 @@ import {
 } from "@/features/eh/api"
 import { createQueue, createRequest } from "@/shared/api/request"
 
-/* 图集详情的新鲜期。要抓上游页面才拿得到，慢，而且短时间内不会变。 */
-const DETAIL_STALE_TIME = 5 * 60 * 1000
-
 /*
  * 换本站账号那一刻作废：不清掉就会把上一个账号的数据端给新账号。
  *
@@ -95,24 +92,13 @@ export const useSearchHistoryStore = defineAccountData("SearchHistoryStore", fet
 /** e 站账号的绑定状态。设置页和图库布局读的是同一份，绑定成功后图库那条匿名提示会当场消失。 */
 export const useCredentialStore = defineAccountData("CredentialStore", fetchCredentialStatus)
 
-interface DetailEntry {
-  request: ReturnType<typeof createRequest<GalleryDetailResult>>
-  fetchedAt: number
-}
-
-function fetchDetail(gid: number, token: string, entry: DetailEntry) {
-  return entry.request.run(async (signal) => {
-    const result = await fetchGalleryDetail(gid, token, signal)
-    entry.fetchedAt = Date.now()
-    return result
-  })
-}
+type DetailRequest = ReturnType<typeof createRequest<GalleryDetailResult>>
 
 const detailKey = (gid: number, token: string) => `${gid}/${token}`
 
 /* 重取在途时本地翻过页或删过记录，响应落地时以本地为准；详情还没到手时同样如此。 */
-function patchProgress(entry: DetailEntry | undefined, progress: number | null) {
-  entry?.request.patch((detail) => {
+function patchProgress(request: DetailRequest | undefined, progress: number | null) {
+  request?.patch((detail) => {
     if (!detail || detail.progress === progress) {
       return detail
     }
@@ -123,8 +109,8 @@ function patchProgress(entry: DetailEntry | undefined, progress: number | null) 
 /**
  * 受 e 站凭据影响、又要跨页面共用的内容：图集详情，连同阅读进度。
  *
- * 详情页和阅读器读的是同一份，从详情点进阅读不会再请求一次。进度本来就是详情接口返回的字段，
- * 翻页时改的、详情页「继续阅读第 N 页」读的都是这一份，不另存一处。
+ * 详情页和阅读器读的是同一份，每次进入都重读一次（重读期间手上那份照常显示），好拿到别处读过的进度。
+ * 进度本来就是详情接口返回的字段，翻页时改的、详情页「继续阅读第 N 页」读的都是这一份，不另存一处。
  *
  * 评论、搜索结果、阅读历史只活在各自的页面里，不放这里；换绑 e 站账号时它们看到 revision 变了，各自从头读。
  */
@@ -135,36 +121,46 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
    * 按图集存的详情。不回收：一条只是一本图集的元数据，一次会话看不了多少本。
    * 留在闭包里不交给 pinia 当 state：state 的类型会把条目里的 ref 当成已经解包，可运行时它们仍是 ref。
    */
-  const details = shallowReactive(new Map<string, DetailEntry>())
+  const details = shallowReactive(new Map<string, DetailRequest>())
   /* 此刻已经发出的进度保存全部回来（成败都算）的时刻。 */
   let progressSettled: Promise<unknown> = Promise.resolve()
 
-  function entryOf(gid: number, token: string) {
+  function requestOf(gid: number, token: string) {
     const key = detailKey(gid, token)
-    let entry = details.get(key)
-    if (!entry) {
-      entry = { request: createRequest<GalleryDetailResult>(), fetchedAt: 0 }
-      details.set(key, entry)
+    let request = details.get(key)
+    if (!request) {
+      request = createRequest<GalleryDetailResult>()
+      details.set(key, request)
     }
-    return entry
+    return request
+  }
+
+  /*
+   * 先等已经发出的进度保存落地，否则刚退出阅读时读回的还是上报之前的页码。
+   * 保存之后本地再翻的页不怕被盖掉：重读在途时本地的改动会补在响应上。
+   */
+  function fetchDetail(gid: number, token: string) {
+    return requestOf(gid, token).run(async (signal) => {
+      await progressSettled
+      return fetchGalleryDetail(gid, token, signal)
+    })
   }
 
   /** 这本图集详情的读取状态；还没读过时为 undefined。 */
   function detail(gid: number, token: string) {
-    return details.get(detailKey(gid, token))?.request
+    return details.get(detailKey(gid, token))
   }
 
-  /** 在途、或者新鲜期内读过，就不再请求。 */
+  /** 进入详情页或阅读器时重读；已经在读就不再发一次。 */
   async function loadDetail(gid: number, token: string) {
-    const entry = entryOf(gid, token)
-    const fresh = entry.request.data.value !== undefined && Date.now() - entry.fetchedAt < DETAIL_STALE_TIME
-    if (!entry.request.pending.value && !fresh) {
-      await fetchDetail(gid, token, entry)
+    if (!requestOf(gid, token).pending.value) {
+      await fetchDetail(gid, token)
     }
   }
 
+  /** 重试：在途的那次也取消，重新发。 */
   function reloadDetail(gid: number, token: string) {
-    return fetchDetail(gid, token, entryOf(gid, token))
+    return fetchDetail(gid, token)
   }
 
   /**
@@ -176,8 +172,8 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
   }
 
   function forgetAllProgress() {
-    for (const entry of details.values()) {
-      patchProgress(entry, null)
+    for (const request of details.values()) {
+      patchProgress(request, null)
     }
   }
 
@@ -197,8 +193,8 @@ export const useGalleryContentStore = defineStore("GalleryContentStore", () => {
   }
 
   function dropDetails() {
-    for (const entry of details.values()) {
-      entry.request.abort()
+    for (const request of details.values()) {
+      request.abort()
     }
     details.clear()
   }

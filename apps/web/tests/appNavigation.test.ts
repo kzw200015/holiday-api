@@ -114,19 +114,32 @@ beforeEach(async () => {
     }
   })
   vi.mocked(searchGalleries).mockResolvedValue({ items: [gallery], nextCursor: null })
+  /* 详情每次进入都重读，所以进度要像服务端一样记住：没读过的算读到第 3 页，保存、删除都会改它。 */
+  const progresses = new Map<number, number | null>()
   vi.mocked(fetchGalleryDetail).mockImplementation(async (gid, token) => ({
     gallery: { ...gallery, gid, token, title: `测试图集${gid}` },
-    progress: 3,
+    progress: progresses.has(gid) ? (progresses.get(gid) ?? null) : 3,
     imageUrlTemplate: "/image/{page}",
   }))
   vi.mocked(fetchGalleryComments).mockResolvedValue([])
-  vi.mocked(saveProgress).mockResolvedValue(null)
+  vi.mocked(saveProgress).mockImplementation(async (gid, _token, page) => {
+    progresses.set(gid, page)
+    return null
+  })
   vi.mocked(fetchReadingHistory).mockResolvedValue({
     items: [{ gid: gallery.gid, token: gallery.token, page: 3, readAt: gallery.postedAt, gallery }],
     nextCursor: null,
   })
-  vi.mocked(removeReadingHistory).mockResolvedValue(null)
-  vi.mocked(clearReadingHistory).mockResolvedValue(null)
+  vi.mocked(removeReadingHistory).mockImplementation(async (gid) => {
+    progresses.set(gid, null)
+    return null
+  })
+  vi.mocked(clearReadingHistory).mockImplementation(async () => {
+    for (const gid of [gallery.gid, 2]) {
+      progresses.set(gid, null)
+    }
+    return null
+  })
   vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
   vi.mocked(fetchHolidayDetail).mockImplementation(async (date) => ({ date, name: "", isOffDay: false }))
   let preferences = { categories: [] as GalleryCategory[], readerInterval: 5 }
@@ -281,12 +294,10 @@ describe("阅读历史与二级导航", () => {
     expect(router.currentRoute.value.fullPath).toBe("/eh")
   })
 
-  /* 手上有旧的一份时，重取失败不该把整页换成错误：内容照常显示，只提示一下并给重试。 */
-  it("详情过期重取失败时照常显示旧内容，只提示刷新失败", async () => {
+  /* 手上有旧的一份时，重读失败不该把整页换成错误：内容照常显示，只提示一下并给重试。 */
+  it("详情重读失败时照常显示旧内容，只提示刷新失败", async () => {
     await visit("/eh/g/1/aaaaaaaaaa")
     await visit("/eh/g/2/bbbbbbbbbb")
-    const later = Date.now() + 6 * 60 * 1000
-    vi.spyOn(Date, "now").mockReturnValue(later)
     vi.mocked(fetchGalleryDetail).mockRejectedValueOnce(new Error("刷新失败测试"))
     await visit("/eh/g/1/aaaaaaaaaa")
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(3)
@@ -314,7 +325,7 @@ describe("阅读历史与二级导航", () => {
     await visit("/eh/g/1/aaaaaaaaaa")
     expect(host.textContent).toContain("开始阅读")
     expect(host.textContent).not.toContain("继续阅读（第 3 页）")
-    expect(fetchGalleryDetail).toHaveBeenCalledTimes(1)
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
     await visit("/eh/history")
     await click("清空全部")
     expect(clearReadingHistory).not.toHaveBeenCalled()
@@ -337,10 +348,10 @@ describe("阅读历史与二级导航", () => {
     query<HTMLElement>(host, '[aria-label="删除阅读记录：1"]').click()
     await settle()
     await visit("/eh/g/1/aaaaaaaaaa")
-    /* 详情早已读过，不必重取；进度已经作废，所以不会再冒出一个「继续阅读」。 */
+    /* 回来照样重读；本地的进度已经作废，重读回来的服务端进度也没了，不会再冒出一个「继续阅读」。 */
     expect(host.textContent).toContain("开始阅读")
     expect(host.textContent).not.toContain("继续阅读")
-    expect(fetchGalleryDetail).toHaveBeenCalledTimes(1)
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
   })
 
   it("加载失败可重试，失效记录仍显示进度并可删除", async () => {
@@ -432,7 +443,8 @@ describe("页面缓存与失效范围", () => {
     await visit("/settings")
     expect(host.querySelector("form")).toBe(form)
     expect(query<HTMLInputElement>(host, "#ipbMemberId").value).toBe("未提交的草稿")
-    expect(fetchCredentialStatus).toHaveBeenCalledTimes(credentialRequests)
+    /* 设置页回来会重读状态，但不重建：没提交的草稿还在 */
+    expect(fetchCredentialStatus).toHaveBeenCalledTimes(credentialRequests + 1)
   })
 
   it.each(["登录", "退出"])("%s清空全部页面缓存，包括停用布局中的页面", async (action) => {
@@ -466,8 +478,8 @@ describe("页面缓存与失效范围", () => {
     await visit("/settings")
     expect(query<HTMLInputElement>(host, "#ipbPassHash").value).toBe("")
     expect(fetchHolidayDetail).toHaveBeenCalledTimes(2)
-    /* 图库布局和设置页读的是同一份，一个账号只读一次；换账号清空后再读一次。 */
-    expect(fetchCredentialStatus).toHaveBeenCalledTimes(2)
+    /* 图库布局和设置页读的是同一份，第一次进来只读一次；换账号清空后再读一次，最后回到设置页又重读一次。 */
+    expect(fetchCredentialStatus).toHaveBeenCalledTimes(3)
     expect(searchGalleries).toHaveBeenCalledTimes(2)
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
   })
@@ -512,8 +524,8 @@ describe("页面缓存与失效范围", () => {
     expect(host.textContent).toContain("继续阅读（第 18 页）")
     expect(window.scrollY).toBe(450)
     expect(fetchGalleryComments).toHaveBeenCalledTimes(1)
-    /* 详情页和阅读器读的是同一份详情，所以进阅读器不再重新抓一次图集元数据。 */
-    expect(fetchGalleryDetail).toHaveBeenCalledTimes(1)
+    /* 进阅读器、回详情页各重读一次；回来时先等第 18 页的保存落地，读回的就是 18，详情页的 DOM 也不重建。 */
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(3)
     expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 18)
     await click("返回列表")
     expect(router.currentRoute.value.fullPath).toBe("/eh")
@@ -574,7 +586,7 @@ describe("页面缓存与失效范围", () => {
     expect(searchGalleries).toHaveBeenCalledTimes(2)
   })
 
-  it.each(["绑定", "解绑"])("%s只淘汰图库缓存，保留设置页且不重新读取凭据状态", async (action) => {
+  it.each(["绑定", "解绑"])("%s只淘汰图库缓存，保留设置页", async (action) => {
     vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: true, memberId: "123", hasExAccess: false })
     /* 进入测试时图库布局已经读过一次状态，换掉返回值后重新问一次。 */
     await useCredentialStore(pinia).reload()
@@ -615,11 +627,13 @@ describe("页面缓存与失效范围", () => {
     const credentialRequests = vi.mocked(fetchCredentialStatus).mock.calls.length
     await visit("/settings")
     expect(host.querySelector("form")).toBe(form)
-    expect(fetchCredentialStatus).toHaveBeenCalledTimes(credentialRequests)
+    /* 回到设置页照常重读一次状态 */
+    expect(fetchCredentialStatus).toHaveBeenCalledTimes(credentialRequests + 1)
     await visit("/eh")
     expect(searchGalleries).toHaveBeenCalledTimes(2)
     await visit("/eh/g/1/aaaaaaaaaa")
-    expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
+    /* 换绑当场让留着的详情页重读一次，回到详情页又重读一次 */
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(3)
     expect(fetchGalleryComments).toHaveBeenCalledTimes(2)
   })
 

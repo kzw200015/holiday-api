@@ -3,6 +3,7 @@ import { Injectable } from "@nestjs/common"
 import { LRUCache } from "lru-cache"
 
 import { AttachmentUrls } from "@/eh/attachment-urls"
+import { TagTranslationService, type Translate } from "@/eh/tag-translation.service"
 import { EhClient, METADATA_BATCH_SIZE, type GalleryMetadata } from "@/eh/upstream/eh-client"
 import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref"
 
@@ -17,7 +18,7 @@ interface Waiting {
  *
  * 缓存由 lru-cache 的 fetch() 管：同一本同时被要两次只加载一次，加载失败不进缓存。缓存里没有的几本不各打一次接口，
  * 同一轮事件循环里缺的攒成一批，一次向上游要（每批最多 25 本）。缓存里存的是上游原始数据，缩略图在组装卡片时才签名，
- * 签名的有效期因此不受缓存时长影响。
+ * 标签也在这时才套上译名：签名的有效期不受缓存时长影响，同步过的译名也当场生效。
  */
 @Injectable()
 export class GalleryCatalog {
@@ -31,34 +32,37 @@ export class GalleryCatalog {
   constructor(
     private readonly ehClient: EhClient,
     private readonly attachmentUrls: AttachmentUrls,
+    private readonly tagTranslationService: TagTranslationService,
   ) {}
 
   /** 一批图集的卡片，按 refKey 查；元数据取不到的（被删、转私有）不在结果里，整批请求失败则抛出。搜索结果与阅读历史都用它。 */
   async cards(refs: GalleryRef[]): Promise<Map<string, GalleryCard>> {
-    const found = await Promise.all(refs.map((ref) => this.load(ref)))
-    return new Map(
-      found.filter((metadata) => metadata !== undefined).map((metadata) => [refKey(metadata), this.card(metadata)]),
-    )
+    const found = (await Promise.all(refs.map((ref) => this.load(ref)))).filter((metadata) => metadata !== undefined)
+    /* 整批的标签一起查译名，一页只查一次库 */
+    const translate = await this.tagTranslationService.translator(found.flatMap((metadata) => metadata.tags))
+    return new Map(found.map((metadata) => [refKey(metadata), this.card(metadata, translate)]))
   }
 
   /** 一本图集的详情；元数据取不到时是 undefined。 */
   async detail(ref: GalleryRef): Promise<GalleryDetail | undefined> {
     const metadata = await this.load(ref)
-    return (
-      metadata && {
-        ...this.card(metadata),
-        fileSize: metadata.fileSize,
-        torrentCount: metadata.torrentCount,
-        expunged: metadata.expunged,
-      }
-    )
+    if (!metadata) {
+      return undefined
+    }
+    const translate = await this.tagTranslationService.translator(metadata.tags)
+    return {
+      ...this.card(metadata, translate),
+      fileSize: metadata.fileSize,
+      torrentCount: metadata.torrentCount,
+      expunged: metadata.expunged,
+    }
   }
 
   private load(ref: GalleryRef): Promise<GalleryMetadata | undefined> {
     return this.cache.fetch(refKey(ref), { context: ref })
   }
 
-  private card(metadata: GalleryMetadata): GalleryCard {
+  private card(metadata: GalleryMetadata, translate: Translate): GalleryCard {
     return {
       gid: metadata.gid,
       token: metadata.token,
@@ -70,7 +74,7 @@ export class GalleryCatalog {
       postedAt: metadata.postedAt,
       fileCount: metadata.fileCount,
       rating: metadata.rating,
-      tags: metadata.tags,
+      tags: translate(metadata.tags),
     }
   }
 

@@ -47,7 +47,8 @@ export function useEhCredential() {
     loadError: computed(() => credential.error?.message ?? ""),
     saving,
     errorMessage,
-    reload: () => void credential.reload(),
+    /* 不会 reject，失败落在 loadError 上 */
+    reload: () => credential.reload(),
     bind: (cookie: z.input<typeof ehCookieSchema>) => submit(() => bindCredential(cookie)),
     unbind: () => submit(unbindCredential),
   }

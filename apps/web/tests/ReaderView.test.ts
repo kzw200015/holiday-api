@@ -27,8 +27,6 @@ let host: HTMLDivElement
 let router: ReturnType<typeof createRouter>
 /* 与 ReaderView 里的 URL_SYNC_DELAY 对齐：页码先生效，地址栏节流跟上。 */
 const URL_SYNC_DELAY = 300
-/* 与 store 里的 DETAIL_STALE_TIME 对齐。 */
-const DETAIL_STALE_TIME = 5 * 60 * 1000
 /* 离开阅读器要去的页面。默认当场加载完；要模拟首次访问时还在下载页面代码，就换成一个晚点才兑现的。 */
 let awayPage: Promise<VueComponent>
 
@@ -121,7 +119,8 @@ describe("阅读进度保存", () => {
     await router.replace("/2/other/1")
     await router.replace("/1/token/99")
     await vi.advanceTimersByTimeAsync(1200 + URL_SYNC_DELAY)
-    expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
+    /* 回到第 1 本照样重读，但手上那份在重读期间就能用来收回页码 */
+    expect(fetchGalleryDetail).toHaveBeenCalledTimes(3)
     expect(saveProgress).not.toHaveBeenCalledWith(1, "token", 99)
     expect(saveProgress).toHaveBeenLastCalledWith(1, "token", 10)
     expect(router.currentRoute.value.params.page).toBe("10")
@@ -313,10 +312,10 @@ describe("阅读器的边界情况", () => {
     expect(host.textContent).toContain("上游超时")
   })
 
-  /* 手上的详情过了新鲜期会在后台重取；重取失败时图片地址照样能用，不该把正在读的图换成错误页。 */
-  it("详情过期重取失败时，阅读器照常可用", async () => {
+  /* 进入阅读器都会在后台重读详情；重读失败时手上那份的图片地址照样能用，不该把正在读的图换成错误页。 */
+  it("详情重读失败时，阅读器照常可用", async () => {
     await router.replace("/2/other/1")
-    await vi.advanceTimersByTimeAsync(DETAIL_STALE_TIME)
+    await vi.advanceTimersByTimeAsync(0)
     vi.mocked(fetchGalleryDetail).mockRejectedValueOnce(new Error("上游超时"))
     await router.replace("/1/token/3")
     await vi.advanceTimersByTimeAsync(0)

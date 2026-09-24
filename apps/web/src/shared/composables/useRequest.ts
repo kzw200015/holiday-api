@@ -10,13 +10,14 @@ import { createRequest } from "@/shared/api/request"
  */
 export function useRequest<T>(sources: WatchSource[], fetcher: (signal: AbortSignal) => Promise<T>) {
   const request = createRequest<T>()
-  const reload = () => void request.run(fetcher)
+  /* 返回的 Promise 不会 reject，失败落在 errorMessage 上；要等它读完的（如页面上的刷新按钮）可以 await。 */
+  const reload = () => request.run(fetcher)
 
   watch(
     sources,
     () => {
       request.clear()
-      reload()
+      void reload()
     },
     { immediate: true },
   )

@@ -1,4 +1,4 @@
-/* 分类与标签的中文词汇表。这些是展示用的说法，跟接口无关，所以不放在 api 里。 */
+/* 分类的中文词汇表。这些是展示用的说法，跟接口无关，所以不放在 api 里。标签的中文名由服务端连同标签一起给出。 */
 
 import type { GalleryCategory } from "@myapi/shared/eh"
 
@@ -28,29 +28,3 @@ export const categoryLabels: Record<string, string> = {
 
 /** 分类筛选项。value 的取值由共享包的 GalleryCategory 约束，拼错编译不过 */
 export const galleryCategories = CATEGORIES.map(({ value, label }) => ({ value, label }))
-
-/* 标签形如 artist:gentsuki；没有冒号的归到空命名空间 */
-export function splitTag(tag: string): { namespace: string; value: string } {
-  const index = tag.indexOf(":")
-  return index < 0 ? { namespace: "", value: tag } : { namespace: tag.slice(0, index), value: tag.slice(index + 1) }
-}
-
-/* 标签命名空间的中文名，没收录的就原样显示 */
-const NAMESPACE_LABELS: Record<string, string> = {
-  language: "语言",
-  parody: "原作",
-  character: "角色",
-  group: "社团",
-  artist: "作者",
-  male: "男性",
-  female: "女性",
-  mixed: "混合",
-  other: "其他",
-  cosplayer: "扮演者",
-  reclass: "重分类",
-  temp: "临时",
-}
-
-export function formatNamespace(namespace: string): string {
-  return NAMESPACE_LABELS[namespace] ?? namespace
-}

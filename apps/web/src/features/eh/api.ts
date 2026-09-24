@@ -11,6 +11,7 @@ import type {
   readingHistoryQuerySchema,
   readingProgressSchema,
   searchHistorySchema,
+  TagTranslationStatus,
 } from "@myapi/shared/eh"
 import type { z } from "zod"
 
@@ -63,6 +64,15 @@ export function bindCredential(cookie: z.input<typeof ehCookieSchema>) {
 /** 解绑，返回解绑后的状态 */
 export function unbindCredential() {
   return httpClient.delete<CredentialStatus>("/eh/credential")
+}
+
+export function fetchTagTranslationStatus(signal?: AbortSignal) {
+  return httpClient.get<TagTranslationStatus>("/eh/tag-translations", { signal })
+}
+
+/** 从上游拉一版标签译名替换掉库里的，回同步后的状态。拉取与写入都完成才回，可能要十几秒，所以不设保存的时限 */
+export function syncTagTranslations() {
+  return httpClient.post<TagTranslationStatus>("/eh/tag-translations/sync")
 }
 
 /* 偏好与搜索历史读一次之后由前端说了算，写入都是把当前这份整个推上去，不再逐个动作上报。

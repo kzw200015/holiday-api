@@ -114,7 +114,7 @@ describe("响应体的 JSON 形状", () => {
         postedAt: "2022-05-28T01:53:30.000Z",
         fileCount: 329,
         rating: 4.68,
-        tags: ["artist:gentsuki"],
+        tags: [{ namespace: "artist", namespaceName: "artist", value: "gentsuki", name: "gentsuki" }],
         fileSize: 419547090,
         torrentCount: 4,
         expunged: false,
