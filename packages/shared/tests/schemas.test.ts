@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { z } from "zod"
 
-import { credentialsSchema } from "../src/auth"
+import { credentialsSchema, loginSchema } from "../src/auth"
 import {
   ehCookieSchema,
   galleryPreferencesSchema,
@@ -34,6 +34,11 @@ describe("注册与登录", () => {
     expect(errors(credentialsSchema, { ...valid, password: "😀".repeat(8) })).toEqual([])
     expect(errors(credentialsSchema, { ...valid, password: "😀".repeat(128) })).toEqual([])
     expect(errors(credentialsSchema, { ...valid, password: "a".repeat(129) })).toEqual(["密码最长 128 位"])
+  })
+
+  it("登录不套注册的规则，只要两项都是字符串", () => {
+    expect(errors(loginSchema, { username: "ab", password: "短" })).toEqual([])
+    expect(errors(loginSchema, { username: "ab" })).toEqual(["请填写用户名和密码"])
   })
 })
 

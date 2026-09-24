@@ -1,4 +1,4 @@
-import type { Authenticated, Credentials, CurrentUser } from "@myapi/shared/auth"
+import type { Authenticated, Credentials, CurrentUser, LoginCredentials } from "@myapi/shared/auth"
 import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
 import { JwtService } from "@nestjs/jwt"
@@ -61,7 +61,7 @@ export class AuthService {
   }
 
   /** 用户不存在与密码不对回同一句话，耗时也一样，不泄露哪些用户名存在。用户名大小写敏感。 */
-  async login({ username, password }: Credentials): Promise<Authenticated> {
+  async login({ username, password }: LoginCredentials): Promise<Authenticated> {
     const [user] = await this.database.select().from(users).where(eq(users.username, username))
     if (!(await verifyPassword(password, user?.passwordHash ?? null)) || !user) {
       throw new BadRequestException("用户名或密码错误")
