@@ -1,16 +1,14 @@
 <script setup lang="ts">
-import { ArrowLeftIcon, MoonIcon, SunIcon } from "@lucide/vue"
+import { ArrowLeftIcon } from "@lucide/vue"
 import { RouterView, useRoute } from "vue-router"
 
 import AppSidebar from "@/app/layouts/AppSidebar.vue"
-import { useThemeStore } from "@/app/themeStore"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { useAuthStore } from "@/features/auth/store"
 import { useGoBack } from "@/shared/composables/useGoBack"
 
-const appStore = useThemeStore()
 const authStore = useAuthStore()
 const route = useRoute()
 const returnTo = useGoBack()
@@ -37,10 +35,6 @@ function goBack() {
           <span class="sr-only">{{ route.meta.back.label }}</span>
         </Button>
         <h1 class="flex-1 truncate text-sm font-medium">{{ route.meta.title ?? "" }}</h1>
-        <Button aria-label="切换主题" size="icon-sm" variant="ghost" @click="appStore.toggle">
-          <SunIcon v-if="appStore.isDark" />
-          <MoonIcon v-else />
-        </Button>
       </header>
       <div class="flex flex-1 flex-col gap-4 p-4">
         <RouterView v-slot="{ Component }">
