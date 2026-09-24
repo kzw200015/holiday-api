@@ -1,9 +1,10 @@
-import type { Authenticated, Credentials, CurrentUser, LoginCredentials } from "@myapi/shared/auth"
+import type { Authenticated, credentialsSchema, CurrentUser, loginSchema } from "@myapi/shared/auth"
 import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
 import { JwtService } from "@nestjs/jwt"
 import { SQL } from "bun"
 import { eq } from "drizzle-orm"
+import type { z } from "zod"
 
 import { users } from "@/auth/auth.tables"
 import { hashPassword, verifyPassword } from "@/auth/passwords"
@@ -30,7 +31,7 @@ export class AuthService {
   }
 
   /** 注册成功即登录。 */
-  async register({ username, password }: Credentials): Promise<Authenticated> {
+  async register({ username, password }: z.output<typeof credentialsSchema>): Promise<Authenticated> {
     if (!this.registrationOpen) {
       throw new BadRequestException("本站已关闭注册")
     }
@@ -61,7 +62,7 @@ export class AuthService {
   }
 
   /** 用户不存在与密码不对回同一句话，耗时也一样，不泄露哪些用户名存在。用户名大小写敏感。 */
-  async login({ username, password }: LoginCredentials): Promise<Authenticated> {
+  async login({ username, password }: z.output<typeof loginSchema>): Promise<Authenticated> {
     const [user] = await this.database.select().from(users).where(eq(users.username, username))
     if (!(await verifyPassword(password, user?.passwordHash ?? null)) || !user) {
       throw new BadRequestException("用户名或密码错误")

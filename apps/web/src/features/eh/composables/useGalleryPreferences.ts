@@ -1,5 +1,6 @@
-import { DEFAULT_GALLERY_PREFERENCES, type GalleryCategory, type GalleryPreferences } from "@myapi/shared/eh"
+import { DEFAULT_GALLERY_PREFERENCES, type GalleryCategory, type galleryPreferencesSchema } from "@myapi/shared/eh"
 import { computed } from "vue"
+import type { z } from "zod"
 
 import { useGalleryPreferencesStore } from "@/features/eh/store"
 
@@ -16,7 +17,7 @@ export function useGalleryPreferences() {
   const current = computed(() => store.data ?? DEFAULT_GALLERY_PREFERENCES)
 
   /* 没读到时 store 不改也不存，占位值不会被拼进提交里。 */
-  function save(change: Partial<GalleryPreferences>) {
+  function save(change: Partial<z.output<typeof galleryPreferencesSchema>>) {
     store.update((preferences) => ({ ...preferences, ...change }))
   }
 

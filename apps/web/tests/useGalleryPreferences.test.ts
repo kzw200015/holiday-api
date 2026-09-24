@@ -1,8 +1,9 @@
 /* @vitest-environment happy-dom */
-import type { GalleryPreferences } from "@myapi/shared/eh"
+import type { galleryPreferencesSchema } from "@myapi/shared/eh"
 import { createPinia, disposePinia, type Pinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp } from "vue"
+import type { z } from "zod"
 
 import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
@@ -114,7 +115,7 @@ describe("账号浏览偏好", () => {
 
   /* 换账号那一刻作废：旧账号还没回来的读取，不能落到新账号头上。 */
   it("换账号后旧账号在途的读取作废，新页面读新账号的那份", async () => {
-    const loading = deferred<GalleryPreferences>()
+    const loading = deferred<z.output<typeof galleryPreferencesSchema>>()
     vi.mocked(fetchGalleryPreferences).mockReturnValueOnce(loading.promise)
     const before = mount()
     await settleFakeTimers()

@@ -1,5 +1,6 @@
-import { holidayQuerySchema, type HolidayDetail, type HolidayQuery } from "@myapi/shared/holiday"
+import { holidayQuerySchema, type HolidayDetail } from "@myapi/shared/holiday"
 import { Controller, Get, Header, Query } from "@nestjs/common"
+import type { z } from "zod"
 
 import { Public } from "@/auth/auth.decorators"
 import { HolidayService } from "@/holiday/holiday.service"
@@ -16,14 +17,16 @@ export class HolidayController {
    */
   @Get("is-holiday")
   @Header("Content-Type", "application/json; charset=utf-8")
-  async isHoliday(@Query({ schema: holidayQuerySchema }) { date }: HolidayQuery): Promise<string> {
+  async isHoliday(
+    @Query({ schema: holidayQuerySchema }) { date }: z.output<typeof holidayQuerySchema>,
+  ): Promise<string> {
     const day = await this.holidayService.query(date)
     return JSON.stringify(day.isOffDay)
   }
 
   /** 是不是休息日，外加对应的节假日名称。 */
   @Get("detail")
-  detail(@Query({ schema: holidayQuerySchema }) { date }: HolidayQuery): Promise<HolidayDetail> {
+  detail(@Query({ schema: holidayQuerySchema }) { date }: z.output<typeof holidayQuerySchema>): Promise<HolidayDetail> {
     return this.holidayService.query(date)
   }
 }

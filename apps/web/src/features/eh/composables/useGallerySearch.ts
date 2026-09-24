@@ -1,5 +1,6 @@
-import type { GalleryCategory, GallerySearchRequest } from "@myapi/shared/eh"
+import type { GalleryCategory, gallerySearchSchema } from "@myapi/shared/eh"
 import { computed, reactive, ref, watch } from "vue"
+import type { z } from "zod"
 
 import { searchGalleries } from "@/features/eh/api"
 import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
@@ -20,7 +21,7 @@ export function useGallerySearch() {
    * 已提交的条件：关键词已去两端空白，分类已去重。
    * 偏好进页面前就备齐了，首次条件当场定得下来，不必先挂一个「还不能查」的状态等它。
    */
-  let query: GallerySearchRequest = { keyword: "", categories: preferences.categories }
+  let query: z.input<typeof gallerySearchSchema> = { keyword: "", categories: preferences.categories }
 
   const paging = useCursorPages((cursor, signal) => searchGalleries({ ...query, cursor }, signal))
   paging.restart()

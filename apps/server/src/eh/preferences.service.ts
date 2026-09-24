@@ -1,6 +1,7 @@
-import { DEFAULT_GALLERY_PREFERENCES, type GalleryPreferences } from "@myapi/shared/eh"
+import { DEFAULT_GALLERY_PREFERENCES, type galleryPreferencesSchema } from "@myapi/shared/eh"
 import { Inject, Injectable } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
+import type { z } from "zod"
 
 import { DATABASE, type Database } from "@/database/database.module"
 import { ehPreferences } from "@/eh/eh.tables"
@@ -16,7 +17,7 @@ import { ehPreferences } from "@/eh/eh.tables"
 export class PreferencesService {
   constructor(@Inject(DATABASE) private readonly database: Database) {}
 
-  async preferences(userId: number): Promise<GalleryPreferences> {
+  async preferences(userId: number): Promise<z.output<typeof galleryPreferencesSchema>> {
     const [row] = await this.database
       .select({ categories: ehPreferences.categories, readerInterval: ehPreferences.readerInterval })
       .from(ehPreferences)
@@ -25,7 +26,7 @@ export class PreferencesService {
   }
 
   /** 分类排序去重后入库，存的始终是同一种写法。 */
-  async savePreferences(userId: number, { categories, readerInterval }: GalleryPreferences) {
+  async savePreferences(userId: number, { categories, readerInterval }: z.output<typeof galleryPreferencesSchema>) {
     const value = { categories: [...new Set(categories)].toSorted(), readerInterval }
     await this.database
       .insert(ehPreferences)

@@ -1,5 +1,6 @@
-import type { CredentialStatus, EhCredentialRequest } from "@myapi/shared/eh"
+import type { CredentialStatus, ehCookieSchema } from "@myapi/shared/eh"
 import { computed, ref } from "vue"
+import type { z } from "zod"
 
 import { bindCredential, unbindCredential } from "@/features/eh/api"
 import { useCredentialStore, useGalleryContentStore } from "@/features/eh/store"
@@ -47,7 +48,7 @@ export function useEhCredential() {
     saving,
     errorMessage,
     reload: () => void credential.reload(),
-    bind: (cookie: EhCredentialRequest) => submit(() => bindCredential(cookie)),
+    bind: (cookie: z.input<typeof ehCookieSchema>) => submit(() => bindCredential(cookie)),
     unbind: () => submit(unbindCredential),
   }
 }

@@ -1,5 +1,6 @@
-import { readingProgressSchema, type ReadingProgress } from "@myapi/shared/eh"
+import { readingProgressSchema } from "@myapi/shared/eh"
 import { Body, Controller, Delete, Get, Param, Post, Query } from "@nestjs/common"
+import type { z } from "zod"
 
 import { CurrentUser } from "@/auth/auth.decorators"
 import { readingHistoryQuery, type HistoryCursor } from "@/eh/history-cursor"
@@ -14,7 +15,7 @@ export class ReadingController {
   @Post("progress")
   async saveProgress(
     @CurrentUser() userId: number,
-    @Body({ schema: readingProgressSchema }) body: ReadingProgress,
+    @Body({ schema: readingProgressSchema }) body: z.output<typeof readingProgressSchema>,
   ): Promise<void> {
     await this.readingService.save(userId, body)
   }

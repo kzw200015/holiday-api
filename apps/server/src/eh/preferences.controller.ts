@@ -1,10 +1,6 @@
-import {
-  galleryPreferencesSchema,
-  searchHistorySchema,
-  type GalleryPreferences,
-  type SearchHistory,
-} from "@myapi/shared/eh"
+import { galleryPreferencesSchema, searchHistorySchema } from "@myapi/shared/eh"
 import { Body, Controller, Get, Put } from "@nestjs/common"
+import type { z } from "zod"
 
 import { CurrentUser } from "@/auth/auth.decorators"
 import { PreferencesService } from "@/eh/preferences.service"
@@ -15,14 +11,14 @@ export class PreferencesController {
   constructor(private readonly preferencesService: PreferencesService) {}
 
   @Get("preferences")
-  getPreferences(@CurrentUser() userId: number): Promise<GalleryPreferences> {
+  getPreferences(@CurrentUser() userId: number): Promise<z.output<typeof galleryPreferencesSchema>> {
     return this.preferencesService.preferences(userId)
   }
 
   @Put("preferences")
   async savePreferences(
     @CurrentUser() userId: number,
-    @Body({ schema: galleryPreferencesSchema }) body: GalleryPreferences,
+    @Body({ schema: galleryPreferencesSchema }) body: z.output<typeof galleryPreferencesSchema>,
   ): Promise<void> {
     await this.preferencesService.savePreferences(userId, body)
   }
@@ -35,7 +31,7 @@ export class PreferencesController {
   @Put("search-history")
   async saveSearchHistory(
     @CurrentUser() userId: number,
-    @Body({ schema: searchHistorySchema }) body: SearchHistory,
+    @Body({ schema: searchHistorySchema }) body: z.output<typeof searchHistorySchema>,
   ): Promise<void> {
     await this.preferencesService.saveSearchHistory(userId, body.entries)
   }

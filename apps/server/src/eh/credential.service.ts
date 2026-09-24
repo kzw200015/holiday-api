@@ -1,6 +1,7 @@
-import type { CredentialStatus, EhCredential } from "@myapi/shared/eh"
+import type { CredentialStatus, ehCookieSchema } from "@myapi/shared/eh"
 import { Inject, Injectable, Logger } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
+import type { z } from "zod"
 
 import { DATABASE, type Database } from "@/database/database.module"
 import { ehCredentials } from "@/eh/eh.tables"
@@ -28,7 +29,7 @@ export class CredentialService {
   }
 
   /** 绑定前先拿这组 Cookie 实际请求一次，用不了直接回 400，免得把一组坏凭据存进库再让人一脸茫然。 */
-  async bind(userId: number, credential: EhCredential): Promise<CredentialStatus> {
+  async bind(userId: number, credential: z.output<typeof ehCookieSchema>): Promise<CredentialStatus> {
     const hasExAccess = await this.ehClient.verifyCredential(credential)
     const row = { ...credential, hasExAccess }
     await this.database

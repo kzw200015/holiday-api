@@ -1,5 +1,12 @@
-import type { CursorPage, GalleryCard, GalleryComment, GalleryDetailResult, GallerySearch } from "@myapi/shared/eh"
+import type {
+  CursorPage,
+  GalleryCard,
+  GalleryComment,
+  GalleryDetailResult,
+  gallerySearchSchema,
+} from "@myapi/shared/eh"
 import { Injectable } from "@nestjs/common"
+import type { z } from "zod"
 
 import { AttachmentUrls } from "@/eh/attachment-urls"
 import { CredentialService } from "@/eh/credential.service"
@@ -24,7 +31,7 @@ export class GalleryService {
   ) {}
 
   /** 从列表页拿图集顺序和游标，再用元数据接口补全；元数据取不到的图集不出现在结果里。 */
-  async search(userId: number, search: GallerySearch): Promise<CursorPage<GalleryCard>> {
+  async search(userId: number, search: z.output<typeof gallerySearchSchema>): Promise<CursorPage<GalleryCard>> {
     const access = await this.credentialService.access(userId)
     const list = await this.ehClient.search(access, search)
     const cards = await this.galleryCatalog.cards(list.refs)

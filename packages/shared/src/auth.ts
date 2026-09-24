@@ -18,8 +18,6 @@ export const credentialsSchema = z.object({
     .refine((password) => codePointLength(password) <= 128, "密码最长 128 位"),
 })
 
-export type Credentials = z.output<typeof credentialsSchema>
-
 const LOGIN_REQUIRED = "请填写用户名和密码"
 
 /**
@@ -30,8 +28,6 @@ export const loginSchema = z.object({
   username: z.string({ error: LOGIN_REQUIRED }),
   password: z.string({ error: LOGIN_REQUIRED }),
 })
-
-export type LoginCredentials = z.output<typeof loginSchema>
 
 /** 当前登录的本站账号 */
 export interface CurrentUser {

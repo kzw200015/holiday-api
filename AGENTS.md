@@ -18,7 +18,7 @@ Bun 的版本写在根目录 `package.json` 的 `packageManager` 与 `Dockerfile
 - `apps/server/src/eh/AGENTS.md`：与 e 站打交道的协议层、上游失败与文案、图片代理、图集元数据与凭据的读取。
 - `apps/web/AGENTS.md`：前端结构与分层、组件与界面规范、数据层通则（读取、作废、写入）、前端测试。
 - `apps/web/src/features/eh/AGENTS.md`：本站账号数据、图集详情、阅读进度与阅读历史、换绑 e 站账号时的作废。
-- `packages/shared/AGENTS.md`：共享包的引用方式、schema 与命名类型的约定。
+- `packages/shared/AGENTS.md`：共享包的引用方式、schema 与类型的写法。
 
 ## 构建与测试命令
 

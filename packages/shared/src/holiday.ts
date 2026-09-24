@@ -23,8 +23,6 @@ export const holidayQuerySchema = z.object({
     .optional(),
 })
 
-export type HolidayQuery = z.output<typeof holidayQuerySchema>
-
 /** 某一天的节假日安排 */
 export interface HolidayDetail {
   /** 查询的日期，格式 YYYY-MM-DD */

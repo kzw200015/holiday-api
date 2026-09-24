@@ -1,9 +1,10 @@
 /* @vitest-environment happy-dom */
-import type { GalleryPreferences } from "@myapi/shared/eh"
+import type { galleryPreferencesSchema } from "@myapi/shared/eh"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { computed, createApp, h, nextTick, reactive } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
+import type { z } from "zod"
 
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, saveGalleryPreferences } from "@/features/eh/api"
@@ -266,7 +267,7 @@ describe("阅读器自动翻页控件", () => {
 
   /* 阅读器不经过图库布局，偏好可能还没读到或读失败了；这时调了也存不上，按钮不该看起来能用。 */
   it("偏好读到之前间隔不能调", async () => {
-    const pending = deferred<GalleryPreferences>()
+    const pending = deferred<z.output<typeof galleryPreferencesSchema>>()
     vi.mocked(fetchGalleryPreferences).mockReturnValueOnce(pending.promise)
     const { host } = await createReader()
     const decrease = query<HTMLButtonElement>(host, '[aria-label="减少自动翻页间隔"]')

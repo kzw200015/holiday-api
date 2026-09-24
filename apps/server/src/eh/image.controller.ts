@@ -1,17 +1,11 @@
 import { Readable } from "node:stream"
 import { Controller, Get, Logger, Param, Query, Res, StreamableFile } from "@nestjs/common"
 import type { Response } from "express"
+import type { z } from "zod"
 
 import { Public } from "@/auth/auth.decorators"
 import { ImageService } from "@/eh/image.service"
-import {
-  galleryImageQuery,
-  galleryPageParams,
-  thumbnailQuery,
-  type GalleryImageQuery,
-  type GalleryPageParams,
-  type ThumbnailQuery,
-} from "@/eh/params"
+import { galleryImageQuery, galleryPageParams, thumbnailQuery } from "@/eh/params"
 import type { ImageStream } from "@/eh/upstream/eh-client"
 import { imageBroken } from "@/eh/upstream/failures"
 
@@ -32,8 +26,8 @@ export class ImageController {
   /** 大图，地址形如 .../pages/{page}/image?uid=&e=&s=，由详情接口签发。 */
   @Get("galleries/:gid/:token/pages/:page/image")
   async galleryImage(
-    @Param({ schema: galleryPageParams }) { gid, token, page }: GalleryPageParams,
-    @Query({ schema: galleryImageQuery }) { uid, e, s }: GalleryImageQuery,
+    @Param({ schema: galleryPageParams }) { gid, token, page }: z.output<typeof galleryPageParams>,
+    @Query({ schema: galleryImageQuery }) { uid, e, s }: z.output<typeof galleryImageQuery>,
     @Res({ passthrough: true }) response: Response,
   ) {
     return this.forward(await this.imageService.openGalleryImage(uid, { gid, token }, page, { e, s }), response)
@@ -42,7 +36,7 @@ export class ImageController {
   /** 缩略图，地址形如 /thumbnail?u=&e=&s=，只接受本服务签发过的地址。 */
   @Get("thumbnail")
   async thumbnail(
-    @Query({ schema: thumbnailQuery }) { u, e, s }: ThumbnailQuery,
+    @Query({ schema: thumbnailQuery }) { u, e, s }: z.output<typeof thumbnailQuery>,
     @Res({ passthrough: true }) response: Response,
   ) {
     return this.forward(await this.imageService.openThumbnail(u, { e, s }), response)
