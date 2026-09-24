@@ -17,7 +17,7 @@ export function useGalleryProgress(gid: MaybeRefOrGetter<number>) {
     return {
       key: ehKeys.progress(id),
       query: async ({ signal }) => {
-        await writes.progress.settled()
+        await writes.settled()
         return (await fetchReadingProgress(id, signal)).page
       },
     }

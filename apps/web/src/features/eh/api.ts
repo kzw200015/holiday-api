@@ -84,7 +84,7 @@ export function syncTagTranslations() {
 
 /*
  * 保存的时限。保存只是落库，正常百毫秒内就回来；十秒还没回来多半是连接半开（移动网络切换时常见），
- * 再等下去同一类后面的保存、等着写入落地才读的数据全都跟着卡住。超时即中止，这一次算没存上。
+ * 再等下去后面排队的保存、等着写入落地才读的数据全都跟着卡住。超时即中止，这一次算没存上。
  * 读取不设这个时限：换页面时由调用方取消，搜索这类要抓上游页面的读取本来就可能很慢。
  */
 const SAVE_TIMEOUT = 10_000
@@ -134,11 +134,11 @@ export function fetchReadingHistory(cursor: string, signal?: AbortSignal) {
 }
 
 export function removeReadingHistory(gid: number) {
-  return httpClient.delete<null>(`/eh/history/${gid}`)
+  return httpClient.delete<null>(`/eh/history/${gid}`, { timeout: SAVE_TIMEOUT })
 }
 
 export function clearReadingHistory() {
-  return httpClient.delete<null>("/eh/history")
+  return httpClient.delete<null>("/eh/history", { timeout: SAVE_TIMEOUT })
 }
 
 /*

@@ -39,7 +39,7 @@ export function useReadingProgress(gid: number, token: string) {
     cancelSave()
     if (pending !== undefined && auth.pageRevision === account) {
       /* 存不上不提示也不回退：下次翻页会再报一次。 */
-      writes.progress.track(saveProgress(gid, token, pending)).catch(() => {})
+      writes.track(saveProgress(gid, token, pending)).catch(() => {})
     }
     pending = undefined
   }

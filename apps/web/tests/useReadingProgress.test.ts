@@ -65,7 +65,8 @@ describe("阅读进度上报", () => {
 
   /* 乱序到达由服务端按上报序号挡住。要是等前一次回来，页面卸载时补发的那次就发不出去了：前一次回来时页面已经没了。 */
   it("前一次还没回来，页面收起时那次也当场发出", async () => {
-    vi.mocked(saveProgress).mockReturnValueOnce(new Promise(() => {}))
+    const first = deferred<null>()
+    vi.mocked(saveProgress).mockReturnValueOnce(first.promise)
     const { api } = await mountReader()
     api.report(5)
     await vi.advanceTimersByTimeAsync(SAVE_DELAY)
@@ -75,6 +76,7 @@ describe("阅读进度上报", () => {
     window.dispatchEvent(new Event("pagehide"))
     /* 不推进时间：卸载中的页面等不到前一次的响应。 */
     expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 9)
+    first.resolve(null)
   })
 
   it("flush 把合并窗口里那次立刻发出去", async () => {

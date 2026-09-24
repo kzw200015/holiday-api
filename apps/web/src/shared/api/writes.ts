@@ -2,7 +2,7 @@
 const ignore = () => {}
 
 /**
- * 一类数据的写入：依次发出；读这类数据之前先等已经发出的写入落地（见 ADR-0006）。
+ * 一组数据的写入：依次发出；读这组数据之前先等已经发出的写入落地（见 ADR-0006）。
  *
  * 依次发出，是因为同一字段先后两次改动、先记后删同一个词，乱序到达就会得到错的结果。读之前要等，是因为读回来的是
  * 服务端那一刻的样子：写入还没到，就会把本地刚改好的那份按回去。
@@ -13,7 +13,7 @@ export function createWrites(scope: () => unknown = () => undefined) {
   let tail: Promise<unknown> = Promise.resolve()
   let settled: Promise<unknown> = Promise.resolve()
 
-  /** 记下一次已经发出、不必排队的写入（如阅读进度上报），读之前同样要等它落地。 */
+  /** 记下一次已经发出、不必排队的写入（如阅读进度上报、删除阅读历史），读之前同样要等它落地。 */
   function track<T>(write: Promise<T>): Promise<T> {
     /* 一环接一环而不是 Promise.all：后者的结果数组一层套一层，整次会话每一次的结果都留在内存里。 */
     settled = settled.then(() => write.catch(ignore))
@@ -40,3 +40,5 @@ export function createWrites(scope: () => unknown = () => undefined) {
     settled: () => settled,
   }
 }
+
+export type Writes = ReturnType<typeof createWrites>

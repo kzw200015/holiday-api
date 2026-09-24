@@ -176,6 +176,25 @@ describe("阅读历史分页", () => {
     expect(titles()).toEqual(["图集 2"])
   })
 
+  /* 删除还没落地就去读，读回来的还带着正要删掉的那条：回来时照样重读，只是等删除落地再发。 */
+  it("删除在途时回到页面，等删除落地再重读，读回来的不带删掉的那条", async () => {
+    await mountHistory()
+    const removal = deferred<null>()
+    vi.mocked(removeReadingHistory).mockReturnValueOnce(removal.promise)
+    await click("删除")
+    await router.push("/away")
+    await settle()
+    loadHistory.mockResolvedValue(page(2, null))
+    await router.push("/eh/history")
+    await settle()
+    expect(loadHistory).toHaveBeenCalledTimes(1)
+
+    removal.resolve(null)
+    await settle()
+    expect(loadHistory).toHaveBeenCalledTimes(2)
+    expect(titles()).toEqual(["图集 2"])
+  })
+
   it("页面停用后不再自动续取，重新激活会刷新列表", async () => {
     loadHistory.mockResolvedValue(page(1, "cursor-2"))
     await mountHistory()

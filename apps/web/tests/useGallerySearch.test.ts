@@ -105,7 +105,7 @@ beforeEach(() => {
   vi.mocked(patchGalleryPreferences).mockResolvedValue(null)
 })
 afterEach(async () => {
-  await useEhWrites(pinia).account.settled()
+  await useEhWrites(pinia).settled()
   app?.unmount()
   host.remove()
   disposePinia(pinia)

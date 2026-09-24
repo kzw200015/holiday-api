@@ -82,7 +82,7 @@ export function composableTests() {
     pinia = createPinia()
   })
   afterEach(async () => {
-    await useEhWrites(pinia).account.settled()
+    await useEhWrites(pinia).settled()
     for (const app of apps.values()) {
       app.unmount()
     }

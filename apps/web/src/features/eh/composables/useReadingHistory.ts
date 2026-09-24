@@ -30,9 +30,12 @@ export function useReadingHistory() {
 
   const history = useInfiniteQuery({
     key: ehKeys.history,
-    /* 每条记录都带着读到第几页：先等已经发出的进度保存落地，否则刚退出阅读时读回来的还是上报之前的页码。 */
+    /*
+     * 先等已经发出的写入落地：每条记录都带着读到第几页，刚退出阅读时读回来的会是上报之前的页码；
+     * 删除还在跑时读回来的也还带着正要删掉的那条。
+     */
     query: async ({ pageParam, signal }) => {
-      await writes.progress.settled()
+      await writes.settled()
       return fetchReadingHistory(pageParam, signal)
     },
     initialPageParam: "",
@@ -52,7 +55,7 @@ export function useReadingHistory() {
 
   /* 删除要给回执：用户看着那一条消失，所以等结果，失败了照样提示。一次只会有一个在跑，共用一处提示。 */
   const change = useMutation({
-    mutation: ({ send }: Change) => send(),
+    mutation: ({ send }: Change) => writes.track(send()),
     onSuccess: (_result, { apply }) => apply(),
   })
 
@@ -109,8 +112,7 @@ export function useReadingHistory() {
     }
   }
 
-  /* 删除还在跑时不重读：读回来的可能还带着正要删掉的那条。 */
-  useRefreshOnActivated(() => !change.isLoading.value && history.refresh())
+  useRefreshOnActivated(() => history.refresh())
 
   return {
     items: computed(() => history.data.value?.pages.flatMap((page) => page.items) ?? []),
