@@ -1,4 +1,4 @@
-import { Global, Module } from "@nestjs/common"
+import { Module } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
 
 import type { Env } from "@/config"
@@ -81,7 +81,6 @@ export function createOutbound(userAgent: string, timeout: number): Outbound {
   }
 }
 
-@Global()
 @Module({
   providers: [
     {

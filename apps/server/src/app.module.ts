@@ -15,9 +15,7 @@ import { validateEnv } from "@/config"
 import { DatabaseModule } from "@/database/database.module"
 import { EhModule } from "@/eh/eh.module"
 import { HolidayModule } from "@/holiday/holiday.module"
-import { OutboundModule } from "@/outbound/outbound.module"
 import { requestLog } from "@/request-log"
-import { SigningModule } from "@/signing/signing.module"
 
 @Module({
   imports: [
@@ -29,8 +27,6 @@ import { SigningModule } from "@/signing/signing.module"
      */
     ServeStaticModule.forRoot({ rootPath: `${import.meta.dirname}/../client`, renderPath: "/" }),
     DatabaseModule,
-    OutboundModule,
-    SigningModule,
     AuthModule,
     EhModule,
     HolidayModule,

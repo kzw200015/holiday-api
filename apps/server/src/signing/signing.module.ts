@@ -1,4 +1,4 @@
-import { Global, Injectable, Module } from "@nestjs/common"
+import { Injectable, Module } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
 
 import type { Env } from "@/config"
@@ -26,6 +26,5 @@ function derive(secret: string, purpose: string): Buffer {
   return new Bun.CryptoHasher("sha256").update(`${secret}:${purpose}`).digest()
 }
 
-@Global()
 @Module({ providers: [SigningKeys], exports: [SigningKeys] })
 export class SigningModule {}

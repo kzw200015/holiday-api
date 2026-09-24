@@ -7,11 +7,12 @@ import { AuthController } from "@/auth/auth.controller"
 import { AuthGuard } from "@/auth/auth.guard"
 import { AuthService } from "@/auth/auth.service"
 import type { Env } from "@/config"
-import { SigningKeys } from "@/signing/signing.module"
+import { SigningKeys, SigningModule } from "@/signing/signing.module"
 
 @Module({
   imports: [
     JwtModule.registerAsync({
+      imports: [SigningModule],
       inject: [SigningKeys, ConfigService],
       useFactory: (signingKeys: SigningKeys, configService: ConfigService<Env, true>) => ({
         secret: signingKeys.token,
