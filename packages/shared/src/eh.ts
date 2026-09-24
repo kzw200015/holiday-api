@@ -156,9 +156,9 @@ export const readingProgressSchema = z.object({
 
 export type ReadingProgress = z.output<typeof readingProgressSchema>
 
-/** 阅读历史的查询参数。游标由服务端编出来、前端原样带回，这里只挡明显不像的。 */
+/** 阅读历史的查询参数。游标由服务端编出来、前端原样带回，解开时逐段校验（见服务端的 history-cursor.ts）。 */
 export const readingHistoryQuerySchema = z.object({
-  cursor: z.string({ error: "阅读历史游标不合法" }).max(256, "阅读历史游标不合法").default(""),
+  cursor: z.string({ error: "阅读历史游标不合法" }).default(""),
 })
 
 /* 只导出输入类型：服务端不直接用这份的输出，而是在它之上把游标解开（见服务端的 history-cursor.ts） */

@@ -74,7 +74,7 @@ function pagesRequested(since: number) {
 }
 
 describe("签名地址", () => {
-  it("改 uid、改过期时间、换签名都回 403；缺签名参数回 400", async () => {
+  it("改 uid、改过期时间、换签名、签名留空都回 403；缺签名参数回 400", async () => {
     const r = await reader((request) => gallery(5, 20)(request))
     const url = new URL(pageUrl(await r.template(nextRef()), 1), "http://x")
     const tampered = (name: string, value: string) => {
@@ -88,6 +88,7 @@ describe("签名地址", () => {
       tampered("e", String(Number(url.searchParams.get("e")) + 60_000)),
       tampered("s", "0".repeat(32)),
       tampered("e", "1e999"),
+      tampered("s", ""),
     ]) {
       const response = await t.http.get(forged)
       expect([response.status, response.body.message]).toEqual([403, "图片地址签名不正确或已过期，回到详情页重进一次"])

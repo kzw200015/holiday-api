@@ -12,7 +12,8 @@ export const galleryParams = z.object({ gid: gidParam, token: galleryTokenSchema
 export const galleryPageParams = galleryParams.extend({ page: numeric(pageSchema, "页码不合法") })
 export type GalleryPageParams = z.output<typeof galleryPageParams>
 
-const signature = z.string({ error: "图片地址缺少签名参数" }).min(1, "图片地址缺少签名参数")
+/* 只挡缺参数：空的、乱写的一律交给签名校验，回 403 */
+const signature = z.string({ error: "图片地址缺少签名参数" })
 
 /** 大图地址的查询串：uid 是签发给谁的，e 与 s 是签名。 */
 export const galleryImageQuery = z.object({
@@ -24,7 +25,7 @@ export type GalleryImageQuery = z.output<typeof galleryImageQuery>
 
 /** 缩略图地址的查询串：u 是编码过的上游地址。 */
 export const thumbnailQuery = z.object({
-  u: z.string({ error: "缺少缩略图地址" }).min(1, "缺少缩略图地址"),
+  u: z.string({ error: "缺少缩略图地址" }),
   e: signature,
   s: signature,
 })
