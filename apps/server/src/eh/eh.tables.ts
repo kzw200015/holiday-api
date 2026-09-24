@@ -1,4 +1,4 @@
-import type { GalleryCategory } from "@myapi/shared"
+import type { GalleryCategory } from "@myapi/shared/eh"
 import { sql } from "drizzle-orm"
 import {
   bigint,

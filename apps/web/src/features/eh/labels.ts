@@ -1,6 +1,6 @@
 /* 分类与标签的中文词汇表。这些是展示用的说法，跟接口无关，所以不放在 api 里。 */
 
-import type { GalleryCategory } from "@myapi/shared"
+import type { GalleryCategory } from "@myapi/shared/eh"
 
 /**
  * 分类的三种叫法：value 是后端筛选参数认的名字，name 是 gdata 返回的展示名，label 是界面文案。

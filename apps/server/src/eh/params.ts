@@ -1,4 +1,4 @@
-import { galleryTokenSchema, gidSchema, pageSchema } from "@myapi/shared"
+import { galleryTokenSchema, gidSchema, pageSchema } from "@myapi/shared/eh"
 import { z } from "zod"
 
 import type { GalleryRef } from "@/eh/upstream/gallery-ref.js"

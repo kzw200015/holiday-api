@@ -1,4 +1,4 @@
-import { holidayQuerySchema, type HolidayDetail, type HolidayQuery } from "@myapi/shared"
+import { holidayQuerySchema, type HolidayDetail, type HolidayQuery } from "@myapi/shared/holiday"
 import { Controller, Get, Header, Query } from "@nestjs/common"
 
 import { Public } from "@/auth/auth.decorators.js"

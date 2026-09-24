@@ -1,4 +1,4 @@
-import type { CursorPage, GalleryCard, GalleryComment, GalleryDetailResult, GallerySearch } from "@myapi/shared"
+import type { CursorPage, GalleryCard, GalleryComment, GalleryDetailResult, GallerySearch } from "@myapi/shared/eh"
 import { Injectable } from "@nestjs/common"
 
 import { AttachmentUrls } from "@/eh/attachment-urls.js"

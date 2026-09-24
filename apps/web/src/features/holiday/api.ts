@@ -1,4 +1,4 @@
-import type { HolidayDetail, HolidayQuery } from "@myapi/shared"
+import type { HolidayDetail, HolidayQuery } from "@myapi/shared/holiday"
 
 import { httpClient } from "@/shared/api/httpClient"
 

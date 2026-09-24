@@ -1,4 +1,4 @@
-import { DEFAULT_GALLERY_PREFERENCES, type GalleryCategory, type GalleryPreferences } from "@myapi/shared"
+import { DEFAULT_GALLERY_PREFERENCES, type GalleryCategory, type GalleryPreferences } from "@myapi/shared/eh"
 import { computed } from "vue"
 
 import { useGalleryPreferencesStore } from "@/features/eh/store"

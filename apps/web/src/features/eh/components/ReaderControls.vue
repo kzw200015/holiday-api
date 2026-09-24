@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ChevronLeftIcon, ChevronRightIcon, MinusIcon, PauseIcon, PlayIcon, PlusIcon, XIcon } from "@lucide/vue"
-import { READER_INTERVAL_MAX, READER_INTERVAL_MIN } from "@myapi/shared"
+import { READER_INTERVAL_MAX, READER_INTERVAL_MIN } from "@myapi/shared/eh"
 import { computed } from "vue"
 
 import { Button } from "@/components/ui/button"

@@ -1,4 +1,4 @@
-import type { GalleryCard, GalleryDetail } from "@myapi/shared"
+import type { GalleryCard, GalleryDetail } from "@myapi/shared/eh"
 import { Injectable } from "@nestjs/common"
 import { LRUCache } from "lru-cache"
 

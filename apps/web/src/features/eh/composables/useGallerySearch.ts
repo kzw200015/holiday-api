@@ -1,4 +1,4 @@
-import type { GalleryCategory, GallerySearchRequest } from "@myapi/shared"
+import type { GalleryCategory, GallerySearchRequest } from "@myapi/shared/eh"
 import { computed, reactive, ref, watch } from "vue"
 
 import { searchGalleries } from "@/features/eh/api"

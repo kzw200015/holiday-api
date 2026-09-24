@@ -1,4 +1,4 @@
-import { credentialsSchema, type AuthOptions, type Credentials, type CurrentUser as User } from "@myapi/shared"
+import { credentialsSchema, type AuthOptions, type Credentials, type CurrentUser as User } from "@myapi/shared/auth"
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from "@nestjs/common"
 
 import { CurrentUser, Public } from "@/auth/auth.decorators.js"

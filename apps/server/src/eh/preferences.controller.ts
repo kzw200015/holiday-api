@@ -3,7 +3,7 @@ import {
   searchHistorySchema,
   type GalleryPreferences,
   type SearchHistory,
-} from "@myapi/shared"
+} from "@myapi/shared/eh"
 import { Body, Controller, Get, Put } from "@nestjs/common"
 
 import { CurrentUser } from "@/auth/auth.decorators.js"

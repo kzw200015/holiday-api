@@ -1,4 +1,4 @@
-import { isCalendarDate, type HolidayDetail } from "@myapi/shared"
+import { isCalendarDate, type HolidayDetail } from "@myapi/shared/holiday"
 import { Inject, Injectable } from "@nestjs/common"
 import { z } from "zod"
 

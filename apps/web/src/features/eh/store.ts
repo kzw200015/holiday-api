@@ -1,4 +1,4 @@
-import type { GalleryDetailResult } from "@myapi/shared"
+import type { GalleryDetailResult } from "@myapi/shared/eh"
 import { defineStore } from "pinia"
 import { onScopeDispose, ref, shallowReactive, watch } from "vue"
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CheckIcon } from "@lucide/vue"
-import type { GalleryCategory } from "@myapi/shared"
+import type { GalleryCategory } from "@myapi/shared/eh"
 
 import { Button } from "@/components/ui/button"
 import { galleryCategories } from "@/features/eh/labels"

@@ -1,5 +1,5 @@
 /* @vitest-environment happy-dom */
-import type { CursorPage, GalleryCard } from "@myapi/shared"
+import type { CursorPage, GalleryCard } from "@myapi/shared/eh"
 import type * as VueUse from "@vueuse/core"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"

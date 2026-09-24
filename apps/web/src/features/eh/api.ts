@@ -11,7 +11,7 @@ import type {
   ReadingHistoryQueryRequest,
   ReadingProgress,
   SearchHistory,
-} from "@myapi/shared"
+} from "@myapi/shared/eh"
 
 import { httpClient } from "@/shared/api/httpClient"
 

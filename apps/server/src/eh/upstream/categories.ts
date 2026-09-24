@@ -1,4 +1,4 @@
-import type { GalleryCategory } from "@myapi/shared"
+import type { GalleryCategory } from "@myapi/shared/eh"
 
 /** 图集分类与 e 站搜索参数 f_cats 的换算：f_cats 传的是「要排除哪些」的位和，不是「要哪些」。 */
 const CATEGORY_BITS: Record<GalleryCategory, number> = {

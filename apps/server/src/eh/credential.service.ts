@@ -1,4 +1,4 @@
-import type { CredentialStatus, EhCredential } from "@myapi/shared"
+import type { CredentialStatus, EhCredential } from "@myapi/shared/eh"
 import { Inject, Injectable, Logger } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
 

@@ -1,4 +1,4 @@
-import { DEFAULT_GALLERY_PREFERENCES, type GalleryPreferences } from "@myapi/shared"
+import { DEFAULT_GALLERY_PREFERENCES, type GalleryPreferences } from "@myapi/shared/eh"
 import { Inject, Injectable } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
 

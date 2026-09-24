@@ -1,4 +1,4 @@
-import type { CurrentUser } from "@myapi/shared"
+import type { CurrentUser } from "@myapi/shared/auth"
 import { defineStore } from "pinia"
 import { ref } from "vue"
 

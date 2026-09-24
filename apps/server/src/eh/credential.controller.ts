@@ -1,4 +1,4 @@
-import { ehCookieSchema, type CredentialStatus, type EhCredential } from "@myapi/shared"
+import { ehCookieSchema, type CredentialStatus, type EhCredential } from "@myapi/shared/eh"
 import { Body, Controller, Delete, Get, Post } from "@nestjs/common"
 
 import { CurrentUser } from "@/auth/auth.decorators.js"

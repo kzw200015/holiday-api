@@ -1,4 +1,4 @@
-import { readerIntervalSchema } from "@myapi/shared"
+import { readerIntervalSchema } from "@myapi/shared/eh"
 import { useDocumentVisibility, useIntervalFn } from "@vueuse/core"
 import { computed, reactive, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue"
 

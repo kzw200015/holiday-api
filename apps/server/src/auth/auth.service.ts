@@ -1,4 +1,4 @@
-import type { Authenticated, Credentials, CurrentUser } from "@myapi/shared"
+import type { Authenticated, Credentials, CurrentUser } from "@myapi/shared/auth"
 import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
 import { JwtService } from "@nestjs/jwt"

@@ -1,4 +1,4 @@
-import { utf8Length } from "@myapi/shared"
+import { utf8Length } from "@myapi/shared/text"
 import { z } from "zod"
 
 /*

@@ -1,4 +1,4 @@
-import { readingHistoryQuerySchema } from "@myapi/shared"
+import { readingHistoryQuerySchema } from "@myapi/shared/eh"
 import { z } from "zod"
 
 import { gidParam } from "@/eh/params.js"

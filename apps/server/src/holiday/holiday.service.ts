@@ -1,4 +1,4 @@
-import type { HolidayDetail } from "@myapi/shared"
+import type { HolidayDetail } from "@myapi/shared/holiday"
 import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common"
 import { Cron } from "@nestjs/schedule"
 import { eq, like } from "drizzle-orm"

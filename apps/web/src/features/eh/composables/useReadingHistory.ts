@@ -1,4 +1,4 @@
-import type { ReadingHistoryItem } from "@myapi/shared"
+import type { ReadingHistoryItem } from "@myapi/shared/eh"
 import { computed, onActivated, ref, watch } from "vue"
 
 import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"

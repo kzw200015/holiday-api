@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { GalleryCard } from "@myapi/shared"
+import type { GalleryCard } from "@myapi/shared/eh"
 import { RouterLink } from "vue-router"
 
 import GalleryCover from "@/features/eh/components/GalleryCover.vue"

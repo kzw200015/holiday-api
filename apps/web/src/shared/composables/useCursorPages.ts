@@ -1,4 +1,4 @@
-import type { CursorPage } from "@myapi/shared"
+import type { CursorPage } from "@myapi/shared/eh"
 import { computed, onScopeDispose, ref } from "vue"
 
 import { createRequest } from "@/shared/api/request"

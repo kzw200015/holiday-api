@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { SearchIcon, XIcon } from "@lucide/vue"
-import type { GalleryCategory } from "@myapi/shared"
+import type { GalleryCategory } from "@myapi/shared/eh"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

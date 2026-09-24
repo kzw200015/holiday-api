@@ -1,4 +1,4 @@
-import type { GalleryCard } from "@myapi/shared"
+import type { GalleryCard } from "@myapi/shared/eh"
 import { vi } from "vitest"
 import { nextTick } from "vue"
 

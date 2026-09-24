@@ -1,4 +1,4 @@
-import { readingProgressSchema, type ReadingProgress } from "@myapi/shared"
+import { readingProgressSchema, type ReadingProgress } from "@myapi/shared/eh"
 import { Body, Controller, Delete, Get, Param, Post, Query } from "@nestjs/common"
 
 import { CurrentUser } from "@/auth/auth.decorators.js"

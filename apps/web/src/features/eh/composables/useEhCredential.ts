@@ -1,4 +1,4 @@
-import type { CredentialStatus, EhCredentialRequest } from "@myapi/shared"
+import type { CredentialStatus, EhCredentialRequest } from "@myapi/shared/eh"
 import { computed, ref } from "vue"
 
 import { bindCredential, unbindCredential } from "@/features/eh/api"

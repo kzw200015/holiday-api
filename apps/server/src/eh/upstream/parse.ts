@@ -1,4 +1,4 @@
-import type { CommentSegment, GalleryComment } from "@myapi/shared"
+import type { CommentSegment, GalleryComment } from "@myapi/shared/eh"
 import { load, type Cheerio, type CheerioAPI } from "cheerio"
 import type { AnyNode } from "domhandler"
 import { decodeHTMLStrict } from "entities"

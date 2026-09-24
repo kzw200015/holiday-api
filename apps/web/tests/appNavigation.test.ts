@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import type { GalleryCategory, GalleryDetail } from "@myapi/shared"
+import type { GalleryCategory, GalleryDetail } from "@myapi/shared/eh"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, type App as VueApp } from "vue"

@@ -1,4 +1,4 @@
-import type { CursorPage, ReadingHistoryItem, ReadingProgress } from "@myapi/shared"
+import type { CursorPage, ReadingHistoryItem, ReadingProgress } from "@myapi/shared/eh"
 import { Inject, Injectable } from "@nestjs/common"
 import { and, desc, eq, sql } from "drizzle-orm"
 

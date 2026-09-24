@@ -1,4 +1,4 @@
-import { gallerySearchSchema, type GallerySearch } from "@myapi/shared"
+import { gallerySearchSchema, type GallerySearch } from "@myapi/shared/eh"
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from "@nestjs/common"
 
 import { CurrentUser } from "@/auth/auth.decorators.js"

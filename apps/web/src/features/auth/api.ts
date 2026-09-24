@@ -1,4 +1,4 @@
-import type { Authenticated, AuthOptions, Credentials, CurrentUser } from "@myapi/shared"
+import type { Authenticated, AuthOptions, Credentials, CurrentUser } from "@myapi/shared/auth"
 
 import { httpClient } from "@/shared/api/httpClient"
 

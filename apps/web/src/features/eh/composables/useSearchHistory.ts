@@ -1,4 +1,4 @@
-import { SEARCH_HISTORY_LIMIT, searchHistoryEntrySchema } from "@myapi/shared"
+import { SEARCH_HISTORY_LIMIT, searchHistoryEntrySchema } from "@myapi/shared/eh"
 import { computed } from "vue"
 
 import { useSearchHistoryStore } from "@/features/eh/store"

@@ -1,5 +1,5 @@
 /* @vitest-environment happy-dom */
-import type { GalleryDetail, GalleryDetailResult } from "@myapi/shared"
+import type { GalleryDetail, GalleryDetailResult } from "@myapi/shared/eh"
 import { createPinia, disposePinia, type Pinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick } from "vue"

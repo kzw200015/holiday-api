@@ -1,4 +1,4 @@
-import type { EhCredential, GalleryDetail, GallerySearch } from "@myapi/shared"
+import type { EhCredential, GalleryDetail, GallerySearch } from "@myapi/shared/eh"
 import { Inject, Injectable, Logger } from "@nestjs/common"
 
 import { ANONYMOUS, cookieHeader, SITES, type EhAccess } from "@/eh/upstream/access.js"

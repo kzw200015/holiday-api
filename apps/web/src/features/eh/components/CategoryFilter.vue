@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { SlidersHorizontalIcon } from "@lucide/vue"
-import type { GalleryCategory } from "@myapi/shared"
+import type { GalleryCategory } from "@myapi/shared/eh"
 import { useMediaQuery } from "@vueuse/core"
 import { onDeactivated, ref, watch } from "vue"
 
