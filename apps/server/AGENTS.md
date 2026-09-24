@@ -1,6 +1,6 @@
 # apps/server
 
-后端：NestJS 12（Express 适配器）+ Drizzle + PostgreSQL，ESM、Node 24。全仓通用的约定见根目录 `AGENTS.md`，与 e 站打交道的部分另见 `src/eh/README.md`。
+后端：NestJS 12（Express 适配器）+ Drizzle + PostgreSQL，ESM、Node 24。全仓通用的约定见根目录 `AGENTS.md`，与 e 站打交道的部分另见 `src/eh/AGENTS.md`。
 
 ## 结构
 
@@ -16,9 +16,9 @@
 
 约定大于配置：Nest 与各官方模块默认能用的一律不写配置，非配不可的几处（静态文件只在根路径回 `index.html`、校验失败的文案不带字段路径、登录与搜索回 200）旁边注明原因。配置全来自环境变量，由 `config.ts` 用 zod 在启动时校验，缺了或写错进程拒绝启动；清单与默认值见 `.env.example`，业务代码经 `ConfigService<Env, true>` 读取。主密钥只由 `signing` 模块读取，业务类只拿派生后的子密钥；子密钥的派生方式与图片地址的签名算法是已签发令牌、已发出地址的一部分，不能改。
 
-入参校验统一走全局的 `StandardSchemaValidationPipe`：控制器参数上挂 schema（`@Body({ schema })`、`@Query({ schema })`、`@Param({ schema })`），请求体与查询串的 schema 放在 `@myapi/shared`（命名类型的约定见 `packages/shared/README.md`），前端预校验用的是同一份；路径与查询串里的数字先认成一串十进制数字再交给共享的规则（见 `numeric.ts`）。服务端私有的 schema（`eh/params.ts` 一类）只导出输出类型；输出恰好是已有的领域类型时（如路径上的图集定位就是 `GalleryRef`），schema 用 `satisfies z.ZodType<那个类型>` 对上它，控制器直接用那个类型，不另起别名。控制器只做入参转换，业务在服务里；接口统一由 `AppModule` 里的 `RouterModule` 挂到 `/api` 下，控制器只写领域内的路径。
+入参校验统一走全局的 `StandardSchemaValidationPipe`：控制器参数上挂 schema（`@Body({ schema })`、`@Query({ schema })`、`@Param({ schema })`），请求体与查询串的 schema 放在 `@myapi/shared`（命名类型的约定见 `packages/shared/AGENTS.md`），前端预校验用的是同一份；路径与查询串里的数字先认成一串十进制数字再交给共享的规则（见 `numeric.ts`）。服务端私有的 schema（`eh/params.ts` 一类）只导出输出类型；输出恰好是已有的领域类型时（如路径上的图集定位就是 `GalleryRef`），schema 用 `satisfies z.ZodType<那个类型>` 对上它，控制器直接用那个类型，不另起别名。控制器只做入参转换，业务在服务里；接口统一由 `AppModule` 里的 `RouterModule` 挂到 `/api` 下，控制器只写领域内的路径。
 
-响应用 Nest 的默认结构：成功直接返回数据，只回成败的接口回空体；失败抛 Nest 自带的 HTTP 异常，响应体是 `{statusCode, message, error}`，`message` 是给用户看的中文（校验失败时是一组文案）。未预料的异常由 Nest 回 500，原文只进日志。e 站那些可预期的失败见 `src/eh/README.md`。
+响应用 Nest 的默认结构：成功直接返回数据，只回成败的接口回空体；失败抛 Nest 自带的 HTTP 异常，响应体是 `{statusCode, message, error}`，`message` 是给用户看的中文（校验失败时是一组文案）。未预料的异常由 Nest 回 500，原文只进日志。e 站那些可预期的失败见 `src/eh/AGENTS.md`。
 
 鉴权不用 Passport（见 ADR-0001）：全局 `AuthGuard` 用 `@nestjs/jwt` 认 `Authorization: Bearer` 令牌，接口默认要求登录，公开接口标 `@Public()`；控制器用 `@CurrentUser()` 拿当前本站账号 id，公开接口上没登录时是 `null`。公开接口清单由接口测试按整张路由表锁住。
 

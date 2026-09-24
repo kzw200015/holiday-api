@@ -1,6 +1,6 @@
 # apps/web
 
-前端：Vue 3 + Vite。全仓通用的约定见根目录 `AGENTS.md`，图集浏览的数据细节另见 `src/features/eh/README.md`。
+前端：Vue 3 + Vite。全仓通用的约定见根目录 `AGENTS.md`，图集浏览的数据细节另见 `src/features/eh/AGENTS.md`。
 
 ## 结构
 
