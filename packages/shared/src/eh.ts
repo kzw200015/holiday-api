@@ -117,7 +117,7 @@ export const galleryPreferencesSchema = z.object({
   readerInterval: readerIntervalSchema,
 })
 
-export type GalleryPreferences = z.infer<typeof galleryPreferencesSchema>
+export type GalleryPreferences = z.output<typeof galleryPreferencesSchema>
 
 /** 还没存过偏好时的样子，与表上的列默认值一致。 */
 export const DEFAULT_GALLERY_PREFERENCES: GalleryPreferences = { categories: [], readerInterval: 5 }
@@ -137,7 +137,7 @@ export const searchHistorySchema = z.object({
     .max(SEARCH_HISTORY_LIMIT, `搜索历史最多 ${SEARCH_HISTORY_LIMIT} 条`),
 })
 
-export type SearchHistory = z.infer<typeof searchHistorySchema>
+export type SearchHistory = z.output<typeof searchHistorySchema>
 
 /**
  * 一次阅读进度上报。
@@ -156,7 +156,7 @@ export const readingProgressSchema = z.object({
     .max(INT32_MAX, { error: "上报序号不合法" }),
 })
 
-export type ReadingProgress = z.infer<typeof readingProgressSchema>
+export type ReadingProgress = z.output<typeof readingProgressSchema>
 
 /** 阅读历史的查询参数。游标由服务端编出来、前端原样带回，这里只挡明显不像的。 */
 export const readingHistoryQuerySchema = z.object({
