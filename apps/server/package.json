@@ -21,7 +21,7 @@
     "cheerio": "^1.2.0",
     "domhandler": "^5.0.3",
     "drizzle-orm": "^0.45.3",
-    "entities": "^7.0.1",
+    "entities": "^8.1.0",
     "lru-cache": "^11.5.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
