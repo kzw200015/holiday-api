@@ -4,7 +4,7 @@
 
 ## 结构
 
-`src/` 分三块：`app/` 是应用装配（路由、全局布局、导航目录、主题）；`features/` 下每块业务自成一体（`auth`、`eh`、`holiday`，与后端领域模块对应）；`shared/` 放与业务无关的通用能力（HTTP 客户端、读取与写入排队的工具、通用组件与组合式函数、`lib/` 下的格式化与错误处理小工具）。`src/components/ui/` 与 `src/lib/utils.ts` 是 shadcn-vue 生成的源码，保持原样：已排除在 Prettier 与 oxlint 之外，清理代码或用 IDE 格式化时也别碰。唯一的例外是 `button/index.ts` 里 `destructive` 改成了实心红底白字（照 claude.ai 的危险按钮，就地有注释），用 CLI 同步组件后要重新改回。静态资源在 `public/`，测试在 `tests/`。
+`src/` 分三块：`app/` 是应用装配（路由、全局布局、导航目录、主题）；`features/` 下每块业务自成一体（`auth`、`eh`、`holiday`，与后端领域模块对应）；`shared/` 放与业务无关的通用能力（HTTP 客户端、读取与写入排队的工具、通用组件与组合式函数、`lib/` 下的格式化与错误处理小工具）。`src/components/ui/` 与 `src/lib/utils.ts` 是 shadcn-vue 生成的源码，保持原样：已排除在 Prettier 与 oxlint 之外，清理代码或用 IDE 格式化时也别碰。静态资源在 `public/`，测试在 `tests/`。
 
 feature 内按角色分文件：`api.ts` 只管 HTTP 调用，领域类型直接从 `@myapi/shared` 取，`labels.ts` 一类放展示用的中文词汇，`store.ts` 放跨页面共享的状态（pinia），`composables/` 把数据和交互包成页面能直接用的形状，`components/` 与 `views/` 是界面。依赖只有一个方向：`views` → `composables` → `api`/`store` → `shared/`，页面不直接调接口，`shared/` 不反向引用 `features/` 或 `app/`（`@myapi/shared` 是独立的包，哪一层都可以引用）。多个 feature 拼到一个界面上只在 `app/` 层发生（如设置页同时用 `auth` 与 `eh`）；feature 之间唯一允许的引用是依赖 `auth` 的会话状态，因为换账号要让各自的缓存与在途请求作废。
 
