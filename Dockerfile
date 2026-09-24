@@ -37,4 +37,5 @@ USER node
 EXPOSE 8000
 
 # 配置全走环境变量，清单见 apps/server/.env.example；时区用 TZ 环境变量指定。启动时自动执行数据库迁移
-CMD ["node", "dist/main.js"]
+# 异常堆栈按随包带着的 source map 换算回 src/*.ts 的行号
+CMD ["node", "--enable-source-maps", "dist/main.js"]
