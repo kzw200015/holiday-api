@@ -71,7 +71,8 @@ function isActive(name: string) {
       <SidebarGroup>
         <SidebarGroupLabel>导航</SidebarGroupLabel>
         <SidebarGroupContent>
-          <SidebarMenu>
+          <!-- 菜单项默认紧贴，悬停与选中又同色，相邻两项会连成一块；留出与子菜单相同的间距。 -->
+          <SidebarMenu class="gap-1">
             <SidebarMenuItem v-for="item in items" :key="item.name">
               <template v-if="item.children">
                 <Popover
