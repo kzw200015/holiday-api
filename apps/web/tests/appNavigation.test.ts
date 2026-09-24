@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-import type { GalleryCategory, GalleryDetail } from "@myapi/shared/eh"
+import { recordSearchKeyword, type GalleryCategory, type GalleryDetail } from "@myapi/shared/eh"
+import { useQueryCache } from "@pinia/colada"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, type App as VueApp } from "vue"
@@ -11,24 +12,29 @@ import { authenticate } from "@/features/auth/api"
 import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import {
+  addSearchKeyword,
   bindCredential,
   clearReadingHistory,
+  clearSearchHistory,
   fetchCredentialStatus,
   fetchGalleryComments,
   fetchGalleryDetail,
   fetchGalleryPreferences,
   fetchReadingHistory,
+  fetchReadingProgress,
   fetchSearchHistory,
+  fetchTagTranslationStatus,
+  patchGalleryPreferences,
   removeReadingHistory,
-  saveGalleryPreferences,
+  removeSearchKeyword,
   saveProgress,
-  saveSearchHistory,
   searchGalleries,
   unbindCredential,
 } from "@/features/eh/api"
-import { useCredentialStore, useGalleryContentStore } from "@/features/eh/store"
+import { invalidateEhContent } from "@/features/eh/queries"
 import type * as HolidayApi from "@/features/holiday/api"
 import { fetchHolidayDetail } from "@/features/holiday/api"
+import { installQueries } from "@/shared/api/queries"
 import { byText, deferred, present, query } from "./support"
 
 vi.mock("@/features/auth/api", () => ({ authenticate: vi.fn(), fetchAuthOptions: vi.fn(), fetchCurrentUser: vi.fn() }))
@@ -46,12 +52,16 @@ vi.mock("@/features/eh/api", async (original) => ({
   unbindCredential: vi.fn(),
   fetchGalleryComments: vi.fn(),
   fetchGalleryDetail: vi.fn(),
+  fetchReadingProgress: vi.fn(),
+  fetchTagTranslationStatus: vi.fn(),
   saveProgress: vi.fn(),
   searchGalleries: vi.fn(),
   fetchGalleryPreferences: vi.fn(),
   fetchSearchHistory: vi.fn(),
-  saveGalleryPreferences: vi.fn(),
-  saveSearchHistory: vi.fn(),
+  patchGalleryPreferences: vi.fn(),
+  addSearchKeyword: vi.fn(),
+  removeSearchKeyword: vi.fn(),
+  clearSearchHistory: vi.fn(),
 }))
 
 const gallery: GalleryDetail = {
@@ -114,21 +124,27 @@ beforeEach(async () => {
     }
   })
   vi.mocked(searchGalleries).mockResolvedValue({ items: [gallery], nextCursor: null })
-  /* 详情每次进入都重读，所以进度要像服务端一样记住：没读过的算读到第 3 页，保存、删除都会改它。 */
+  /* 进度每次进入详情都重读，所以要像服务端一样记住：没读过的算读到第 3 页，保存、删除都会改它。 */
   const progresses = new Map<number, number | null>()
   vi.mocked(fetchGalleryDetail).mockImplementation(async (gid, token) => ({
     gallery: { ...gallery, gid, token, title: `测试图集${gid}` },
-    progress: progresses.has(gid) ? (progresses.get(gid) ?? null) : 3,
     imageUrlTemplate: "/image/{page}",
+  }))
+  vi.mocked(fetchReadingProgress).mockImplementation(async (gid) => ({
+    page: progresses.has(gid) ? (progresses.get(gid) ?? null) : 3,
   }))
   vi.mocked(fetchGalleryComments).mockResolvedValue([])
   vi.mocked(saveProgress).mockImplementation(async (gid, _token, page) => {
     progresses.set(gid, page)
     return null
   })
-  vi.mocked(fetchReadingHistory).mockResolvedValue({
-    items: [{ gid: gallery.gid, token: gallery.token, page: 3, readAt: gallery.postedAt, gallery }],
-    nextCursor: null,
+  /* 阅读历史同样照服务端的样子：删掉或清空之后读回来就没有这条了。 */
+  vi.mocked(fetchReadingHistory).mockImplementation(async () => {
+    const page = progresses.has(gallery.gid) ? progresses.get(gallery.gid) : 3
+    return {
+      items: page ? [{ gid: gallery.gid, token: gallery.token, page, readAt: gallery.postedAt, gallery }] : [],
+      nextCursor: null,
+    }
   })
   vi.mocked(removeReadingHistory).mockImplementation(async (gid) => {
     progresses.set(gid, null)
@@ -141,18 +157,27 @@ beforeEach(async () => {
     return null
   })
   vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
+  vi.mocked(fetchTagTranslationStatus).mockResolvedValue({ lastSync: null })
   vi.mocked(fetchHolidayDetail).mockImplementation(async (date) => ({ date, name: "", isOffDay: false }))
   let preferences = { categories: [] as GalleryCategory[], readerInterval: 5 }
   let history: string[] = []
   vi.mocked(fetchGalleryPreferences).mockImplementation(async () => structuredClone(preferences))
-  /* 两份账号数据都是整份提交：推上来什么就存什么，服务端不再自己算结果。 */
-  vi.mocked(saveGalleryPreferences).mockImplementation(async (next) => {
-    preferences = structuredClone(next)
+  /* 像服务端一样：偏好只改带来的字段，搜索历史一次记或删一个词。 */
+  vi.mocked(patchGalleryPreferences).mockImplementation(async (patch) => {
+    preferences = { ...preferences, ...structuredClone(patch) }
     return null
   })
   vi.mocked(fetchSearchHistory).mockImplementation(async () => [...history])
-  vi.mocked(saveSearchHistory).mockImplementation(async (entries) => {
-    history = [...entries]
+  vi.mocked(addSearchKeyword).mockImplementation(async (keyword) => {
+    history = recordSearchKeyword(history, keyword)
+    return null
+  })
+  vi.mocked(removeSearchKeyword).mockImplementation(async (keyword) => {
+    history = history.filter((entry) => entry !== keyword)
+    return null
+  })
+  vi.mocked(clearSearchHistory).mockImplementation(async () => {
+    history = []
     return null
   })
   pinia = createPinia()
@@ -166,7 +191,9 @@ beforeEach(async () => {
   })
   host = document.createElement("div")
   document.body.append(host)
-  app = createApp(App).use(pinia).use(router)
+  app = createApp(App).use(pinia)
+  installQueries(app)
+  app.use(router)
   await router.push("/eh")
   await router.isReady()
   app.mount(host)
@@ -326,6 +353,11 @@ describe("阅读历史与二级导航", () => {
     expect(host.textContent).toContain("开始阅读")
     expect(host.textContent).not.toContain("继续阅读（第 3 页）")
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
+    /* 在别处又读了一本：回到历史时重读，有东西可清空了。 */
+    vi.mocked(fetchReadingHistory).mockResolvedValueOnce({
+      items: [{ gid: 2, token: "bbbbbbbbbb", page: 5, readAt: gallery.postedAt, gallery: null }],
+      nextCursor: null,
+    })
     await visit("/eh/history")
     await click("清空全部")
     expect(clearReadingHistory).not.toHaveBeenCalled()
@@ -342,7 +374,7 @@ describe("阅读历史与二级导航", () => {
     await visit("/eh/g/1/aaaaaaaaaa")
     await visit("/eh/history")
     expect(fetchReadingHistory).toHaveBeenCalledTimes(1)
-    detail.resolve({ gallery, progress: 17, imageUrlTemplate: "/image/{page}" })
+    detail.resolve({ gallery, imageUrlTemplate: "/image/{page}" })
     await settle()
     vi.mocked(fetchReadingHistory).mockResolvedValueOnce({ items: [], nextCursor: null })
     query<HTMLElement>(host, '[aria-label="删除阅读记录：1"]').click()
@@ -478,8 +510,8 @@ describe("页面缓存与失效范围", () => {
     await visit("/settings")
     expect(query<HTMLInputElement>(host, "#ipbPassHash").value).toBe("")
     expect(fetchHolidayDetail).toHaveBeenCalledTimes(2)
-    /* 图库布局和设置页读的是同一份，第一次进来只读一次；换账号清空后再读一次，最后回到设置页又重读一次。 */
-    expect(fetchCredentialStatus).toHaveBeenCalledTimes(3)
+    /* 每进一次图库或设置页都重读一次状态：换账号前后各进了一次图库、一次设置页，最后回到设置页又读一次。 */
+    expect(fetchCredentialStatus).toHaveBeenCalledTimes(5)
     expect(searchGalleries).toHaveBeenCalledTimes(2)
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
   })
@@ -495,8 +527,8 @@ describe("页面缓存与失效范围", () => {
     await settle()
     expect(searchGalleries).toHaveBeenCalledTimes(count)
     expect(history.querySelector('[role="group"]')).toBeNull()
-    /* 界面当场就没了；整份历史随后才推上去。 */
-    await vi.waitFor(() => expect(saveSearchHistory).toHaveBeenCalledWith([]))
+    /* 界面当场就没了；删掉的那个词随后才提交。 */
+    await vi.waitFor(() => expect(removeSearchKeyword).toHaveBeenCalledWith("cat"))
   })
 
   it("阅读返回保留详情 DOM、评论和滚动位置，仅同步进度；列表返回保留输入与条目", async () => {
@@ -557,7 +589,7 @@ describe("页面缓存与失效范围", () => {
     query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]').click()
     await nextTick()
     expect(query(host, '[aria-label="自动翻页间隔"]').textContent.trim()).toBe("6 秒")
-    await vi.waitFor(() => expect(saveGalleryPreferences).toHaveBeenCalledWith({ categories: [], readerInterval: 6 }))
+    await vi.waitFor(() => expect(patchGalleryPreferences).toHaveBeenCalledWith({ readerInterval: 6 }))
     query<HTMLElement>(host, '[aria-label="开始自动翻页"]').click()
     await nextTick()
     const pause = query<HTMLElement>(host, '[aria-label="暂停自动翻页"]')
@@ -578,7 +610,7 @@ describe("页面缓存与失效范围", () => {
     expect(window.scrollY).toBe(0)
     expect(fetchGalleryComments).toHaveBeenCalledTimes(2)
     /* 换绑 e 站账号后受凭据影响的内容全部作废，界面状态和滚动位置不受牵连。 */
-    useGalleryContentStore(pinia).reset()
+    void invalidateEhContent(useQueryCache(pinia))
     await settle()
     expect(fetchGalleryComments).toHaveBeenCalledTimes(3)
     await click("返回列表")
@@ -588,8 +620,6 @@ describe("页面缓存与失效范围", () => {
 
   it.each(["绑定", "解绑"])("%s只淘汰图库缓存，保留设置页", async (action) => {
     vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: true, memberId: "123", hasExAccess: false })
-    /* 进入测试时图库布局已经读过一次状态，换掉返回值后重新问一次。 */
-    await useCredentialStore(pinia).reload()
     vi.mocked(bindCredential).mockResolvedValue({ bound: true, memberId: "456", hasExAccess: true })
     vi.mocked(unbindCredential).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
     await visit("/eh/g/1/aaaaaaaaaa")
@@ -639,7 +669,6 @@ describe("页面缓存与失效范围", () => {
 
   it("解绑先弹确认，点解绑按钮本身不发请求", async () => {
     vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: true, memberId: "123", hasExAccess: false })
-    await useCredentialStore(pinia).reload()
     await visit("/settings")
     await click("解绑")
     expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("解绑 e 站账号？")
@@ -687,10 +716,10 @@ describe("页面缓存与失效范围", () => {
       expect.any(AbortSignal),
     )
     expect(host.textContent).toContain("分类 (1)")
-    /* 两份数据各自整份推上去，界面不等它们。 */
+    /* 两份数据各自只提交改了的那一项，界面不等它们。 */
     await vi.waitFor(() => {
-      expect(saveGalleryPreferences).toHaveBeenCalledWith({ categories: ["manga"], readerInterval: 5 })
-      expect(saveSearchHistory).toHaveBeenCalledWith(["cat"])
+      expect(patchGalleryPreferences).toHaveBeenCalledWith({ categories: ["manga"] })
+      expect(addSearchKeyword).toHaveBeenCalledWith("cat")
     })
     await enterKeyword("dog")
     await click("搜索")
@@ -708,22 +737,31 @@ describe("页面缓存与失效范围", () => {
     )
   })
 
-  /* 本地那份才是真源：读过一次之后，服务端上别处的改动不会回头盖掉它，也不再重读。 */
-  /* 两份账号数据的保存都是整份提交，带着没读到的空值放行，下一次搜索就会把服务端的历史冲掉。 */
-  it("账号数据读不到就停在布局层，重试读到后才放页面进来", async () => {
-    vi.mocked(fetchSearchHistory).mockRejectedValueOnce(new Error("历史读取失败"))
-    /* 在图库里换个账号：页面整个重建，两份账号数据都要重新读，历史这次读失败。 */
+  /* 搜索页开出的第一次查询要用分类偏好：偏好没读到就停在布局层，不拿默认值放行。 */
+  it("偏好读不到就停在布局层，重试读到后才放页面进来", async () => {
+    vi.mocked(fetchGalleryPreferences).mockRejectedValueOnce(new Error("偏好读取失败"))
+    /* 在图库里换个账号：页面整个重建，账号数据都要重新读，偏好这次读失败。 */
     const auth = useAuthStore()
     auth.logout()
     auth.user = { id: 2, username: "second" }
     await settle()
-    expect(host.textContent).toContain("历史读取失败")
+    expect(host.textContent).toContain("偏好读取失败")
     expect(host.querySelector('input[aria-label="搜索图集"]')).toBeNull()
 
     await click("重试")
-    expect(host.textContent).not.toContain("历史读取失败")
+    expect(host.textContent).not.toContain("偏好读取失败")
     expect(host.querySelector('input[aria-label="搜索图集"]')).not.toBeNull()
-    expect(saveSearchHistory).not.toHaveBeenCalled()
+  })
+
+  /* 搜索历史不挡页面：它读失败了，页面照常能搜，历史那一栏空着。 */
+  it("搜索历史读不到也照常放页面进来", async () => {
+    vi.mocked(fetchSearchHistory).mockRejectedValueOnce(new Error("历史读取失败"))
+    const auth = useAuthStore()
+    auth.logout()
+    auth.user = { id: 2, username: "second" }
+    await settle()
+    expect(host.querySelector('input[aria-label="搜索图集"]')).not.toBeNull()
+    expect(host.textContent).toContain("暂无搜索历史")
   })
 
   it("返回列表沿用本地那份偏好与历史，不再重读服务端", async () => {
@@ -745,9 +783,9 @@ describe("页面缓存与失效范围", () => {
     )
   })
 
-  it("推送失败不阻断本次搜索，也不拿失败打扰用户", async () => {
-    vi.mocked(saveGalleryPreferences).mockRejectedValue(new Error("断网"))
-    vi.mocked(saveSearchHistory).mockRejectedValue(new Error("断网"))
+  it("提交失败不阻断本次搜索，以服务端为准重读，也不拿失败打扰用户", async () => {
+    vi.mocked(patchGalleryPreferences).mockRejectedValue(new Error("断网"))
+    vi.mocked(addSearchKeyword).mockRejectedValue(new Error("断网"))
     await enterKeyword("cat")
     await click("分类")
     category("漫画").click()
@@ -758,10 +796,12 @@ describe("页面缓存与失效范围", () => {
       { keyword: "cat", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
-    await vi.waitFor(() => expect(saveGalleryPreferences).toHaveBeenCalled())
-    /* 存不上也不说，界面照常用本地这份。 */
+    await vi.waitFor(() => expect(patchGalleryPreferences).toHaveBeenCalled())
+    await settle()
+    /* 存不上也不说；服务端那份没有这次改动，重读回来就照服务端的显示。 */
     expect(host.textContent).not.toContain("失败")
-    expect(host.textContent).toContain("分类 (1)")
+    expect(host.textContent).not.toContain("分类 (1)")
+    expect(host.querySelector('[title="cat"]')).toBeNull()
   })
 
   it("同一详情从新搜索进入后，浏览器后退仍保留详情与最新搜索", async () => {

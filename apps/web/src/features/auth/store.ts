@@ -1,17 +1,29 @@
 import type { CurrentUser } from "@myapi/shared/auth"
+import { useQueryCache } from "@pinia/colada"
 import { defineStore } from "pinia"
 import { ref } from "vue"
 
 import * as authApi from "@/features/auth/api"
 import { hasToken, setToken } from "@/shared/api/httpClient"
+import { forgetQueries } from "@/shared/api/queries"
 
 export const useAuthStore = defineStore("AuthStore", () => {
+  const queryCache = useQueryCache()
   const user = ref<CurrentUser | null>(null)
 
   /* 是否已经问过后端「我是谁」。路由守卫要等这一步完成才敢判断放不放行 */
   const ready = ref(false)
-  /* 账号一变就加一：页面缓存以它为 key 整体重建，各业务模块的 store 也监听它自行清空；这里不保存页面数据。 */
+  /* 账号一变就加一：页面缓存以它为 key 整体重建，还在排队的写入据此作废；这里不保存页面数据。 */
   const pageRevision = ref(0)
+
+  /*
+   * 换账号：先丢掉上一个账号的全部数据，再让页面重建。顺序不能反：新页面一创建就去缓存里找数据，
+   * 旧的还在就会先把上一个账号的内容端出来。
+   */
+  function switchAccount() {
+    forgetQueries(queryCache)
+    pageRevision.value += 1
+  }
 
   /* 刷新登录态。GET /auth/me 未登录时回 200 加 null，所以这里不会因为没登录而抛错 */
   async function refresh() {
@@ -33,7 +45,7 @@ export const useAuthStore = defineStore("AuthStore", () => {
 
   async function authenticate(action: authApi.AuthAction, username: string, password: string) {
     const session = await authApi.authenticate(action, { username, password })
-    pageRevision.value += 1
+    switchAccount()
     setToken(session.token)
     user.value = session.user
     ready.value = true
@@ -44,7 +56,7 @@ export const useAuthStore = defineStore("AuthStore", () => {
     setToken("")
     user.value = null
     ready.value = true
-    pageRevision.value += 1
+    switchAccount()
   }
 
   return { user, ready, pageRevision, refresh, authenticate, logout }

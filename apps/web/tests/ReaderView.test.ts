@@ -8,6 +8,7 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryDetail, saveProgress } from "@/features/eh/api"
 import { readerInstanceKey } from "@/features/eh/navigation"
 import ReaderView from "@/features/eh/views/ReaderView.vue"
+import { installQueries } from "@/shared/api/queries"
 import { deferred, present, query } from "./support"
 
 vi.mock("@/features/eh/api", async (importOriginal) => ({
@@ -18,7 +19,7 @@ vi.mock("@/features/eh/api", async (importOriginal) => ({
   }),
   saveProgress: vi.fn().mockResolvedValue(undefined),
   fetchGalleryPreferences: vi.fn().mockResolvedValue({ categories: [], readerInterval: 5 }),
-  saveGalleryPreferences: vi.fn().mockResolvedValue(null),
+  patchGalleryPreferences: vi.fn().mockResolvedValue(null),
 }))
 
 let pinia: ReturnType<typeof createPinia>
@@ -67,6 +68,7 @@ beforeEach(async () => {
   app.use(router)
   pinia = createPinia()
   app.use(pinia)
+  installQueries(app)
   app.mount(host)
   /* 越过 Vue 事件监听器的挂载时间戳，让冒泡点击被视为挂载后的用户事件。 */
   await vi.advanceTimersByTimeAsync(1)

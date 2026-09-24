@@ -13,12 +13,14 @@ import CommentBody from "@/features/eh/components/CommentBody.vue"
 import GalleryCover from "@/features/eh/components/GalleryCover.vue"
 import GalleryMeta from "@/features/eh/components/GalleryMeta.vue"
 import GalleryTag from "@/features/eh/components/GalleryTag.vue"
+import { useGallery } from "@/features/eh/composables/useGallery"
 import { useGalleryComments } from "@/features/eh/composables/useGalleryComments"
-import { useGalleryDetail } from "@/features/eh/composables/useGalleryDetail"
+import { useGalleryProgress } from "@/features/eh/composables/useGalleryProgress"
 import { readerLocation, type GallerySource } from "@/features/eh/navigation"
 import EmptyState from "@/shared/components/EmptyState.vue"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
+import { useRefreshOnActivated } from "@/shared/composables/useRefreshOnActivated"
 import { formatDateTime, formatFileSize } from "@/shared/lib/format"
 
 /* 返回列表的按钮在顶栏（见路由的 meta.back），滚到评论区也点得到，页面里不再放一份。 */
@@ -26,10 +28,13 @@ const props = withDefaults(defineProps<{ gid: number; token: string; source?: Ga
 const identity = () => `${props.gid}/${props.token}`
 usePageScroll(identity)
 
-const { gallery, progress, loading, errorMessage, refreshError, reload } = useGalleryDetail(
+const { gallery, loading, errorMessage, refreshError, reload } = useGallery(
   () => props.gid,
   () => props.token,
 )
+const { progress, reload: reloadProgress } = useGalleryProgress(() => props.gid)
+/* 页面被 KeepAlive 留着，每次回来都重读，好拿到别处读过的进度。 */
+useRefreshOnActivated(reload, reloadProgress)
 const canContinue = computed(() => (progress.value ?? 0) > 1)
 /* 评论需要抓取上游页面，独立加载，失败不阻塞元数据。 */
 const {

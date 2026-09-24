@@ -7,7 +7,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useEhCredential } from "@/features/eh/composables/useEhCredential"
 import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
-import { useSearchHistory } from "@/features/eh/composables/useSearchHistory"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 
 const credential = useEhCredential()
@@ -15,25 +14,10 @@ const credential = useEhCredential()
 const anonymous = computed(() => credential.status.value?.bound === false)
 
 /*
- * 这两份账号数据在这里等齐，页面组件延到备齐之后才创建。
- *
- * 等在布局层是因为搜索页开出的第一次查询要用分类偏好：偏好还没到就发出去，搜的是一组不对的条件。
- * 读不到就停在这里让用户重试，不拿默认值放行：这两份的保存都是整份提交，带着一份没读到的空值进去，
- * 下一次改动就会把服务端原有的内容冲掉。
+ * 偏好在这里等到，页面组件延到读到之后才创建：搜索页开出的第一次查询要用分类偏好，
+ * 偏好还没到就发出去，搜的是一组不对的条件。读不到就停在这里让用户重试，不拿默认值放行。
  */
-const preferences = useGalleryPreferences()
-const history = useSearchHistory()
-const ready = computed(() => preferences.ready.value && history.ready.value)
-const loadError = computed(() => preferences.loadError.value || history.loadError.value)
-
-function reload() {
-  if (!preferences.ready.value) {
-    preferences.reload()
-  }
-  if (!history.ready.value) {
-    history.reload()
-  }
-}
+const { ready, loadError, reload } = useGalleryPreferences()
 </script>
 
 <template>
@@ -54,7 +38,7 @@ function reload() {
     <Skeleton class="h-40 w-full" />
   </div>
   <RouterView v-else v-slot="{ Component }">
-    <!-- 搜索、历史与详情各保留一份，换图集复用详情。搜索结果、历史与评论就活在这些页面里，跟着一起留下。 -->
+    <!-- 搜索、历史与详情各保留一份，换图集复用详情：留住的是滚动位置、输入与已翻的页，数据在查询缓存里（见 ADR-0006）。 -->
     <KeepAlive>
       <component :is="Component" />
     </KeepAlive>

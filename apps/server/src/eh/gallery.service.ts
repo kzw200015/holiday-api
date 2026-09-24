@@ -12,7 +12,6 @@ import { AttachmentUrls } from "@/eh/attachment-urls"
 import { CredentialService } from "@/eh/credential.service"
 import { GalleryCatalog } from "@/eh/gallery-catalog"
 import { ImageLocator } from "@/eh/image-locator"
-import { ReadingService } from "@/eh/reading.service"
 import { EhClient } from "@/eh/upstream/eh-client"
 import { galleryMissing } from "@/eh/upstream/failures"
 import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref"
@@ -26,7 +25,6 @@ export class GalleryService {
     private readonly credentialService: CredentialService,
     private readonly galleryCatalog: GalleryCatalog,
     private readonly imageLocator: ImageLocator,
-    private readonly readingService: ReadingService,
     private readonly attachmentUrls: AttachmentUrls,
   ) {}
 
@@ -41,16 +39,13 @@ export class GalleryService {
     }
   }
 
-  /** 详情只查一次元数据，评论另有接口懒加载；顺带签发这本图集的大图地址模板。阅读进度与元数据互不依赖，一起读。 */
+  /** 详情只查一次元数据，评论另有接口懒加载；顺带签发这本图集的大图地址模板。阅读进度另有接口（见 ADR-0006）。 */
   async detail(userId: number, ref: GalleryRef): Promise<GalleryDetailResult> {
-    const [progress, gallery] = await Promise.all([
-      this.readingService.progressOf(userId, ref.gid),
-      this.galleryCatalog.detail(ref),
-    ])
+    const gallery = await this.galleryCatalog.detail(ref)
     if (!gallery) {
       throw galleryMissing()
     }
-    return { gallery, progress, imageUrlTemplate: this.attachmentUrls.imageTemplate(userId, ref) }
+    return { gallery, imageUrlTemplate: this.attachmentUrls.imageTemplate(userId, ref) }
   }
 
   /** 评论是详情页 HTML 里唯一拿不到 JSON 替代的东西；它与取图共用详情的第 0 片。 */

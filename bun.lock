@@ -48,6 +48,7 @@
         "@internationalized/date": "^3.12.4",
         "@lucide/vue": "^1.48.0",
         "@myapi/shared": "workspace:*",
+        "@pinia/colada": "^1.4.6",
         "@vueuse/core": "^15.0.0",
         "axios": "^1.20.0",
         "class-variance-authority": "^0.7.1",
@@ -497,6 +498,8 @@
     "@oxlint/binding-win32-x64-msvc": ["@oxlint/binding-win32-x64-msvc@1.85.0", "", { "os": "win32", "cpu": "x64" }, "sha512-pBebIPUpKKhWrhSMWhy8TdAZBewiXnfxmaAGxhzxM1068GagqFaTwgKlU6e+UyJ2sPR+VoHouhXuGJkQjsrDvA=="],
 
     "@paralleldrive/cuid2": ["@paralleldrive/cuid2@2.3.1", "", { "dependencies": { "@noble/hashes": "1.8.0" } }, "sha512-XO7cAxhnTZl0Yggq6jOgjiOHhbgcO4NqFqwSmQpjK3b6TEE6Uj/jfSk6wzYyemh3+I0sHirKSetjQwn5cZktFw=="],
+
+    "@pinia/colada": ["@pinia/colada@1.4.6", "", { "dependencies": { "nostics": "^1.2.0" }, "peerDependencies": { "pinia": "^2.2.6 || ^3.0.0 || ^4.0.2", "vue": "^3.5.41" } }, "sha512-ph+R4Mk3nOOZ03879burpyTP5kdQt7p/XaU73zv9ogH3iDnsRevzhHQCSOAfVrZvDgyjeaRGhsq/p+N0bh53HA=="],
 
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
 

@@ -1,99 +1,63 @@
 /* @vitest-environment happy-dom */
-import type { GalleryDetail, GalleryDetailResult } from "@myapi/shared/eh"
-import { createPinia, disposePinia, type Pinia } from "pinia"
+import type { ReadingProgress } from "@myapi/shared/eh"
+import { useQueryCache } from "@pinia/colada"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createApp, nextTick } from "vue"
+import { nextTick } from "vue"
 
 import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
-import { fetchGalleryDetail, saveProgress } from "@/features/eh/api"
+import { fetchReadingProgress, saveProgress } from "@/features/eh/api"
+import { useGalleryProgress } from "@/features/eh/composables/useGalleryProgress"
 import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
-import { useGalleryContentStore } from "@/features/eh/store"
-import { deferred, present } from "./support"
+import { ehKeys } from "@/features/eh/queries"
+import { composableTests, deferred } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
-  fetchGalleryDetail: vi.fn(),
+  fetchReadingProgress: vi.fn(),
   saveProgress: vi.fn(),
 }))
 
 /* 与 useReadingProgress 里的 SAVE_DELAY 对齐。 */
 const SAVE_DELAY = 1200
 
-const gallery: GalleryDetail = {
-  gid: 1,
-  token: "aaaaaaaaaa",
-  title: "测试图集",
-  titleJpn: "",
-  category: "Manga",
-  thumbnail: "/thumbnail",
-  uploader: "tester",
-  postedAt: "2026-09-05T00:00:00Z",
-  fileCount: 100,
-  rating: 4,
-  tags: [],
-  fileSize: 100,
-  torrentCount: 0,
-  expunged: false,
+const t = composableTests()
+
+function progressOf(gid: number) {
+  return useQueryCache(t.pinia).getQueryData(ehKeys.progress(gid))
 }
 
-let pinia: Pinia
-const cleanups: (() => void)[] = []
-
-function detailResult(progress: number | null, gid = 1, token = "aaaaaaaaaa"): GalleryDetailResult {
-  return { gallery: { ...gallery, gid, token }, progress, imageUrlTemplate: "/image/{page}" }
-}
-
-/* 详情已经读进来了，进度就是它的一个字段——翻页改的正是这一份。 */
-async function seedDetail(gid: number, token: string, progress: number | null) {
-  vi.mocked(fetchGalleryDetail).mockResolvedValueOnce(detailResult(progress, gid, token))
-  await useGalleryContentStore(pinia).loadDetail(gid, token)
-}
-
-function progressOf(gid: number, token: string) {
-  return useGalleryContentStore(pinia).detail(gid, token)?.data.value?.progress
-}
-
+/* 阅读器上报进度，旁边再挂一个读这本进度的（详情页那份），用来看两边怎么交错。 */
 async function mountReader() {
-  let api: ReturnType<typeof useReadingProgress> | undefined
-  const app = createApp({
-    setup() {
-      api = useReadingProgress(1, "aaaaaaaaaa")
-      return () => null
-    },
-  })
-  app.use(pinia)
-  app.mount(document.createElement("div"))
-  cleanups.push(() => app.unmount())
-  await nextTick()
-  return { api: present(api, "useReadingProgress 的返回值") }
+  const result = t.mount(() => ({
+    api: useReadingProgress(1, "aaaaaaaaaa"),
+    reading: useGalleryProgress(1),
+  }))
+  await vi.advanceTimersByTimeAsync(0)
+  return result
 }
 
-beforeEach(async () => {
+beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
-  pinia = createPinia()
-  await seedDetail(1, "aaaaaaaaaa", 3)
+  vi.mocked(fetchReadingProgress).mockResolvedValue({ page: 3 })
   vi.mocked(saveProgress).mockResolvedValue(null)
 })
 afterEach(() => {
-  for (const cleanup of cleanups.splice(0)) {
-    cleanup()
-  }
-  disposePinia(pinia)
   vi.restoreAllMocks()
   vi.useRealTimers()
 })
 
 describe("阅读进度上报", () => {
-  it("翻页当场改详情里的进度，连着翻只发最后一页", async () => {
-    const { api } = await mountReader()
+  it("翻页当场改本地的进度，连着翻只发最后一页", async () => {
+    const { api, reading } = await mountReader()
+    expect(reading.progress.value).toBe(3)
     api.report(5)
     /* 详情页的「继续阅读第 N 页」读的就是这里，所以不必等网络。 */
-    expect(progressOf(1, "aaaaaaaaaa")).toBe(5)
+    expect(reading.progress.value).toBe(5)
     api.report(6)
     api.report(7)
-    expect(progressOf(1, "aaaaaaaaaa")).toBe(7)
+    expect(progressOf(1)).toBe(7)
     expect(saveProgress).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(SAVE_DELAY)
     expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "aaaaaaaaaa", 7)
@@ -125,13 +89,13 @@ describe("阅读进度上报", () => {
     expect(saveProgress).toHaveBeenCalledTimes(1)
   })
 
-  it("存不上不回退，详情里仍是用户读到的那一页", async () => {
+  it("存不上不回退，本地仍是用户读到的那一页", async () => {
     vi.mocked(saveProgress).mockRejectedValue(new Error("断网"))
     const { api } = await mountReader()
     api.report(20)
     await vi.advanceTimersByTimeAsync(SAVE_DELAY)
     await nextTick()
-    expect(progressOf(1, "aaaaaaaaaa")).toBe(20)
+    expect(progressOf(1)).toBe(20)
   })
 
   /* 一秒一页的自动翻页比合并窗口还短：窗口从第一次上报起算，不能被后面的翻页一直往后推。 */
@@ -166,64 +130,60 @@ describe("阅读进度上报", () => {
   })
 
   it("卸载时把还没发出的那次补上", async () => {
-    const { api } = await mountReader()
-    api.report(12)
-    present(cleanups.pop(), "卸载回调")()
+    const reader = await mountReader()
+    reader.api.report(12)
+    t.unmount(reader)
     await vi.advanceTimersByTimeAsync(0)
     expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "aaaaaaaaaa", 12)
   })
 
-  /* 令牌失效时先退出再跳登录页：离开阅读器那次补提交排进的已经是新账号的队，不能再发。 */
+  /* 令牌失效时先退出再跳登录页：离开阅读器那次补提交带的已经是新账号的令牌，不能再发。 */
   it("换了本站账号，这个阅读器攒着的和之后的页码都不再上报", async () => {
-    const { api } = await mountReader()
-    api.report(12)
-    useAuthStore(pinia).logout()
-    api.flush()
-    api.report(13)
+    const reader = await mountReader()
+    reader.api.report(12)
+    useAuthStore(t.pinia).logout()
+    reader.api.flush()
+    reader.api.report(13)
     await vi.advanceTimersByTimeAsync(SAVE_DELAY)
-    present(cleanups.pop(), "卸载回调")()
+    t.unmount(reader)
     await vi.advanceTimersByTimeAsync(0)
     expect(saveProgress).not.toHaveBeenCalled()
   })
 })
 
-/* 本地那份才是用户正在用的：重取期间本地改过的进度，不能被请求发出那一刻的服务端快照盖回去。 */
-describe("详情重取与本地进度", () => {
-  it("重取在途时翻了页，响应回来仍是刚翻到的那页；之后的重取照常用服务端的", async () => {
-    const refetch = deferred<GalleryDetailResult>()
-    vi.mocked(fetchGalleryDetail).mockReturnValueOnce(refetch.promise)
-    const content = useGalleryContentStore(pinia)
-    const reload = content.reloadDetail(1, "aaaaaaaaaa")
-    const { api } = await mountReader()
+/* 本地那份才是用户正在用的：读进度与上报交错时，不能被读取发出那一刻的服务端快照盖回去。 */
+describe("重读进度与本地上报", () => {
+  it("重读在途时翻了页，响应回来仍是刚翻到的那页；之后的重读照常用服务端的", async () => {
+    const { api, reading } = await mountReader()
+    const refetch = deferred<ReadingProgress>()
+    vi.mocked(fetchReadingProgress).mockReturnValueOnce(refetch.promise)
+    void reading.reload()
+    await vi.advanceTimersByTimeAsync(0)
     api.report(15)
-    refetch.resolve(detailResult(3))
-    await reload
-    expect(progressOf(1, "aaaaaaaaaa")).toBe(15)
+    refetch.resolve({ page: 3 })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(reading.progress.value).toBe(15)
 
-    vi.mocked(fetchGalleryDetail).mockResolvedValueOnce(detailResult(20))
-    await content.reloadDetail(1, "aaaaaaaaaa")
-    expect(progressOf(1, "aaaaaaaaaa")).toBe(20)
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY)
+    vi.mocked(fetchReadingProgress).mockResolvedValueOnce({ page: 20 })
+    await reading.reload()
+    expect(reading.progress.value).toBe(20)
   })
 
-  it("详情还没到手时删掉了记录，迟到的详情不带回旧进度", async () => {
-    const first = deferred<GalleryDetailResult>()
-    vi.mocked(fetchGalleryDetail).mockReturnValueOnce(first.promise)
-    const content = useGalleryContentStore(pinia)
-    const load = content.loadDetail(2, "bbbbbbbbbb")
-    content.setProgress(2, "bbbbbbbbbb", null)
-    first.resolve(detailResult(17, 2, "bbbbbbbbbb"))
-    await load
-    expect(progressOf(2, "bbbbbbbbbb")).toBeNull()
-  })
-
-  it("重取在途时清空了历史，响应回来进度仍是空的", async () => {
-    const refetch = deferred<GalleryDetailResult>()
-    vi.mocked(fetchGalleryDetail).mockReturnValueOnce(refetch.promise)
-    const content = useGalleryContentStore(pinia)
-    const reload = content.reloadDetail(1, "aaaaaaaaaa")
-    content.forgetAllProgress()
-    refetch.resolve(detailResult(3))
-    await reload
-    expect(progressOf(1, "aaaaaaaaaa")).toBeNull()
+  /* 刚退出阅读就去读，上报还在路上：读回来的会是上报之前的页码。 */
+  it("有上报在途时，读进度等它落地再发", async () => {
+    const { api, reading } = await mountReader()
+    const saving = deferred<null>()
+    vi.mocked(saveProgress).mockReturnValueOnce(saving.promise)
+    api.report(30)
+    api.flush()
+    vi.mocked(fetchReadingProgress).mockClear().mockResolvedValue({ page: 30 })
+    void reading.reload()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fetchReadingProgress).not.toHaveBeenCalled()
+    saving.resolve(null)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fetchReadingProgress).toHaveBeenCalledTimes(1)
+    expect(reading.progress.value).toBe(30)
   })
 })

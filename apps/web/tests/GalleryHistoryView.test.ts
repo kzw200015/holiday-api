@@ -10,6 +10,7 @@ import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"
 import GalleryHistoryView from "@/features/eh/views/GalleryHistoryView.vue"
+import { installQueries } from "@/shared/api/queries"
 import { deferred, galleryCard, present, settle } from "./support"
 
 /* 触底加载靠滚动位置触发，happy-dom 不做布局，所以把入口接出来手动调用。 */
@@ -80,6 +81,7 @@ async function mountHistory() {
   pinia = createPinia()
   app.use(router)
   app.use(pinia)
+  installQueries(app)
   useAuthStore(pinia).user = { id: 1, username: "tester" }
   app.mount(host)
   await settle()

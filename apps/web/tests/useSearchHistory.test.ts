@@ -1,62 +1,45 @@
 /* @vitest-environment happy-dom */
-import { createPinia, disposePinia, type Pinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createApp } from "vue"
 
 import type * as EhApi from "@/features/eh/api"
-import { fetchSearchHistory, saveSearchHistory } from "@/features/eh/api"
+import { addSearchKeyword, clearSearchHistory, fetchSearchHistory, removeSearchKeyword } from "@/features/eh/api"
 import { useSearchHistory } from "@/features/eh/composables/useSearchHistory"
-import { useSearchHistoryStore } from "@/features/eh/store"
-import { deferred, present, settleFakeTimers } from "./support"
+import { composableTests, deferred, settleFakeTimers } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
   fetchSearchHistory: vi.fn(),
-  saveSearchHistory: vi.fn(),
+  addSearchKeyword: vi.fn(),
+  removeSearchKeyword: vi.fn(),
+  clearSearchHistory: vi.fn(),
 }))
 
-/* 账号级的一份数据，每个页面读到的都是同一份，所以用例内的几个应用共用一个 pinia。 */
-let pinia: Pinia
-const apps: ReturnType<typeof createApp>[] = []
-
-function mount() {
-  let api: ReturnType<typeof useSearchHistory> | undefined
-  const app = createApp({
-    setup() {
-      api = useSearchHistory()
-      return () => null
-    },
-  })
-  app.use(pinia)
-  app.mount(document.createElement("div"))
-  apps.push(app)
-  return present(api, "useSearchHistory 的返回值")
-}
+const t = composableTests()
+const mount = () => t.mount(useSearchHistory)
 
 beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
-  pinia = createPinia()
   vi.mocked(fetchSearchHistory).mockResolvedValue(["猫", "狗"])
-  vi.mocked(saveSearchHistory).mockResolvedValue(null)
+  vi.mocked(addSearchKeyword).mockResolvedValue(null)
+  vi.mocked(removeSearchKeyword).mockResolvedValue(null)
+  vi.mocked(clearSearchHistory).mockResolvedValue(null)
 })
 afterEach(() => {
-  for (const app of apps.splice(0)) {
-    app.unmount()
-  }
-  disposePinia(pinia)
   vi.useRealTimers()
 })
 
-/* 排序、去重、留几条这三条规则由前端说了算，服务端只负责存住推上去的那一份。 */
+/* 排序、去重、留几条由服务端落库，本地按共享包里的同一条规则当场改好，一次只提交一个词。 */
 describe("账号搜索历史", () => {
-  it("新搜的排最前，同一个词只留一条", async () => {
+  it("新搜的排最前，同一个词只留一条；每次只提交这一个词", async () => {
     const history = mount()
     await settleFakeTimers()
     history.record("鸟")
     expect(history.entries.value).toEqual(["鸟", "猫", "狗"])
     history.record("狗")
     expect(history.entries.value).toEqual(["狗", "鸟", "猫"])
+    await settleFakeTimers()
+    expect(vi.mocked(addSearchKeyword).mock.calls).toEqual([["鸟"], ["狗"]])
   })
 
   it("最多留十条，更早的挤出去", async () => {
@@ -71,14 +54,14 @@ describe("账号搜索历史", () => {
     expect(history.entries.value).not.toContain("词1")
   })
 
-  /* 后端拒收超过 200 字节的关键词；记进去的话，之后每次整份提交都会带着它一起失败。 */
+  /* 后端拒收超过 200 字节的关键词；记了本地也会被重读按回去。 */
   it("超长关键词不记", async () => {
     const history = mount()
     await settleFakeTimers()
     history.record("长".repeat(67))
     await settleFakeTimers()
     expect(history.entries.value).toEqual(["猫", "狗"])
-    expect(saveSearchHistory).not.toHaveBeenCalled()
+    expect(addSearchKeyword).not.toHaveBeenCalled()
     history.record("长".repeat(66))
     expect(history.entries.value[0]).toBe("长".repeat(66))
   })
@@ -94,51 +77,61 @@ describe("账号搜索历史", () => {
     expect(history.ready.value).toBe(true)
   })
 
-  it("删除与清空当场生效，各自整份提交", async () => {
+  it("删除与清空当场生效，各自提交；先记后删同一个词按操作顺序发出", async () => {
     const history = mount()
     await settleFakeTimers()
-    history.remove("猫")
-    expect(history.entries.value).toEqual(["狗"])
+    const adding = deferred<null>()
+    vi.mocked(addSearchKeyword).mockReturnValueOnce(adding.promise)
+    history.record("鸟")
+    history.remove("鸟")
+    expect(history.entries.value).toEqual(["猫", "狗"])
     await settleFakeTimers()
-    expect(saveSearchHistory).toHaveBeenCalledExactlyOnceWith(["狗"])
+    expect(removeSearchKeyword).not.toHaveBeenCalled()
+    adding.resolve(null)
+    await settleFakeTimers()
+    expect(removeSearchKeyword).toHaveBeenCalledExactlyOnceWith("鸟")
 
     history.clear()
     expect(history.entries.value).toEqual([])
     await settleFakeTimers()
-    expect(saveSearchHistory).toHaveBeenLastCalledWith([])
+    expect(clearSearchHistory).toHaveBeenCalledTimes(1)
   })
 
-  it("推送失败不把已经删掉的词放回来", async () => {
-    vi.mocked(saveSearchHistory).mockRejectedValue(new Error("断网"))
+  it("存不上就重读一次，以服务端为准", async () => {
+    vi.mocked(removeSearchKeyword).mockRejectedValueOnce(new Error("断网"))
     const history = mount()
     await settleFakeTimers()
     history.remove("猫")
-    await settleFakeTimers()
-    await settleFakeTimers()
     expect(history.entries.value).toEqual(["狗"])
+    await settleFakeTimers()
+    expect(fetchSearchHistory).toHaveBeenCalledTimes(2)
+    expect(history.entries.value).toEqual(["猫", "狗"])
   })
 
-  /* 整份提交：拿没读到的空列表去记一条，就会把服务端原有的历史冲掉。 */
-  it("没读到之前不记、不删、不清空，也不提交", async () => {
-    vi.mocked(fetchSearchHistory).mockRejectedValueOnce(new Error("断网"))
+  /* 改动只提交一个词，没读到也能安全地提交；在途那次读取带回的是记之前的列表，记完再读一次。 */
+  it("没读到时也照样提交，提交之后重读，这个词不会丢", async () => {
+    const loading = deferred<string[]>()
+    /* 第一次读取在途；之后再读，服务端那份已经有这个词了 */
+    vi.mocked(fetchSearchHistory).mockReturnValueOnce(loading.promise).mockResolvedValue(["鸟", "猫", "狗"])
     const history = mount()
     await settleFakeTimers()
     history.record("鸟")
-    history.remove("猫")
-    history.clear()
     await settleFakeTimers()
-    expect(history.entries.value).toEqual([])
-    expect(saveSearchHistory).not.toHaveBeenCalled()
+    expect(addSearchKeyword).toHaveBeenCalledExactlyOnceWith("鸟")
+    loading.resolve(["猫", "狗"])
+    await settleFakeTimers()
+    expect(history.entries.value).toEqual(["鸟", "猫", "狗"])
   })
 
   it("本地改动之后，之前还在途的读取不再落地", async () => {
+    const history = mount()
+    await settleFakeTimers()
     const loading = deferred<string[]>()
     vi.mocked(fetchSearchHistory).mockReturnValueOnce(loading.promise)
-    const store = useSearchHistoryStore(pinia)
-    void store.load()
-    store.set(["新"])
-    loading.resolve(["旧"])
+    history.reload()
+    history.remove("猫")
+    loading.resolve(["猫", "狗"])
     await settleFakeTimers()
-    expect(store.data).toEqual(["新"])
+    expect(history.entries.value).toEqual(["狗"])
   })
 })

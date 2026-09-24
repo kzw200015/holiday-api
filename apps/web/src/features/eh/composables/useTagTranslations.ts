@@ -1,8 +1,8 @@
-import { ref } from "vue"
+import { useMutation, useQuery, useQueryCache } from "@pinia/colada"
+import { computed } from "vue"
 
 import { fetchTagTranslationStatus, syncTagTranslations } from "@/features/eh/api"
-import { useRequest } from "@/shared/composables/useRequest"
-import { toError } from "@/shared/lib/errors"
+import { ehKeys } from "@/features/eh/queries"
 
 /**
  * 标签译名的同步状态与手动同步，只在设置页用。
@@ -11,21 +11,22 @@ import { toError } from "@/shared/lib/errors"
  * （图集详情每次进入都会重读）：为几个标签的说法把它们全作废重来不值得。
  */
 export function useTagTranslations() {
-  const { data, loading, errorMessage: loadError, reload } = useRequest([], fetchTagTranslationStatus)
-  const syncing = ref(false)
-  const errorMessage = ref("")
+  const queryCache = useQueryCache()
+  const query = useQuery({ key: ehKeys.tagTranslations, query: ({ signal }) => fetchTagTranslationStatus(signal) })
+  const sync = useMutation({
+    onMutate: () => queryCache.cancelQueries({ key: ehKeys.tagTranslations, exact: true }),
+    mutation: () => syncTagTranslations(),
+    onSuccess: (next) => queryCache.setQueryData(ehKeys.tagTranslations, next),
+  })
 
-  async function sync() {
-    syncing.value = true
-    errorMessage.value = ""
-    try {
-      data.value = await syncTagTranslations()
-    } catch (error) {
-      errorMessage.value = toError(error).message
-    } finally {
-      syncing.value = false
-    }
+  return {
+    status: query.data,
+    loading: computed(() => query.data.value === undefined && query.error.value === null),
+    loadError: computed(() => query.error.value?.message ?? ""),
+    syncing: sync.isLoading,
+    errorMessage: computed(() => sync.error.value?.message ?? ""),
+    /* 不会 reject，失败落在 loadError 上 */
+    reload: () => query.refresh(),
+    sync: () => sync.mutateAsync().catch(() => {}),
   }
-
-  return { status: data, loading, loadError, syncing, errorMessage, reload, sync }
 }

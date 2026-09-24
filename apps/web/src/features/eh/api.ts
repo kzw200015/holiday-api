@@ -5,12 +5,14 @@ import type {
   GalleryCard,
   GalleryComment,
   GalleryDetailResult,
+  galleryPreferencesPatchSchema,
   galleryPreferencesSchema,
   gallerySearchSchema,
   ReadingHistoryItem,
   readingHistoryQuerySchema,
+  ReadingProgress,
   readingProgressSchema,
-  searchHistorySchema,
+  searchHistoryKeywordSchema,
   TagTranslationStatus,
 } from "@myapi/shared/eh"
 import type { z } from "zod"
@@ -27,7 +29,7 @@ export function searchGalleries(search: z.input<typeof gallerySearchSchema>, sig
   return httpClient.post<CursorPage<GalleryCard>>("/eh/galleries/search", search, { signal })
 }
 
-/** 图集详情，顺带返回这个账号读到第几页，以及这本图集的大图地址模板 */
+/** 图集详情，顺带返回这本图集的大图地址模板。读到第几页另有接口，见 fetchReadingProgress */
 export function fetchGalleryDetail(gid: number, token: string, signal?: AbortSignal) {
   return httpClient.get<GalleryDetailResult>(`/eh/galleries/${gid}/${token}`, { signal })
 }
@@ -75,12 +77,14 @@ export function syncTagTranslations() {
   return httpClient.post<TagTranslationStatus>("/eh/tag-translations/sync")
 }
 
-/* 偏好与搜索历史读一次之后由前端说了算，写入都是把当前这份整个推上去，不再逐个动作上报。
- * 以下写接口一律不接 AbortSignal：已经发出的保存不该因为离开页面被取消，只有挂住太久的才中止（见 SAVE_TIMEOUT）。 */
+/*
+ * 以下写接口一律不接 AbortSignal：已经发出的保存不该因为离开页面被取消，只有挂住太久的才中止（见 SAVE_TIMEOUT）。
+ * 都只回成败：本地已经按同一条规则改好了。
+ */
 
 /*
  * 保存的时限。保存只是落库，正常百毫秒内就回来；十秒还没回来多半是连接半开（移动网络切换时常见），
- * 再等下去同一条队后面的保存、等着进度落地才读的阅读历史全都跟着卡住。超时即中止，这一次算没存上。
+ * 再等下去同一类后面的保存、等着写入落地才读的数据全都跟着卡住。超时即中止，这一次算没存上。
  * 读取不设这个时限：换页面时由调用方取消，搜索这类要抓上游页面的读取本来就可能很慢。
  */
 const SAVE_TIMEOUT = 10_000
@@ -89,20 +93,37 @@ export function fetchGalleryPreferences(signal?: AbortSignal) {
   return httpClient.get<z.output<typeof galleryPreferencesSchema>>("/eh/preferences", { signal })
 }
 
-/** 只回成败：本地那份才是用户正在用的，服务端存成什么样不回写。 */
-export function saveGalleryPreferences(preferences: z.input<typeof galleryPreferencesSchema>) {
-  return httpClient.put<null>("/eh/preferences", preferences, { timeout: SAVE_TIMEOUT })
+/** 只改带来的字段。 */
+export function patchGalleryPreferences(patch: z.input<typeof galleryPreferencesPatchSchema>) {
+  return httpClient.patch<null>("/eh/preferences", patch, { timeout: SAVE_TIMEOUT })
 }
 
 export function fetchSearchHistory(signal?: AbortSignal) {
   return httpClient.get<string[]>("/eh/search-history", { signal })
 }
 
-/** 同样只回成败。超过 10 条或含超过 200 字节的关键词会被整份退回。 */
-export function saveSearchHistory(entries: string[]) {
-  return httpClient.put<null>("/eh/search-history", { entries } satisfies z.input<typeof searchHistorySchema>, {
+/** 记下一个搜过的词，排到最前。超过 200 字节的会被退回。 */
+export function addSearchKeyword(keyword: string) {
+  return httpClient.post<null>("/eh/search-history", { keyword } satisfies z.input<typeof searchHistoryKeywordSchema>, {
     timeout: SAVE_TIMEOUT,
   })
+}
+
+/** 要删的词放查询串：它可能是 `..` 这类放进路径会被规范化掉的写法。 */
+export function removeSearchKeyword(keyword: string) {
+  return httpClient.delete<null>("/eh/search-history/entry", {
+    params: { keyword } satisfies z.input<typeof searchHistoryKeywordSchema>,
+    timeout: SAVE_TIMEOUT,
+  })
+}
+
+export function clearSearchHistory() {
+  return httpClient.delete<null>("/eh/search-history", { timeout: SAVE_TIMEOUT })
+}
+
+/** 这个账号在这本图集上读到第几页。 */
+export function fetchReadingProgress(gid: number, signal?: AbortSignal) {
+  return httpClient.get<ReadingProgress>(`/eh/progress/${gid}`, { signal })
 }
 
 export function fetchReadingHistory(cursor: string, signal?: AbortSignal) {

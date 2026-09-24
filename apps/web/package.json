@@ -14,6 +14,7 @@
     "@internationalized/date": "^3.12.4",
     "@lucide/vue": "^1.48.0",
     "@myapi/shared": "workspace:*",
+    "@pinia/colada": "^1.4.6",
     "@vueuse/core": "^15.0.0",
     "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",

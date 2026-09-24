@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CircleCheckIcon, LogOutIcon, RefreshCwIcon } from "@lucide/vue"
-import { onActivated, ref, useTemplateRef } from "vue"
+import { ref, useTemplateRef } from "vue"
 import { useRouter } from "vue-router"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -14,6 +14,7 @@ import { useEhCredential } from "@/features/eh/composables/useEhCredential"
 import ConfirmDialog from "@/shared/components/ConfirmDialog.vue"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import FormField from "@/shared/components/FormField.vue"
+import { useRefreshOnActivated } from "@/shared/composables/useRefreshOnActivated"
 
 const cookieFields = [
   { name: "ipbMemberId", label: "ipb_member_id", hint: "登录 e 站后必有" },
@@ -41,14 +42,8 @@ async function refresh() {
   }
 }
 
-/* 页面被 KeepAlive 留着，每次回来都重读一次。首次挂载也会触发，那次各自已经在读，跳过。 */
-let activated = false
-onActivated(() => {
-  if (activated) {
-    void refresh()
-  }
-  activated = true
-})
+/* 页面被 KeepAlive 留着（没提交的草稿要留住），每次回来都重读一次状态。 */
+useRefreshOnActivated(reload, () => tagTranslationCard.value?.reload())
 const successMessage = ref("")
 
 /* 直接用这次提交回来的状态，不去读共享的那份，省得依赖「那边已经写完了」这个顺序。 */

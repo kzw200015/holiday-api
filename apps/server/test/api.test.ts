@@ -83,7 +83,11 @@ describe("鉴权边界", () => {
   })
 
   it("请求体不是合法 JSON 回 400", async () => {
-    const response = await t.http.put("/api/eh/preferences").set(auth).set("Content-Type", "application/json").send("{")
+    const response = await t.http
+      .patch("/api/eh/preferences")
+      .set(auth)
+      .set("Content-Type", "application/json")
+      .send("{")
     expect(response.status).toBe(400)
     expect(response.body).toMatchObject({ statusCode: 400, error: "Bad Request" })
   })
@@ -119,7 +123,6 @@ describe("响应体的 JSON 形状", () => {
         torrentCount: 4,
         expunged: false,
       },
-      progress: null,
       imageUrlTemplate: expect.stringMatching(
         new RegExp(
           `^/api/eh/galleries/${REF.gid}/${REF.token}/pages/\\{page\\}/image\\?uid=\\d+&e=\\d+&s=[0-9a-f]{32}$`,
@@ -147,11 +150,7 @@ describe("响应体的 JSON 形状", () => {
   })
 
   it("只回成败的接口回空体", async () => {
-    const response = await t.http
-      .put("/api/eh/preferences")
-      .set(auth)
-      .send({ categories: ["manga"], readerInterval: 5 })
-      .expect(200)
+    const response = await t.http.patch("/api/eh/preferences").set(auth).send({ readerInterval: 5 }).expect(200)
     expect(response.text).toBe("")
   })
 

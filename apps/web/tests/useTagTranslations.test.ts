@@ -1,12 +1,11 @@
 /* @vitest-environment happy-dom */
 import type { TagTranslationStatus } from "@myapi/shared/eh"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createApp } from "vue"
 
 import type * as EhApi from "@/features/eh/api"
 import { fetchTagTranslationStatus, syncTagTranslations } from "@/features/eh/api"
 import { useTagTranslations } from "@/features/eh/composables/useTagTranslations"
-import { deferred, present, settleFakeTimers } from "./support"
+import { composableTests, deferred, settleFakeTimers } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -14,20 +13,8 @@ vi.mock("@/features/eh/api", async (original) => ({
   syncTagTranslations: vi.fn(),
 }))
 
-const apps: ReturnType<typeof createApp>[] = []
-
-function mount() {
-  let api: ReturnType<typeof useTagTranslations> | undefined
-  const app = createApp({
-    setup() {
-      api = useTagTranslations()
-      return () => null
-    },
-  })
-  app.mount(document.createElement("div"))
-  apps.push(app)
-  return present(api, "useTagTranslations 的返回值")
-}
+const t = composableTests()
+const mount = () => t.mount(useTagTranslations)
 
 const synced = (sha: string): TagTranslationStatus => ({
   lastSync: { sha, count: 44299, syncedAt: "2026-09-24T16:00:00.000Z" },
@@ -39,9 +26,6 @@ beforeEach(() => {
   vi.mocked(fetchTagTranslationStatus).mockResolvedValue({ lastSync: null })
 })
 afterEach(() => {
-  for (const app of apps.splice(0)) {
-    app.unmount()
-  }
   vi.useRealTimers()
 })
 
@@ -76,6 +60,7 @@ describe("标签译名同步", () => {
     const pending = deferred<TagTranslationStatus>()
     vi.mocked(syncTagTranslations).mockReturnValue(pending.promise)
     const retry = translations.sync()
+    await settleFakeTimers()
     expect(translations.errorMessage.value).toBe("")
     pending.resolve(synced("new"))
     await retry

@@ -10,7 +10,7 @@ import { formatDateTime } from "@/shared/lib/format"
 
 /* 标签译名的状态与手动同步，放在设置页里。 */
 const { status, loading, loadError, syncing, errorMessage, reload, sync } = useTagTranslations()
-/* 设置页的刷新按钮要连这张卡片一起重读 */
+/* 设置页的刷新按钮、回到设置页时都要连这张卡片一起重读 */
 defineExpose({ reload })
 </script>
 

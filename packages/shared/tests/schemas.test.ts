@@ -4,10 +4,12 @@ import type { z } from "zod"
 import { credentialsSchema, loginSchema } from "../src/auth"
 import {
   ehCookieSchema,
+  galleryPreferencesPatchSchema,
   galleryPreferencesSchema,
   gallerySearchSchema,
   readingProgressSchema,
-  searchHistorySchema,
+  recordSearchKeyword,
+  searchHistoryKeywordSchema,
 } from "../src/eh"
 import { holidayQuerySchema } from "../src/holiday"
 
@@ -91,14 +93,24 @@ describe("偏好与搜索历史", () => {
     }
   })
 
-  it("搜索历史最多 10 条，每条 1–200 字节", () => {
-    expect(errors(searchHistorySchema, { entries: Array.from({ length: 10 }, (_, i) => `词${i}`) })).toEqual([])
-    expect(errors(searchHistorySchema, { entries: Array.from({ length: 11 }, (_, i) => `词${i}`) })).toEqual([
-      "搜索历史最多 10 条",
-    ])
-    for (const entry of ["", "汉".repeat(67), null]) {
-      expect(errors(searchHistorySchema, { entries: [entry] })).toEqual(["搜索历史关键词应为 1–200 字节"])
+  it("改偏好只带要改的字段，带了的照样校验", () => {
+    expect(errors(galleryPreferencesPatchSchema, {})).toEqual([])
+    expect(errors(galleryPreferencesPatchSchema, { readerInterval: 9 })).toEqual([])
+    expect(errors(galleryPreferencesPatchSchema, { readerInterval: 21 })).toEqual(["自动翻页间隔应为 1–20 秒"])
+    expect(errors(galleryPreferencesPatchSchema, { categories: ["comic"] })).toEqual(["分类名不合法"])
+  })
+
+  it("搜索历史的一个词 1–200 字节", () => {
+    expect(errors(searchHistoryKeywordSchema, { keyword: "猫" })).toEqual([])
+    for (const keyword of ["", "汉".repeat(67), null]) {
+      expect(errors(searchHistoryKeywordSchema, { keyword })).toEqual(["搜索历史关键词应为 1–200 字节"])
     }
+  })
+
+  it("记一个词：排最前、同一个词只留一条、最多 10 条", () => {
+    expect(recordSearchKeyword(["b", "a"], "a")).toEqual(["a", "b"])
+    const full = Array.from({ length: 10 }, (_, i) => `词${i}`)
+    expect(recordSearchKeyword(full, "新")).toEqual(["新", ...full.slice(0, 9)])
   })
 })
 

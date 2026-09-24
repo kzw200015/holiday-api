@@ -5,6 +5,7 @@ import AppRoot from "@/app/App.vue"
 import { AppRouter } from "@/app/router"
 import { useAuthStore } from "@/features/auth/store"
 import { onUnauthorized } from "@/shared/api/httpClient"
+import { installQueries } from "@/shared/api/queries"
 
 import "@/styles/index.css"
 
@@ -12,6 +13,7 @@ const app = createApp(AppRoot)
 const pinia = createPinia()
 
 app.use(pinia)
+installQueries(app)
 app.use(AppRouter)
 
 /*

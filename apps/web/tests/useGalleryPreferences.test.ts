@@ -1,52 +1,30 @@
 /* @vitest-environment happy-dom */
 import type { galleryPreferencesSchema } from "@myapi/shared/eh"
-import { createPinia, disposePinia, type Pinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createApp } from "vue"
 import type { z } from "zod"
 
 import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
-import { fetchGalleryPreferences, saveGalleryPreferences } from "@/features/eh/api"
+import { fetchGalleryPreferences, patchGalleryPreferences } from "@/features/eh/api"
 import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
-import { deferred, present, settleFakeTimers } from "./support"
+import { composableTests, deferred, settleFakeTimers } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
   fetchGalleryPreferences: vi.fn(),
-  saveGalleryPreferences: vi.fn(),
+  patchGalleryPreferences: vi.fn(),
 }))
 
-/* 账号级的一份数据，每个页面读到的都是同一份，所以用例内的几个应用共用一个 pinia。 */
-let pinia: Pinia
-const apps: ReturnType<typeof createApp>[] = []
-
-function mount() {
-  let api: ReturnType<typeof useGalleryPreferences> | undefined
-  const app = createApp({
-    setup() {
-      api = useGalleryPreferences()
-      return () => null
-    },
-  })
-  app.use(pinia)
-  app.mount(document.createElement("div"))
-  apps.push(app)
-  return present(api, "useGalleryPreferences 的返回值")
-}
+const t = composableTests()
+const mount = () => t.mount(useGalleryPreferences)
 
 beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
-  pinia = createPinia()
   vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 8 })
-  vi.mocked(saveGalleryPreferences).mockResolvedValue(null)
+  vi.mocked(patchGalleryPreferences).mockResolvedValue(null)
 })
 afterEach(() => {
-  for (const app of apps.splice(0)) {
-    app.unmount()
-  }
-  disposePinia(pinia)
   vi.useRealTimers()
 })
 
@@ -55,7 +33,7 @@ describe("账号浏览偏好", () => {
   it("读到之前不就绪，多处同时要也只读一次", async () => {
     const preferences = mount()
     expect(preferences.ready.value).toBe(false)
-    /* 另一个页面同时用到，不该再读一遍。 */
+    /* 另一个页面同时用到，复用在途的那次。 */
     const reader = mount()
     await settleFakeTimers()
     expect(preferences.ready.value).toBe(true)
@@ -65,47 +43,59 @@ describe("账号浏览偏好", () => {
   })
 
   /* 偏好只有一份：在阅读器里改了间隔，回到列表页不该看到一个过时的值。 */
-  it("改动当场生效、跨页面可见；连着改就按顺序提交两次", async () => {
+  it("改动当场生效、跨页面可见；只提交改了的字段，按操作顺序依次发出", async () => {
     const list = mount()
     const reader = mount()
     await settleFakeTimers()
+    const first = deferred<null>()
+    vi.mocked(patchGalleryPreferences).mockReturnValueOnce(first.promise)
     reader.interval.value = 12
     expect(list.interval.value).toBe(12)
-    list.applyCategories(["misc"])
-    expect(reader.categories.value).toEqual(["misc"])
+    list.applyCategories(["misc", "cosplay", "misc"])
+    expect(reader.categories.value).toEqual(["cosplay", "misc"])
     await settleFakeTimers()
+    /* 前一次没回来，后一次不发：同一字段先后两次改动乱序到达就会旧盖新。 */
+    expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ readerInterval: 12 })
+    first.resolve(null)
     await settleFakeTimers()
-    /* 不做合并：改几次就提交几次，scope 保证它们按操作顺序到达。 */
-    expect(saveGalleryPreferences).toHaveBeenCalledTimes(2)
-    expect(saveGalleryPreferences).toHaveBeenNthCalledWith(1, { categories: ["manga"], readerInterval: 12 })
-    expect(saveGalleryPreferences).toHaveBeenNthCalledWith(2, { categories: ["misc"], readerInterval: 12 })
+    expect(patchGalleryPreferences).toHaveBeenLastCalledWith({ categories: ["cosplay", "misc"] })
   })
 
-  it("推送失败不回滚本地，也不打断用户", async () => {
-    vi.mocked(saveGalleryPreferences).mockRejectedValue(new Error("断网"))
+  it("存不上就重读一次，以服务端为准", async () => {
     const preferences = mount()
     await settleFakeTimers()
+    vi.mocked(patchGalleryPreferences).mockRejectedValueOnce(new Error("断网"))
     preferences.interval.value = 3
-    await settleFakeTimers()
     expect(preferences.interval.value).toBe(3)
-    /* 失败不会自己重来；下一次改动会把最新的整份再推一遍。 */
-    expect(saveGalleryPreferences).toHaveBeenCalledTimes(1)
-    preferences.interval.value = 4
     await settleFakeTimers()
-    expect(saveGalleryPreferences).toHaveBeenLastCalledWith({ categories: ["manga"], readerInterval: 4 })
+    expect(fetchGalleryPreferences).toHaveBeenCalledTimes(2)
+    expect(preferences.interval.value).toBe(8)
   })
 
-  /* 保存是整份提交：拿没读到的占位值去存，会把服务端原有的偏好冲掉。 */
-  it("读失败不算就绪，也不拿占位值去保存；重试读到后恢复正常", async () => {
+  /* 读回来的是服务端那一刻的样子：保存还没到就去读，会把刚改的按回去。 */
+  it("有保存在途时，重读等它落地再发", async () => {
+    const preferences = mount()
+    await settleFakeTimers()
+    const saving = deferred<null>()
+    vi.mocked(patchGalleryPreferences).mockReturnValueOnce(saving.promise)
+    preferences.interval.value = 15
+    await settleFakeTimers()
+    preferences.reload()
+    await settleFakeTimers()
+    expect(fetchGalleryPreferences).toHaveBeenCalledTimes(1)
+    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 15 })
+    saving.resolve(null)
+    await settleFakeTimers()
+    expect(fetchGalleryPreferences).toHaveBeenCalledTimes(2)
+    expect(preferences.interval.value).toBe(15)
+  })
+
+  it("读失败不算就绪，重试读到后恢复正常", async () => {
     vi.mocked(fetchGalleryPreferences).mockRejectedValueOnce(new Error("断网"))
     const preferences = mount()
     await settleFakeTimers()
     expect(preferences.ready.value).toBe(false)
     expect(preferences.loadError.value).toBe("断网")
-    preferences.interval.value = 9
-    preferences.applyCategories(["manga"])
-    await settleFakeTimers()
-    expect(saveGalleryPreferences).not.toHaveBeenCalled()
 
     preferences.reload()
     await settleFakeTimers()
@@ -119,7 +109,7 @@ describe("账号浏览偏好", () => {
     vi.mocked(fetchGalleryPreferences).mockReturnValueOnce(loading.promise)
     const before = mount()
     await settleFakeTimers()
-    useAuthStore(pinia).logout()
+    useAuthStore(t.pinia).logout()
     loading.resolve({ categories: ["cosplay"], readerInterval: 9 })
     await settleFakeTimers()
     expect(before.ready.value).toBe(false)
@@ -130,20 +120,35 @@ describe("账号浏览偏好", () => {
     expect(fetchGalleryPreferences).toHaveBeenCalledTimes(2)
   })
 
+  /* 旧页面卸载时会给它用的条目排一个回收定时器，回收按 key 删：不先解开，到点就把新账号同 key 的那份删了。 */
+  it("换账号几分钟后，新账号的偏好不会被旧页面排下的回收删掉", async () => {
+    const before = mount()
+    await settleFakeTimers()
+    expect(before.ready.value).toBe(true)
+    useAuthStore(t.pinia).logout()
+    t.unmount(before)
+
+    const after = mount()
+    await settleFakeTimers()
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    after.interval.value = 11
+    expect(after.interval.value).toBe(11)
+  })
+
   /* 排队中的保存要等前一次回来才发，那时令牌已经是新账号的了，发出去就写到了新账号上。 */
   it("换账号后旧账号排队中的保存不再发出", async () => {
     const saving = deferred<null>()
-    vi.mocked(saveGalleryPreferences).mockReturnValueOnce(saving.promise)
+    vi.mocked(patchGalleryPreferences).mockReturnValueOnce(saving.promise)
     const preferences = mount()
     await settleFakeTimers()
     preferences.interval.value = 6
     preferences.interval.value = 7
     await settleFakeTimers()
-    expect(saveGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ categories: ["manga"], readerInterval: 6 })
+    expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ readerInterval: 6 })
 
-    useAuthStore(pinia).logout()
+    useAuthStore(t.pinia).logout()
     saving.resolve(null)
     await settleFakeTimers()
-    expect(saveGalleryPreferences).toHaveBeenCalledTimes(1)
+    expect(patchGalleryPreferences).toHaveBeenCalledTimes(1)
   })
 })

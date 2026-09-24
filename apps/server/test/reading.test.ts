@@ -27,7 +27,7 @@ describe("阅读进度", () => {
     const { auth } = await user()
     const report = (page: number, writer: string, seq: number) =>
       t.http.post("/api/eh/progress").set(auth).send({ gid: 1, token: TOKEN, page, writer, seq }).expect(201)
-    const progress = async () => (await t.http.get(`/api/eh/galleries/1/${TOKEN}`).set(auth).expect(200)).body.progress
+    const progress = async () => (await t.http.get("/api/eh/progress/1").set(auth).expect(200)).body.page
 
     expect(await progress()).toBeNull()
     await report(30, "tab-a", 2)
@@ -132,7 +132,7 @@ describe("阅读历史", () => {
       await t.http.post("/api/eh/progress").set(auth).send({ gid, token: TOKEN, page: 2, writer: "w", seq: 1 })
     }
     await t.http.delete("/api/eh/history/6").set(auth).expect(200)
-    expect((await t.http.get(`/api/eh/galleries/6/${TOKEN}`).set(auth)).body.progress).toBeNull()
+    expect((await t.http.get("/api/eh/progress/6").set(auth)).body).toEqual({ page: null })
     const gids = (await t.http.get("/api/eh/history").set(auth)).body.items.map((item: { gid: number }) => item.gid)
     expect(gids).toEqual([7, 5])
 
