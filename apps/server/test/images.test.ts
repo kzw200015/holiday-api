@@ -1,10 +1,10 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
-import { register, startApp, type TestApp } from "./support/app.js"
-import { createDatabase } from "./support/database.js"
-import { gallerySlice, image, imagePage, isMetadataApi, metadata, metadataApi, pageToken } from "./support/eh.js"
-import { html, json, withHolidays, type RecordedRequest, type Responder } from "./support/outbound.js"
-import { present } from "./support/present.js"
+import { register, startApp, type TestApp } from "./support/app"
+import { createDatabase } from "./support/database"
+import { gallerySlice, image, imagePage, isMetadataApi, metadata, metadataApi, pageToken } from "./support/eh"
+import { html, json, withHolidays, type RecordedRequest, type Responder } from "./support/outbound"
+import { present } from "./support/present"
 
 let t: TestApp
 let gidSeed = 800000

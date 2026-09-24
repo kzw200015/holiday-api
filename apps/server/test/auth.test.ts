@@ -1,8 +1,7 @@
-import { createHash, createHmac } from "node:crypto"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
-import { register, SECRET_KEY, startApp, type TestApp } from "./support/app.js"
-import { createDatabase, sql } from "./support/database.js"
+import { register, SECRET_KEY, startApp, type TestApp } from "./support/app"
+import { createDatabase, sql } from "./support/database"
 
 /* Kotlin 版（沿用自更早的 Go 版）生成的真实哈希，旧账号的密码必须照样验得过 */
 const LEGACY_HASH = "$argon2id$v=19$m=65536,t=2,p=1$GWJ0cHAGWKo9G+ZbnLQTDA$DoZHSlziwVSiiOUfmY5r/+Vzuq4jc9hK6gaeBrbid8c"
@@ -88,10 +87,10 @@ describe("登录令牌", () => {
   function sign(payload: object, key: Buffer, header: object = { alg: "HS256", typ: "JWT" }) {
     const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString("base64url")
     const unsigned = `${encode(header)}.${encode(payload)}`
-    return `${unsigned}.${createHmac("sha256", key).update(unsigned).digest("base64url")}`
+    return `${unsigned}.${new Bun.CryptoHasher("sha256", key).update(unsigned).digest("base64url")}`
   }
   /* 令牌子密钥的派生方式：SHA-256(主密钥 + ":token-v1") */
-  const tokenKey = (secret: string) => createHash("sha256").update(`${secret}:token-v1`).digest()
+  const tokenKey = (secret: string) => new Bun.CryptoHasher("sha256").update(`${secret}:token-v1`).digest()
 
   async function me(authorization: string | undefined) {
     const request = t.http.get("/api/auth/me")

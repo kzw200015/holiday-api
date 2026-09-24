@@ -1,11 +1,10 @@
-import { createHmac, timingSafeEqual } from "node:crypto"
 import { ForbiddenException, Injectable } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
 
-import type { Env } from "@/config.js"
-import type { GalleryRef } from "@/eh/upstream/gallery-ref.js"
-import { isDecimal } from "@/numeric.js"
-import { SigningKeys } from "@/signing/signing.module.js"
+import type { Env } from "@/config"
+import type { GalleryRef } from "@/eh/upstream/gallery-ref"
+import { isDecimal } from "@/numeric"
+import { SigningKeys } from "@/signing/signing.module"
 
 /** 地址上固定的两个签名参数：e 是过期时间（毫秒），s 是签名值。 */
 export interface Signature {
@@ -73,17 +72,31 @@ export class AttachmentUrls {
     if (!isDecimal(e) || Number(e) <= Date.now()) {
       return false
     }
-    const expected = Buffer.from(this.digest(subject, Number(e)))
-    const actual = Buffer.from(s)
-    return actual.length === expected.length && timingSafeEqual(actual, expected)
+    return constantTimeEqual(s, this.digest(subject, Number(e)))
   }
 
   private digest(subject: string, expiresAt: number): string {
-    return createHmac("sha256", this.key).update(`${subject}:${expiresAt}`).digest().subarray(0, 16).toString("hex")
+    return new Bun.CryptoHasher("sha256", this.key)
+      .update(`${subject}:${expiresAt}`)
+      .digest()
+      .subarray(0, 16)
+      .toString("hex")
   }
 }
 
 /** 大图通行证签的是「谁能看哪个图集」，页码不在里面。 */
 function imageSubject(userId: number, ref: GalleryRef) {
   return `${userId}:${ref.gid}:${ref.token}`
+}
+
+/* 逐个字符比完再下结论，耗时与哪一位对不上无关，免得靠响应快慢一位位试出签名。Bun 没有原生的 timingSafeEqual */
+function constantTimeEqual(actual: string, expected: string): boolean {
+  if (actual.length !== expected.length) {
+    return false
+  }
+  let difference = 0
+  for (let index = 0; index < expected.length; index += 1) {
+    difference |= actual.charCodeAt(index) ^ expected.charCodeAt(index)
+  }
+  return difference === 0
 }

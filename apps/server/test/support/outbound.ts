@@ -1,5 +1,5 @@
-import type { Outbound, OutboundInit } from "@/outbound/outbound.module.js"
-import { present } from "./present.js"
+import type { Outbound, OutboundInit } from "@/outbound/outbound.module"
+import { present } from "./present"
 
 /** 发往外部网站的一次请求，按发出的顺序记下来。 */
 export interface RecordedRequest {

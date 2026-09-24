@@ -1,8 +1,8 @@
 import { holidayQuerySchema, type HolidayDetail, type HolidayQuery } from "@myapi/shared/holiday"
 import { Controller, Get, Header, Query } from "@nestjs/common"
 
-import { Public } from "@/auth/auth.decorators.js"
-import { HolidayService } from "@/holiday/holiday.service.js"
+import { Public } from "@/auth/auth.decorators"
+import { HolidayService } from "@/holiday/holiday.service"
 
 /** 这两条有外部调用方，不要求登录。 */
 @Public()

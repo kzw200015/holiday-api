@@ -1,8 +1,8 @@
 import { galleryTokenSchema, gidSchema, pageSchema } from "@myapi/shared/eh"
 import { z } from "zod"
 
-import type { GalleryRef } from "@/eh/upstream/gallery-ref.js"
-import { numeric } from "@/numeric.js"
+import type { GalleryRef } from "@/eh/upstream/gallery-ref"
+import { numeric } from "@/numeric"
 
 export const gidParam = numeric(gidSchema, "图集编号不合法")
 

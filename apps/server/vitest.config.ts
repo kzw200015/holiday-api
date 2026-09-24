@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config"
 
 export default defineConfig({
-  /* @/ 别名定义在 tsconfig 的 paths 里，测试照它解析；构建时由 nest build 改写成相对路径 */
+  /* @/ 别名定义在 tsconfig 的 paths 里，Bun 运行时与测试都照它解析 */
   resolve: { tsconfigPaths: true },
   test: {
     include: ["test/**/*.test.ts"],

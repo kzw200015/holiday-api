@@ -1,11 +1,9 @@
-import { readFileSync } from "node:fs"
-
-import { html, json, type RecordedRequest } from "./outbound.js"
-import { present } from "./present.js"
+import { html, json, type RecordedRequest } from "./outbound"
+import { present } from "./present"
 
 /** 从真实页面原样裁下来的 e 站样本（test/fixtures/eh/），不要格式化，解析器依赖的正是原文。 */
-export function fixture(name: string): string {
-  return readFileSync(new URL(`../fixtures/eh/${name}`, import.meta.url), "utf8")
+export function fixture(name: string): Promise<string> {
+  return Bun.file(new URL(`../fixtures/eh/${name}`, import.meta.url)).text()
 }
 
 export const REF = { gid: 2231376, token: "a7584a5932" }
@@ -50,7 +48,7 @@ export function metadataApi(request: RecordedRequest, missing: number[] = []) {
 }
 
 /** 一张图的响应。 */
-export function image(body: BodyInit = "\u0001\u0002\u0003", contentType = "image/webp", status = 200) {
+export function image(body: Bun.BodyInit = "\u0001\u0002\u0003", contentType = "image/webp", status = 200) {
   return new Response(body, { status, headers: { "content-type": contentType } })
 }
 

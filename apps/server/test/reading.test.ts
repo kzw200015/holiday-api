@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { register, startApp, type TestApp } from "./support/app.js"
-import { createDatabase, sql } from "./support/database.js"
-import { isMetadataApi, metadataApi } from "./support/eh.js"
-import { unconfigured, withHolidays } from "./support/outbound.js"
+import { register, startApp, type TestApp } from "./support/app"
+import { createDatabase, sql } from "./support/database"
+import { isMetadataApi, metadataApi } from "./support/eh"
+import { unconfigured, withHolidays } from "./support/outbound"
 
 let t: TestApp
 let databaseUrl: string

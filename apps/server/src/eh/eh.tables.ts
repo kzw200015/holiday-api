@@ -13,8 +13,8 @@ import {
   type PgColumn,
 } from "drizzle-orm/pg-core"
 
-import { users } from "@/auth/auth.tables.js"
-import { id, timestamps, userId } from "@/database/columns.js"
+import { users } from "@/auth/auth.tables"
+import { id, timestamps, userId } from "@/database/columns"
 
 /* 外键沿用建库时 PostgreSQL 起的名字（表_列_fkey），迁移里才对得上现有的库。 */
 const ownedByUser = (table: { userId: PgColumn }, name: string) =>

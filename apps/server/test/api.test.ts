@@ -1,10 +1,10 @@
 import type { Express } from "express"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { register, startApp, type TestApp } from "./support/app.js"
-import { createDatabase } from "./support/database.js"
-import { gallerySlice, image, imagePage, isMetadataApi, metadataApi, REF } from "./support/eh.js"
-import { withHolidays } from "./support/outbound.js"
+import { register, startApp, type TestApp } from "./support/app"
+import { createDatabase } from "./support/database"
+import { gallerySlice, image, imagePage, isMetadataApi, metadataApi, REF } from "./support/eh"
+import { withHolidays } from "./support/outbound"
 
 let t: TestApp
 let auth: { Authorization: string }

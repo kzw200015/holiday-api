@@ -2,7 +2,7 @@ import { createServer, type RequestListener, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 
-import { createOutbound } from "@/outbound/outbound.module.js"
+import { createOutbound } from "@/outbound/outbound.module"
 
 /*
  * 真实的出网实现对着本机的 HTTP 服务：主接缝把出网整个换掉了，这几条网络语义只能在这里验证。
@@ -61,12 +61,12 @@ describe("出网", () => {
       response.write("x")
     })
     const response = await createOutbound("test-agent", 200)(`${base}/`)
-    await expect(response.arrayBuffer()).rejects.toThrow("terminated")
+    await expect(response.arrayBuffer()).rejects.toThrow("没收到数据")
   })
 
   it("迟迟不回响应头就超时", async () => {
     const base = await serve(() => undefined)
-    await expect(createOutbound("test-agent", 200)(`${base}/`)).rejects.toThrow("fetch failed")
+    await expect(createOutbound("test-agent", 200)(`${base}/`)).rejects.toThrow("等响应头超过")
   })
 
   it("传到一半连接断了，读响应体会失败，而不是当成读完", async () => {
@@ -75,6 +75,6 @@ describe("出网", () => {
       response.write("x".repeat(100), () => request.socket.destroy())
     })
     const response = await createOutbound("test-agent", 1000)(`${base}/`)
-    await expect(response.arrayBuffer()).rejects.toThrow("terminated")
+    await expect(response.arrayBuffer()).rejects.toThrow("socket connection was closed")
   })
 })

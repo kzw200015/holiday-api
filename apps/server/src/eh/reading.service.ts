@@ -2,11 +2,11 @@ import type { CursorPage, ReadingHistoryItem, ReadingProgress } from "@myapi/sha
 import { Inject, Injectable } from "@nestjs/common"
 import { and, desc, eq, sql } from "drizzle-orm"
 
-import { DATABASE, type Database } from "@/database/database.module.js"
-import { ehReadingProgress } from "@/eh/eh.tables.js"
-import { GalleryCatalog } from "@/eh/gallery-catalog.js"
-import { encodeHistoryCursor, type HistoryCursor } from "@/eh/history-cursor.js"
-import { refKey } from "@/eh/upstream/gallery-ref.js"
+import { DATABASE, type Database } from "@/database/database.module"
+import { ehReadingProgress } from "@/eh/eh.tables"
+import { GalleryCatalog } from "@/eh/gallery-catalog"
+import { encodeHistoryCursor, type HistoryCursor } from "@/eh/history-cursor"
+import { refKey } from "@/eh/upstream/gallery-ref"
 
 const PAGE_SIZE = 25
 

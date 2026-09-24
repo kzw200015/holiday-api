@@ -1,6 +1,6 @@
 import { pgTable, text, uniqueIndex } from "drizzle-orm/pg-core"
 
-import { id, timestamps } from "@/database/columns.js"
+import { id, timestamps } from "@/database/columns"
 
 export const users = pgTable(
   "users",

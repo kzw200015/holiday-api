@@ -6,8 +6,8 @@ import {
 } from "@myapi/shared/eh"
 import { Body, Controller, Get, Put } from "@nestjs/common"
 
-import { CurrentUser } from "@/auth/auth.decorators.js"
-import { PreferencesService } from "@/eh/preferences.service.js"
+import { CurrentUser } from "@/auth/auth.decorators"
+import { PreferencesService } from "@/eh/preferences.service"
 
 /** 本站账号的浏览数据：读一次、之后前端说了算，写入一律整份 PUT，只回成败。 */
 @Controller("eh")

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto"
 import type { EhCredential } from "@myapi/shared/eh"
 
 /** 表站与里站。里站内容是表站的超集，只有带里站权限的 e 站凭据才进得去。 */
@@ -22,7 +21,7 @@ export interface EhAccess {
 
 export function accessOf(credential: EhCredential | null, site: Site): EhAccess {
   const digest = credential
-    ? createHash("sha256")
+    ? new Bun.CryptoHasher("sha256")
         .update(`${credential.ipbMemberId}\n${credential.ipbPassHash}\n${credential.igneous}`)
         .digest("hex")
     : ""

@@ -2,15 +2,15 @@ import type { Authenticated, Credentials, CurrentUser } from "@myapi/shared/auth
 import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
 import { JwtService } from "@nestjs/jwt"
+import { SQL } from "bun"
 import { eq } from "drizzle-orm"
-import { DatabaseError } from "pg"
 
-import { users } from "@/auth/auth.tables.js"
-import { hashPassword, verifyPassword } from "@/auth/passwords.js"
-import type { Env } from "@/config.js"
-import { DATABASE, type Database } from "@/database/database.module.js"
+import { users } from "@/auth/auth.tables"
+import { hashPassword, verifyPassword } from "@/auth/passwords"
+import type { Env } from "@/config"
+import { DATABASE, type Database } from "@/database/database.module"
 
-/** PostgreSQL 的唯一约束冲突 */
+/** PostgreSQL 的唯一约束冲突。Bun 的 PostgresError 把 SQLSTATE 放在 errno 里，code 是 Bun 自己的错误码 */
 const UNIQUE_VIOLATION = "23505"
 
 /** 本站账号：注册、登录与「我是谁」。 */
@@ -43,7 +43,11 @@ export class AuthService {
         .values({ username, passwordHash })
         .returning({ id: users.id, username: users.username })
     } catch (error) {
-      if (error instanceof Error && error.cause instanceof DatabaseError && error.cause.code === UNIQUE_VIOLATION) {
+      if (
+        error instanceof Error &&
+        error.cause instanceof SQL.PostgresError &&
+        error.cause.errno === UNIQUE_VIOLATION
+      ) {
         throw new BadRequestException("用户名已被占用")
       }
       throw error

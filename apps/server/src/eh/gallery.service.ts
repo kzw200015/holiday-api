@@ -1,15 +1,15 @@
 import type { CursorPage, GalleryCard, GalleryComment, GalleryDetailResult, GallerySearch } from "@myapi/shared/eh"
 import { Injectable } from "@nestjs/common"
 
-import { AttachmentUrls } from "@/eh/attachment-urls.js"
-import { CredentialService } from "@/eh/credential.service.js"
-import { GalleryCatalog } from "@/eh/gallery-catalog.js"
-import { ImageLocator } from "@/eh/image-locator.js"
-import { ReadingService } from "@/eh/reading.service.js"
-import { EhClient } from "@/eh/upstream/eh-client.js"
-import { galleryMissing } from "@/eh/upstream/failures.js"
-import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref.js"
-import { parseGalleryComments } from "@/eh/upstream/parse.js"
+import { AttachmentUrls } from "@/eh/attachment-urls"
+import { CredentialService } from "@/eh/credential.service"
+import { GalleryCatalog } from "@/eh/gallery-catalog"
+import { ImageLocator } from "@/eh/image-locator"
+import { ReadingService } from "@/eh/reading.service"
+import { EhClient } from "@/eh/upstream/eh-client"
+import { galleryMissing } from "@/eh/upstream/failures"
+import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref"
+import { parseGalleryComments } from "@/eh/upstream/parse"
 
 /** 图集浏览：搜索 → 详情 → 评论。 */
 @Injectable()

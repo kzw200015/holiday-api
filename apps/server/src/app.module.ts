@@ -1,4 +1,3 @@
-import { fileURLToPath } from "node:url"
 import {
   BadRequestException,
   Module,
@@ -11,14 +10,14 @@ import { APP_PIPE, RouterModule } from "@nestjs/core"
 import { ScheduleModule } from "@nestjs/schedule"
 import { ServeStaticModule } from "@nestjs/serve-static"
 
-import { AuthModule } from "@/auth/auth.module.js"
-import { validateEnv } from "@/config.js"
-import { DatabaseModule } from "@/database/database.module.js"
-import { EhModule } from "@/eh/eh.module.js"
-import { HolidayModule } from "@/holiday/holiday.module.js"
-import { OutboundModule } from "@/outbound/outbound.module.js"
-import { requestLog } from "@/request-log.js"
-import { SigningModule } from "@/signing/signing.module.js"
+import { AuthModule } from "@/auth/auth.module"
+import { validateEnv } from "@/config"
+import { DatabaseModule } from "@/database/database.module"
+import { EhModule } from "@/eh/eh.module"
+import { HolidayModule } from "@/holiday/holiday.module"
+import { OutboundModule } from "@/outbound/outbound.module"
+import { requestLog } from "@/request-log"
+import { SigningModule } from "@/signing/signing.module"
 
 @Module({
   imports: [
@@ -28,7 +27,7 @@ import { SigningModule } from "@/signing/signing.module.js"
      * 镜像里前端产物放在 apps/server/client。前端用哈希路由，只有根路径需要回 index.html：
      * 默认的 renderPath 会把所有没匹配上的 GET 都回成 index.html，/api 下写错的路径也就拿不到 404 了。
      */
-    ServeStaticModule.forRoot({ rootPath: fileURLToPath(new URL("../client", import.meta.url)), renderPath: "/" }),
+    ServeStaticModule.forRoot({ rootPath: `${import.meta.dirname}/../client`, renderPath: "/" }),
     DatabaseModule,
     OutboundModule,
     SigningModule,

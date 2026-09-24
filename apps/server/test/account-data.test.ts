@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { register, startApp, type TestApp } from "./support/app.js"
-import { createDatabase, sql } from "./support/database.js"
-import { html, withHolidays, type RecordedRequest } from "./support/outbound.js"
+import { register, startApp, type TestApp } from "./support/app"
+import { createDatabase, sql } from "./support/database"
+import { html, withHolidays, type RecordedRequest } from "./support/outbound"
 
 let t: TestApp
 let databaseUrl: string

@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest"
 import type { z } from "zod"
 
-import { credentialsSchema } from "../src/auth.js"
+import { credentialsSchema } from "../src/auth"
 import {
   ehCookieSchema,
   galleryPreferencesSchema,
   gallerySearchSchema,
   readingProgressSchema,
   searchHistorySchema,
-} from "../src/eh.js"
-import { holidayQuerySchema } from "../src/holiday.js"
+} from "../src/eh"
+import { holidayQuerySchema } from "../src/holiday"
 
 /* 失败时给出的全部文案；通过时为空数组。 */
 function errors(schema: z.ZodType, value: unknown): string[] {

@@ -2,9 +2,9 @@ import type { GalleryCard, GalleryDetail } from "@myapi/shared/eh"
 import { Injectable } from "@nestjs/common"
 import { LRUCache } from "lru-cache"
 
-import { AttachmentUrls } from "@/eh/attachment-urls.js"
-import { EhClient, METADATA_BATCH_SIZE, type GalleryMetadata } from "@/eh/upstream/eh-client.js"
-import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref.js"
+import { AttachmentUrls } from "@/eh/attachment-urls"
+import { EhClient, METADATA_BATCH_SIZE, type GalleryMetadata } from "@/eh/upstream/eh-client"
+import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref"
 
 interface Waiting {
   ref: GalleryRef

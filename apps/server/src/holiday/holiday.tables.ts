@@ -1,6 +1,6 @@
 import { boolean, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core"
 
-import { id, timestamps } from "@/database/columns.js"
+import { id, timestamps } from "@/database/columns"
 
 /* date 存 YYYY-MM-DD 字符串：年份即前缀，删整年靠 LIKE 'YYYY-%'，进出接口和数据源也都是这个格式。 */
 export const holidayDays = pgTable(

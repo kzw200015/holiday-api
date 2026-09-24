@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { codePointLength } from "./text.js"
+import { codePointLength } from "./text"
 
 const USERNAME_RULE = "用户名只能是 3 到 32 位的字母、数字、下划线或连字符"
 

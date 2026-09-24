@@ -3,7 +3,7 @@ import { z } from "zod"
 
 /*
  * 全部配置都来自环境变量，启动时校验一次，缺了或写错进程直接拒绝启动。本地开发写在 apps/server/.env 里
- * （@nestjs/config 默认读取当前目录的 .env，已被 Git 忽略），部署时由容器环境给出。清单见 .env.example。
+ * （已被 Git 忽略；Bun 启动时就会把当前目录的 .env 读进环境变量，@nestjs/config 再读一遍也不冲突），部署时由容器环境给出。清单见 .env.example。
  */
 
 const DURATION_UNITS = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 } as const

@@ -12,8 +12,6 @@ dist/
 # TypeScript 增量编译的缓存
 *.tsbuildinfo
 *.log
-# pnpm 的本地内容寻址存储，几十 MB 且随时可重建
-.pnpm-store/
 .ace-tool/
 
 ### 本地配置：只跟踪示例文件，真实密钥不入库 ###

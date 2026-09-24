@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
-import { register, startApp, type TestApp } from "./support/app.js"
-import { createDatabase } from "./support/database.js"
-import { fixture, isMetadataApi, metadata, metadataApi, REF, requestedRefs } from "./support/eh.js"
-import { html, json, withHolidays, type Responder } from "./support/outbound.js"
-import { present } from "./support/present.js"
+import { register, startApp, type TestApp } from "./support/app"
+import { createDatabase } from "./support/database"
+import { fixture, isMetadataApi, metadata, metadataApi, REF, requestedRefs } from "./support/eh"
+import { html, json, withHolidays, type Responder } from "./support/outbound"
+import { present } from "./support/present"
 
 let t: TestApp
 let auth: { Authorization: string }
@@ -28,7 +28,8 @@ const search = (body: object = {}) => t.http.post("/api/eh/galleries/search").se
 
 describe("搜索", () => {
   it("按页面顺序去重、解出下一页游标，元数据取不到的跳过", async () => {
-    eh((request) => (isMetadataApi(request) ? metadataApi(request, [4156904]) : html(fixture("gallery-list.html"))))
+    const page = await fixture("gallery-list.html")
+    eh((request) => (isMetadataApi(request) ? metadataApi(request, [4156904]) : html(page)))
     const response = await search().expect(200)
     expect(response.body.items.map((card: { gid: number }) => card.gid)).toEqual([4156906, 4156901])
     expect(response.body.nextCursor).toBe("4156820")
@@ -39,7 +40,8 @@ describe("搜索", () => {
   })
 
   it("没命中是空列表，最后一页没有游标；结果全被过滤掉的一页照样有游标", async () => {
-    eh(() => html(fixture("empty-gallery-list.html")))
+    const empty = await fixture("empty-gallery-list.html")
+    eh(() => html(empty))
     expect((await search().expect(200)).body).toEqual({ items: [], nextCursor: null })
 
     eh(() => html(`<p>No unfiltered results in this page range.</p><a id="unext" href="/?next=100">Next</a>`))
@@ -140,24 +142,25 @@ describe("上游失败的识别", () => {
    * 然后继续按原节奏请求，把临时封禁续成长期封禁。
    */
   it("表站搜索页的各种失败", async () => {
-    const cases: [Response | Error, number, string][] = [
-      [html("whatever", 509), 429, "e 站图片配额已用尽，等额度恢复后再试"],
+    /* 每次请求现做一份响应：响应体只能读一次 */
+    const cases: [() => Response | Promise<never>, number, string][] = [
+      [() => html("whatever", 509), 429, "e 站图片配额已用尽，等额度恢复后再试"],
       /* 509 的响应体也可能是空的，先判状态码才能给出准确的提示 */
-      [html("", 509), 429, "e 站图片配额已用尽，等额度恢复后再试"],
+      [() => html("", 509), 429, "e 站图片配额已用尽，等额度恢复后再试"],
       /* 表站回空页面是出口 IP 被封了，跟 Cookie 无关 */
-      [html(""), 429, "本机访问 e 站过于频繁已被临时限制，请过几分钟再试"],
+      [() => html(""), 429, "本机访问 e 站过于频繁已被临时限制，请过几分钟再试"],
       [
-        html("Your IP address has been temporarily banned for excessive pageloads."),
+        () => html("Your IP address has been temporarily banned for excessive pageloads."),
         429,
         "本机访问 e 站过于频繁已被临时限制，请过几分钟再试",
       ],
-      [html("<html>Bad Gateway</html>", 502), 502, "e 站那边出错了"],
+      [() => html("<html>Bad Gateway</html>", 502), 502, "e 站那边出错了"],
       /* 正常的页面请求不会重定向，会重定向说明身份没被认下来 */
-      [html("<html>go away</html>", 302), 502, "e 站返回了意料之外的响应"],
-      [new TypeError("fetch failed"), 502, "请求 e 站失败，可能是网络不通或超时"],
+      [() => html("<html>go away</html>", 302), 502, "e 站返回了意料之外的响应"],
+      [() => Promise.reject(new TypeError("fetch failed")), 502, "请求 e 站失败，可能是网络不通或超时"],
     ]
-    for (const [response, status, message] of cases) {
-      eh(() => (response instanceof Error ? Promise.reject(response) : response.clone()))
+    for (const [respond, status, message] of cases) {
+      eh(respond)
       const result = await search()
       expect([result.status, result.body.message], message).toEqual([status, message])
     }
@@ -179,8 +182,8 @@ describe("上游失败的识别", () => {
     const { auth: exAuth } = await register(t.http)
     eh((request) => (request.url.host === "exhentai.org" ? html("gallery list") : html("home")))
     await t.http.post("/api/eh/credential").set(exAuth).send({ ipbMemberId: "1", ipbPassHash: "h", igneous: "i" })
-    for (const response of [html(""), html("   \n  "), new Response("", { status: 302 })]) {
-      eh(() => response.clone())
+    for (const respond of [() => html(""), () => html("   \n  "), () => new Response("", { status: 302 })]) {
+      eh(respond)
       const result = await t.http.post("/api/eh/galleries/search").set(exAuth).send({})
       expect([result.status, result.body.message]).toEqual([
         400,
@@ -242,7 +245,8 @@ describe("详情与评论", () => {
   })
 
   it("真实详情页上的评论：上传者留言、分数、UTC 时间与片段", async () => {
-    eh(() => html(fixture("gallery-page.html")))
+    const page = await fixture("gallery-page.html")
+    eh(() => html(page))
     const response = await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}/comments`).set(auth).expect(200)
     const [uploader, normal, third] = response.body
     expect(response.body).toHaveLength(3)

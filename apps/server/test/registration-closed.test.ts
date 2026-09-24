@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, it } from "vitest"
 
-import { startApp, type TestApp } from "./support/app.js"
-import { createDatabase } from "./support/database.js"
+import { startApp, type TestApp } from "./support/app"
+import { createDatabase } from "./support/database"
 
 /* 注册默认关闭：公网部署时任何人注册即可借这台机器代理 e 站流量。 */
 let t: TestApp

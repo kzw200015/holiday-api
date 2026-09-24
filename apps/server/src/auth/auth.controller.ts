@@ -1,8 +1,8 @@
 import { credentialsSchema, type AuthOptions, type Credentials, type CurrentUser as User } from "@myapi/shared/auth"
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from "@nestjs/common"
 
-import { CurrentUser, Public } from "@/auth/auth.decorators.js"
-import { AuthService } from "@/auth/auth.service.js"
+import { CurrentUser, Public } from "@/auth/auth.decorators"
+import { AuthService } from "@/auth/auth.service"
 
 /** 登录页要用的这几条都不要求登录。e 站的绑定状态是 eh 的事，不在这里返回。 */
 @Public()

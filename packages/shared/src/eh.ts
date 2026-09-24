@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { utf8Length } from "./text.js"
+import { utf8Length } from "./text"
 
 /* ---------- 规则里的数 ---------- */
 

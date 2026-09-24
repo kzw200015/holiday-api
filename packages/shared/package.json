@@ -4,17 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "exports": {
-    "./*": {
-      "types": "./dist/*.d.ts",
-      "default": "./dist/*.js"
-    }
+    "./*": "./src/*.ts"
   },
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
-    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc",
     "test": "vitest run"
   },
   "dependencies": {

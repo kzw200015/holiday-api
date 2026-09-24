@@ -3,9 +3,9 @@ import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common"
 import { Cron } from "@nestjs/schedule"
 import { eq, like } from "drizzle-orm"
 
-import { DATABASE, type Database } from "@/database/database.module.js"
-import { HolidaySource } from "@/holiday/holiday.source.js"
-import { holidayDays } from "@/holiday/holiday.tables.js"
+import { DATABASE, type Database } from "@/database/database.module"
+import { HolidaySource } from "@/holiday/holiday.source"
+import { holidayDays } from "@/holiday/holiday.tables"
 
 /** 节假日安排是中国的：「今天」「今年」一律按北京时间算，不跟着服务器的时区走（容器默认是 UTC）。 */
 const CHINA_ZONE = "Asia/Shanghai"

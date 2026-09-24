@@ -1,8 +1,7 @@
-import { createHash } from "node:crypto"
 import { Global, Injectable, Module } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
 
-import type { Env } from "@/config.js"
+import type { Env } from "@/config"
 
 /**
  * 按用途从主密钥派生的子密钥：SHA-256(主密钥原文 + ":" + 用途标签)。
@@ -24,7 +23,7 @@ export class SigningKeys {
 }
 
 function derive(secret: string, purpose: string): Buffer {
-  return createHash("sha256").update(`${secret}:${purpose}`).digest()
+  return new Bun.CryptoHasher("sha256").update(`${secret}:${purpose}`).digest()
 }
 
 @Global()

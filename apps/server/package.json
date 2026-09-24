@@ -3,15 +3,11 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "files": [
-    "dist",
-    "drizzle"
-  ],
   "scripts": {
-    "dev": "nest start --watch --preserveWatchOutput",
-    "build": "nest build",
-    "start": "node dist/main.js",
-    "test": "vitest run"
+    "dev": "bun --watch src/main.ts",
+    "typecheck": "tsc",
+    "start": "bun src/main.ts",
+    "test": "bun --bun vitest run"
   },
   "dependencies": {
     "@myapi/shared": "workspace:*",
@@ -22,26 +18,21 @@
     "@nestjs/platform-express": "^12.0.1",
     "@nestjs/schedule": "^12.0.2",
     "@nestjs/serve-static": "^12.0.0",
-    "argon2": "^0.45.1",
     "cheerio": "^1.2.0",
     "domhandler": "^5.0.3",
     "drizzle-orm": "^0.45.3",
     "entities": "^7.0.1",
     "lru-cache": "^11.5.3",
-    "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "undici": "^8.11.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@nestjs/cli": "^12.0.0",
-    "@nestjs/schematics": "^12.0.0",
     "@nestjs/testing": "^12.0.1",
     "@testcontainers/postgresql": "^12.1.0",
+    "@types/bun": "^1.4.2",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
-    "@types/pg": "^8.23.1",
     "@types/supertest": "^7.0.0",
     "drizzle-kit": "^0.31.11",
     "supertest": "^7.0.0",

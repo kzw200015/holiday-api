@@ -1,5 +1,5 @@
 dist
-pnpm-lock.yaml
+bun.lock
 # 文档是手写的中文散文，不交给 Prettier 重排
 *.md
 .claude

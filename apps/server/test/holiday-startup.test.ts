@@ -1,8 +1,8 @@
 import { afterEach, expect, it } from "vitest"
 
-import { startApp, type TestApp } from "./support/app.js"
-import { createDatabase, sql } from "./support/database.js"
-import { FakeOutbound } from "./support/outbound.js"
+import { startApp, type TestApp } from "./support/app"
+import { createDatabase, sql } from "./support/database"
+import { FakeOutbound } from "./support/outbound"
 
 let t: TestApp | undefined
 

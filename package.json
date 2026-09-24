@@ -2,11 +2,20 @@
   "name": "myapi",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.17.0",
+  "packageManager": "bun@1.4.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "trustedDependencies": [
+    "esbuild",
+    "vue-demi"
+  ],
   "scripts": {
-    "dev": "pnpm --filter @myapi/shared build && pnpm --parallel -r dev",
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
+    "dev": "bun --filter '*' --parallel dev",
+    "build": "bun --filter '*' build",
+    "typecheck": "bun --filter '*' typecheck",
+    "test": "bun --filter '*' test",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "format": "prettier --write .",

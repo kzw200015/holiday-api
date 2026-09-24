@@ -1,10 +1,9 @@
 import { Readable } from "node:stream"
-import type { ReadableStream } from "node:stream/web"
 import { Controller, Get, Logger, Param, Query, Res, StreamableFile } from "@nestjs/common"
 import type { Response } from "express"
 
-import { Public } from "@/auth/auth.decorators.js"
-import { ImageService } from "@/eh/image.service.js"
+import { Public } from "@/auth/auth.decorators"
+import { ImageService } from "@/eh/image.service"
 import {
   galleryImageQuery,
   galleryPageParams,
@@ -12,9 +11,9 @@ import {
   type GalleryImageQuery,
   type GalleryPageParams,
   type ThumbnailQuery,
-} from "@/eh/params.js"
-import type { ImageStream } from "@/eh/upstream/eh-client.js"
-import { imageBroken } from "@/eh/upstream/failures.js"
+} from "@/eh/params"
+import type { ImageStream } from "@/eh/upstream/eh-client"
+import { imageBroken } from "@/eh/upstream/failures"
 
 /** 图集内容不会变，浏览器缓存住之后来回翻页就不再回源，也就不再消耗 e 站配额。 */
 const CACHE_CONTROL = "max-age=2592000, private, immutable"
@@ -54,7 +53,7 @@ export class ImageController {
     /* 图片地址在新标签页里被直接打开时，别让浏览器把它当成网页、在本站源下执行里面的东西 */
     response.setHeader("X-Content-Type-Options", "nosniff")
     response.setHeader("Content-Security-Policy", "sandbox")
-    const body = Readable.fromWeb(image.body as ReadableStream<Uint8Array>)
+    const body = Readable.fromWeb(image.body)
     /* 浏览器中途放弃（阅读器里快速翻页时成批发生）时，别在服务端把整张图白下完 */
     response.once("close", () => body.destroy())
     return (

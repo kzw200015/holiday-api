@@ -3,11 +3,11 @@ import { ConfigService } from "@nestjs/config"
 import { APP_GUARD } from "@nestjs/core"
 import { JwtModule } from "@nestjs/jwt"
 
-import { AuthController } from "@/auth/auth.controller.js"
-import { AuthGuard } from "@/auth/auth.guard.js"
-import { AuthService } from "@/auth/auth.service.js"
-import type { Env } from "@/config.js"
-import { SigningKeys } from "@/signing/signing.module.js"
+import { AuthController } from "@/auth/auth.controller"
+import { AuthGuard } from "@/auth/auth.guard"
+import { AuthService } from "@/auth/auth.service"
+import type { Env } from "@/config"
+import { SigningKeys } from "@/signing/signing.module"
 
 @Module({
   imports: [

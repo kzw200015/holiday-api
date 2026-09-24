@@ -3,8 +3,8 @@ import { Reflector } from "@nestjs/core"
 import { JwtService } from "@nestjs/jwt"
 import { z } from "zod"
 
-import { IS_PUBLIC, type AuthenticatedRequest } from "@/auth/auth.decorators.js"
-import { numeric } from "@/numeric.js"
+import { IS_PUBLIC, type AuthenticatedRequest } from "@/auth/auth.decorators"
+import { numeric } from "@/numeric"
 
 /** 令牌载荷里的 sub：本站账号 id 的十进制写法。 */
 const subject = numeric(z.int().positive(), "令牌载荷不合法")

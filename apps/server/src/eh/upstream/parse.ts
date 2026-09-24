@@ -3,7 +3,7 @@ import { load, type Cheerio, type CheerioAPI } from "cheerio"
 import type { AnyNode } from "domhandler"
 import { decodeHTMLStrict } from "entities"
 
-import type { GalleryRef } from "@/eh/upstream/gallery-ref.js"
+import type { GalleryRef } from "@/eh/upstream/gallery-ref"
 
 /*
  * 解析只由 HTML 提供的东西：图集列表、取图用的定位信息与评论。不发请求、不碰缓存。

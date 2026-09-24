@@ -1,13 +1,12 @@
-import { fileURLToPath } from "node:url"
-import { drizzle } from "drizzle-orm/node-postgres"
-import { migrate } from "drizzle-orm/node-postgres/migrator"
-import { Pool } from "pg"
+import { SQL } from "bun"
+import { drizzle } from "drizzle-orm/bun-sql"
+import { migrate } from "drizzle-orm/bun-sql/migrator"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
-import { startApp, type TestApp } from "./support/app.js"
-import { createDatabase, LEGACY_SCHEMA, sql } from "./support/database.js"
-import { gallerySlice, image, imagePage, isMetadataApi, metadata } from "./support/eh.js"
-import { json, withHolidays } from "./support/outbound.js"
+import { startApp, type TestApp } from "./support/app"
+import { createDatabase, LEGACY_SCHEMA, sql } from "./support/database"
+import { gallerySlice, image, imagePage, isMetadataApi, metadata } from "./support/eh"
+import { json, withHolidays } from "./support/outbound"
 
 /*
  * 在 Kotlin 版留下的库上启动：迁移自动补上后续的变更，库里的账号、旧令牌、旧图片地址照常可用。
@@ -109,11 +108,11 @@ describe("旧库升级", () => {
   /** 基线迁移是幂等的：空库上建出来的结构，与旧库升级后的结构逐项一致。 */
   it("空库迁移出来的表结构与旧库升级后的一模一样", async () => {
     const fresh = await createDatabase()
-    const pool = new Pool({ connectionString: fresh })
-    await migrate(drizzle({ client: pool }), {
-      migrationsFolder: fileURLToPath(new URL("../drizzle", import.meta.url)),
+    const client = new SQL(fresh)
+    await migrate(drizzle({ client }), {
+      migrationsFolder: `${import.meta.dirname}/../drizzle`,
     })
-    await pool.end()
+    await client.close()
     const structureOf = (url: string) =>
       Promise.all([
         sql(
