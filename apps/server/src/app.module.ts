@@ -1,5 +1,11 @@
 import { fileURLToPath } from "node:url"
-import { BadRequestException, Module, StandardSchemaValidationPipe } from "@nestjs/common"
+import {
+  BadRequestException,
+  Module,
+  StandardSchemaValidationPipe,
+  type MiddlewareConsumer,
+  type NestModule,
+} from "@nestjs/common"
 import { ConfigModule } from "@nestjs/config"
 import { APP_PIPE, RouterModule } from "@nestjs/core"
 import { ScheduleModule } from "@nestjs/schedule"
@@ -11,6 +17,7 @@ import { DatabaseModule } from "./database/database.module.js"
 import { EhModule } from "./eh/eh.module.js"
 import { HolidayModule } from "./holiday/holiday.module.js"
 import { OutboundModule } from "./outbound/outbound.module.js"
+import { requestLog } from "./request-log.js"
 import { SigningModule } from "./signing/signing.module.js"
 
 @Module({
@@ -44,4 +51,9 @@ import { SigningModule } from "./signing/signing.module.js"
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    /* 只记接口，前端静态文件不记 */
+    consumer.apply(requestLog).forRoutes("api/*path")
+  }
+}
