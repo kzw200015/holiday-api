@@ -25,7 +25,7 @@ export class GalleryService {
 
   /** 从列表页拿图集顺序和游标，再用元数据接口补全；元数据取不到的图集不出现在结果里。 */
   async search(userId: number, search: GallerySearch): Promise<CursorPage<GalleryCard>> {
-    const access = await this.credentialService.access(userId, search.site)
+    const access = await this.credentialService.access(userId)
     const list = await this.ehClient.search(access, search)
     const cards = await this.galleryCatalog.cards(list.refs)
     return {

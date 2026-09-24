@@ -69,8 +69,6 @@ export const gallerySearchSchema = z.object({
     .string({ error: "分页游标不合法" })
     .regex(/^\d{0,20}$/, "分页游标不合法")
     .default(""),
-  /** 有里站权限时默认走里站，传 "e" 表示这次只要表站。 */
-  site: z.literal("e", { error: "站点不合法" }).optional(),
 })
 
 export type GallerySearchRequest = z.input<typeof gallerySearchSchema>

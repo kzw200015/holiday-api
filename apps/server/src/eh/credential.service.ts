@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm"
 
 import { DATABASE, type Database } from "@/database/database.module"
 import { ehCredentials } from "@/eh/eh.tables"
-import { accessOf, ANONYMOUS, type EhAccess, type Site } from "@/eh/upstream/access"
+import { accessOf, ANONYMOUS, type EhAccess } from "@/eh/upstream/access"
 import { EhClient } from "@/eh/upstream/eh-client"
 
 const UNBOUND: CredentialStatus = { bound: false, memberId: "", hasExAccess: false }
@@ -45,13 +45,13 @@ export class CredentialService {
     return UNBOUND
   }
 
-  /** 一次上游请求的身份与站点：有里站权限就默认走里站（内容是表站的超集），调用方显式要表站时才降级。 */
-  async access(userId: number, requested?: Site): Promise<EhAccess> {
+  /** 一次上游请求的身份与站点：有里站权限就走里站，它的内容是表站的超集。 */
+  async access(userId: number): Promise<EhAccess> {
     const binding = await this.find(userId)
     if (!binding) {
       return ANONYMOUS
     }
-    return accessOf(binding.credential, binding.status.hasExAccess && requested !== "e" ? "ex" : "e")
+    return accessOf(binding.credential, binding.status.hasExAccess ? "ex" : "e")
   }
 
   private async find(userId: number) {

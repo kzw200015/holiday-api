@@ -25,7 +25,7 @@ function eh(home: () => Response | Promise<Response>, ex: () => Response | Promi
 const COOKIE = { ipbMemberId: "123", ipbPassHash: "hash", igneous: "ig" }
 
 describe("绑定 e 站账号", () => {
-  it("表站与里站都放行：带里站权限绑上，之后的请求默认走里站，显式要表站时降级", async () => {
+  it("表站与里站都放行：带里站权限绑上，之后的请求走里站", async () => {
     const { auth } = await user()
     eh(
       () => html("home"),
@@ -43,8 +43,6 @@ describe("绑定 e 站账号", () => {
     t.outbound.respond = withHolidays(() => html("<p>No hits found</p>"))
     await t.http.post("/api/eh/galleries/search").set(auth).send({}).expect(200)
     expect(t.outbound.last().url.host).toBe("exhentai.org")
-    await t.http.post("/api/eh/galleries/search").set(auth).send({ site: "e" }).expect(200)
-    expect(t.outbound.last().url.host).toBe("e-hentai.org")
   })
 
   it("里站回空页面或连不上时只当没有里站权限，表站已经证明凭据是好的", async () => {

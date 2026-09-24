@@ -57,7 +57,6 @@ describe("图集搜索", () => {
   it("认不出的分类名与不是数字的游标被退回", () => {
     expect(errors(gallerySearchSchema, { categories: ["manga", "comic"] })).toEqual(["分类名不合法"])
     expect(errors(gallerySearchSchema, { cursor: "12a" })).toEqual(["分页游标不合法"])
-    expect(errors(gallerySearchSchema, { site: "ex" })).toEqual(["站点不合法"])
   })
 })
 
