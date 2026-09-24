@@ -19,9 +19,12 @@
 ├── CONTEXT.md
 ├── docs/adr/
 │   ├── 0001-xxx.md
-│   └── 0002-xxx.md
-├── backend/
-└── frontend/
+│   └── 0003-xxx.md
+├── apps/
+│   ├── server/
+│   └── web/
+└── packages/
+    └── shared/
 ```
 
 ## 使用术语表中的词汇

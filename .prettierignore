@@ -1,0 +1,14 @@
+dist
+bun.lock
+# 文档是手写的中文散文，不交给 Prettier 重排
+*.md
+.claude
+.codex
+# 从真实页面原样裁下来的 e 站样本，解析器依赖的正是原文
+apps/server/test/fixtures
+# drizzle-kit 生成的迁移与快照
+apps/server/drizzle
+
+# shadcn-vue 生成的组件源码保持与上游一致，不参与格式化
+apps/web/src/components/ui
+.mcp.json
