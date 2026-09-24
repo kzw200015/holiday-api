@@ -21,3 +21,6 @@ dist/
 *.local
 # 后端的本地配置（apps/server/.env），示例见同目录的 .env.example
 .env
+
+### 个人说明：只给自己看的 Claude Code 项目说明，与 AGENTS.md 一起加载 ###
+CLAUDE.local.md
