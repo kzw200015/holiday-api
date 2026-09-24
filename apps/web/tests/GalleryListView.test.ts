@@ -9,7 +9,7 @@ import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, searchGalleries } from "@/features/eh/api"
 import GalleryListView from "@/features/eh/views/GalleryListView.vue"
-import { deferred, galleryCard, settle } from "./support"
+import { byText, deferred, galleryCard, present, query, settle } from "./support"
 
 const scroll = vi.hoisted(() => ({
   load: async () => {},
@@ -48,7 +48,7 @@ let app: ReturnType<typeof createApp> | undefined
 let router: ReturnType<typeof createRouter>
 let host: HTMLDivElement
 const search = vi.mocked(searchGalleries)
-const query = { keyword: "language:chinese", categories: ["manga"] }
+const criteria = { keyword: "language:chinese", categories: ["manga"] }
 
 async function mountList() {
   router = createRouter({
@@ -82,12 +82,12 @@ async function mountList() {
   search.mockClear()
 }
 
-async function submit(keyword = query.keyword) {
-  const input = host.querySelector("input")!
+async function submit(keyword = criteria.keyword) {
+  const input = query(host, "input")
   input.value = keyword
   input.dispatchEvent(new Event("input", { bubbles: true }))
   await nextTick()
-  host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+  query(host, "form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
   await settle()
 }
 
@@ -117,10 +117,10 @@ describe("图库列表分页", () => {
     expect(search).toHaveBeenCalledTimes(2)
     expect(host.textContent).toContain("上游限速")
     search.mockResolvedValueOnce({ items: [galleryCard(2)], nextCursor: null })
-    const retry = [...host.querySelectorAll("button")].find((button) => button.textContent?.trim() === "重试")!
+    const retry = byText(host, "button", "重试")
     retry.click()
     await settle()
-    expect(search).toHaveBeenLastCalledWith({ ...query, cursor: "next" }, expect.any(AbortSignal))
+    expect(search).toHaveBeenLastCalledWith({ ...criteria, cursor: "next" }, expect.any(AbortSignal))
     expect(host.textContent).toContain("图集 1")
     expect(host.textContent).toContain("图集 2")
     expect(host.textContent).toContain("已经到底了")
@@ -135,7 +135,7 @@ describe("图库列表分页", () => {
     search.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ items: [galleryCard(2)], nextCursor: null })
     await submit()
     await submit("new")
-    expect(search.mock.calls[0]![1]?.aborted).toBe(true)
+    expect(search.mock.calls[0]?.[1]?.aborted).toBe(true)
     old.resolve({ items: [galleryCard(1)], nextCursor: "old-next" })
     await settle()
     expect(host.textContent).toContain("图集 2")
@@ -200,9 +200,9 @@ describe("图库列表分页", () => {
     const pending = deferred<CursorPage<GalleryCard>>()
     search.mockReturnValueOnce(pending.promise)
     await submit()
-    app!.unmount()
+    present(app, "应用").unmount()
     app = undefined
-    expect(search.mock.calls[0]![1]?.aborted).toBe(true)
+    expect(search.mock.calls[0]?.[1]?.aborted).toBe(true)
     pending.resolve({ items: [galleryCard(1)], nextCursor: "next" })
     await settle()
     expect(host.textContent).toBe("")

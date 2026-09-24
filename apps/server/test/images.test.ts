@@ -4,6 +4,7 @@ import { register, startApp, type TestApp } from "./support/app.js"
 import { createDatabase } from "./support/database.js"
 import { gallerySlice, image, imagePage, isMetadataApi, metadata, metadataApi, pageToken } from "./support/eh.js"
 import { html, json, withHolidays, type RecordedRequest, type Responder } from "./support/outbound.js"
+import { present } from "./support/present.js"
 
 let t: TestApp
 let gidSeed = 800000
@@ -35,7 +36,10 @@ function gallery(total: number, size: number) {
       return gallerySlice(gid, total, { from, to: Math.min(from + size - 1, total) })
     }
     if (pathname.startsWith("/s/")) {
-      const [gid, page] = pathname.split("/")[3]!.split("-")
+      const [gid, page] = pathname.split("/")[3]?.split("-") ?? []
+      if (!gid || !page) {
+        return undefined
+      }
       return imagePage(`https://ehgt.org/${gid}/${page}.webp`)
     }
     return undefined
@@ -71,7 +75,7 @@ function pagesRequested(since: number) {
 
 describe("签名地址", () => {
   it("改 uid、改过期时间、换签名都回 403；缺签名参数回 400", async () => {
-    const r = await reader((request) => gallery(5, 20)(request)!)
+    const r = await reader((request) => gallery(5, 20)(request))
     const url = new URL(pageUrl(await r.template(nextRef()), 1), "http://x")
     const tampered = (name: string, value: string) => {
       const copy = new URL(url)
@@ -95,7 +99,7 @@ describe("签名地址", () => {
   })
 
   it("同一窗口里签出的地址一模一样，有效期不短于配置值，过期后不再放行", async () => {
-    const r = await reader((request) => gallery(5, 20)(request)!)
+    const r = await reader((request) => gallery(5, 20)(request))
     const ref = nextRef()
     /* 窗口是有效期（24 小时）的四分之一；起点刻意不落在整点上 */
     const start = new Date("2026-09-05T10:01:00Z").getTime()
@@ -161,7 +165,7 @@ describe("图片主机白名单", () => {
       const response = await t.http.get(await thumbnailOf(thumb))
       expect(response.status, thumb).toBe(200)
       /* 图床不认 e 站的身份，发过去只是白白泄露给第三方主机 */
-      expect(t.outbound.requests.at(-1)!.headers.cookie).toBeUndefined()
+      expect(t.outbound.last().headers.cookie).toBeUndefined()
     }
     for (const thumb of blocked) {
       const thumbnail = await thumbnailOf(thumb)
@@ -175,7 +179,7 @@ describe("图片主机白名单", () => {
 
 describe("图片流", () => {
   async function openWith(respondImage: () => Response | Promise<Response>) {
-    const r = await reader((request) => gallery(5, 20)(request)!)
+    const r = await reader((request) => gallery(5, 20)(request))
     const template = await r.template(nextRef())
     const respond = t.outbound.respond
     t.outbound.respond = (request) => (request.url.host === "ehgt.org" ? respondImage() : respond(request))
@@ -184,9 +188,9 @@ describe("图片流", () => {
 
   it("上游不是图片、是 SVG、回 509 时不转发", async () => {
     const cases: [() => Response, number, string][] = [
-      [() => image("<html>error</html>", "text/html"), 502, "图床返回的不是图片（text/html）"],
+      [() => image("<html>error</html>", "text/html"), 502, "图床返回的不是图片"],
       /* SVG 能带脚本 */
-      [() => image("<svg/>", "image/svg+xml"), 502, "图床返回的不是图片（image/svg+xml）"],
+      [() => image("<svg/>", "image/svg+xml"), 502, "图床返回的不是图片"],
       [() => image("", "text/html", 509), 429, "e 站图片配额已用尽，等额度恢复后再试"],
     ]
     for (const [respond, status, message] of cases) {
@@ -244,7 +248,7 @@ describe("图片流", () => {
 describe("大图定位", () => {
   it("分片大小猜错、又落在最后一片时，从第一片推出真实的分片大小", async () => {
     /* 账号设的是每片 40 个：按默认的 20 猜，第 30 页在第 1 片，而第 1 片是 41–50，不满，推不出分片大小 */
-    const small = await reader((request) => gallery(50, 40)(request)!)
+    const small = await reader((request) => gallery(50, 40)(request))
     const ref = nextRef()
     const template = await small.template(ref)
     let since = t.outbound.requests.length
@@ -256,7 +260,7 @@ describe("大图定位", () => {
     ])
 
     /* 猜的第 3 片超出了范围，e 站退回最后一片 81–100；第一片给出分片大小 40，第 70 页在第 1 片 */
-    const large = await reader((request) => gallery(100, 40)(request)!)
+    const large = await reader((request) => gallery(100, 40)(request))
     const other = nextRef()
     const largeTemplate = await large.template(other)
     since = t.outbound.requests.length
@@ -277,7 +281,7 @@ describe("大图定位", () => {
   })
 
   it("页码超出图集页数时回 404", async () => {
-    const r = await reader((request) => gallery(50, 40)(request)!)
+    const r = await reader((request) => gallery(50, 40)(request))
     const response = await t.http.get(pageUrl(await r.template(nextRef()), 60))
     expect([response.status, response.body.message]).toEqual([404, "第 60 页超出了图集的页数（共 50 页）"])
   })
@@ -292,7 +296,7 @@ describe("大图定位", () => {
             `<img id="img" src="https://ehgt.org/${ref.gid}/${page}.webp"></a></div>`,
         )
       }
-      return gallery(100, 20)(request)!
+      return gallery(100, 20)(request)
     })
     const template = await r.template(ref)
     const since = t.outbound.requests.length
@@ -318,14 +322,14 @@ describe("大图定位", () => {
       if (request.url.pathname.startsWith("/s/")) {
         return html(`<script>var showkey="key-1";</script><img id="img" src="https://ehgt.org/${ref.gid}/page.webp">`)
       }
-      return gallery(100, 20)(request)!
+      return gallery(100, 20)(request)
     })
     const template = await r.template(ref)
     await t.http.get(pageUrl(template, 1)).expect(200)
     let since = t.outbound.requests.length
     await t.http.get(pageUrl(template, 2)).expect(200)
     const [call, picture] = t.outbound.requests.slice(since)
-    expect(JSON.parse(call!.body!)).toEqual({
+    expect(JSON.parse(present(call?.body, "showpage 请求体"))).toEqual({
       method: "showpage",
       gid: ref.gid,
       page: 2,
@@ -333,8 +337,8 @@ describe("大图定位", () => {
       showkey: "key-1",
     })
     /* showkey 是登录的会话拿到的，兑换也得是同一个身份，否则按匿名算 */
-    expect(call!.headers.cookie).toBe(`nw=1; sl=dm_2; ipb_member_id=${r.member}; ipb_pass_hash=hash`)
-    expect(picture!.url.pathname).toBe(`/${ref.gid}/api.webp`)
+    expect(call?.headers.cookie).toBe(`nw=1; sl=dm_2; ipb_member_id=${r.member}; ipb_pass_hash=hash`)
+    expect(picture?.url.pathname).toBe(`/${ref.gid}/api.webp`)
 
     showpage = () => json({ error: "Key mismatch" })
     since = t.outbound.requests.length
@@ -344,14 +348,14 @@ describe("大图定位", () => {
     showpage = () => json({ error: "quota denied" })
     since = t.outbound.requests.length
     const refused = await t.http.get(pageUrl(template, 4))
-    expect([refused.status, refused.body.message]).toEqual([502, "e 站图片接口拒绝了请求：quota denied"])
+    expect([refused.status, refused.body.message]).toEqual([502, "e 站图片接口拒绝了请求"])
     expect(pagesRequested(since).filter((path) => path.startsWith("/s/"))).toEqual([])
   })
 
   it("大图换成了配额提示图时报配额用尽", async () => {
     for (const quota of ["https://ehgt.org/g/509.gif", "https://exhentai.org/img/509s.gif"]) {
       const r = await reader((request) =>
-        request.url.pathname.startsWith("/s/") ? html(`<img id="img" src="${quota}">`) : gallery(5, 20)(request)!,
+        request.url.pathname.startsWith("/s/") ? html(`<img id="img" src="${quota}">`) : gallery(5, 20)(request),
       )
       const response = await t.http.get(pageUrl(await r.template(nextRef()), 1))
       expect([response.status, response.body.message]).toEqual([429, "e 站图片配额已用尽，等额度恢复后再试"])
@@ -367,7 +371,7 @@ describe("大图定位", () => {
             ? html(`<img id="img" src="https://ehgt.org/${ref.gid}/replaced.webp">`)
             : html(`<img id="img" src="https://ehgt.org/${ref.gid}/failed.webp" onerror="nl('this-page')">`)
         }
-        return gallery(5, 20)(request)!
+        return gallery(5, 20)(request)
       })
       const template = await r.template(ref)
       const respond = t.outbound.respond
@@ -388,10 +392,42 @@ describe("大图定位", () => {
     }
   })
 
+  it("换源之后还是取不到时回 502，文案里不带上游的状态码与地址", async () => {
+    const ref = nextRef()
+    const r = await reader((request) =>
+      request.url.pathname.startsWith("/s/")
+        ? html(`<img id="img" src="https://ehgt.org/${ref.gid}/failed.webp" onerror="nl('again')">`)
+        : gallery(5, 20)(request),
+    )
+    const template = await r.template(ref)
+    const respond = t.outbound.respond
+    t.outbound.respond = (request) =>
+      request.url.pathname.endsWith("/failed.webp") ? image("", "text/html", 403) : respond(request)
+    const since = t.outbound.requests.length
+    const response = await t.http.get(pageUrl(template, 2))
+    expect([response.status, response.body.message]).toEqual([502, "图床节点取不到这张图"])
+    /* 只换源重试一次 */
+    expect(t.outbound.requests.slice(since).filter((request) => request.url.host === "ehgt.org")).toHaveLength(2)
+  })
+
+  it("缩略图所在的图床节点取不到时回 502，不换源", async () => {
+    const r = await reader(() => html(""))
+    const ref = nextRef()
+    const thumbnail = (await t.http.get(`/api/eh/galleries/${ref.gid}/${ref.token}`).set(r.auth).expect(200)).body
+      .gallery.thumbnail
+    const respond = t.outbound.respond
+    t.outbound.respond = (request) =>
+      request.url.host === "ehgt.org" ? Promise.reject(new TypeError("fetch failed")) : respond(request)
+    const since = t.outbound.requests.length
+    const response = await t.http.get(thumbnail)
+    expect([response.status, response.body.message]).toEqual([502, "图床节点取不到这张图"])
+    expect(t.outbound.requests.length).toBe(since + 1)
+  })
+
   it("页面按身份隔离：换了凭据就不共用别人抓到的页", async () => {
     const ref = nextRef()
-    const first = await reader((request) => gallery(5, 20)(request)!)
-    const second = await reader((request) => gallery(5, 20)(request)!)
+    const first = await reader((request) => gallery(5, 20)(request))
+    const second = await reader((request) => gallery(5, 20)(request))
     await t.http.get(pageUrl(await first.template(ref), 1)).expect(200)
     const since = t.outbound.requests.length
     await t.http.get(pageUrl(await second.template(ref), 1)).expect(200)

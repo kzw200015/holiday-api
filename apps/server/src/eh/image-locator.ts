@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException } from "@nestjs/common"
 import { LRUCache } from "lru-cache"
 
-import { refKey, type EhAccess, type GalleryRef } from "./upstream/access.js"
+import type { EhAccess } from "./upstream/access.js"
 import { EhClient } from "./upstream/eh-client.js"
 import { unavailable } from "./upstream/failures.js"
+import { refKey, type GalleryRef } from "./upstream/gallery-ref.js"
 import type { GallerySlice, ImagePage } from "./upstream/parse.js"
 
 interface SliceRequest {
@@ -37,9 +38,9 @@ export class ImageLocator {
 
   constructor(private readonly client: EhClient) {}
 
-  /** 详情页的某一片。评论也从第 0 片里取。 */
-  async gallerySlice(access: EhAccess, ref: GalleryRef, index: number): Promise<GallerySlice> {
-    return (await this.slices.fetch(`${galleryKey(access, ref)}#${index}`, { context: { access, ref, index } }))!
+  /** 详情页的某一片。评论也从第 0 片里取。fetchSlice 要么给出分片要么抛出，forceFetch 在没拿到值时也会抛出。 */
+  gallerySlice(access: EhAccess, ref: GalleryRef, index: number): Promise<GallerySlice> {
+    return this.slices.forceFetch(`${galleryKey(access, ref)}#${index}`, { context: { access, ref, index } })
   }
 
   /** 这一页的图片地址。有 showkey 先走 showpage 接口；只有 showkey 明确失效才回退到抓图片页，其余协议错误照常抛出。 */
@@ -114,7 +115,7 @@ export class ImageLocator {
         return actual
       }
     }
-    throw unavailable(`没能取到第 ${page} 页的图片令牌`)
+    throw unavailable(`没能取到第 ${page} 页的图片令牌`, `gid=${ref.gid} sliceSize=${size ?? "未知"}`)
   }
 
   private remember(gallery: string, image: ImagePage): ImagePage {

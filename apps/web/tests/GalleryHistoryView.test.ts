@@ -10,7 +10,7 @@ import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"
 import GalleryHistoryView from "@/features/eh/views/GalleryHistoryView.vue"
-import { galleryCard, settle } from "./support"
+import { deferred, galleryCard, present, settle } from "./support"
 
 /* 触底加载靠滚动位置触发，happy-dom 不做布局，所以把入口接出来手动调用。 */
 const scroll = vi.hoisted(() => ({
@@ -90,8 +90,7 @@ function titles() {
 }
 async function click(text: string) {
   const button = [...host.querySelectorAll<HTMLElement>("button")].find((node) => node.textContent?.trim() === text)
-  expect(button, `${text}: ${host.textContent}`).toBeDefined()
-  button!.click()
+  present(button, `按钮「${text}」（页面内容：${host.textContent}）`).click()
   await settle()
 }
 
@@ -159,15 +158,15 @@ describe("阅读历史分页", () => {
   it("删除还没回来时不续取下一页", async () => {
     loadHistory.mockResolvedValueOnce(page(1, "cursor-2")).mockResolvedValueOnce(page(2, null))
     await mountHistory()
-    let finish!: (value: null) => void
-    vi.mocked(removeReadingHistory).mockReturnValueOnce(new Promise((resolve) => (finish = resolve)))
+    const removal = deferred<null>()
+    vi.mocked(removeReadingHistory).mockReturnValueOnce(removal.promise)
     await click("删除")
     expect(scroll.canLoad()).toBe(false)
     scroll.load()
     await settle()
     expect(loadHistory).toHaveBeenCalledTimes(1)
 
-    finish(null)
+    removal.resolve(null)
     await settle()
     expect(titles()).toEqual([])
     scroll.load()

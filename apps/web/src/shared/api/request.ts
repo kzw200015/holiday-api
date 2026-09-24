@@ -1,5 +1,7 @@
 import { ref, shallowRef } from "vue"
 
+import { toError } from "@/shared/lib/errors"
+
 /**
  * 一路读取的状态：数据、错误与是否在途。
  *
@@ -29,7 +31,7 @@ export function createRequest<T>() {
       }
     } catch (cause) {
       if (controller === current) {
-        error.value = cause as Error
+        error.value = toError(cause)
       }
     } finally {
       if (controller === current) {

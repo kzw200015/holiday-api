@@ -42,9 +42,9 @@ describe("绑定 e 站账号", () => {
 
     t.outbound.respond = withHolidays(() => html("<p>No hits found</p>"))
     await t.http.post("/api/eh/galleries/search").set(auth).send({}).expect(200)
-    expect(t.outbound.requests.at(-1)!.url.host).toBe("exhentai.org")
+    expect(t.outbound.last().url.host).toBe("exhentai.org")
     await t.http.post("/api/eh/galleries/search").set(auth).send({ site: "e" }).expect(200)
-    expect(t.outbound.requests.at(-1)!.url.host).toBe("e-hentai.org")
+    expect(t.outbound.last().url.host).toBe("e-hentai.org")
   })
 
   it("里站回空页面或连不上时只当没有里站权限，表站已经证明凭据是好的", async () => {
@@ -104,7 +104,7 @@ describe("绑定 e 站账号", () => {
     expect(unbound.body).toEqual({ bound: false, memberId: "", hasExAccess: false })
     t.outbound.respond = withHolidays(() => html("<p>No hits found</p>"))
     await t.http.post("/api/eh/galleries/search").set(auth).send({}).expect(200)
-    const search = t.outbound.requests.at(-1)!
+    const search = t.outbound.last()
     expect([search.url.host, search.headers.cookie]).toEqual(["e-hentai.org", "nw=1; sl=dm_2"])
   })
 })

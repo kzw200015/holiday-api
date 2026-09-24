@@ -8,6 +8,7 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryDetail, saveProgress } from "@/features/eh/api"
 import { readerInstanceKey } from "@/features/eh/navigation"
 import ReaderView from "@/features/eh/views/ReaderView.vue"
+import { deferred, present, query } from "./support"
 
 vi.mock("@/features/eh/api", async (importOriginal) => ({
   ...(await importOriginal<typeof EhApi>()),
@@ -82,7 +83,7 @@ afterEach(() => {
 })
 
 function readingArea() {
-  return host.querySelector<HTMLElement>('[aria-label="横向阅读区域"]')!
+  return query<HTMLElement>(host, '[aria-label="横向阅读区域"]')
 }
 
 function controlsState() {
@@ -108,7 +109,7 @@ describe("阅读进度保存", () => {
     expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 3)
     /* 正常离开走的是路由，那条路径会补提交；不经路由直接卸载的，卸载时兜底补一次。 */
     await router.replace("/1/token/4")
-    app!.unmount()
+    present(app, "应用").unmount()
     app = undefined
     await vi.advanceTimersByTimeAsync(1200)
     expect(saveProgress).toHaveBeenCalledTimes(2)
@@ -135,7 +136,7 @@ describe("阅读进度保存", () => {
     expect(saveProgress).toHaveBeenCalledTimes(2)
     expect(saveProgress).toHaveBeenCalledWith(1, "token", 8)
     expect(saveProgress).toHaveBeenCalledWith(2, "second", 1)
-    app!.unmount()
+    present(app, "应用").unmount()
     app = undefined
     expect(saveProgress).toHaveBeenCalledTimes(2)
   })
@@ -175,13 +176,13 @@ describe("阅读器操作栏", () => {
     '[aria-label="增加自动翻页间隔"]',
     '[aria-label="减少自动翻页间隔"]',
   ])("点击操作栏中的 %s 不会切换显示状态", async (selector) => {
-    host.querySelector<HTMLElement>(selector)!.click()
+    query<HTMLElement>(host, selector).click()
     await vi.advanceTimersByTimeAsync(0)
     expect(controlsState()).toEqual(["visible", "visible"])
   })
 
   it("自动翻页不会重新显示已隐藏的控件", async () => {
-    host.querySelector<HTMLButtonElement>('[aria-label="开始自动翻页"]')!.click()
+    query<HTMLButtonElement>(host, '[aria-label="开始自动翻页"]').click()
     await nextTick()
     readingArea().click()
     await nextTick()
@@ -210,7 +211,7 @@ describe("阅读器操作栏", () => {
   })
 
   it("进度条立即生效、地址栏节流跟上，越界地址仍按实际页数收敛", async () => {
-    const input = host.querySelector<HTMLInputElement>('input[type="range"]')!
+    const input = query<HTMLInputElement>(host, 'input[type="range"]')
     input.value = "6"
     input.dispatchEvent(new Event("input", { bubbles: true }))
     await vi.advanceTimersByTimeAsync(0)
@@ -223,7 +224,7 @@ describe("阅读器操作栏", () => {
     await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("10")
     expect(input.value).toBe("10")
-    expect(host.querySelector<HTMLButtonElement>('[aria-label="下一页"]')!.disabled).toBe(true)
+    expect(query<HTMLButtonElement>(host, '[aria-label="下一页"]').disabled).toBe(true)
   })
 
   it("键盘翻页继续更新 URL；焦点在按钮上时方向键照常翻页，空格和回车留给按钮", async () => {
@@ -237,7 +238,7 @@ describe("阅读器操作栏", () => {
     await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("2")
     /* 用鼠标点过「下一页」之后焦点就留在按钮上，键盘翻页不能因此失灵。 */
-    const button = host.querySelector('[aria-label="下一页"]')!
+    const button = query(host, '[aria-label="下一页"]')
     button.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }))
     await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("3")
@@ -251,9 +252,7 @@ describe("阅读器操作栏", () => {
   })
 
   it("焦点在滑块里或按着修饰键时不接管按键", async () => {
-    host
-      .querySelector('input[type="range"]')!
-      .dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }))
+    query(host, 'input[type="range"]').dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }))
     /* Alt+← 与 ⌘+← 是浏览器的后退，Ctrl+End 之类也各有用处。 */
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true }))
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", metaKey: true }))
@@ -279,15 +278,15 @@ describe("阅读器操作栏", () => {
   it("切换图集重建图片和控件，清除拖动状态并停止自动翻页", async () => {
     await vi.advanceTimersByTimeAsync(200)
     const originalImage = readingArea().querySelector("img")
-    host.querySelector<HTMLButtonElement>('[aria-label="开始自动翻页"]')!.click()
-    const input = host.querySelector("input")!
+    query<HTMLButtonElement>(host, '[aria-label="开始自动翻页"]').click()
+    const input = query(host, "input")
     input.setPointerCapture = vi.fn()
     input.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1 }))
     await nextTick()
     await router.replace("/2/other/1")
     await vi.advanceTimersByTimeAsync(10000)
     expect(router.currentRoute.value.params.page).toBe("1")
-    expect(host.querySelector("button[aria-pressed]")!.getAttribute("aria-pressed")).toBe("false")
+    expect(query(host, "button[aria-pressed]").getAttribute("aria-pressed")).toBe("false")
     const nextImage = readingArea().querySelector("img")
     expect(nextImage).not.toBeNull()
     expect(nextImage).not.toBe(originalImage)
@@ -324,7 +323,7 @@ describe("阅读器的边界情况", () => {
     expect(fetchGalleryDetail).toHaveBeenLastCalledWith(1, "token", expect.any(AbortSignal))
     expect(host.textContent).not.toContain("打不开这个图集")
     expect(readingArea()).not.toBeNull()
-    expect(host.querySelector<HTMLInputElement>('input[type="range"]')!.value).toBe("3")
+    expect(query<HTMLInputElement>(host, 'input[type="range"]').value).toBe("3")
   })
 
   it("没有页面的图集直接说明，键盘翻页也不越过第 1 页", async () => {
@@ -345,18 +344,16 @@ describe("阅读器的边界情况", () => {
 
   /* 首次访问时目标页面的代码还在下载，离开导航要等它；这期间迟到的地址栏同步会把离开顶掉。 */
   it("离开的导航还没完成时，再翻页也不会把人拽回阅读器", async () => {
-    let finish!: (component: VueComponent) => void
-    awayPage = new Promise((resolve) => {
-      finish = resolve
-    })
-    host.querySelector<HTMLButtonElement>('[aria-label="开始自动翻页"]')!.click()
+    const away = deferred<VueComponent>()
+    awayPage = away.promise
+    query<HTMLButtonElement>(host, '[aria-label="开始自动翻页"]').click()
     await nextTick()
     const leaving = router.push("/away")
     await vi.advanceTimersByTimeAsync(0)
     /* 离开时自动翻页就停了；惯性滚动这类仍可能再改一次页码。 */
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }))
     await vi.advanceTimersByTimeAsync(10000)
-    finish({ render: () => h("div", "其他页面") })
+    away.resolve({ render: () => h("div", "其他页面") })
     await leaving
     await vi.advanceTimersByTimeAsync(0)
     expect(router.currentRoute.value.path).toBe("/away")
@@ -365,14 +362,12 @@ describe("阅读器的边界情况", () => {
   })
 
   it("离开被新的导航取消后，地址栏照常跟上页码", async () => {
-    let finish!: (component: VueComponent) => void
-    awayPage = new Promise((resolve) => {
-      finish = resolve
-    })
+    const away = deferred<VueComponent>()
+    awayPage = away.promise
     const leaving = router.push("/away")
     await vi.advanceTimersByTimeAsync(0)
     await router.replace("/1/token/5")
-    finish({ render: () => h("div", "其他页面") })
+    away.resolve({ render: () => h("div", "其他页面") })
     await leaving
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }))
     await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)

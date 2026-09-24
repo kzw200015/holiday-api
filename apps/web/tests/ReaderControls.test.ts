@@ -9,7 +9,7 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, saveGalleryPreferences } from "@/features/eh/api"
 import ReaderControls from "@/features/eh/components/ReaderControls.vue"
 import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
-import { deferred } from "./support"
+import { deferred, present, query } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -84,11 +84,11 @@ async function createReader(position: { page?: number; total?: number } = {}) {
 }
 
 function autoButton(host: HTMLElement) {
-  return host.querySelector<HTMLButtonElement>("button[aria-pressed]")!
+  return query<HTMLButtonElement>(host, "button[aria-pressed]")
 }
 
 function intervalText(host: HTMLElement) {
-  return host.querySelector("output")!.textContent.trim()
+  return query(host, "output").textContent.trim()
 }
 
 beforeEach(() => {
@@ -133,7 +133,7 @@ describe("阅读器自动翻页控件", () => {
     await vi.advanceTimersByTimeAsync(4000)
     state.dragging = true
     await nextTick()
-    host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
+    query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]').click()
     await vi.advanceTimersByTimeAsync(10000)
     expect(autoButton(host).getAttribute("aria-pressed")).toBe("true")
     expect(change).not.toHaveBeenCalled()
@@ -149,7 +149,7 @@ describe("阅读器自动翻页控件", () => {
     "进度条按住期间暂停，%s 后恢复完整间隔",
     async (endEvent) => {
       const { state, change, host } = await createReader()
-      const input = host.querySelector("input")!
+      const input = query(host, "input")
       input.setPointerCapture = vi.fn()
       autoButton(host).click()
       await vi.advanceTimersByTimeAsync(4000)
@@ -170,7 +170,7 @@ describe("阅读器自动翻页控件", () => {
     const { change, host } = await createReader()
     autoButton(host).click()
     await vi.advanceTimersByTimeAsync(4000)
-    host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
+    query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]').click()
     await nextTick()
     expect(intervalText(host)).toBe("6 秒")
     await vi.advanceTimersByTimeAsync(5999)
@@ -183,7 +183,7 @@ describe("阅读器自动翻页控件", () => {
     const reopened = await createReader()
     expect(intervalText(reopened.host)).toBe("6 秒")
     expect(autoButton(reopened.host).getAttribute("aria-pressed")).toBe("false")
-    host.querySelector<HTMLButtonElement>('[aria-label="减少自动翻页间隔"]')!.click()
+    query<HTMLButtonElement>(host, '[aria-label="减少自动翻页间隔"]').click()
     await nextTick()
     expect(intervalText(host)).toBe("5 秒")
     await vi.advanceTimersByTimeAsync(5000)
@@ -196,8 +196,8 @@ describe("阅读器自动翻页控件", () => {
   ])("间隔为 $seconds 秒时禁用越界按钮，反向调整仍可用", async ({ seconds, disabledLabel, enabledLabel, next }) => {
     vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: seconds })
     const { host } = await createReader()
-    const disabledButton = host.querySelector<HTMLButtonElement>(`[aria-label="${disabledLabel}"]`)!
-    const enabledButton = host.querySelector<HTMLButtonElement>(`[aria-label="${enabledLabel}"]`)!
+    const disabledButton = query<HTMLButtonElement>(host, `[aria-label="${disabledLabel}"]`)
+    const enabledButton = query<HTMLButtonElement>(host, `[aria-label="${enabledLabel}"]`)
     expect(disabledButton.disabled).toBe(true)
     expect(enabledButton.disabled).toBe(false)
     disabledButton.click()
@@ -222,7 +222,7 @@ describe("阅读器自动翻页控件", () => {
     const inflight = deferred<null>()
     vi.mocked(saveGalleryPreferences).mockReturnValueOnce(inflight.promise)
     const { host } = await createReader()
-    const increase = host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!
+    const increase = query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]')
     increase.click()
     await nextTick()
     expect(saveGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ categories: [], readerInterval: 6 })
@@ -245,7 +245,7 @@ describe("阅读器自动翻页控件", () => {
   ])("间隔到了 %i 秒就不能再往外调", async (readerInterval, label) => {
     vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval })
     const { host } = await createReader()
-    const button = host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!
+    const button = query<HTMLButtonElement>(host, `[aria-label="${label}"]`)
     expect(button.disabled).toBe(true)
     button.click()
     await vi.advanceTimersByTimeAsync(0)
@@ -256,12 +256,12 @@ describe("阅读器自动翻页控件", () => {
   it("推送失败不改动当前间隔，也不拿失败打扰用户", async () => {
     vi.mocked(saveGalleryPreferences).mockRejectedValue(new Error("断网"))
     const { host } = await createReader()
-    host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.click()
+    query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]').click()
     await vi.advanceTimersByTimeAsync(0)
     await nextTick()
     expect(intervalText(host)).toBe("6 秒")
     expect(host.querySelector('[role="alert"]')).toBeNull()
-    expect(host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!.disabled).toBe(false)
+    expect(query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]').disabled).toBe(false)
   })
 
   /* 阅读器不经过图库布局，偏好可能还没读到或读失败了；这时调了也存不上，按钮不该看起来能用。 */
@@ -269,8 +269,8 @@ describe("阅读器自动翻页控件", () => {
     const pending = deferred<GalleryPreferences>()
     vi.mocked(fetchGalleryPreferences).mockReturnValueOnce(pending.promise)
     const { host } = await createReader()
-    const decrease = host.querySelector<HTMLButtonElement>('[aria-label="减少自动翻页间隔"]')!
-    const increase = host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!
+    const decrease = query<HTMLButtonElement>(host, '[aria-label="减少自动翻页间隔"]')
+    const increase = query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]')
     expect(decrease.disabled).toBe(true)
     expect(increase.disabled).toBe(true)
     expect(intervalText(host)).toBe("…")
@@ -283,10 +283,10 @@ describe("阅读器自动翻页控件", () => {
   it("偏好读失败时间隔不能调，在原处给出重试", async () => {
     vi.mocked(fetchGalleryPreferences).mockRejectedValueOnce(new Error("断网"))
     const { host } = await createReader()
-    const increase = host.querySelector<HTMLButtonElement>('[aria-label="增加自动翻页间隔"]')!
+    const increase = query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]')
     expect(increase.disabled).toBe(true)
-    expect(host.querySelector('[aria-label="减少自动翻页间隔"]')!.hasAttribute("disabled")).toBe(true)
-    host.querySelector<HTMLButtonElement>('[aria-label="自动翻页间隔没读到，重试"]')!.click()
+    expect(query(host, '[aria-label="减少自动翻页间隔"]').hasAttribute("disabled")).toBe(true)
+    query<HTMLButtonElement>(host, '[aria-label="自动翻页间隔没读到，重试"]').click()
     await vi.advanceTimersByTimeAsync(0)
     expect(intervalText(host)).toBe("5 秒")
     expect(increase.disabled).toBe(false)
@@ -304,7 +304,7 @@ describe("阅读器自动翻页控件", () => {
     expect(host.querySelector('input[type="range"]')).toBeNull()
     state.total = 12
     await nextTick()
-    const slider = host.querySelector<HTMLInputElement>('input[type="range"]')!
+    const slider = query<HTMLInputElement>(host, 'input[type="range"]')
     expect(slider.max).toBe("12")
     expect(slider.value).toBe("3")
     expect(slider.getAttribute("aria-valuetext")).toBe("第 3 页，共 12 页")
@@ -365,7 +365,7 @@ describe("阅读器自动翻页控件", () => {
     const { change, host } = await createReader()
     autoButton(host).click()
     await nextTick()
-    cleanups.pop()!()
+    present(cleanups.pop(), "卸载回调")()
     await vi.advanceTimersByTimeAsync(10000)
     expect(change).not.toHaveBeenCalled()
   })

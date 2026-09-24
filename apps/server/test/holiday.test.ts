@@ -67,7 +67,7 @@ describe("每日刷新", () => {
 
   it("拉到空的不动库，拉取失败也不动库", async () => {
     await refreshWith((request) =>
-      request.url.pathname.endsWith("/2026.json") ? json({ days: [] }) : holidaySource(request)!,
+      request.url.pathname.endsWith("/2026.json") ? json({ days: [] }) : holidaySource(request),
     )
     expect((await detail("2026-01-01")).body.name).toBe("元旦")
 
@@ -79,7 +79,7 @@ describe("每日刷新", () => {
     await refreshWith((request) =>
       request.url.pathname.endsWith("/2026.json")
         ? json({ days: [{ name: "元旦", date: "2026-01-02", isOffDay: true }] })
-        : holidaySource(request)!,
+        : holidaySource(request),
     )
     expect((await detail("2026-01-02")).body).toEqual({ date: "2026-01-02", isOffDay: true, name: "元旦" })
     /* 调休上班的那个周日不在新数据里了，回到按周末判断 */

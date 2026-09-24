@@ -7,6 +7,7 @@ import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 import { authenticate, fetchAuthOptions } from "@/features/auth/api"
 import { useAuthStore } from "@/features/auth/store"
 import LoginView from "@/features/auth/views/LoginView.vue"
+import { query } from "./support"
 
 vi.mock("@/features/auth/api", () => ({ authenticate: vi.fn(), fetchAuthOptions: vi.fn() }))
 
@@ -47,18 +48,18 @@ describe("登录表单", () => {
     const { pinia, router } = await mountLogin()
     await vi.waitFor(() => expect(host.textContent).toContain("还没有账号，去注册"))
     if (action === "register") {
-      host.querySelector<HTMLButtonElement>('button[type="button"]')!.click()
+      query<HTMLButtonElement>(host, 'button[type="button"]').click()
       await nextTick()
     }
-    const username = host.querySelector<HTMLInputElement>("#username")!
-    const password = host.querySelector<HTMLInputElement>("#password")!
+    const username = query<HTMLInputElement>(host, "#username")
+    const password = query<HTMLInputElement>(host, "#password")
     username.value = "tester"
     username.dispatchEvent(new Event("input", { bubbles: true }))
     password.value = "test-password"
     password.dispatchEvent(new Event("input", { bubbles: true }))
     await nextTick()
     expect(password.autocomplete).toBe(action === "register" ? "new-password" : "current-password")
-    const form = host.querySelector("form")!
+    const form = query(host, "form")
     const submit = new Event("submit", { bubbles: true, cancelable: true })
     form.dispatchEvent(submit)
     expect(submit.defaultPrevented).toBe(true)
@@ -66,7 +67,7 @@ describe("登录表单", () => {
     expect(authenticate).toHaveBeenCalledWith(action, { username: "tester", password: "test-password" })
     expect(username.value).toBe("tester")
     expect(password.value).toBe("test-password")
-    expect(form.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false)
+    expect(query<HTMLButtonElement>(form, 'button[type="submit"]').disabled).toBe(false)
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
     await vi.waitFor(() => expect(router.currentRoute.value.path).toBe("/settings"))
     expect(authenticate).toHaveBeenCalledTimes(2)
@@ -85,6 +86,6 @@ describe("登录表单", () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(host.textContent).not.toContain("去注册")
     expect(host.querySelector('button[type="button"]')).toBeNull()
-    expect(host.querySelector<HTMLButtonElement>('button[type="submit"]')!.textContent).toContain("登录")
+    expect(query<HTMLButtonElement>(host, 'button[type="submit"]').textContent).toContain("登录")
   })
 })

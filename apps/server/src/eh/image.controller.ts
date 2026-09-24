@@ -1,4 +1,5 @@
 import { Readable } from "node:stream"
+import type { ReadableStream } from "node:stream/web"
 import { Controller, Get, Logger, Param, Query, Res, StreamableFile } from "@nestjs/common"
 import type { Response } from "express"
 
@@ -53,25 +54,26 @@ export class ImageController {
     /* 图片地址在新标签页里被直接打开时，别让浏览器把它当成网页、在本站源下执行里面的东西 */
     response.setHeader("X-Content-Type-Options", "nosniff")
     response.setHeader("Content-Security-Policy", "sandbox")
-    const body = Readable.fromWeb(image.body as import("node:stream/web").ReadableStream<Uint8Array>)
+    const body = Readable.fromWeb(image.body as ReadableStream<Uint8Array>)
     /* 浏览器中途放弃（阅读器里快速翻页时成批发生）时，别在服务端把整张图白下完 */
     response.once("close", () => body.destroy())
-    return new StreamableFile(body, { type: image.contentType, length: image.contentLength ?? undefined })
-      .setErrorHandler((error, handlerResponse) => {
-        const res = handlerResponse as unknown as Response
-        const failure = imageBroken()
-        this.logger.warn(`${failure.message} url=${image.source} ${error.message}`)
-        if (res.headersSent) {
-          /* 已经开始发图了就改不成错误响应：照常收尾的话浏览器会把半张图当成完整的缓存下来，只能直接断开连接 */
-          res.destroy()
-          return
-        }
-        /* 头还没发出去：撤掉图片的响应头（尤其是 30 天的缓存头），改回普通的错误响应 */
-        for (const header of ["Cache-Control", "Content-Type", "Content-Length", "Content-Security-Policy"]) {
-          res.removeHeader(header)
-        }
-        res.status(failure.getStatus()).json(failure.getResponse())
-      })
-      .setErrorLogger((error) => this.logger.debug(`客户端中途放弃了图片 url=${image.source} ${error.message}`))
+    return (
+      new StreamableFile(body, { type: image.contentType, length: image.contentLength ?? undefined })
+        /* Nest 交给错误处理器的就是这个 response，直接用闭包里带着完整类型的那个 */
+        .setErrorHandler((error) => {
+          const failure = imageBroken(image.source, error)
+          if (response.headersSent) {
+            /* 已经开始发图了就改不成错误响应：照常收尾的话浏览器会把半张图当成完整的缓存下来，只能直接断开连接 */
+            response.destroy()
+            return
+          }
+          /* 头还没发出去：撤掉图片的响应头（尤其是 30 天的缓存头），改回普通的错误响应 */
+          for (const header of ["Cache-Control", "Content-Type", "Content-Length", "Content-Security-Policy"]) {
+            response.removeHeader(header)
+          }
+          response.status(failure.getStatus()).json(failure.getResponse())
+        })
+        .setErrorLogger((error) => this.logger.debug(`客户端中途放弃了图片 url=${image.source} ${error.message}`))
+    )
   }
 }

@@ -3,6 +3,7 @@ import { computed, ref } from "vue"
 
 import { bindCredential, unbindCredential } from "@/features/eh/api"
 import { useCredentialStore, useGalleryContentStore } from "@/features/eh/store"
+import { toError } from "@/shared/lib/errors"
 
 /**
  * e 站账号的绑定状态。
@@ -32,7 +33,7 @@ export function useEhCredential() {
       content.reset()
       return next
     } catch (error) {
-      errorMessage.value = (error as Error).message
+      errorMessage.value = toError(error).message
       throw error
     } finally {
       saving.value = false

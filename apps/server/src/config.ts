@@ -8,14 +8,20 @@ import { z } from "zod"
 
 const DURATION_UNITS = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 } as const
 
+type DurationUnit = keyof typeof DURATION_UNITS
+
+const isDurationUnit = (unit: string | undefined): unit is DurationUnit =>
+  unit !== undefined && Object.hasOwn(DURATION_UNITS, unit)
+
 /** 时长写成 30d、24h、30s、500ms 这样的「整数 + 单位」，解析成毫秒。 */
-const duration = z
-  .string()
-  .regex(/^\d+(ms|s|m|h|d)$/, "时长要写成整数加单位，如 30d、24h、30s、500ms")
-  .transform((text) => {
-    const [, amount, unit] = /^(\d+)(ms|s|m|h|d)$/.exec(text)!
-    return Number(amount) * DURATION_UNITS[unit as keyof typeof DURATION_UNITS]
-  })
+const duration = z.string().transform((text, ctx) => {
+  const [, amount, unit] = /^(\d+)(ms|s|m|h|d)$/.exec(text) ?? []
+  if (amount === undefined || !isDurationUnit(unit)) {
+    ctx.addIssue({ code: "custom", message: "时长要写成整数加单位，如 30d、24h、30s、500ms" })
+    return z.NEVER
+  }
+  return Number(amount) * DURATION_UNITS[unit]
+})
 
 const envSchema = z.object({
   DATABASE_URL: z.string({ error: "缺少 DATABASE_URL，形如 postgres://用户:口令@主机:5432/库名" }).min(1),
@@ -35,14 +41,17 @@ const envSchema = z.object({
   ALLOW_REGISTRATION: z.stringbool().default(false),
   /** 登录令牌有效期。令牌无状态，服务端不存已签发的令牌，所以没法提前作废。 */
   TOKEN_TTL: duration.prefault("30d"),
-  /** 请求 e 站时伪装的 User-Agent。默认的 UA 在一个明确禁止自动化抓取的站点上等于举手，必须换成真实浏览器的。 */
+  /**
+   * 出网请求（e 站、图床、节假日数据源）一律带的 User-Agent。默认的 UA 在 e 站这样明确禁止自动化抓取的站点上等于举手，
+   * 必须换成真实浏览器的。名字带 EH_ 是沿用下来的，改名要动已有部署的环境变量。
+   */
   EH_USER_AGENT: z
     .string()
     .min(1)
     .default(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
     ),
-  /** 单次请求 e 站的超时：等响应头最多这么久，之后按「多久没收到一个字节」算，不限整张图传多久。 */
+  /** 单次出网请求的超时，同样对所有出网请求生效：等响应头最多这么久，之后按「多久没收到一个字节」算，不限整张图传多久。 */
   EH_REQUEST_TIMEOUT: duration.prefault("30s"),
   /**
    * 签名图片地址的有效期。这类地址给 <img> 用，带不了 Authorization 头，只能靠签名认身份；

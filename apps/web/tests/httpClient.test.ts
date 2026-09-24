@@ -2,6 +2,7 @@ import { AxiosError, CanceledError, type AxiosAdapter, type AxiosResponse } from
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { hasToken, httpClient, onUnauthorized, setToken } from "@/shared/api/httpClient"
+import { present } from "./support"
 
 beforeEach(() => {
   setToken("")
@@ -15,20 +16,20 @@ describe("HTTP 边界", () => {
     setToken("current")
 
     expect(await httpClient.get("/eh/galleries", { ...config, params: { keyword: "中文 & cat" } })).toEqual({ id: 1 })
-    const getRequest = fetch.mock.calls[0]![0] as Request
+    const getRequest = present(fetch.mock.calls[0], "GET 请求")[0] as Request
     expect(getRequest.method).toBe("GET")
     expect(new URL(getRequest.url).pathname).toBe("/api/eh/galleries")
     expect(new URL(getRequest.url).searchParams.get("keyword")).toBe("中文 & cat")
     expect(getRequest.headers.get("Authorization")).toBe("Bearer current")
 
     expect(await httpClient.post("/eh/preferences/reader-interval", { interval: 6 }, config)).toEqual({ id: 1 })
-    const postRequest = fetch.mock.calls[1]![0] as Request
+    const postRequest = present(fetch.mock.calls[1], "POST 请求")[0] as Request
     expect(postRequest.method).toBe("POST")
     expect(postRequest.headers.get("Content-Type")).toBe("application/json")
     expect(await postRequest.json()).toEqual({ interval: 6 })
 
     expect(await httpClient.delete("/eh/history/27", config)).toEqual({ id: 1 })
-    const deleteRequest = fetch.mock.calls[2]![0] as Request
+    const deleteRequest = present(fetch.mock.calls[2], "DELETE 请求")[0] as Request
     expect(deleteRequest.method).toBe("DELETE")
     expect(new URL(deleteRequest.url).pathname).toBe("/api/eh/history/27")
     expect(deleteRequest.body).toBeNull()
@@ -80,7 +81,7 @@ describe("HTTP 边界", () => {
     const unauthorized = vi.fn()
     onUnauthorized(unauthorized)
     setToken("old")
-    let fail!: () => void
+    let fail: (() => void) | undefined
     const adapter: AxiosAdapter = (config) =>
       new Promise((_resolve, reject) => {
         fail = () =>
@@ -94,7 +95,7 @@ describe("HTTP 边界", () => {
     const pending = httpClient.get("/eh/galleries", { adapter })
     await vi.waitFor(() => expect(fail).toBeDefined())
     setToken("new")
-    fail()
+    present(fail, "让请求失败的回调")()
     await expect(pending).rejects.toThrow("已过期")
     expect(hasToken()).toBe(true)
     expect(unauthorized).not.toHaveBeenCalled()

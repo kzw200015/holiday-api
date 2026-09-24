@@ -7,7 +7,7 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchSearchHistory, saveSearchHistory } from "@/features/eh/api"
 import { useSearchHistory } from "@/features/eh/composables/useSearchHistory"
 import { useSearchHistoryStore } from "@/features/eh/store"
-import { settleFakeTimers } from "./support"
+import { deferred, present, settleFakeTimers } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -20,7 +20,7 @@ let pinia: Pinia
 const apps: ReturnType<typeof createApp>[] = []
 
 function mount() {
-  let api!: ReturnType<typeof useSearchHistory>
+  let api: ReturnType<typeof useSearchHistory> | undefined
   const app = createApp({
     setup() {
       api = useSearchHistory()
@@ -30,7 +30,7 @@ function mount() {
   app.use(pinia)
   app.mount(document.createElement("div"))
   apps.push(app)
-  return api
+  return present(api, "useSearchHistory 的返回值")
 }
 
 beforeEach(() => {
@@ -132,16 +132,12 @@ describe("账号搜索历史", () => {
   })
 
   it("本地改动之后，之前还在途的读取不再落地", async () => {
-    let finish!: (value: string[]) => void
-    vi.mocked(fetchSearchHistory).mockReturnValueOnce(
-      new Promise((resolve) => {
-        finish = resolve
-      }),
-    )
+    const loading = deferred<string[]>()
+    vi.mocked(fetchSearchHistory).mockReturnValueOnce(loading.promise)
     const store = useSearchHistoryStore(pinia)
     void store.load()
     store.set(["新"])
-    finish(["旧"])
+    loading.resolve(["旧"])
     await settleFakeTimers()
     expect(store.data).toEqual(["新"])
   })

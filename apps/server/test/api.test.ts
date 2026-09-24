@@ -41,20 +41,21 @@ describe("鉴权边界", () => {
    */
   it("公开接口恰好是这几条，其余不带令牌一律 401", async () => {
     const router = (t.app.getHttpAdapter().getInstance() as Express).router
-    const routes = router.stack.flatMap((layer) =>
-      layer.route
-        ? Object.keys((layer.route as unknown as { methods: Record<string, boolean> }).methods).map(
-            (method) => `${method.toUpperCase()} ${layer.route!.path}`,
-          )
+    /* express 路由表里的方法名是小写的 */
+    const routes = router.stack.flatMap(({ route }) =>
+      route
+        ? Object.keys((route as unknown as { methods: Record<string, boolean> }).methods).map((method) => ({
+            method,
+            path: route.path,
+          }))
         : [],
     )
     /* 扫整张路由表，不只扫 /api 下的：漏写前缀的接口同样要被锁住 */
     const open: string[] = []
-    for (const route of routes) {
-      const [method, path] = route.split(" ") as [string, string]
-      const response = await t.http[method.toLowerCase() as "get"](path.replaceAll(/:\w+/g, "1"))
+    for (const { method, path } of routes) {
+      const response = await t.http[method as "get"](path.replaceAll(/:\w+/g, "1"))
       if (response.status !== 401) {
-        open.push(route)
+        open.push(`${method.toUpperCase()} ${path}`)
       }
     }
     expect(new Set(open)).toEqual(

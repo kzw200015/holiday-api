@@ -1,4 +1,5 @@
 import type { Outbound, OutboundInit } from "../../src/outbound/outbound.module.js"
+import { present } from "./present.js"
 
 /** 发往外部网站的一次请求，按发出的顺序记下来。 */
 export interface RecordedRequest {
@@ -8,7 +9,8 @@ export interface RecordedRequest {
   body: string | undefined
 }
 
-export type Responder = (request: RecordedRequest) => Response | Promise<Response>
+/** 按请求给出响应；给不出（返回 undefined）就当作测试没配这个请求，回 unconfigured()。 */
+export type Responder = (request: RecordedRequest) => Response | undefined | Promise<Response | undefined>
 
 /** 测试没给出响应的请求：599 不是哪个真实网站会回的状态码，一眼认得出是测试漏配了。 */
 export const unconfigured = () => new Response("未配置的请求", { status: 599 })
@@ -32,7 +34,12 @@ export class FakeOutbound {
       body: init.body,
     }
     this.requests.push(request)
-    return this.respond(request)
+    return (await this.respond(request)) ?? unconfigured()
+  }
+
+  /** 最近发出的一个请求；一个都没发过就当场失败。 */
+  last(): RecordedRequest {
+    return present(this.requests.at(-1), "出网请求")
   }
 
   /** 发往某个主机的请求。 */

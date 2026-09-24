@@ -4,11 +4,11 @@ const DATE_RULE = "日期格式错误，应为 YYYY-MM-DD"
 
 /** 严格的日历日期：格式是 YYYY-MM-DD，且这一天真实存在（2026-02-30 不算）。 */
 export function isCalendarDate(text: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text)
-  if (!match) {
+  const [, yearText, monthText, dayText] = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text) ?? []
+  if (!yearText || !monthText || !dayText) {
     return false
   }
-  const [year, month, day] = match.slice(1).map(Number) as [number, number, number]
+  const [year, month, day] = [Number(yearText), Number(monthText), Number(dayText)]
   /* 不用 Date.UTC：它把 0–99 年当成 1900 年代 */
   const date = new Date(0)
   date.setUTCFullYear(year, month - 1, day)

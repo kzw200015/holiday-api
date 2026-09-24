@@ -10,6 +10,9 @@ import { DATABASE, type Database } from "../database/database.module.js"
 import { users } from "../database/schema.js"
 import { hashPassword, verifyPassword } from "./passwords.js"
 
+/** PostgreSQL 的唯一约束冲突 */
+const UNIQUE_VIOLATION = "23505"
+
 /** 本站账号：注册、登录与「我是谁」。 */
 @Injectable()
 export class AuthService {
@@ -33,17 +36,22 @@ export class AuthService {
     }
     const passwordHash = await hashPassword(password)
     /* 判重交给唯一索引而不是先查再插：先查再插在两个并发请求之间是有窗口的 */
-    const user = await this.db
-      .insert(users)
-      .values({ username, passwordHash })
-      .returning({ id: users.id, username: users.username })
-      .catch((error: unknown) => {
-        if (error instanceof Error && error.cause instanceof DatabaseError && error.cause.code === UNIQUE_VIOLATION) {
-          throw new BadRequestException("用户名已被占用")
-        }
-        throw error
-      })
-      .then(([row]) => row!)
+    let user: CurrentUser | undefined
+    try {
+      ;[user] = await this.db
+        .insert(users)
+        .values({ username, passwordHash })
+        .returning({ id: users.id, username: users.username })
+    } catch (error) {
+      if (error instanceof Error && error.cause instanceof DatabaseError && error.cause.code === UNIQUE_VIOLATION) {
+        throw new BadRequestException("用户名已被占用")
+      }
+      throw error
+    }
+    /* 插入一行本该回一行，没回说明数据库那边出了意料之外的事，按服务器错误处理 */
+    if (!user) {
+      throw new Error("插入账号后没有拿到新建的那一行")
+    }
     this.logger.log(`已注册新用户 userId=${user.id} username=${user.username}`)
     return this.authenticated(user)
   }
@@ -72,5 +80,3 @@ export class AuthService {
     return { token, user: { id: user.id, username: user.username } }
   }
 }
-
-const UNIQUE_VIOLATION = "23505"

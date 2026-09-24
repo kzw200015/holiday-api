@@ -5,7 +5,7 @@ import { ConfigService } from "@nestjs/config"
 import type { Env } from "../config.js"
 import { isDecimal } from "../numeric.js"
 import { SigningKeys } from "../signing/signing.module.js"
-import type { GalleryRef } from "./upstream/access.js"
+import type { GalleryRef } from "./upstream/gallery-ref.js"
 
 /** 地址上固定的两个签名参数：e 是过期时间（毫秒），s 是签名值。 */
 export interface Signature {

@@ -9,7 +9,7 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryDetail, saveProgress } from "@/features/eh/api"
 import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
 import { useGalleryContentStore } from "@/features/eh/store"
-import { deferred } from "./support"
+import { deferred, present } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -55,7 +55,7 @@ function progressOf(gid: number, token: string) {
 }
 
 async function mountReader() {
-  let api!: ReturnType<typeof useReadingProgress>
+  let api: ReturnType<typeof useReadingProgress> | undefined
   const app = createApp({
     setup() {
       api = useReadingProgress(1, "aaaaaaaaaa")
@@ -66,7 +66,7 @@ async function mountReader() {
   app.mount(document.createElement("div"))
   cleanups.push(() => app.unmount())
   await nextTick()
-  return { api }
+  return { api: present(api, "useReadingProgress 的返回值") }
 }
 
 beforeEach(async () => {
@@ -168,7 +168,7 @@ describe("阅读进度上报", () => {
   it("卸载时把还没发出的那次补上", async () => {
     const { api } = await mountReader()
     api.report(12)
-    cleanups.pop()!()
+    present(cleanups.pop(), "卸载回调")()
     await vi.advanceTimersByTimeAsync(0)
     expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "aaaaaaaaaa", 12)
   })
@@ -181,7 +181,7 @@ describe("阅读进度上报", () => {
     api.flush()
     api.report(13)
     await vi.advanceTimersByTimeAsync(SAVE_DELAY)
-    cleanups.pop()!()
+    present(cleanups.pop(), "卸载回调")()
     await vi.advanceTimersByTimeAsync(0)
     expect(saveProgress).not.toHaveBeenCalled()
   })

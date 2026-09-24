@@ -3,13 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, ref } from "vue"
 
 import { useRequest } from "@/shared/composables/useRequest"
-import { deferred } from "./support"
+import { deferred, present } from "./support"
 
 const apps: ReturnType<typeof createApp>[] = []
 
 function mount(fetcher: (key: string, signal: AbortSignal) => Promise<string>) {
   const key = ref("a")
-  let api!: ReturnType<typeof useRequest<string>>
+  let api: ReturnType<typeof useRequest<string>> | undefined
   const app = createApp({
     setup() {
       api = useRequest([key], (signal) => fetcher(key.value, signal))
@@ -18,7 +18,7 @@ function mount(fetcher: (key: string, signal: AbortSignal) => Promise<string>) {
   })
   app.mount(document.createElement("div"))
   apps.push(app)
-  return { key, api, app }
+  return { key, api: present(api, "useRequest 的返回值"), app }
 }
 
 afterEach(() => {
@@ -37,7 +37,7 @@ describe("跟着参数走的读取", () => {
 
     key.value = "b"
     await nextTick()
-    expect(fetcher.mock.calls[0]![1].aborted).toBe(true)
+    expect(fetcher.mock.calls[0]?.[1].aborted).toBe(true)
     expect(fetcher).toHaveBeenLastCalledWith("b", expect.any(AbortSignal))
 
     second.resolve("b 的结果")
@@ -87,7 +87,7 @@ describe("跟着参数走的读取", () => {
     const { api, app } = mount(fetcher)
     app.unmount()
     apps.splice(apps.indexOf(app), 1)
-    expect(fetcher.mock.calls[0]![1].aborted).toBe(true)
+    expect(fetcher.mock.calls[0]?.[1].aborted).toBe(true)
     pending.resolve("迟到的结果")
     await nextTick()
     expect(api.data.value).toBeUndefined()

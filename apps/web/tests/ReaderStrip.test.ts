@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, nextTick, reactive } from "vue"
 
 import ReaderStrip from "@/features/eh/components/ReaderStrip.vue"
+import { present, query } from "./support"
 
 let resize: (entries: { contentRect: { width: number; height: number } }[]) => void
 vi.mock("@vueuse/core", async (importOriginal) => ({
@@ -58,7 +59,7 @@ function pageWidths(element: HTMLElement) {
 }
 
 function loadImage(element: HTMLElement, page: number, width: number, height: number) {
-  const image = element.children[page - 1]!.querySelector("img")!
+  const image = query(present(element.children[page - 1], `第 ${page} 页`), "img")
   Object.defineProperties(image, {
     naturalWidth: { value: width, configurable: true },
     naturalHeight: { value: height, configurable: true },
@@ -161,14 +162,15 @@ describe("横向阅读图片条", () => {
       loadImage(element, 5, ratio * 1000, 1000)
       await nextTick()
       const widths = pageWidths(element)
-      expect(widths[4]).toBe(Math.min(width, height * ratio))
-      expect(widths[4] / ratio).toBeLessThanOrEqual(height)
+      const fifth = present(widths[4], "第 5 页的宽度")
+      expect(fifth).toBe(Math.min(width, height * ratio))
+      expect(fifth / ratio).toBeLessThanOrEqual(height)
       props.page = 5
       await nextTick()
       await nextTick()
       const left = widths.slice(0, 4).reduce((sum, value) => sum + value, 0)
       expect(left).toBeGreaterThanOrEqual(element.scrollLeft)
-      expect(left + widths[4]).toBeLessThanOrEqual(element.scrollLeft + width)
+      expect(left + fifth).toBeLessThanOrEqual(element.scrollLeft + width)
       element.dispatchEvent(new Event("scroll"))
       expect(props.page).toBe(5)
       resize([{ contentRect: { width: height, height: width } }])
@@ -289,16 +291,16 @@ describe("横向阅读图片条", () => {
     const { element } = await setup(5)
     await vi.advanceTimersByTimeAsync(60000)
     expect(element.querySelector("button")).toBeNull()
-    const page = element.children[4]!
-    const original = page.querySelector("img")!
+    const page = present(element.children[4], "第 5 页")
+    const original = query(page, "img")
     original.dispatchEvent(new Event("error"))
     await nextTick()
     expect(page.textContent).toContain("第 5 页加载失败")
-    page.querySelector("button")!.click()
+    query(page, "button").click()
     await nextTick()
     expect(page.querySelector("button")).toBeNull()
     expect(page.querySelector("img")).not.toBe(original)
-    expect(page.querySelector("img")!.getAttribute("src")).toBe("/image/5?signed=true&r=1")
+    expect(query(page, "img").getAttribute("src")).toBe("/image/5?signed=true&r=1")
     expect(imagePages(element)).toEqual([3, 4, 5, 6, 7])
   })
 
@@ -309,7 +311,7 @@ describe("横向阅读图片条", () => {
     props.page = 80
     await nextTick()
     const scrolls = vi.mocked(element.scrollTo).mock.calls.length
-    app!.unmount()
+    present(app, "应用").unmount()
     app = undefined
     await vi.advanceTimersByTimeAsync(200)
     expect(element.scrollTo).toHaveBeenCalledTimes(scrolls)

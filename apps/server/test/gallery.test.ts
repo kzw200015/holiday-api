@@ -4,6 +4,7 @@ import { register, startApp, type TestApp } from "./support/app.js"
 import { createDatabase } from "./support/database.js"
 import { fixture, isMetadataApi, metadata, metadataApi, REF, requestedRefs } from "./support/eh.js"
 import { html, json, withHolidays, type Responder } from "./support/outbound.js"
+import { present } from "./support/present.js"
 
 let t: TestApp
 let auth: { Authorization: string }
@@ -32,7 +33,7 @@ describe("搜索", () => {
     expect(response.body.items.map((card: { gid: number }) => card.gid)).toEqual([4156906, 4156901])
     expect(response.body.nextCursor).toBe("4156820")
     /* 元数据一律匿名请求表站 */
-    const metadataRequest = t.outbound.requests.find(isMetadataApi)!
+    const metadataRequest = present(t.outbound.requests.find(isMetadataApi), "元数据请求")
     expect(metadataRequest.url.toString()).toBe("https://api.e-hentai.org/api.php")
     expect(metadataRequest.headers.cookie).toBe("nw=1; sl=dm_2")
   })
@@ -53,7 +54,7 @@ describe("搜索", () => {
   it("条件按表单编码拼进地址，分类换算成要排除的位和；全选与全不选都不加分类参数", async () => {
     eh(() => html("<p>No hits found</p>"))
     await search({ keyword: "a b&c", categories: ["manga", "doujinshi"], cursor: "123" }).expect(200)
-    expect(t.outbound.requests.at(-1)!.url.search).toBe("?f_search=a+b%26c&f_cats=1017&next=123")
+    expect(t.outbound.last().url.search).toBe("?f_search=a+b%26c&f_cats=1017&next=123")
 
     const all = [
       "doujinshi",
@@ -104,7 +105,7 @@ describe("搜索", () => {
 
   /** 详情和阅读历史常常同时要同一本：还在加载的那一份交给后到的请求，不再各打一次元数据接口。 */
   it("同一本图集的元数据同时被要两次，只向上游请求一次；加载失败不进缓存", async () => {
-    let release!: () => void
+    let release: (() => void) | undefined
     const released = new Promise<void>((resolve) => (release = resolve))
     const ref = { gid: 900100, token: "0123456789" }
     eh(async (request) => {
@@ -120,7 +121,7 @@ describe("搜索", () => {
       .set(auth)
       .then((r) => r)
     await new Promise((resolve) => setTimeout(resolve, 100))
-    release()
+    present(release, "放行元数据请求的回调")()
     expect((await first).status).toBe(200)
     expect((await second).status).toBe(200)
     expect(t.outbound.requests.filter(isMetadataApi)).toHaveLength(1)
@@ -150,9 +151,9 @@ describe("上游失败的识别", () => {
         429,
         "本机访问 e 站过于频繁已被临时限制，请过几分钟再试",
       ],
-      [html("<html>Bad Gateway</html>", 502), 502, "e 站返回了 HTTP 502"],
+      [html("<html>Bad Gateway</html>", 502), 502, "e 站那边出错了"],
       /* 正常的页面请求不会重定向，会重定向说明身份没被认下来 */
-      [html("<html>go away</html>", 302), 502, "e 站返回了 HTTP 302"],
+      [html("<html>go away</html>", 302), 502, "e 站返回了意料之外的响应"],
       [new TypeError("fetch failed"), 502, "请求 e 站失败，可能是网络不通或超时"],
     ]
     for (const [response, status, message] of cases) {
@@ -209,7 +210,11 @@ describe("上游失败的识别", () => {
     expect((await t.http.get("/api/eh/galleries/900301/0123456789").set(auth)).status).toBe(429)
     eh(() => json({ error: "Invalid gidlist" }))
     const rejected = await t.http.get("/api/eh/galleries/900302/0123456789").set(auth)
-    expect([rejected.status, rejected.body.message]).toEqual([502, "e 站元数据接口拒绝了请求：Invalid gidlist"])
+    expect([rejected.status, rejected.body.message]).toEqual([502, "e 站元数据接口拒绝了请求"])
+    /* 某一条不是对象：按上游返回了意料之外的东西处理（502），而不是在读字段时崩成 500 */
+    eh(() => json({ gmetadata: [null] }))
+    const malformed = await t.http.get("/api/eh/galleries/900303/0123456789").set(auth)
+    expect([malformed.status, malformed.body.message]).toEqual([502, "e 站元数据接口返回的图集数据格式不对"])
   })
 
   it("详情页没解析出来时才认内容警告页与 e 站的说明页", async () => {

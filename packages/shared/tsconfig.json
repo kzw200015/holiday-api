@@ -6,6 +6,7 @@
     "moduleResolution": "NodeNext",
     "types": [],
     "strict": true,
+    "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "skipLibCheck": true,

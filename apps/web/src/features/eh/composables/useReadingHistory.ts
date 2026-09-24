@@ -6,6 +6,7 @@ import { useGalleryContentStore } from "@/features/eh/store"
 import { useCursorPages } from "@/shared/composables/useCursorPages"
 import { useInfiniteLoad } from "@/shared/composables/useInfiniteLoad"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
+import { toError } from "@/shared/lib/errors"
 
 /**
  * 阅读历史的加载与增删。
@@ -42,7 +43,7 @@ export function useReadingHistory() {
       await request()
       apply()
     } catch (error) {
-      changeError.value = (error as Error).message
+      changeError.value = toError(error).message
     } finally {
       changing.value = false
     }

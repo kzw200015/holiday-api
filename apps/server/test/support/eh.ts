@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 
 import { html, json, type RecordedRequest } from "./outbound.js"
+import { present } from "./present.js"
 
 /** 从真实页面原样裁下来的 e 站样本（test/fixtures/eh/），不要格式化，解析器依赖的正是原文。 */
 export function fixture(name: string): string {
@@ -35,7 +36,7 @@ export const isMetadataApi = (request: RecordedRequest) =>
 
 /** 这次元数据请求要的是哪几本。 */
 export function requestedRefs(request: RecordedRequest): { gid: number; token: string }[] {
-  const { gidlist } = JSON.parse(request.body!) as { gidlist: [number, string][] }
+  const { gidlist } = JSON.parse(present(request.body, "元数据请求体")) as { gidlist: [number, string][] }
   return gidlist.map(([gid, token]) => ({ gid, token }))
 }
 

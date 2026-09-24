@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import { createApp, h } from "vue"
 
 import GalleryMeta from "@/features/eh/components/GalleryMeta.vue"
+import { query } from "./support"
 
 describe("图集星级评分", () => {
   it.each([
@@ -17,7 +18,7 @@ describe("图集星级评分", () => {
     const app = createApp({ render: () => h(GalleryMeta, { category: "Manga", rating }) })
     app.mount(host)
     try {
-      const stars = host.querySelector('[role="img"]')!
+      const stars = query(host, '[role="img"]')
       expect(stars.children).toHaveLength(5)
       expect(
         [...stars.querySelectorAll<HTMLElement>("span[style]")].map((star) => parseFloat(star.style.width)),

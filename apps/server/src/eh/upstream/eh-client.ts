@@ -1,20 +1,21 @@
 import type { EhCredential, GalleryDetail, GallerySearch } from "@myapi/shared"
-import { Inject, Injectable, Logger, type HttpException } from "@nestjs/common"
+import { Inject, Injectable, Logger } from "@nestjs/common"
 
 import { OUTBOUND, type Outbound } from "../../outbound/outbound.module.js"
-import { ANONYMOUS, cookieHeader, refKey, SITES, type EhAccess, type GalleryRef } from "./access.js"
+import { ANONYMOUS, cookieHeader, SITES, type EhAccess } from "./access.js"
 import { categoryFilter } from "./categories.js"
 import {
   banned,
   contentWarning,
   credentialRejected,
-  ImageNodeFailure,
+  imageNodeFailure,
   quotaExceeded,
   sadPanda,
   unavailable,
   unreachable,
   upstreamNotice,
 } from "./failures.js"
+import { refKey, type GalleryRef } from "./gallery-ref.js"
 import { isAllowedImageUrl } from "./image-hosts.js"
 import {
   decodeEntities,
@@ -40,7 +41,7 @@ export interface ImageStream {
   source: string
 }
 
-/** 元数据接口一次最多查这么多本，属于上游协议，调用方不需要自己切片。 */
+/** 元数据接口一次最多查这么多本。由调用方按它切批，各批各自成败，一批失败不连累别的批。 */
 export const METADATA_BATCH_SIZE = 25
 
 /** 配额用尽时 e 站不报错，而是把大图换成一张提示图：表站 ehgt.org/g/509.gif，里站 exhentai.org/img/509.gif，小图叫 509s.gif。 */
@@ -49,7 +50,8 @@ const QUOTA_IMAGE = /^https:\/\/(?:ehgt\.org\/g|exhentai\.org\/img)\/509s?\.gif$
 /** 未登录时 home.php 会 302 到论坛登录页，登录成功才是 200：拿它检验一组 Cookie 在表站认不认。 */
 const HOME_URL = `${SITES.e.page}/home.php`
 
-interface Page {
+/** 读进内存的上游响应。 */
+interface UpstreamResponse {
   url: string
   status: number
   body: string
@@ -78,8 +80,8 @@ export class EhClient {
     if (cursor) {
       query.set("next", cursor)
     }
-    const page = await this.page(access, `/?${query}`)
-    return parseGalleryList(page.body) ?? this.unrecognized(page, "没有识别出图集搜索结果，e 站版面可能改了")
+    const response = await this.getPage(access, `/?${query}`)
+    return parseGalleryList(response.body) ?? this.unrecognized(response, "没有识别出图集搜索结果，e 站版面可能改了")
   }
 
   /** 元数据一律匿名请求表站，一次最多 METADATA_BATCH_SIZE 本；整批失败报错，单本不可访问的不出现在结果里。 */
@@ -91,21 +93,24 @@ export class EhClient {
     })
     /* 整个请求被拒时（gidlist 格式不对、条数超限）没有 gmetadata，只有一个顶层的 error */
     if (typeof response.error === "string" && response.error) {
-      throw this.fail(unavailable(`e 站元数据接口拒绝了请求：${response.error}`))
+      throw unavailable("e 站元数据接口拒绝了请求", `error=${response.error}`)
     }
     if (!Array.isArray(response.gmetadata)) {
-      throw this.fail(unavailable("e 站元数据接口没有返回图集数据"))
+      throw unavailable("e 站元数据接口没有返回图集数据")
     }
     const requested = new Set(refs.map(refKey))
     const batch = new Map<string, GalleryMetadata>()
-    for (const entry of response.gmetadata as Record<string, unknown>[]) {
+    for (const entry of response.gmetadata) {
+      if (!isRecord(entry)) {
+        throw unavailable("e 站元数据接口返回的图集数据格式不对", `entry=${JSON.stringify(entry)}`)
+      }
       /* 单个图集被删或转私有时，那一条会变成 { gid, error }，跳过它，别让整批作废 */
       if (entry.error) {
         continue
       }
       const metadata = toMetadata(entry)
       if (!requested.has(refKey(metadata))) {
-        throw this.fail(unavailable("e 站返回的图集定位信息与请求不一致"))
+        throw unavailable("e 站返回的图集定位信息与请求不一致")
       }
       batch.set(refKey(metadata), metadata)
     }
@@ -113,10 +118,10 @@ export class EhClient {
   }
 
   async fetchGallerySlice(access: EhAccess, ref: GalleryRef, slice: number): Promise<GallerySlice> {
-    const page = await this.page(access, `/g/${ref.gid}/${ref.token}/?p=${slice}`)
-    const parsed = parseGallerySlice(page.body, ref.gid)
+    const response = await this.getPage(access, `/g/${ref.gid}/${ref.token}/?p=${slice}`)
+    const parsed = parseGallerySlice(response.body, ref.gid)
     if (parsed.pageTokens.size === 0) {
-      this.unrecognized(page, "图集页面没有可识别的图片令牌")
+      this.unrecognized(response, "图集页面没有可识别的图片令牌")
     }
     return parsed
   }
@@ -130,9 +135,9 @@ export class EhClient {
     reloadToken: string | null = null,
   ): Promise<ImagePage> {
     const reload = reloadToken ? `?${new URLSearchParams({ nl: reloadToken })}` : ""
-    const html = await this.page(access, `/s/${pageToken}/${ref.gid}-${page}${reload}`)
+    const response = await this.getPage(access, `/s/${pageToken}/${ref.gid}-${page}${reload}`)
     const image =
-      parseImagePage(html.body) ?? this.unrecognized(html, `第 ${page} 页没解析出图片地址，e 站版面可能改了`)
+      parseImagePage(response.body) ?? this.unrecognized(response, `第 ${page} 页没解析出图片地址，e 站版面可能改了`)
     return withinQuota(image)
   }
 
@@ -158,11 +163,11 @@ export class EhClient {
       return null
     }
     if (response.error) {
-      throw this.fail(unavailable(`e 站图片接口拒绝了请求：${String(response.error)}`))
+      throw unavailable("e 站图片接口拒绝了请求", `error=${String(response.error)}`)
     }
     const image = typeof response.i3 === "string" ? parseImagePage(response.i3) : null
     if (!image) {
-      throw this.fail(unavailable(`第 ${page} 页的图片接口没有返回图片地址`))
+      throw unavailable(`第 ${page} 页的图片接口没有返回图片地址`)
     }
     return withinQuota(image)
   }
@@ -194,22 +199,21 @@ export class EhClient {
    */
   async openImage(url: string): Promise<ImageStream> {
     if (!isAllowedImageUrl(url)) {
-      this.logger.warn(`图片地址不在白名单内，已拒绝 url=${url}`)
-      throw unavailable("图片地址不在允许的范围内")
+      throw unavailable("图片地址不在允许的范围内", `url=${url}`)
     }
     this.logger.debug(`请求 e 站 GET ${url}`)
     let response: Response
     try {
       response = await this.outbound(url)
     } catch (error) {
-      throw new ImageNodeFailure("连不上图床节点", { cause: error })
+      throw imageNodeFailure(url, error)
     }
     try {
       if (response.status === 509) {
         throw quotaExceeded()
       }
       if (response.status !== 200 || !response.body) {
-        throw new ImageNodeFailure(`图床返回了 HTTP ${response.status}`)
+        throw imageNodeFailure(url, `HTTP ${response.status}`)
       }
       /*
        * 上游出错时回的是 HTML 错误页，原样转发会让浏览器显示一张裂图。SVG 也不放行：它能带脚本，
@@ -218,7 +222,7 @@ export class EhClient {
       const contentType = response.headers.get("content-type") ?? ""
       const type = contentType.toLowerCase()
       if (!type.startsWith("image/") || type.startsWith("image/svg")) {
-        throw this.fail(unavailable(`图床返回的不是图片（${contentType || "无类型"}）`))
+        throw unavailable("图床返回的不是图片", `content-type=${contentType || "无"} url=${url}`)
       }
       /* 被压缩传输的内容 fetch 会自动解压，上游给的长度就对不上了 */
       const length = response.headers.get("content-encoding") ? null : response.headers.get("content-length")
@@ -229,10 +233,10 @@ export class EhClient {
     }
   }
 
-  private async page(access: EhAccess, pathAndQuery: string): Promise<Page> {
-    const page = await this.read(`${SITES[access.site].page}${pathAndQuery}`, cookieHeader(access.credential))
-    this.assertUsable(page)
-    return page
+  private async getPage(access: EhAccess, pathAndQuery: string): Promise<UpstreamResponse> {
+    const response = await this.read(`${SITES[access.site].page}${pathAndQuery}`, cookieHeader(access.credential))
+    this.assertUsable(response)
+    return response
   }
 
   /**
@@ -240,23 +244,23 @@ export class EhClient {
    * 不代表被封。解不开才交给 assertUsable 认是哪种失败。
    */
   private async api(access: EhAccess, payload: object): Promise<Record<string, unknown>> {
-    const page = await this.read(SITES[access.site].api, cookieHeader(access.credential), JSON.stringify(payload))
+    const response = await this.read(SITES[access.site].api, cookieHeader(access.credential), JSON.stringify(payload))
     let parsed: unknown
     try {
-      parsed = JSON.parse(page.body)
+      parsed = JSON.parse(response.body)
     } catch (error) {
-      this.assertUsable(page)
-      throw this.fail(unavailable("e 站接口返回的不是预期的 JSON"), error)
+      this.assertUsable(response)
+      throw unavailable("e 站接口返回的不是预期的 JSON", error)
     }
-    if (page.status === 200 && typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>
+    if (response.status === 200 && isRecord(parsed)) {
+      return parsed
     }
-    this.assertUsable(page)
-    throw this.fail(unavailable("e 站接口返回的不是预期的 JSON"))
+    this.assertUsable(response)
+    throw unavailable("e 站接口返回的不是预期的 JSON", `HTTP ${response.status} url=${response.url}`)
   }
 
   /** 页面、JSON 接口与凭据探测共用：整个响应读进内存。图片流不走这里。 */
-  private async read(url: string, cookie: string, body?: string): Promise<Page> {
+  private async read(url: string, cookie: string, body?: string): Promise<UpstreamResponse> {
     /* 排查「一次操作到底打了几个上游请求」时全靠这条 */
     this.logger.debug(`请求 e 站 ${body === undefined ? "GET" : "POST"} ${url}`)
     try {
@@ -267,7 +271,7 @@ export class EhClient {
       })
       return { url, status: response.status, body: await response.text() }
     } catch (error) {
-      throw this.fail(unreachable(error), error)
+      throw unreachable(url, error)
     }
   }
 
@@ -277,18 +281,17 @@ export class EhClient {
    * 这几种情况 e 站都回 HTTP 200：只看状态码的话，IP 被封时会被当成正常 HTML 解析出空列表，
    * 然后继续按原节奏请求，把临时封禁续成长期封禁。
    */
-  private assertUsable({ url, status, body }: Page) {
+  private assertUsable({ url, status, body }: UpstreamResponse) {
     /* 509 是 e 站专门表示图片配额耗尽的状态码，先判它——509 的响应体也可能是空的 */
     if (status === 509) {
       throw quotaExceeded()
     }
     /* 封禁页是一句不带任何标签的纯文本。只认这个形状：正常页面里的标题、评论、回显的搜索词出现同样的字眼不算 */
     if (!body.includes("<") && (body.includes("temporarily banned") || body.includes("excessive pageloads"))) {
-      this.logger.warn(`出口 IP 被 e 站临时封禁 url=${url}`)
-      throw banned()
+      throw banned(url)
     }
     if (status >= 500) {
-      throw this.fail(unavailable(`e 站返回了 HTTP ${status}`))
+      throw unavailable("e 站那边出错了", `HTTP ${status} url=${url}`)
     }
     if (body.trim() === "") {
       /* 里站在 Cookie 无效或账号无权限时回空 body（200，或 302 回表站），不是 403；表站回空页面则是出口 IP 被封了 */
@@ -296,13 +299,12 @@ export class EhClient {
         throw sadPanda()
       }
       if (status === 200) {
-        this.logger.warn(`出口 IP 被 e 站临时封禁 url=${url}`)
-        throw banned()
+        throw banned(url)
       }
     }
     /* 正常的页面请求不会重定向，会重定向说明身份没被认下来 */
     if (status >= 300) {
-      throw this.fail(unavailable(`e 站返回了 HTTP ${status}`))
+      throw unavailable("e 站返回了意料之外的响应", `HTTP ${status} url=${url}`)
     }
   }
 
@@ -310,24 +312,22 @@ export class EhClient {
    * 页面没解析出要的东西时，先认一认是不是 e 站那几种代替页面的说明，认不出来才按版面改了报告。
    * 放在解析失败之后才认：正常页面里的标题、评论也可能出现这些字眼，先按文案判断会误伤。
    */
-  private unrecognized(page: Page, fallback: string): never {
+  private unrecognized({ url, body }: UpstreamResponse, fallback: string): never {
     /* 被标记的图集在没有 nw cookie 时回一张插页 */
-    if (page.body.includes("Content Warning")) {
-      throw this.fail(contentWarning())
+    if (body.includes("Content Warning")) {
+      throw contentWarning(url)
     }
-    const notice = parseNotice(page.body)
+    const notice = parseNotice(body)
     if (notice) {
       throw upstreamNotice(notice)
     }
-    throw this.fail(unavailable(fallback), `url=${page.url}`)
+    throw unavailable(fallback, `url=${url}`)
   }
+}
 
-  /** 上游故障回给前端的只有一句中文，细节（原始错误、上游地址）只进日志。 */
-  private fail<T extends HttpException>(failure: T, detail?: unknown): T {
-    const cause = detail instanceof Error ? (detail.cause ?? detail) : detail
-    this.logger.warn(`${failure.message}${cause === undefined ? "" : ` ${String(cause)}`}`)
-    return failure
-  }
+/** JSON 里的一个对象（不含数组与 null）。 */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 /** 配额用尽时的提示图不能当成这一页的内容返回，更不能缓存下来。 */
@@ -343,7 +343,10 @@ function withinQuota(image: ImagePage): ImagePage {
  * 这些是字符串（"329"、"4.68"）。两种都收下；缺省、null 和空串都算 0，别让一个没填的字段废掉整批元数据。
  */
 function toMetadata(entry: Record<string, unknown>): GalleryMetadata {
-  const text = (field: string) => (typeof entry[field] === "string" ? (entry[field] as string) : "")
+  const text = (field: string) => {
+    const value = entry[field]
+    return typeof value === "string" ? value : ""
+  }
   const number = (field: string) => {
     const value = entry[field]
     if (value === undefined || value === null || value === "") {
@@ -351,7 +354,7 @@ function toMetadata(entry: Record<string, unknown>): GalleryMetadata {
     }
     const parsed = Number(value)
     if (!Number.isFinite(parsed)) {
-      throw unavailable(`e 站元数据里的 ${field} 不是数字`)
+      throw unavailable("e 站元数据的格式不对", `${field}=${String(value)}`)
     }
     return parsed
   }

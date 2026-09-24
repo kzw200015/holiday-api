@@ -6,6 +6,7 @@ import CommentBody from "@/features/eh/components/CommentBody.vue"
 import GalleryTag from "@/features/eh/components/GalleryTag.vue"
 import EmptyState from "@/shared/components/EmptyState.vue"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
+import { query } from "./support"
 
 describe("页面公共反馈", () => {
   it("查询错误支持重试，保留自定义操作且按钮不会提交表单", () => {
@@ -19,7 +20,7 @@ describe("页面公共反馈", () => {
     try {
       expect(host.textContent).toContain("网络异常")
       expect(host.textContent).toContain("返回列表")
-      const button = host.querySelector("button")!
+      const button = query(host, "button")
       expect(button.type).toBe("button")
       button.click()
       expect(retry).toHaveBeenCalledTimes(1)
@@ -64,7 +65,7 @@ describe("页面公共反馈", () => {
       expect(host.textContent).toContain('<img src="x" onerror="alert(1)">')
       expect(host.querySelector("img")).toBeNull()
       expect(host.querySelectorAll("br")).toHaveLength(1)
-      const link = host.querySelector("a")!
+      const link = query(host, "a")
       expect(link.textContent).toBe("原文")
       expect(link.href).toBe("https://example.com/comment")
       expect(link.rel).toBe("noreferrer noopener")

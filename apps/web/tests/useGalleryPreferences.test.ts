@@ -8,7 +8,7 @@ import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, saveGalleryPreferences } from "@/features/eh/api"
 import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
-import { settleFakeTimers } from "./support"
+import { deferred, present, settleFakeTimers } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
@@ -21,7 +21,7 @@ let pinia: Pinia
 const apps: ReturnType<typeof createApp>[] = []
 
 function mount() {
-  let api!: ReturnType<typeof useGalleryPreferences>
+  let api: ReturnType<typeof useGalleryPreferences> | undefined
   const app = createApp({
     setup() {
       api = useGalleryPreferences()
@@ -31,7 +31,7 @@ function mount() {
   app.use(pinia)
   app.mount(document.createElement("div"))
   apps.push(app)
-  return api
+  return present(api, "useGalleryPreferences 的返回值")
 }
 
 beforeEach(() => {
@@ -114,16 +114,12 @@ describe("账号浏览偏好", () => {
 
   /* 换账号那一刻作废：旧账号还没回来的读取，不能落到新账号头上。 */
   it("换账号后旧账号在途的读取作废，新页面读新账号的那份", async () => {
-    let finish!: (value: GalleryPreferences) => void
-    vi.mocked(fetchGalleryPreferences).mockReturnValueOnce(
-      new Promise((resolve) => {
-        finish = resolve
-      }),
-    )
+    const loading = deferred<GalleryPreferences>()
+    vi.mocked(fetchGalleryPreferences).mockReturnValueOnce(loading.promise)
     const before = mount()
     await settleFakeTimers()
     useAuthStore(pinia).logout()
-    finish({ categories: ["cosplay"], readerInterval: 9 })
+    loading.resolve({ categories: ["cosplay"], readerInterval: 9 })
     await settleFakeTimers()
     expect(before.ready.value).toBe(false)
 
@@ -135,12 +131,8 @@ describe("账号浏览偏好", () => {
 
   /* 排队中的保存要等前一次回来才发，那时令牌已经是新账号的了，发出去就写到了新账号上。 */
   it("换账号后旧账号排队中的保存不再发出", async () => {
-    let finish!: (value: null) => void
-    vi.mocked(saveGalleryPreferences).mockReturnValueOnce(
-      new Promise((resolve) => {
-        finish = resolve
-      }),
-    )
+    const saving = deferred<null>()
+    vi.mocked(saveGalleryPreferences).mockReturnValueOnce(saving.promise)
     const preferences = mount()
     await settleFakeTimers()
     preferences.interval.value = 6
@@ -149,7 +141,7 @@ describe("账号浏览偏好", () => {
     expect(saveGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ categories: ["manga"], readerInterval: 6 })
 
     useAuthStore(pinia).logout()
-    finish(null)
+    saving.resolve(null)
     await settleFakeTimers()
     expect(saveGalleryPreferences).toHaveBeenCalledTimes(1)
   })

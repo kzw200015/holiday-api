@@ -3,7 +3,7 @@ import { load, type Cheerio, type CheerioAPI } from "cheerio"
 import type { AnyNode } from "domhandler"
 import { decodeHTMLStrict } from "entities"
 
-import type { GalleryRef } from "./access.js"
+import type { GalleryRef } from "./gallery-ref.js"
 
 /*
  * 解析只由 HTML 提供的东西：图集列表、取图用的定位信息与评论。不发请求、不碰缓存。
@@ -61,9 +61,8 @@ export function parseGalleryList(html: string): GalleryList | null {
   /* 同一个图集在一行里会出现在封面、标题等多个链接上，按 gid 去重后顺序即页面顺序 */
   const refs = new Map<number, GalleryRef>()
   for (const [, gid, token] of html.matchAll(GALLERY_LINK)) {
-    const ref = { gid: Number(gid), token: token! }
-    if (!refs.has(ref.gid)) {
-      refs.set(ref.gid, ref)
+    if (gid && token && !refs.has(Number(gid))) {
+      refs.set(Number(gid), { gid: Number(gid), token })
     }
   }
   if (refs.size === 0 && !EMPTY_LIST_MARKERS.some((marker) => html.includes(marker))) {
@@ -85,19 +84,14 @@ const SHOWING = /Showing\s+([\d,]+)\s*-\s*([\d,]+)\s+of\s+([\d,]+)/
 export function parseGallerySlice(html: string, gid: number): GallerySlice {
   const pageTokens = new Map<number, string>()
   for (const [, token, linkGid, page] of html.matchAll(IMAGE_PAGE_LINK)) {
-    if (Number(linkGid) === gid && !pageTokens.has(Number(page))) {
-      pageTokens.set(Number(page), token!)
+    if (token && page && Number(linkGid) === gid && !pageTokens.has(Number(page))) {
+      pageTokens.set(Number(page), token)
     }
   }
-  const showing = SHOWING.exec(html)
-  if (!showing) {
+  const [from, to, total] = (SHOWING.exec(html) ?? []).slice(1).map((number) => Number(number.replaceAll(",", "")))
+  if (from === undefined || to === undefined || total === undefined) {
     return { html, pageTokens, sliceSize: null, pageCount: null }
   }
-  const [from, to, total] = showing.slice(1).map((number) => Number(number.replaceAll(",", ""))) as [
-    number,
-    number,
-    number,
-  ]
   return {
     html,
     pageTokens,
@@ -120,11 +114,11 @@ export function parseImagePage(html: string): ImagePage | null {
   if (!imageUrl) {
     return null
   }
-  const nextLink = /\/s\/([0-9a-f]{10})\/\d+-(\d+)/.exec(image.parent("a").attr("href") ?? "")
+  const [, nextToken, nextPage] = /\/s\/([0-9a-f]{10})\/\d+-(\d+)/.exec(image.parent("a").attr("href") ?? "") ?? []
   return {
     imageUrl,
     showKey: /var\s+showkey\s*=\s*"([^"]+)"/.exec(html)?.[1] ?? null,
-    next: nextLink ? { page: Number(nextLink[2]), token: nextLink[1]! } : null,
+    next: nextToken && nextPage ? { page: Number(nextPage), token: nextToken } : null,
     reloadToken: /nl\('([^']+)'\)/.exec(html)?.[1] ?? null,
   }
 }
@@ -182,13 +176,12 @@ const MONTHS = [
 
 /** 评论时间形如 `28 May 2022, 01:53`，页面上写的是 UTC。解析不出来是空串，让前端显示占位而不是崩掉。 */
 function parsePostedAt(text: string): string {
-  const match = /Posted on (\d{1,2}) (\w+) (\d{4}), (\d{2}):(\d{2})/.exec(text)
-  const month = MONTHS.indexOf(match?.[2] ?? "")
-  if (!match || month < 0) {
+  const [, day, monthName, year, hour, minute] = /Posted on (\d{1,2}) (\w+) (\d{4}), (\d{2}):(\d{2})/.exec(text) ?? []
+  const month = MONTHS.indexOf(monthName ?? "")
+  if (!day || !year || !hour || !minute || month < 0) {
     return ""
   }
-  const [, day, , year, hour, minute] = match.map(Number)
-  return new Date(Date.UTC(year!, month, day, hour, minute)).toISOString()
+  return new Date(Date.UTC(Number(year), month, Number(day), Number(hour), Number(minute))).toISOString()
 }
 
 /* HTML 意义上的空白，不含 &nbsp;：评论里用 &nbsp; 刻意排出来的空格要留着 */
@@ -235,10 +228,13 @@ function parseSegments($: CheerioAPI, body: Cheerio<AnyNode>): CommentSegment[] 
       return [segment]
     }
     let text = segment.text.replace(WHITESPACE, " ")
-    if (index === 0 || segments[index - 1]!.type === "break") {
+    /* 行首行尾：前后没有片段，或者挨着换行 */
+    const previous = segments[index - 1]
+    const next = segments[index + 1]
+    if (!previous || previous.type === "break") {
       text = text.trimStart()
     }
-    if (index === segments.length - 1 || segments[index + 1]!.type === "break") {
+    if (!next || next.type === "break") {
       text = text.trimEnd()
     }
     return text ? [{ type: "text", text }] : []

@@ -9,6 +9,7 @@ import { useRegistrationOpen } from "@/features/auth/composables/useRegistration
 import { useAuthStore } from "@/features/auth/store"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import FormField from "@/shared/components/FormField.vue"
+import { toError } from "@/shared/lib/errors"
 
 const route = useRoute()
 const router = useRouter()
@@ -35,7 +36,7 @@ async function submit() {
     const redirect = route.query.redirect
     await router.replace(typeof redirect === "string" && redirect ? redirect : { name: "gallery-list" })
   } catch (error) {
-    errorMessage.value = (error as Error).message
+    errorMessage.value = toError(error).message
   } finally {
     loading.value = false
   }

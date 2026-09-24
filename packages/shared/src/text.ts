@@ -12,7 +12,10 @@ export function codePointLength(text: string): number {
 export function utf8Length(text: string): number {
   let bytes = 0
   for (const char of text) {
-    const code = char.codePointAt(0)!
+    const code = char.codePointAt(0)
+    if (code === undefined) {
+      continue
+    }
     if (code < 0x80) {
       bytes += 1
     } else if (code < 0x800) {

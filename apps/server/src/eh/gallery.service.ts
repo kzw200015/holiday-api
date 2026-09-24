@@ -6,9 +6,9 @@ import { CredentialService } from "./credential.service.js"
 import { GalleryCatalog } from "./gallery-catalog.js"
 import { ImageLocator } from "./image-locator.js"
 import { ReadingService } from "./reading.service.js"
-import { refKey, type GalleryRef } from "./upstream/access.js"
 import { EhClient } from "./upstream/eh-client.js"
 import { galleryMissing } from "./upstream/failures.js"
+import { refKey, type GalleryRef } from "./upstream/gallery-ref.js"
 import { parseGalleryComments } from "./upstream/parse.js"
 
 /** 图集浏览：搜索 → 详情 → 评论。 */

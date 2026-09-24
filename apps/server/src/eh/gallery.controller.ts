@@ -3,7 +3,8 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from "@nestj
 
 import { CurrentUser } from "../auth/auth.decorators.js"
 import { GalleryService } from "./gallery.service.js"
-import { galleryParams, type GalleryParams } from "./params.js"
+import { galleryParams } from "./params.js"
+import type { GalleryRef } from "./upstream/gallery-ref.js"
 
 @Controller("eh/galleries")
 export class GalleryController {
@@ -17,13 +18,13 @@ export class GalleryController {
   }
 
   @Get(":gid/:token")
-  detail(@CurrentUser() userId: number, @Param({ schema: galleryParams }) ref: GalleryParams) {
+  detail(@CurrentUser() userId: number, @Param({ schema: galleryParams }) ref: GalleryRef) {
     return this.galleries.detail(userId, ref)
   }
 
   /** 单独一次请求，不拖慢详情页首屏。 */
   @Get(":gid/:token/comments")
-  comments(@CurrentUser() userId: number, @Param({ schema: galleryParams }) ref: GalleryParams) {
+  comments(@CurrentUser() userId: number, @Param({ schema: galleryParams }) ref: GalleryRef) {
     return this.galleries.comments(userId, ref)
   }
 }

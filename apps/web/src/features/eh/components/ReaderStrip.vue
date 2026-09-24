@@ -154,7 +154,7 @@ async function onImageLoad(pageNumber: number, event: Event) {
     return
   }
   /* 占位宽度换成真实比例时，维持当前页在视口中的相对位置；同一批到达的图片只锚定一次。 */
-  pendingAnchor ??= { page: page.value, relative: viewport.value.scrollLeft - layout.value.offsets[page.value - 1] }
+  pendingAnchor ??= { page: page.value, relative: viewport.value.scrollLeft - layout.value.offsetOf(page.value) }
   ratios.value[pageNumber] = image.naturalWidth / image.naturalHeight
   await nextTick()
   if (!viewport.value || !pendingAnchor) {
@@ -166,7 +166,7 @@ async function onImageLoad(pageNumber: number, event: Event) {
     await jump(page.value, "smooth")
     return
   }
-  viewport.value.scrollLeft = clamp(layout.value.offsets[anchor - 1] + relative, 0, layout.value.maxScroll)
+  viewport.value.scrollLeft = clamp(layout.value.offsetOf(anchor) + relative, 0, layout.value.maxScroll)
   scheduleLoad()
 }
 
@@ -220,7 +220,7 @@ onScopeDispose(() => {
       v-for="pageNumber in total"
       :key="pageNumber"
       class="relative h-full shrink-0"
-      :style="{ width: `${layout.widths[pageNumber - 1]}px` }"
+      :style="{ width: `${layout.widthOf(pageNumber)}px` }"
     >
       <div
         v-if="failed.has(pageNumber)"

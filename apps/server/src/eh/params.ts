@@ -2,11 +2,12 @@ import { galleryTokenSchema, gidSchema, pageSchema } from "@myapi/shared"
 import { z } from "zod"
 
 import { numeric } from "../numeric.js"
+import type { GalleryRef } from "./upstream/gallery-ref.js"
 
 export const gidParam = numeric(gidSchema, "图集编号不合法")
 
-export const galleryParams = z.object({ gid: gidParam, token: galleryTokenSchema })
-export type GalleryParams = z.output<typeof galleryParams>
+/** 路径上的图集定位信息，校验后就是 GalleryRef。 */
+export const galleryParams = z.object({ gid: gidParam, token: galleryTokenSchema }) satisfies z.ZodType<GalleryRef>
 
 export const galleryPageParams = galleryParams.extend({ page: numeric(pageSchema, "页码不合法") })
 export type GalleryPageParams = z.output<typeof galleryPageParams>

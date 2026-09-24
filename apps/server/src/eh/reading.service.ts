@@ -6,7 +6,7 @@ import { DATABASE, type Database } from "../database/database.module.js"
 import { ehReadingProgress } from "../database/schema.js"
 import { GalleryCatalog } from "./gallery-catalog.js"
 import { encodeHistoryCursor, type HistoryCursor } from "./history-cursor.js"
-import { refKey } from "./upstream/access.js"
+import { refKey } from "./upstream/gallery-ref.js"
 
 const PAGE_SIZE = 25
 

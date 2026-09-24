@@ -3,9 +3,9 @@ import { Injectable, Logger } from "@nestjs/common"
 import { AttachmentUrls, type Signature } from "./attachment-urls.js"
 import { CredentialService } from "./credential.service.js"
 import { ImageLocator } from "./image-locator.js"
-import type { GalleryRef } from "./upstream/access.js"
 import { EhClient, type ImageStream } from "./upstream/eh-client.js"
 import { ImageNodeFailure } from "./upstream/failures.js"
+import type { GalleryRef } from "./upstream/gallery-ref.js"
 
 /** 图片代理：签名校验通过才取图，交回可以直接转发的图片流。 */
 @Injectable()
@@ -30,7 +30,8 @@ export class ImageService {
       if (!(error instanceof ImageNodeFailure)) {
         throw error
       }
-      this.logger.log(`图床节点取图失败，换源重试 gid=${ref.gid} page=${page} reason=${error.message}`)
+      /* 失败原因在创建 ImageNodeFailure 时已经连同地址记过了，这里记下是哪本哪页、按地址对得上 */
+      this.logger.log(`图床节点取图失败，换源重试 gid=${ref.gid} page=${page} url=${image.imageUrl}`)
       return this.client.openImage((await this.locator.relocate(access, ref, page, image)).imageUrl)
     }
   }

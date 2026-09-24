@@ -77,9 +77,10 @@ describe("注册与登录", () => {
     expect(rows).toHaveLength(2)
     for (const { password_hash } of rows) {
       const [, variant, version, params] = password_hash.split("$")
-      expect([variant, version, params!.split(",").toSorted()]).toEqual(["argon2id", "v=19", ["m=65536", "p=1", "t=2"]])
+      expect([variant, version, params?.split(",").toSorted()]).toEqual(["argon2id", "v=19", ["m=65536", "p=1", "t=2"]])
     }
-    expect(rows[0]!.password_hash).not.toBe(rows[1]!.password_hash)
+    const [first, second] = rows
+    expect(first?.password_hash).not.toBe(second?.password_hash)
   })
 })
 

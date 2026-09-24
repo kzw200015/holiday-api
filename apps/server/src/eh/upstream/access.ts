@@ -9,15 +9,6 @@ export const SITES = {
   ex: { page: "https://exhentai.org", api: "https://s.exhentai.org/api.php" },
 } as const satisfies Record<Site, { page: string; api: string }>
 
-/** 图集定位信息：gid 加 10 位十六进制的 token。 */
-export interface GalleryRef {
-  gid: number
-  token: string
-}
-
-/** 按图集查表、做缓存键时用的写法。 */
-export const refKey = (ref: GalleryRef) => `${ref.gid}:${ref.token}`
-
 /** 一次上游请求的身份与站点。没绑凭据时匿名访问表站。 */
 export interface EhAccess {
   credential: EhCredential | null
