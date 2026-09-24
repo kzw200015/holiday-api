@@ -16,7 +16,7 @@ export default defineConfig({
         description: "图库阅读与节假日查询",
         lang: "zh-CN",
         id: "/",
-        theme_color: "#fcfcfb",
+        theme_color: "#ffffff",
         icons: [
           { src: "/pwa-192.png", sizes: "192x192", type: "image/png" },
           { src: "/pwa-512.png", sizes: "512x512", type: "image/png" },

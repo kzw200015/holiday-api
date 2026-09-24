@@ -83,57 +83,52 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* 配色取自 claude.ai 应用的设计系统（CDS，.cds-root 上的 --cds-* 语义变量），每个值注明对应的变量：
-   页面是 surface-1，卡片与浮层是 panel/popover，边框、悬停、输入框描边是黑/白加透明度，
-   主按钮、危险按钮与焦点环照 CDS 的 fill-primary、fill-danger、fill-accent；
-   侧边栏照网页版侧边栏（surface-0 与 surface-1 各半，选中色 neutral-60）。
-   CDS 的悬停与选中是两种颜色，shadcn 侧边栏只有一个 accent，取选中色。 */
 :root {
   --radius: 0.625rem;
-  --background: #fcfcfb; /* surface-1 */
-  --foreground: #0b0b0b; /* text-primary */
-  --card: #ffffff; /* surface-panel */
-  --card-foreground: #0b0b0b;
-  --popover: #ffffff; /* surface-popover */
-  --popover-foreground: #0b0b0b;
-  --primary: #0b0b0b; /* fill-primary */
-  --primary-foreground: #ffffff; /* on-primary */
-  --secondary: #0b0b0b0d; /* bg-neutral-chip，黑 5% */
-  --secondary-foreground: #0b0b0b;
-  --muted: #0b0b0b0d; /* fill-ghost-hover、skeleton-base，黑 5% */
-  --muted-foreground: #52514e; /* text-secondary */
-  --accent: #0b0b0b0d; /* fill-ghost-hover */
-  --accent-foreground: #0b0b0b;
-  --destructive: #d03b3b; /* fill-danger */
-  --border: #0b0b0b1a; /* border，黑 10% */
-  --input: #0b0b0b1a; /* fill-field-ring，黑 10% */
-  --ring: #2a78d6; /* fill-accent，CDS 的焦点色 */
-  --chart-1: #2a78d6; /* chart-categorical-1…5 */
-  --chart-2: #eb6834;
-  --chart-3: #1baf7a;
-  --chart-4: #eda100;
-  --chart-5: #e87ba4;
-  --sidebar: #fbfbf9; /* surface-0 与 surface-1 各半 */
-  --sidebar-foreground: #52514e; /* text-secondary */
-  --sidebar-primary: #c6613f; /* fill-brand */
-  --sidebar-primary-foreground: #ffffff; /* on-brand */
-  --sidebar-accent: #edece8; /* neutral-60，侧边栏选中 */
-  --sidebar-accent-foreground: #0b0b0b;
-  --sidebar-border: #0b0b0b1a;
-  --sidebar-ring: #2a78d6;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.705 0.015 286.067);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.705 0.015 286.067);
 }
 
 /* 原生 range 会在悬停时自行加深颜色；显式绘制轨道与滑块，只保留键盘焦点提示。 */
 .reader-progress {
   --reader-progress: 0%;
   appearance: none;
-  background: linear-gradient(to right, #d97757 var(--reader-progress), #7b7974 var(--reader-progress)) center / 100%
+  background: linear-gradient(to right, #a78bfa var(--reader-progress), #71717a var(--reader-progress)) center / 100%
     4px no-repeat;
   outline: none;
 }
 
 .reader-progress:focus-visible {
-  outline: 2px solid #2a78d6;
+  outline: 2px solid #c4b5fd;
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -150,7 +145,7 @@
   margin-top: -6px;
   border: 0;
   border-radius: 50%;
-  background: #d97757;
+  background: #a78bfa;
   box-shadow: none;
 }
 
@@ -164,40 +159,40 @@
   height: 16px;
   border: 0;
   border-radius: 50%;
-  background: #d97757;
+  background: #a78bfa;
   box-shadow: none;
 }
 
 .dark {
-  --background: #151515; /* surface-1 */
-  --foreground: #f0efec; /* text-primary */
-  --card: #1a1a19; /* surface-panel */
-  --card-foreground: #f0efec;
-  --popover: #20201f; /* surface-popover */
-  --popover-foreground: #f0efec;
-  --primary: #ffffff; /* fill-primary */
-  --primary-foreground: #0b0b0b; /* on-primary */
-  --secondary: #ffffff0d; /* bg-neutral-chip，白 5% */
-  --secondary-foreground: #f0efec;
-  --muted: #ffffff13; /* fill-ghost-hover、skeleton-base，白 7.5% */
-  --muted-foreground: #c3c2b7; /* text-secondary */
-  --accent: #ffffff13; /* fill-ghost-hover */
-  --accent-foreground: #f0efec;
-  --destructive: #d03b3b; /* fill-danger */
-  --border: #ffffff1a; /* border，白 10% */
-  --input: #ffffff1a; /* fill-field-ring，白 10% */
-  --ring: #2a78d6; /* fill-accent */
-  --chart-1: #3987e5; /* chart-categorical-1…5 */
-  --chart-2: #d95926;
-  --chart-3: #199e70;
-  --chart-4: #c98500;
-  --chart-5: #d55181;
-  --sidebar: #101010; /* surface-0 与 surface-1 各半 */
-  --sidebar-foreground: #c3c2b7; /* text-secondary */
-  --sidebar-primary: #c6613f; /* fill-brand */
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #ffffff26; /* fill-ghost-selected，白 15%，侧边栏选中 */
-  --sidebar-accent-foreground: #f0efec;
-  --sidebar-border: #ffffff1a;
-  --sidebar-ring: #2a78d6;
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.552 0.016 285.938);
 }
