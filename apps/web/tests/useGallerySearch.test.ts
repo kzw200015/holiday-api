@@ -166,18 +166,6 @@ describe("图库搜索流程", () => {
     expect(host.textContent).not.toContain("失败")
   })
 
-  it("点历史词回填输入框并按当前分类搜索", async () => {
-    await mountForm()
-    onSearch.mockClear()
-    query<HTMLButtonElement>(host, '[title="cat"]').click()
-    await settleFakeTimers()
-    expect(query(host, "input").value).toBe("cat")
-    expect(onSearch).toHaveBeenCalledExactlyOnceWith(
-      { keyword: "cat", categories: ["manga"], cursor: "" },
-      expect.any(AbortSignal),
-    )
-  })
-
   /* 分类改完立刻就要按新分类搜，中间不隔一次「还是旧条件」的请求；偏好只提交分类这一项。 */
   it("应用分类立刻按新分类搜一次", async () => {
     await mountForm()

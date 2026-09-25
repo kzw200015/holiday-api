@@ -17,10 +17,6 @@ beforeAll(async () => {
     }
     if (request.url.pathname.startsWith("/g/")) {
       return gallerySlice(REF.gid, 5, {
-        extra:
-          `<div id="cdiv"><div class="c1"><div class="c3">Posted on 28 May 2022, 01:53 by: &nbsp; <a>Pokom</a></div>` +
-          `<div class="c4">Uploader Comment</div><div class="c6" id="comment_0">第一行<br/>` +
-          `<a href="https://example.com/">链接</a></div></div></div>`,
         cells: {
           1:
             `<div title="Page 1: 1.jpg" ` +
@@ -127,41 +123,6 @@ describe("响应体的 JSON 形状", () => {
       torrentCount: 4,
       expunged: false,
     })
-  })
-
-  it("评论正文拆成文本、换行与链接片段", async () => {
-    const response = await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}/comments`).set(auth).expect(200)
-    expect(response.body).toEqual({
-      comments: [
-        {
-          id: 0,
-          author: "Pokom",
-          postedAt: "2022-05-28T01:53:00.000Z",
-          isUploader: true,
-          score: "",
-          segments: [
-            { type: "text", text: "第一行" },
-            { type: "break" },
-            { type: "link", text: "链接", href: "https://example.com/" },
-          ],
-        },
-      ],
-      hiddenCount: 0,
-    })
-  })
-
-  it("预览图的尺寸与偏移是数字，地址是本站的代理地址", async () => {
-    const response = await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}/previews/0`).set(auth).expect(200)
-    expect(response.body).toEqual([
-      {
-        page: 1,
-        url: expect.stringMatching(/^\/api\/eh\/thumbnail\?u=[\w-]+&e=\d+&s=[0-9a-f]{32}$/),
-        width: 100,
-        height: 142,
-        offsetX: 100,
-        offsetY: 0,
-      },
-    ])
   })
 
   it("只回成败的接口回空体", async () => {

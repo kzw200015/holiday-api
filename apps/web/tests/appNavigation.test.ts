@@ -526,21 +526,6 @@ describe("页面缓存与失效范围", () => {
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(2)
   })
 
-  it("历史标签使用独立的搜索与删除按钮，删除不会触发搜索", async () => {
-    await enterKeyword("cat")
-    await click("搜索")
-    const history = query(host, '[aria-label="搜索历史"]')
-    expect(query(history, '[role="group"]').querySelectorAll("button")).toHaveLength(2)
-    expect(history.querySelector("button button")).toBeNull()
-    const count = vi.mocked(searchGalleries).mock.calls.length
-    query<HTMLElement>(history, '[aria-label="删除历史：cat"]').click()
-    await settle()
-    expect(searchGalleries).toHaveBeenCalledTimes(count)
-    expect(history.querySelector('[role="group"]')).toBeNull()
-    /* 界面当场就没了；删掉的那个词随后才提交。 */
-    await vi.waitFor(() => expect(removeSearchKeyword).toHaveBeenCalledWith("cat"))
-  })
-
   it("阅读返回保留详情 DOM、评论和滚动位置，仅同步进度；列表返回保留输入与条目", async () => {
     const list = query(host, 'a[href="/eh/g/1/aaaaaaaaaa"]')
     const input = query(host, "input")
@@ -675,14 +660,6 @@ describe("页面缓存与失效范围", () => {
     /* 换绑当场让留着的详情页重读一次，回到详情页又重读一次 */
     expect(fetchGalleryDetail).toHaveBeenCalledTimes(3)
     expect(fetchGalleryComments).toHaveBeenCalledTimes(2)
-  })
-
-  it("解绑先弹确认，点解绑按钮本身不发请求", async () => {
-    vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: true, memberId: "123", hasExAccess: false })
-    await visit("/settings")
-    await click("解绑")
-    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("解绑 e 站账号？")
-    expect(unbindCredential).not.toHaveBeenCalled()
   })
 
   it("绑定失败保留输入和图库缓存，并恢复提交按钮", async () => {

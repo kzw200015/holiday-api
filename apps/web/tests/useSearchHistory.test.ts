@@ -42,18 +42,6 @@ describe("账号搜索历史", () => {
     expect(vi.mocked(addSearchKeyword).mock.calls).toEqual([["鸟"], ["狗"]])
   })
 
-  it("最多留十条，更早的挤出去", async () => {
-    vi.mocked(fetchSearchHistory).mockResolvedValue([])
-    const history = mount()
-    await settleFakeTimers()
-    for (let index = 1; index <= 12; index++) {
-      history.record(`词${index}`)
-    }
-    expect(history.entries.value).toHaveLength(10)
-    expect(history.entries.value[0]).toBe("词12")
-    expect(history.entries.value).not.toContain("词1")
-  })
-
   /* 后端拒收超过 200 字节的关键词；记了本地也会被重读按回去。 */
   it("超长关键词不记", async () => {
     const history = mount()

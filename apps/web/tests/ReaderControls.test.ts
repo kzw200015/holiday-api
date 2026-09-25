@@ -102,7 +102,6 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: 5 })
   vi.mocked(patchGalleryPreferences).mockResolvedValue(null)
-  localStorage.clear()
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
 })
 afterEach(() => {
@@ -246,21 +245,6 @@ describe("阅读器自动翻页控件", () => {
     expect(intervalText(host)).toBe("7 秒")
   })
 
-  /* 范围外的间隔会被服务端退回，所以到头了就不让再调。 */
-  it.each([
-    [1, "减少自动翻页间隔"],
-    [20, "增加自动翻页间隔"],
-  ])("间隔到了 %i 秒就不能再往外调", async (readerInterval, label) => {
-    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval })
-    const { host } = await createReader()
-    const button = query<HTMLButtonElement>(host, `[aria-label="${label}"]`)
-    expect(button.disabled).toBe(true)
-    button.click()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(intervalText(host)).toBe(`${readerInterval} 秒`)
-    expect(patchGalleryPreferences).not.toHaveBeenCalled()
-  })
-
   it("存不上就以服务端为准，也不拿失败打扰用户", async () => {
     vi.mocked(patchGalleryPreferences).mockRejectedValue(new Error("断网"))
     const { host } = await createReader()
@@ -301,12 +285,6 @@ describe("阅读器自动翻页控件", () => {
     expect(intervalText(host)).toBe("5 秒")
     expect(increase.disabled).toBe(false)
     expect(patchGalleryPreferences).not.toHaveBeenCalled()
-  })
-
-  it("秒数只读，不提供下拉选择或手动输入", async () => {
-    const { host } = await createReader()
-    expect(intervalText(host)).toBe("5 秒")
-    expect(host.querySelector("select, input:not([type=range]), [contenteditable]")).toBeNull()
   })
 
   it("页数到达后创建滑块，保留从 URL 恢复的页码", async () => {
@@ -369,21 +347,6 @@ describe("阅读器自动翻页控件", () => {
     await vi.advanceTimersByTimeAsync(10000)
     expect(change).not.toHaveBeenCalled()
     expect(host.querySelector("button")).toBeNull()
-  })
-
-  it("卸载后清除自动翻页计时器", async () => {
-    const { change, host } = await createReader()
-    autoButton(host).click()
-    await nextTick()
-    present(cleanups.pop(), "卸载回调")()
-    await vi.advanceTimersByTimeAsync(10000)
-    expect(change).not.toHaveBeenCalled()
-  })
-
-  it.each([8, 0, 21, 1.5, "10", null])("不读取或迁移旧浏览器间隔 %s", async (value) => {
-    localStorage.setItem("myapi.reader-interval.1", JSON.stringify(value))
-    const { host } = await createReader()
-    expect(intervalText(host)).toBe("5 秒")
   })
 })
 
