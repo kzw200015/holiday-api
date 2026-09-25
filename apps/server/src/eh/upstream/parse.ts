@@ -108,7 +108,8 @@ export type PreviewImage = Omit<GalleryPreview, "url"> & { imageUrl: string }
 const PREVIEW_STYLE = /url\(([^)]+)\)\s*(-?\d+)(?:px)?\s+(-?\d+)(?:px)?/
 
 /**
- * 详情页一个分片里的预览图，按页面顺序。每张是 #gdt 里一个指向图片页的链接，套着一个用背景图显示的 div：
+ * 详情页一个分片里的预览图，按页面顺序。每张是 #gdt 里一个指向图片页的链接，里面有一个用背景图显示的 div
+ * （登录后的页面在它外面还多包一层、旁边带着页码，所以按 style 找，不认层级）：
  * 一页一张时背景图就是这一页，偏移为 0；账号设成普通尺寸时是一片拼成的一张图，靠负的背景偏移露出这一页。
  * 和页令牌一样只收 gid 对得上的链接；认不出尺寸或地址的跳过。
  */
@@ -118,7 +119,7 @@ export function parseGalleryPreviews(html: string, gid: number): PreviewImage[] 
     .toArray()
     .flatMap((link) => {
       const [, linkGid, page] = /\/s\/[0-9a-f]{10}\/(\d+)-(\d+)/.exec($(link).attr("href") ?? "") ?? []
-      const style = $(link).find("div").first().attr("style") ?? ""
+      const style = $(link).find("div[style]").first().attr("style") ?? ""
       const width = /width:\s*(\d+)px/.exec(style)?.[1]
       const height = /height:\s*(\d+)px/.exec(style)?.[1]
       const [, imageUrl, x, y] = PREVIEW_STYLE.exec(style) ?? []

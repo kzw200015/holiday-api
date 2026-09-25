@@ -342,6 +342,20 @@ describe("预览图", () => {
     )
     expect(fifth).toMatchObject({ page: 5, width: 169, height: 300 })
   })
+  it("真实里站详情页：格子外多包一层 div，一片拼成一张放在 H@H 节点上", async () => {
+    const page = await fixture("gallery-page-ex.html")
+    eh(() => html(page))
+    const response = await previews(4210957, "34afda1487", 0).expect(200)
+    const sprite = "https://sunvxqrqcj.hath.network/c2/v5q31gwdjz36dh192t/4210957-0.webp"
+    expect(
+      response.body.map(({ url, ...preview }: { url: string }) => ({ ...preview, image: upstreamOf(url) })),
+    ).toEqual([
+      { page: 1, width: 200, height: 291, offsetX: 0, offsetY: 0, image: sprite },
+      { page: 2, width: 200, height: 291, offsetX: 200, offsetY: 0, image: sprite },
+      { page: 3, width: 200, height: 291, offsetX: 400, offsetY: 0, image: sprite },
+    ])
+  })
+
   it("账号设成普通尺寸时一片拼成一张：各页按背景偏移从同一张图上裁", async () => {
     const sprite = "https://ehgt.org/m/000900/900700-00.jpg"
     const cell = (page: number, x: string) =>
