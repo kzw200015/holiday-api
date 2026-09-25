@@ -55,13 +55,27 @@ export function image(body: Bun.BodyInit = "\u0001\u0002\u0003", contentType = "
 /** 测试里第 page 页的页令牌：页码的十六进制补到 10 位。 */
 export const pageToken = (page: number) => page.toString(16).padStart(10, "0")
 
-/** 整本 total 页的图集详情页的一片：第 from–to 页的图片页链接，外加 extra（评论之类）。默认整本只有一片。 */
-export function gallerySlice(gid: number, total: number, { from = 1, to = total, extra = "" } = {}) {
+/**
+ * 整本 total 页的图集详情页的一片：.gpc 里的页数说明、#gdt 里第 from–to 页的图片页链接，外加 extra（评论之类）。
+ * 默认整本只有一片，格子里是空的；要预览图时由 cells 按页码给出格子里的内容。
+ */
+export function gallerySlice(
+  gid: number,
+  total: number,
+  options: { from?: number; to?: number; extra?: string; cells?: Record<number, string> } = {},
+) {
+  const { from = 1, to = total, extra = "", cells = {} } = options
   const links = Array.from({ length: to - from + 1 }, (_, index) => {
     const page = from + index
-    return `<a href="https://e-hentai.org/s/${pageToken(page)}/${gid}-${page}"></a>`
+    return `<a href="https://e-hentai.org/s/${pageToken(page)}/${gid}-${page}">${cells[page] ?? ""}</a>`
   }).join("")
-  return html(`Showing ${from} - ${to} of ${total} images ${links}${extra}`)
+  return html(`<p class="gpc">Showing ${from} - ${to} of ${total} images</p><div id="gdt">${links}</div>${extra}`)
+}
+
+/** 搜索结果页：按给定顺序列出这些图集的链接。 */
+export function galleryList(refs: { gid: number; token: string }[]) {
+  const rows = refs.map(({ gid, token }) => `<tr><td><a href="https://e-hentai.org/g/${gid}/${token}/"></a></td></tr>`)
+  return html(`<table class="itg gltc">${rows.join("")}</table>`)
 }
 
 /** 图片页：大图指向 imageUrl。 */

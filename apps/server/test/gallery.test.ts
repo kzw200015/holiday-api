@@ -4,6 +4,7 @@ import { register, startApp, type TestApp } from "./support/app"
 import { createDatabase } from "./support/database"
 import {
   fixture,
+  galleryList,
   gallerySlice,
   isMetadataApi,
   metadata,
@@ -53,11 +54,19 @@ describe("搜索", () => {
     eh(() => html(empty))
     expect((await search().expect(200)).body).toEqual({ items: [], nextCursor: null })
 
-    eh(() => html(`<p>No unfiltered results in this page range.</p><a id="unext" href="/?next=100">Next</a>`))
+    eh(() =>
+      html(
+        `<p>No unfiltered results in this page range.</p><a id="unext" href="https://e-hentai.org/?next=100">Next</a>`,
+      ),
+    )
     expect((await search().expect(200)).body).toEqual({ items: [], nextCursor: "100" })
 
     /* 什么都没认出来又不是「没有结果」，就是版面改了；令牌长度不对的链接不算图集 */
-    eh(() => html(`<a href="/g/123/abc/">x</a><a href="/g/456/0123456789abcdef/">y</a>`))
+    eh(() =>
+      html(
+        `<table class="itg"><tr><td><a href="https://e-hentai.org/g/123/abc/">x</a><a href="https://e-hentai.org/g/456/0123456789abcdef/">y</a></td></tr></table>`,
+      ),
+    )
     const changed = await search()
     expect([changed.status, changed.body.message]).toEqual([502, "没有识别出图集搜索结果，e 站版面可能改了"])
   })
@@ -97,8 +106,7 @@ describe("搜索", () => {
   })
 
   it("缓存里有的不再请求，缺的按批补齐，一批最多 25 本", async () => {
-    const page = (gids: number[]) =>
-      html(gids.map((gid) => `<a href="https://e-hentai.org/g/${gid}/0123456789/"></a>`).join(""))
+    const page = (gids: number[]) => galleryList(gids.map((gid) => ({ gid, token: "0123456789" })))
     eh((request) => (isMetadataApi(request) ? metadataApi(request) : page([900001])))
     await search().expect(200)
 
@@ -180,7 +188,8 @@ describe("上游失败的识别", () => {
       isMetadataApi(request)
         ? metadataApi(request)
         : html(
-            `<a href="/g/1/0123456789/">x</a><div class="c6">I got temporarily banned lol</div>` +
+            `<table class="itg"><tr><td><a href="https://e-hentai.org/g/1/0123456789/">x</a></td></tr></table>` +
+              `<div class="c6">I got temporarily banned lol</div>` +
               `<input name="f_search" value="Content Warning">`,
           ),
     )
@@ -319,7 +328,7 @@ describe("详情与评论", () => {
   it("只放行 http/https 的链接，javascript: 降级成纯文本", async () => {
     eh(() =>
       html(
-        `<a href="/s/aaaaaaaaaa/900600-1">1</a><div id="cdiv"><div class="c1"><div class="c6" id="comment_1">` +
+        `<div id="gdt"><a href="https://e-hentai.org/s/aaaaaaaaaa/900600-1">1</a></div><div id="cdiv"><div class="c1"><div class="c6" id="comment_1">` +
           `<a href="javascript:alert(1)">点我</a> 和 <a href="data:text/html,x">这个</a></div></div></div>`,
       ),
     )
@@ -329,7 +338,7 @@ describe("详情与评论", () => {
 
   it("得分低于阈值、被 e 站默认藏起来的评论，只给出条数", async () => {
     const page = await fixture("gallery-page-hidden-comments.html")
-    eh(() => html(`<a href="/s/aaaaaaaaaa/2055704-1">1</a>${page}`))
+    eh(() => html(`<div id="gdt"><a href="https://e-hentai.org/s/aaaaaaaaaa/2055704-1">1</a></div>${page}`))
     const response = await t.http.get("/api/eh/galleries/2055704/9d078905a6/comments").set(auth).expect(200)
     expect(response.body.comments.map((comment: { author: string }) => comment.author)).toEqual(["Misaki-08042"])
     expect(response.body.hiddenCount).toBe(33)

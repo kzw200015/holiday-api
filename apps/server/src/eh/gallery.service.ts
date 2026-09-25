@@ -17,7 +17,6 @@ import { ImageLocator } from "@/eh/image-locator"
 import { EhClient } from "@/eh/upstream/eh-client"
 import { galleryMissing } from "@/eh/upstream/failures"
 import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref"
-import { parseGalleryComments, parseGalleryPreviews } from "@/eh/upstream/parse"
 
 /** 图集浏览：搜索 → 详情 → 评论与预览图。 */
 @Injectable()
@@ -58,13 +57,13 @@ export class GalleryService {
   /** 评论是详情页 HTML 里唯一拿不到 JSON 替代的东西；它与取图共用详情的第 0 片。 */
   async comments(userId: number, ref: GalleryRef): Promise<GalleryComments> {
     const slice = await this.imageLocator.gallerySlice(await this.credentialService.access(userId), ref, 0)
-    return parseGalleryComments(slice.html)
+    return slice.comments
   }
 
   /** 详情页某一片上的预览图，地址签成本站的代理地址。第 0 片与评论、取图共用。 */
   async previews(userId: number, ref: GalleryRef, index: number): Promise<GalleryPreview[]> {
     const slice = await this.imageLocator.gallerySlice(await this.credentialService.access(userId), ref, index)
-    return parseGalleryPreviews(slice.html, ref.gid).map(({ imageUrl, ...preview }) => ({
+    return slice.previews.map(({ imageUrl, ...preview }) => ({
       ...preview,
       url: this.attachmentUrls.thumbnail(imageUrl),
     }))

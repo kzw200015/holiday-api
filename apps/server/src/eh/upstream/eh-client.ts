@@ -60,7 +60,12 @@ export interface ImageStream {
 export const METADATA_BATCH_SIZE = 25
 
 /** 配额用尽时 e 站不报错，而是把大图换成一张提示图：表站 ehgt.org/g/509.gif，里站 exhentai.org/img/509.gif，小图叫 509s.gif。 */
-const QUOTA_IMAGE = /^https:\/\/(?:ehgt\.org\/g|exhentai\.org\/img)\/509s?\.gif$/
+const QUOTA_IMAGES = new Set([
+  "https://ehgt.org/g/509.gif",
+  "https://ehgt.org/g/509s.gif",
+  "https://exhentai.org/img/509.gif",
+  "https://exhentai.org/img/509s.gif",
+])
 
 /** 未登录时 home.php 会 302 到论坛登录页，登录成功才是 200：拿它检验一组 Cookie 在表站认不认。 */
 const HOME_URL = `${SITES.e.page}/home.php`
@@ -350,7 +355,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** 配额用尽时的提示图不能当成这一页的内容返回，更不能缓存下来。 */
 function withinQuota(image: ImagePage): ImagePage {
-  if (QUOTA_IMAGE.test(image.imageUrl)) {
+  if (QUOTA_IMAGES.has(image.imageUrl)) {
     throw quotaExceeded()
   }
   return image

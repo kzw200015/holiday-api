@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { register, startApp, type TestApp } from "./support/app"
 import { createDatabase } from "./support/database"
-import { gallerySlice, image, imagePage, isMetadataApi, metadataApi, pageToken, REF } from "./support/eh"
+import { gallerySlice, image, imagePage, isMetadataApi, metadataApi, REF } from "./support/eh"
 import { withHolidays } from "./support/outbound"
 
 let t: TestApp
@@ -20,10 +20,12 @@ beforeAll(async () => {
         extra:
           `<div id="cdiv"><div class="c1"><div class="c3">Posted on 28 May 2022, 01:53 by: &nbsp; <a>Pokom</a></div>` +
           `<div class="c4">Uploader Comment</div><div class="c6" id="comment_0">第一行<br/>` +
-          `<a href="https://example.com/">链接</a></div></div></div>` +
-          `<div id="gdt"><a href="https://e-hentai.org/s/${pageToken(1)}/${REF.gid}-1"><div title="Page 1: 1.jpg" ` +
-          `style="width:100px;height:142px;background:transparent url(https://ehgt.org/m/p.jpg) -100px 0 no-repeat">` +
-          `</div></a></div>`,
+          `<a href="https://example.com/">链接</a></div></div></div>`,
+        cells: {
+          1:
+            `<div title="Page 1: 1.jpg" ` +
+            `style="width:100px;height:142px;background:transparent url(https://ehgt.org/m/p.jpg) -100px 0 no-repeat"></div>`,
+        },
       })
     }
     if (request.url.pathname.startsWith("/s/")) {

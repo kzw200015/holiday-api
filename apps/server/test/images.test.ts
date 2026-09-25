@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 import { register, startApp, type TestApp } from "./support/app"
 import { createDatabase } from "./support/database"
-import { gallerySlice, image, imagePage, isMetadataApi, metadata, metadataApi, pageToken } from "./support/eh"
+import { fixture, gallerySlice, image, imagePage, isMetadataApi, metadata, metadataApi, pageToken } from "./support/eh"
 import { html, json, withHolidays, type RecordedRequest, type Responder } from "./support/outbound"
 import { present } from "./support/present"
 
@@ -365,6 +365,34 @@ describe("大图定位", () => {
       const response = await t.http.get(await r.url(nextRef(), 1))
       expect([response.status, response.body.message]).toEqual([429, "e 站图片配额已用尽，等额度恢复后再试"])
     }
+  })
+
+  it("真实图片页：大图 onerror 里的 nl 用来换源，脚本里的 showkey 用来要下一页", async () => {
+    const ref = nextRef()
+    const page = await fixture("image-page.html")
+    const r = await reader((request) => {
+      if (request.url.host.endsWith(".hath.network:62121")) {
+        return image("", "text/html", 403)
+      }
+      if (request.url.host === "api.e-hentai.org") {
+        return json({ i3: `<img id="img" src="https://ehgt.org/${ref.gid}/api.webp">` })
+      }
+      if (request.url.pathname.startsWith("/s/")) {
+        return request.url.searchParams.has("nl") ? imagePage(`https://ehgt.org/${ref.gid}/replaced.webp`) : html(page)
+      }
+      return gallery(5, 20)(request)
+    })
+    await t.http.get(await r.url(ref, 1)).expect(200)
+    const reload = present(t.outbound.to("e-hentai.org").at(-1), "换源请求")
+    expect(reload.url.searchParams.get("nl")).toBe("50398-496692")
+
+    const since = t.outbound.requests.length
+    await t.http.get(await r.url(ref, 2)).expect(200)
+    const showpage = present(
+      t.outbound.requests.slice(since).find((request) => request.url.host === "api.e-hentai.org"),
+      "showpage 请求",
+    )
+    expect(JSON.parse(present(showpage.body, "showpage 请求体"))).toMatchObject({ page: 2, showkey: "fqoint3an90" })
   })
 
   it("图床节点失败或连不上时，用这一页自己的 nl 换源重试一次", async () => {

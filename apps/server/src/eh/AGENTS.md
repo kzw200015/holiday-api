@@ -4,7 +4,7 @@
 
 ## 结构
 
-- `upstream/` 是与 e 站打交道的协议层，只在本模块内使用：身份与站点（`access.ts`）、图集定位（`gallery-ref.ts`）、请求与「200 但不是内容」的失败识别（`eh-client.ts`）、失败与文案（`failures.ts`）、HTML 解析（`parse.ts`）、分类换算（`categories.ts`）、图片主机白名单（`image-hosts.ts`）。
+- `upstream/` 是与 e 站打交道的协议层，只在本模块内使用：身份与站点（`access.ts`）、图集定位与从链接认出图集、页（`gallery-ref.ts`）、请求与「200 但不是内容」的失败识别（`eh-client.ts`）、失败与文案（`failures.ts`）、HTML 解析（`parse.ts`，先按元素结构定位再取属性与文字，不拿正则扫整页）、分类换算（`categories.ts`）、图片主机白名单（`image-hosts.ts`）。
 - 其余是本站这一侧：控制器与服务按功能成对（凭据、偏好、图集、图片、阅读；偏好与搜索历史的写入与到达顺序无关，见 ADR-0006），`gallery-catalog.ts` 是图集元数据的缓存与批量读取，`image-locator.ts` 是从图集定位到某页图片地址的取图链路，`attachment-urls.ts` 签发与校验图片地址，`params.ts` 是本模块私有的路径与查询串 schema。标签译名（`tag-translation.*`）的数据源是 GitHub 上的 EhTagTranslation 而不是 e 站，所以不放在 `upstream/` 下。
 
 ## 上游失败与文案
