@@ -10,6 +10,7 @@ import { createWrites } from "@/shared/api/writes"
 const SEARCH = ["eh", "search"] as const
 const GALLERY = ["eh", "gallery"] as const
 const COMMENTS = ["eh", "comments"] as const
+const PREVIEWS = ["eh", "previews"] as const
 const PROGRESS = ["eh", "progress"] as const
 
 /** 图集浏览各份数据的缓存 key。都以 `eh` 开头；带参数的几类以各自的前缀开头，可以整类作废。 */
@@ -21,6 +22,7 @@ export const ehKeys = {
   search: (keyword: string, categories: GalleryCategory[]) => [...SEARCH, keyword, categories],
   gallery: (gid: number, token: string) => [...GALLERY, gid, token],
   comments: (gid: number, token: string) => [...COMMENTS, gid, token],
+  previews: (gid: number, token: string, slice: number) => [...PREVIEWS, gid, token, slice],
   progresses: PROGRESS,
   progress: (gid: number) => [...PROGRESS, gid],
   history: ["eh", "history"],
@@ -29,12 +31,14 @@ export const ehKeys = {
 
 /**
  * 换绑 e 站账号后能看到的内容变了：搜索结果与阅读历史只留第一页重读（不把翻过的每一页都向上游重抓一遍），
- * 详情与评论作废重读。本站账号的数据（偏好、搜索历史、阅读进度）不受牵连。
+ * 详情、评论与预览图作废重读（每片几页随账号设置变）。本站账号的数据（偏好、搜索历史、阅读进度）不受牵连。
  */
 export function invalidateEhContent(queryCache: QueryCache) {
   keepFirstPage(queryCache, { key: SEARCH })
   keepFirstPage(queryCache, { key: ehKeys.history })
-  return Promise.all([SEARCH, GALLERY, COMMENTS, ehKeys.history].map((key) => queryCache.invalidateQueries({ key })))
+  return Promise.all(
+    [SEARCH, GALLERY, COMMENTS, PREVIEWS, ehKeys.history].map((key) => queryCache.invalidateQueries({ key })),
+  )
 }
 
 /**

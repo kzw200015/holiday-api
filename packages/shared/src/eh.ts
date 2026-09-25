@@ -201,6 +201,20 @@ export interface GalleryDetailResult {
   imageUrlTemplate: string
 }
 
+/**
+ * 图集里一页的预览图。e 站给的要么是一页一张，要么是一片拼成一张（按偏移裁出这一页），两种都按「从这张图的
+ * (offsetX, offsetY) 处裁出 width × height」显示，一页一张时偏移为 0。尺寸与偏移都是图上的原始像素
+ */
+export interface GalleryPreview {
+  page: number
+  /** 已经是本站的代理地址 */
+  url: string
+  width: number
+  height: number
+  offsetX: number
+  offsetY: number
+}
+
 /** 这个账号在某本图集上读到第几页 */
 export interface ReadingProgress {
   /** 从未读过时为 null */
@@ -221,6 +235,13 @@ export interface GalleryComment {
   /** 形如 +7，未登录时看不到，此时为空串 */
   score: string
   segments: CommentSegment[]
+}
+
+/** 图集的评论：e 站默认只列得分在阈值以上的，其余的只给出条数 */
+export interface GalleryComments {
+  comments: GalleryComment[]
+  /** 得分低于阈值、没有列出的评论条数 */
+  hiddenCount: number
 }
 
 /** e 站账号的绑定状态 */

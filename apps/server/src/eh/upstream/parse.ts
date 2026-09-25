@@ -1,15 +1,16 @@
-import type { CommentSegment, GalleryComment } from "@myapi/shared/eh"
+import type { CommentSegment, GalleryComment, GalleryComments, GalleryPreview } from "@myapi/shared/eh"
 import { load, type Cheerio, type CheerioAPI } from "cheerio"
 import type { AnyNode } from "domhandler"
 import { decodeHTMLStrict } from "entities"
 
 import type { GalleryRef } from "@/eh/upstream/gallery-ref"
+import { onPublicThumbnailHost } from "@/eh/upstream/image-hosts"
 
 /*
- * 解析只由 HTML 提供的东西：图集列表、取图用的定位信息与评论。不发请求、不碰缓存。
+ * 解析只由 HTML 提供的东西：图集列表、取图用的定位信息、预览图与评论。不发请求、不碰缓存。
  * 这是整套东西里最脆的一层，e 站随时可能改版面；测试里的样本全是从真实页面裁下来的。
  *
- * 有稳定 id 的元素（大图、评论）用选择器取；散落在各处的链接用正则扫全文，
+ * 有稳定 id 的元素（大图、预览图、评论）用选择器取；散落在各处的链接用正则扫全文，
  * 因为搜索结果有好几种显示模式，有的模式下整个表格都不存在，只有链接的形状是不变的。
  * 搜索结果页只要一个下一页链接，也用正则取，免得每次搜索都为它把整页建成 DOM。
  */
@@ -101,6 +102,43 @@ export function parseGallerySlice(html: string, gid: number): GallerySlice {
   }
 }
 
+/** 详情页上的一张预览图，地址还是上游的。 */
+export type PreviewImage = Omit<GalleryPreview, "url"> & { imageUrl: string }
+
+const PREVIEW_STYLE = /url\(([^)]+)\)\s*(-?\d+)(?:px)?\s+(-?\d+)(?:px)?/
+
+/**
+ * 详情页一个分片里的预览图，按页面顺序。每张是 #gdt 里一个指向图片页的链接，套着一个用背景图显示的 div：
+ * 一页一张时背景图就是这一页，偏移为 0；账号设成普通尺寸时是一片拼成的一张图，靠负的背景偏移露出这一页。
+ * 和页令牌一样只收 gid 对得上的链接；认不出尺寸或地址的跳过。
+ */
+export function parseGalleryPreviews(html: string, gid: number): PreviewImage[] {
+  const $ = load(html)
+  return $("#gdt a")
+    .toArray()
+    .flatMap((link) => {
+      const [, linkGid, page] = /\/s\/[0-9a-f]{10}\/(\d+)-(\d+)/.exec($(link).attr("href") ?? "") ?? []
+      const style = $(link).find("div").first().attr("style") ?? ""
+      const width = /width:\s*(\d+)px/.exec(style)?.[1]
+      const height = /height:\s*(\d+)px/.exec(style)?.[1]
+      const [, imageUrl, x, y] = PREVIEW_STYLE.exec(style) ?? []
+      if (Number(linkGid) !== gid || !page || !width || !height || !imageUrl || !x || !y) {
+        return []
+      }
+      return [
+        {
+          page: Number(page),
+          imageUrl: onPublicThumbnailHost(imageUrl),
+          width: Number(width),
+          height: Number(height),
+          /* 背景偏移是负的，换成「从图上哪里裁」；写成 0 的也不留下 -0 */
+          offsetX: Math.abs(Number(x)),
+          offsetY: Math.abs(Number(y)),
+        },
+      ]
+    })
+}
+
 /**
  * 图片页或 showpage 接口的 i3 片段。找不到大图时返回 null。
  *
@@ -132,12 +170,13 @@ export function parseNotice(html: string): string | null {
   return text.trim().slice(0, 200) || null
 }
 
-/** 详情页里的评论。 */
-export function parseGalleryComments(html: string): GalleryComment[] {
+/** 详情页里的评论，外加没列出来的低分评论条数（评论区末尾那句 There are 33 more comments below the viewing threshold）。 */
+export function parseGalleryComments(html: string): GalleryComments {
   const $ = load(html)
-  return $("#cdiv .c1")
+  const hidden = /There (?:are|is) ([\d,]+) more comments? below/.exec($("#chd").text())?.[1]
+  const comments = $("#cdiv .c1")
     .toArray()
-    .map((block) => {
+    .map((block): GalleryComment => {
       const comment = $(block)
       const meta = comment.find(".c3").first()
       const body = comment.find(".c6").first()
@@ -157,6 +196,7 @@ export function parseGalleryComments(html: string): GalleryComment[] {
         segments: parseSegments($, body),
       }
     })
+  return { comments, hiddenCount: hidden ? Number(hidden.replaceAll(",", "")) : 0 }
 }
 
 const MONTHS = [

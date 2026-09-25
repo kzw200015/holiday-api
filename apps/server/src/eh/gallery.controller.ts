@@ -4,7 +4,7 @@ import type { z } from "zod"
 
 import { CurrentUser } from "@/auth/auth.decorators"
 import { GalleryService } from "@/eh/gallery.service"
-import { galleryParams } from "@/eh/params"
+import { galleryParams, gallerySliceParams } from "@/eh/params"
 import type { GalleryRef } from "@/eh/upstream/gallery-ref"
 
 @Controller("eh/galleries")
@@ -30,5 +30,14 @@ export class GalleryController {
   @Get(":gid/:token/comments")
   comments(@CurrentUser() userId: number, @Param({ schema: galleryParams }) ref: GalleryRef) {
     return this.galleryService.comments(userId, ref)
+  }
+
+  /** 预览图按上游的分片取，详情页滚到哪一片才取哪一片。 */
+  @Get(":gid/:token/previews/:slice")
+  previews(
+    @CurrentUser() userId: number,
+    @Param({ schema: gallerySliceParams }) { gid, token, slice }: z.output<typeof gallerySliceParams>,
+  ) {
+    return this.galleryService.previews(userId, { gid, token }, slice)
   }
 }

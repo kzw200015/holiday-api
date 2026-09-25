@@ -10,6 +10,9 @@ export const gidParam = numeric(gidSchema, "图集编号不合法")
 export const galleryParams = z.object({ gid: gidParam, token: galleryTokenSchema }) satisfies z.ZodType<GalleryRef>
 
 export const galleryPageParams = galleryParams.extend({ page: numeric(pageSchema, "页码不合法") })
+
+/** 详情页的第几片，从 0 起：会被拼进上游地址。 */
+export const gallerySliceParams = galleryParams.extend({ slice: numeric(z.int().min(0), "分片序号不合法") })
 /* 只挡缺参数：空的、乱写的一律交给签名校验，回 403 */
 const signature = z.string({ error: "图片地址缺少签名参数" })
 

@@ -28,4 +28,4 @@ KeepAlive 只为保留界面状态（输入草稿、滚动位置、已翻的页�
 
 ## 测试
 
-测试在 `tests/`，替身是 mock 掉 `api.ts` 或 HTTP 适配器；挂应用时和 `main.ts` 一样经 `installQueries` 装上查询库；只测组合式函数的用 `composableTests()`，它每个用例换一个 pinia，收尾前先等排着队的写入落地（否则它们会跨到下一个用例才发出）。`tests/support.ts` 放共用的测试工具：`deferred` 摆出「请求在途」「旧响应迟到」这类时序，`query`、`byText` 取测试要操作的元素、`present` 取测试依赖的值，找不到都当场失败并说清缺了什么。
+测试在 `tests/`，替身是 mock 掉 `api.ts` 或 HTTP 适配器；happy-dom 不做布局，靠滚动位置或可见性触发的 `@vueuse/core` 函数（`useInfiniteScroll`、`useIntersectionObserver`）也 mock 掉，把回调接出来由测试手动触发；挂应用时和 `main.ts` 一样经 `installQueries` 装上查询库；只测组合式函数的用 `composableTests()`，它每个用例换一个 pinia，收尾前先等排着队的写入落地（否则它们会跨到下一个用例才发出）。`tests/support.ts` 放共用的测试工具：`deferred` 摆出「请求在途」「旧响应迟到」这类时序，`query`、`byText` 取测试要操作的元素、`present` 取测试依赖的值，找不到都当场失败并说清缺了什么。

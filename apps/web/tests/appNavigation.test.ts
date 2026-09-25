@@ -20,6 +20,7 @@ import {
   fetchGalleryComments,
   fetchGalleryDetail,
   fetchGalleryPreferences,
+  fetchGalleryPreviews,
   fetchReadingHistory,
   fetchReadingProgress,
   fetchSearchHistory,
@@ -51,6 +52,7 @@ vi.mock("@/features/eh/api", async (original) => ({
   fetchCredentialStatus: vi.fn(),
   unbindCredential: vi.fn(),
   fetchGalleryComments: vi.fn(),
+  fetchGalleryPreviews: vi.fn(),
   fetchGalleryDetail: vi.fn(),
   fetchReadingProgress: vi.fn(),
   fetchTagTranslationStatus: vi.fn(),
@@ -133,7 +135,8 @@ beforeEach(async () => {
   vi.mocked(fetchReadingProgress).mockImplementation(async (gid) => ({
     page: progresses.has(gid) ? (progresses.get(gid) ?? null) : 3,
   }))
-  vi.mocked(fetchGalleryComments).mockResolvedValue([])
+  vi.mocked(fetchGalleryComments).mockResolvedValue({ comments: [], hiddenCount: 0 })
+  vi.mocked(fetchGalleryPreviews).mockResolvedValue([])
   vi.mocked(saveProgress).mockImplementation(async (gid, _token, page) => {
     progresses.set(gid, page)
     return null

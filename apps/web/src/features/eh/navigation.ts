@@ -11,6 +11,11 @@ export function gallerySource(query: LocationQuery): GallerySource {
   return query.source === "history" ? "history" : "search"
 }
 
+/** 路径上的图集定位。gid 已经由路由的正则限定为一串数字。 */
+export function galleryIdentity(route: RouteLocationNormalized): GalleryIdentity {
+  return { gid: Number(route.params.gid), token: String(route.params.token) }
+}
+
 export function galleryListLocation(source: GallerySource): RouteLocationRaw {
   return { name: source === "history" ? "gallery-history" : "gallery-list" }
 }
@@ -20,7 +25,15 @@ export function galleryDetailLocation(gallery: GalleryIdentity, source: GalleryS
   return {
     name: "gallery-detail",
     params: { gid: gallery.gid, token: gallery.token },
-    query: source === "history" ? { source: "history" } : {},
+    query: sourceQuery(source),
+  }
+}
+
+export function galleryCommentsLocation(gallery: GalleryIdentity, source: GallerySource): RouteLocationRaw {
+  return {
+    name: "gallery-comments",
+    params: { gid: gallery.gid, token: gallery.token },
+    query: sourceQuery(source),
   }
 }
 
@@ -28,8 +41,13 @@ export function readerLocation(gallery: GalleryIdentity, page: number, source: G
   return {
     name: "reader",
     params: { gid: gallery.gid, token: gallery.token, page },
-    query: source === "history" ? { source: "history" } : {},
+    query: sourceQuery(source),
   }
+}
+
+/* 默认来源（搜索列表）不写进地址 */
+function sourceQuery(source: GallerySource) {
+  return source === "history" ? { source: "history" } : {}
 }
 
 /**

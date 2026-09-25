@@ -3,10 +3,11 @@ import type {
   CursorPage,
   ehCookieSchema,
   GalleryCard,
-  GalleryComment,
+  GalleryComments,
   GalleryDetailResult,
   galleryPreferencesPatchSchema,
   galleryPreferencesSchema,
+  GalleryPreview,
   gallerySearchSchema,
   ReadingHistoryItem,
   readingHistoryQuerySchema,
@@ -36,7 +37,12 @@ export function fetchGalleryDetail(gid: number, token: string, signal?: AbortSig
 
 /** 评论单独取，不拖慢详情页首屏 */
 export function fetchGalleryComments(gid: number, token: string, signal?: AbortSignal) {
-  return httpClient.get<GalleryComment[]>(`/eh/galleries/${gid}/${token}/comments`, { signal })
+  return httpClient.get<GalleryComments>(`/eh/galleries/${gid}/${token}/comments`, { signal })
+}
+
+/** 详情页第 slice 片（从 0 起）上的预览图。每片多少页由 e 站账号的设置决定，看第 0 片有几页就知道 */
+export function fetchGalleryPreviews(gid: number, token: string, slice: number, signal?: AbortSignal) {
+  return httpClient.get<GalleryPreview[]>(`/eh/galleries/${gid}/${token}/previews/${slice}`, { signal })
 }
 
 /**

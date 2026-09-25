@@ -2,7 +2,16 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { register, startApp, type TestApp } from "./support/app"
 import { createDatabase } from "./support/database"
-import { fixture, isMetadataApi, metadata, metadataApi, REF, requestedRefs } from "./support/eh"
+import {
+  fixture,
+  gallerySlice,
+  isMetadataApi,
+  metadata,
+  metadataApi,
+  pageToken,
+  REF,
+  requestedRefs,
+} from "./support/eh"
 import { html, json, withHolidays, type Responder } from "./support/outbound"
 import { present } from "./support/present"
 
@@ -248,8 +257,9 @@ describe("详情与评论", () => {
     const page = await fixture("gallery-page.html")
     eh(() => html(page))
     const response = await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}/comments`).set(auth).expect(200)
-    const [uploader, normal, third] = response.body
-    expect(response.body).toHaveLength(3)
+    const [uploader, normal, third] = response.body.comments
+    expect(response.body.comments).toHaveLength(3)
+    expect(response.body.hiddenCount).toBe(0)
     expect(uploader).toMatchObject({
       id: 0,
       author: "Pokom",
@@ -299,6 +309,91 @@ describe("详情与评论", () => {
       ),
     )
     const response = await t.http.get("/api/eh/galleries/900600/0123456789/comments").set(auth).expect(200)
-    expect(response.body[0].segments).toEqual([{ type: "text", text: "点我 和 这个" }])
+    expect(response.body.comments[0].segments).toEqual([{ type: "text", text: "点我 和 这个" }])
+  })
+
+  it("得分低于阈值、被 e 站默认藏起来的评论，只给出条数", async () => {
+    const page = await fixture("gallery-page-hidden-comments.html")
+    eh(() => html(`<a href="/s/aaaaaaaaaa/2055704-1">1</a>${page}`))
+    const response = await t.http.get("/api/eh/galleries/2055704/9d078905a6/comments").set(auth).expect(200)
+    expect(response.body.comments.map((comment: { author: string }) => comment.author)).toEqual(["Misaki-08042"])
+    expect(response.body.hiddenCount).toBe(33)
+  })
+})
+
+describe("预览图", () => {
+  const previews = (gid: number, token: string, slice: number | string) =>
+    t.http.get(`/api/eh/galleries/${gid}/${token}/previews/${slice}`).set(auth)
+
+  /** 代理地址里签着的上游原始地址。 */
+  const upstreamOf = (url: string) =>
+    Buffer.from(present(new URL(url, "http://x").searchParams.get("u"), "代理地址里的 u"), "base64url").toString()
+
+  it("真实详情页上的预览图：页码、尺寸与经本站代理的地址", async () => {
+    const page = await fixture("gallery-page.html")
+    eh(() => html(page))
+    const response = await previews(REF.gid, REF.token, 0).expect(200)
+    expect(response.body).toHaveLength(5)
+    const [first, , , , fifth] = response.body
+    expect(first).toMatchObject({ page: 1, width: 188, height: 300, offsetX: 0, offsetY: 0 })
+    expect(first.url).toMatch(/^\/api\/eh\/thumbnail\?u=[\w-]+&e=\d+&s=[0-9a-f]{32}$/)
+    expect(upstreamOf(first.url)).toBe(
+      "https://ehgt.org/1f/f5/1ff5e361bbf7eaa235e9560dc5d12e624959e9e7-2722367-1882-3000-jpg_l.jpg",
+    )
+    expect(fifth).toMatchObject({ page: 5, width: 169, height: 300 })
+  })
+  it("账号设成普通尺寸时一片拼成一张：各页按背景偏移从同一张图上裁", async () => {
+    const sprite = "https://ehgt.org/m/000900/900700-00.jpg"
+    const cell = (page: number, x: string) =>
+      `<a href="https://e-hentai.org/s/${pageToken(page)}/900700-${page}"><div title="Page ${page}: ${page}.jpg" ` +
+      `style="width:100px;height:142px;background:transparent url(${sprite}) ${x} 0 no-repeat"></div></a>`
+    eh(() => html(`<div id="gdt" class="gt100">${cell(1, "-0px")}${cell(2, "-100px")}</div>`))
+    const response = await previews(900700, "0123456789", 3).expect(200)
+    expect(t.outbound.last().url.search).toBe("?p=3")
+    expect(
+      response.body.map(({ url, ...preview }: { url: string }) => ({ ...preview, image: upstreamOf(url) })),
+    ).toEqual([
+      { page: 1, width: 100, height: 142, offsetX: 0, offsetY: 0, image: sprite },
+      { page: 2, width: 100, height: 142, offsetX: 100, offsetY: 0, image: sprite },
+    ])
+  })
+
+  it("与评论共用详情页的同一片：同时要只向上游请求一次", async () => {
+    eh(() => gallerySlice(900800, 3))
+    const [previewResponse, commentResponse] = await Promise.all([
+      previews(900800, "0123456789", 0),
+      t.http.get("/api/eh/galleries/900800/0123456789/comments").set(auth),
+    ])
+    expect([previewResponse.status, commentResponse.status]).toEqual([200, 200])
+    expect(t.outbound.requests.filter((request) => request.url.pathname.startsWith("/g/900800/"))).toHaveLength(1)
+  })
+
+  it("分片序号在出网之前校验", async () => {
+    eh(() => undefined)
+    for (const slice of ["-1", "1.5", "abc"]) {
+      const response = await previews(900900, "0123456789", slice)
+      expect([response.status, response.body.message], slice).toEqual([400, ["分片序号不合法"]])
+    }
+    expect(t.outbound.requests).toHaveLength(0)
+  })
+  it("里站的预览图不带 Cookie 取不到，按同一路径改到 ehgt.org 上取", async () => {
+    const { auth: exAuth } = await register(t.http)
+    eh((request) => (request.url.host === "exhentai.org" ? html("gallery list") : html("home")))
+    await t.http.post("/api/eh/credential").set(exAuth).send({ ipbMemberId: "1", ipbPassHash: "h", igneous: "i" })
+    const cell = (page: number, image: string) =>
+      `<a href="https://exhentai.org/s/${pageToken(page)}/901000-${page}"><div title="Page ${page}: ${page}.jpg" ` +
+      `style="width:100px;height:142px;background:transparent url(${image}) 0 0 no-repeat"></div></a>`
+    eh(() =>
+      html(
+        `<div id="gdt">${cell(1, "https://s.exhentai.org/t/1f/f5/1ff5e361bb-2722367-1882-3000-jpg_l.jpg")}` +
+          `${cell(2, "https://s.exhentai.org/m/000901/901000-00.jpg")}</div>`,
+      ),
+    )
+    const response = await t.http.get("/api/eh/galleries/901000/0123456789/previews/0").set(exAuth).expect(200)
+    expect(t.outbound.last().url.host).toBe("exhentai.org")
+    expect(response.body.map(({ url }: { url: string }) => upstreamOf(url))).toEqual([
+      "https://ehgt.org/t/1f/f5/1ff5e361bb-2722367-1882-3000-jpg_l.jpg",
+      "https://ehgt.org/m/000901/901000-00.jpg",
+    ])
   })
 })

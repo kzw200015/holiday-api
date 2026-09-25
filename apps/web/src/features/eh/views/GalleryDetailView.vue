@@ -7,16 +7,16 @@ import { RouterLink } from "vue-router"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
-import CommentBody from "@/features/eh/components/CommentBody.vue"
+import GalleryCommentList from "@/features/eh/components/GalleryCommentList.vue"
 import GalleryCover from "@/features/eh/components/GalleryCover.vue"
 import GalleryMeta from "@/features/eh/components/GalleryMeta.vue"
+import GalleryPreviews from "@/features/eh/components/GalleryPreviews.vue"
 import GalleryTag from "@/features/eh/components/GalleryTag.vue"
 import { useGallery } from "@/features/eh/composables/useGallery"
 import { useGalleryComments } from "@/features/eh/composables/useGalleryComments"
 import { useGalleryProgress } from "@/features/eh/composables/useGalleryProgress"
-import { readerLocation, type GallerySource } from "@/features/eh/navigation"
+import { galleryCommentsLocation, readerLocation, type GallerySource } from "@/features/eh/navigation"
 import EmptyState from "@/shared/components/EmptyState.vue"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
@@ -36,7 +36,8 @@ const { progress, reload: reloadProgress } = useGalleryProgress(() => props.gid)
 /* 页面被 KeepAlive 留着，每次回来都重读，好拿到别处读过的进度。 */
 useRefreshOnActivated(reload, reloadProgress)
 const canContinue = computed(() => (progress.value ?? 0) > 1)
-/* 评论需要抓取上游页面，独立加载，失败不阻塞元数据。 */
+/* 评论需要抓取上游页面，独立加载，失败不阻塞元数据。详情页只列前几条，其余的去评论页看。 */
+const COMMENT_LIMIT = 5
 const {
   comments,
   loading: commentsLoading,
@@ -159,18 +160,30 @@ const groupedTags = computed(() => {
             @retry="reloadComments"
           />
           <EmptyState v-else-if="comments?.length === 0" compact message="还没有评论。" />
-          <template v-else>
-            <div v-for="(comment, index) in comments" :key="comment.id" class="flex flex-col gap-2">
-              <Separator v-if="index > 0" />
-              <div class="flex flex-wrap items-center gap-2 text-xs">
-                <span class="font-medium">{{ comment.author }}</span>
-                <Badge v-if="comment.isUploader" variant="outline">上传者</Badge>
-                <span class="text-muted-foreground">{{ formatDateTime(comment.postedAt) }}</span>
-                <span v-if="comment.score" class="text-muted-foreground">{{ comment.score }}</span>
-              </div>
-              <CommentBody :segments="comment.segments" />
-            </div>
+          <template v-else-if="comments">
+            <GalleryCommentList :comments="comments.slice(0, COMMENT_LIMIT)" />
+            <Button v-if="comments.length > COMMENT_LIMIT" as-child class="self-start" variant="outline">
+              <RouterLink :to="galleryCommentsLocation({ gid, token }, source)">
+                查看全部 {{ comments.length }} 条评论
+              </RouterLink>
+            </Button>
           </template>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>预览</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <!-- 换图集时整个重建：已经进过视口的分片、取不到的图都不该带到另一本上。 -->
+          <GalleryPreviews
+            :key="identity()"
+            :gid="gid"
+            :token="token"
+            :file-count="gallery.fileCount"
+            :progress="progress"
+            :source="source"
+          />
         </CardContent>
       </Card>
     </template>

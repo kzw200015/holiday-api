@@ -16,7 +16,9 @@ export function useGalleryComments(gid: MaybeRefOrGetter<number>, token: MaybeRe
   })
 
   return {
-    comments: query.data,
+    comments: computed(() => query.data.value?.comments),
+    /* 得分低于阈值、e 站默认不列出的评论条数 */
+    hiddenCount: computed(() => query.data.value?.hiddenCount ?? 0),
     loading: computed(() => query.data.value === undefined && query.error.value === null),
     errorMessage: computed(() => query.error.value?.message ?? ""),
     reload: () => void query.refresh(),
