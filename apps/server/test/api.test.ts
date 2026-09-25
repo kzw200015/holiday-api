@@ -110,27 +110,20 @@ describe("响应体的 JSON 形状", () => {
   it("详情在卡片字段之上平铺出详情字段，时间是 ISO 8601，数字是数字", async () => {
     const response = await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}`).set(auth).expect(200)
     expect(response.body).toEqual({
-      gallery: {
-        gid: REF.gid,
-        token: REF.token,
-        title: `标题 ${REF.gid}`,
-        titleJpn: "",
-        category: "Artist CG",
-        thumbnail: expect.stringMatching(/^\/api\/eh\/thumbnail\?u=[\w-]+&e=\d+&s=[0-9a-f]{32}$/),
-        uploader: "Pokom",
-        postedAt: "2022-05-28T01:53:30.000Z",
-        fileCount: 329,
-        rating: 4.68,
-        tags: [{ namespace: "artist", namespaceName: "artist", value: "gentsuki", name: "gentsuki" }],
-        fileSize: 419547090,
-        torrentCount: 4,
-        expunged: false,
-      },
-      imageUrlTemplate: expect.stringMatching(
-        new RegExp(
-          `^/api/eh/galleries/${REF.gid}/${REF.token}/pages/\\{page\\}/image\\?uid=\\d+&e=\\d+&s=[0-9a-f]{32}$`,
-        ),
-      ),
+      gid: REF.gid,
+      token: REF.token,
+      title: `标题 ${REF.gid}`,
+      titleJpn: "",
+      category: "Artist CG",
+      thumbnail: expect.stringMatching(/^\/api\/eh\/thumbnail\?u=[\w-]+&e=\d+&s=[0-9a-f]{32}$/),
+      uploader: "Pokom",
+      postedAt: "2022-05-28T01:53:30.000Z",
+      fileCount: 329,
+      rating: 4.68,
+      tags: [{ namespace: "artist", namespaceName: "artist", value: "gentsuki", name: "gentsuki" }],
+      fileSize: 419547090,
+      torrentCount: 4,
+      expunged: false,
     })
   })
 
@@ -174,16 +167,20 @@ describe("响应体的 JSON 形状", () => {
     expect(response.text).toBe("")
   })
 
-  /** 签名地址的闭环：详情签发的地址，图片接口必须认得出来。两边哪天拼法不一致，表现是所有图片突然打不开。 */
-  it("详情签发的大图与缩略图地址不带令牌也打得开", async () => {
+  /** 签名地址的闭环：签发的地址，图片接口必须认得出来。两边哪天拼法不一致，表现是所有图片突然打不开。 */
+  it("签发的大图与缩略图地址不带令牌也打得开", async () => {
     const detail = (await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}`).set(auth)).body
-    const picture = await t.http.get(detail.imageUrlTemplate.replace("{page}", "3")).expect(200)
+    const { url } = (await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}/pages/3/image-url`).set(auth)).body
+    expect(url).toMatch(
+      new RegExp(`^/api/eh/galleries/${REF.gid}/${REF.token}/pages/3/image\\?uid=\\d+&e=\\d+&s=[0-9a-f]{32}$`),
+    )
+    const picture = await t.http.get(url).expect(200)
     expect(picture.headers["content-type"]).toBe("image/webp")
     expect(picture.headers["cache-control"]).toBe("max-age=2592000, private, immutable")
     expect(picture.headers["x-content-type-options"]).toBe("nosniff")
     expect(picture.headers["content-security-policy"]).toBe("sandbox")
     expect(Buffer.from(picture.body)).toEqual(Buffer.from([1, 2, 3]))
-    await t.http.get(detail.gallery.thumbnail).expect(200)
+    await t.http.get(detail.thumbnail).expect(200)
     const [preview] = (await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}/previews/0`).set(auth)).body
     await t.http.get(preview.url).expect(200)
   })

@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { ChevronLeftIcon, ChevronRightIcon, MinusIcon, PauseIcon, PlayIcon, PlusIcon, XIcon } from "@lucide/vue"
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MaximizeIcon,
+  MinimizeIcon,
+  MinusIcon,
+  PauseIcon,
+  PlayIcon,
+  PlusIcon,
+  XIcon,
+} from "@lucide/vue"
 import { READER_INTERVAL_MAX, READER_INTERVAL_MIN } from "@myapi/shared/eh"
 import { computed } from "vue"
 
@@ -11,8 +21,17 @@ const props = defineProps<{
   visible: boolean
   total: number
   playback: ReaderPlaybackState
+  /* 浏览器支不支持页面全屏（iPhone 上的 Safari 不支持，那里不给按钮），以及眼下是不是全屏。 */
+  canFullscreen: boolean
+  fullscreen: boolean
 }>()
-const emit = defineEmits<{ exit: []; toggleAutoPaging: []; setInterval: [seconds: number]; reloadInterval: [] }>()
+const emit = defineEmits<{
+  exit: []
+  toggleAutoPaging: []
+  setInterval: [seconds: number]
+  reloadInterval: []
+  toggleFullscreen: []
+}>()
 const page = defineModel<number>("page", { required: true })
 const seeking = defineModel<boolean>("seeking", { required: true })
 const progressPercent = computed(() => (props.total > 1 ? ((page.value - 1) / (props.total - 1)) * 100 : 0))
@@ -84,6 +103,15 @@ const chromeButton = {
         @click="emit('setInterval', playback.interval + 1)"
       >
         <PlusIcon />
+      </Button>
+      <Button
+        v-if="canFullscreen"
+        :aria-label="fullscreen ? '退出全屏' : '全屏'"
+        v-bind="chromeButton"
+        @click="emit('toggleFullscreen')"
+      >
+        <MinimizeIcon v-if="fullscreen" />
+        <MaximizeIcon v-else />
       </Button>
     </div>
   </div>

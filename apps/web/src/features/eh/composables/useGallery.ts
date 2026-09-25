@@ -5,8 +5,8 @@ import { fetchGalleryDetail } from "@/features/eh/api"
 import { ehKeys } from "@/features/eh/queries"
 
 /**
- * 一本图集的元数据与大图地址模板。详情页和阅读器读的是同一份；读到第几页另有 useGalleryProgress。
- * 手上有旧的一份时重读失败，旧的照常用（图片地址签的有效期默认有一天），只提示一下。
+ * 一本图集的元数据。详情页和阅读器读的是同一份；读到第几页另有 useGalleryProgress，大图地址逐页另签（usePageImageUrl）。
+ * 手上有旧的一份时重读失败，旧的照常用，只提示一下。
  */
 export function useGallery(gid: MaybeRefOrGetter<number>, token: MaybeRefOrGetter<string>) {
   /* 每本一条缓存，查询函数用的是这一本自己的 gid 与 token。 */
@@ -22,8 +22,7 @@ export function useGallery(gid: MaybeRefOrGetter<number>, token: MaybeRefOrGette
   const failure = computed(() => query.error.value?.message ?? "")
 
   return {
-    gallery: computed(() => query.data.value?.gallery),
-    imageUrlTemplate: computed(() => query.data.value?.imageUrlTemplate ?? ""),
+    gallery: query.data,
     /* 详情是否已经到手。阅读器要等它确定之后才敢上报位置。 */
     loaded,
     loading: computed(() => !loaded.value && query.error.value === null),

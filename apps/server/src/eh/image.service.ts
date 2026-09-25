@@ -21,7 +21,7 @@ export class ImageService {
 
   /** 校验签名后用签发对象的凭据取图。uid 要等签名校验通过，才能拿它去读凭据。图床节点失败时换源重试一次。 */
   async openGalleryImage(userId: number, ref: GalleryRef, page: number, signature: Signature): Promise<ImageStream> {
-    this.attachmentUrls.checkImage(userId, ref, signature)
+    this.attachmentUrls.checkImage(userId, ref, page, signature)
     const access = await this.credentialService.access(userId)
     const image = await this.imageLocator.locate(access, ref, page)
     try {

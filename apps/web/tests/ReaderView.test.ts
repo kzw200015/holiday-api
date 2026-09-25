@@ -5,7 +5,7 @@ import { createApp, h, nextTick, type Component as VueComponent } from "vue"
 import { createMemoryHistory, createRouter, RouterView, type RouteLocationNormalizedLoaded } from "vue-router"
 
 import type * as EhApi from "@/features/eh/api"
-import { fetchGalleryDetail, saveProgress } from "@/features/eh/api"
+import { fetchGalleryDetail, fetchPageImageUrl, saveProgress } from "@/features/eh/api"
 import { readerInstanceKey } from "@/features/eh/navigation"
 import ReaderView from "@/features/eh/views/ReaderView.vue"
 import { installQueries } from "@/shared/api/queries"
@@ -13,11 +13,9 @@ import { deferred, present, query } from "./support"
 
 vi.mock("@/features/eh/api", async (importOriginal) => ({
   ...(await importOriginal<typeof EhApi>()),
-  fetchGalleryDetail: vi.fn().mockResolvedValue({
-    gallery: { title: "测试图集", fileCount: 10 },
-    imageUrlTemplate: "/image/{page}",
-  }),
+  fetchGalleryDetail: vi.fn().mockResolvedValue({ title: "测试图集", fileCount: 10 }),
   saveProgress: vi.fn().mockResolvedValue(undefined),
+  fetchPageImageUrl: vi.fn(async (_gid: number, _token: string, page: number) => ({ url: `/image/${page}?signed` })),
   fetchGalleryPreferences: vi.fn().mockResolvedValue({ categories: [], readerInterval: 5 }),
   patchGalleryPreferences: vi.fn().mockResolvedValue(null),
 }))
@@ -34,6 +32,7 @@ let awayPage: Promise<VueComponent>
 beforeEach(async () => {
   vi.mocked(saveProgress).mockClear()
   vi.mocked(fetchGalleryDetail).mockClear()
+  vi.mocked(fetchPageImageUrl).mockClear()
   awayPage = Promise.resolve({ render: () => h("div", "其他页面") })
   vi.useFakeTimers()
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
@@ -78,12 +77,51 @@ afterEach(() => {
   app?.unmount()
   disposePinia(pinia)
   host.remove()
+  /* happy-dom 本来没有全屏，用例里装上的替身在卸载之后拆掉：卸载时还要用它退出全屏。 */
+  for (const name of ["fullscreenElement", "webkitIsFullScreen", "exitFullscreen"]) {
+    Reflect.deleteProperty(document, name)
+  }
+  Reflect.deleteProperty(document.documentElement, "requestFullscreen")
   vi.restoreAllMocks()
   vi.useRealTimers()
 })
 
 function readingArea() {
   return query<HTMLElement>(host, '[aria-label="横向阅读区域"]')
+}
+
+/* 全屏的替身：进入、退出都当场生效，并像浏览器一样派发 fullscreenchange。 */
+function stubFullscreen() {
+  let element: Element | null = null
+  const root = document.documentElement
+  function change(next: Element | null) {
+    element = next
+    document.dispatchEvent(new Event("fullscreenchange"))
+  }
+  Object.defineProperty(document, "fullscreenElement", { get: () => element, configurable: true })
+  Object.defineProperty(document, "webkitIsFullScreen", { get: () => element !== null, configurable: true })
+  const exit = vi.fn(async () => change(null))
+  Object.defineProperty(document, "exitFullscreen", { value: exit, configurable: true })
+  Object.defineProperty(root, "requestFullscreen", { value: vi.fn(async () => change(root)), configurable: true })
+  return { exit, active: () => element === root, leaveByKey: () => change(null) }
+}
+
+/* 装上全屏替身后换一本图集：阅读器按图集重建，挂载时才认得出浏览器支持全屏。 */
+async function withFullscreen() {
+  const fullscreen = stubFullscreen()
+  await router.replace("/2/other/1")
+  await vi.advanceTimersByTimeAsync(0)
+  return fullscreen
+}
+
+/* 在阅读区点一下；x 是离窗口左边的距离，默认点在正中间。 */
+function tap(x = window.innerWidth / 2) {
+  readingArea().dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: x }))
+}
+
+/* 点在窗口正中间：要是漏到阅读区，就会被当成切换操作栏，看得出来。element.click() 点在最左边，漏过去只会翻页。 */
+function clickCenter(element: Element) {
+  element.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: window.innerWidth / 2 }))
 }
 
 function controlsState() {
@@ -147,19 +185,19 @@ describe("阅读器操作栏", () => {
   it("默认显示且不自动隐藏，单击阅读区域切换显示状态", async () => {
     await vi.advanceTimersByTimeAsync(60000)
     expect(controlsState()).toEqual(["visible", "visible"])
-    readingArea().click()
+    tap()
     await nextTick()
     expect(controlsState()).toEqual(["hidden", "hidden"])
     await vi.advanceTimersByTimeAsync(60000)
     expect(controlsState()).toEqual(["hidden", "hidden"])
-    readingArea().click()
+    tap()
     await nextTick()
     expect(controlsState()).toEqual(["visible", "visible"])
   })
 
   it("鼠标移动、指针按下、滚轮和页码变化都不会唤出控件", async () => {
     const area = readingArea()
-    area.click()
+    tap()
     await nextTick()
     area.setPointerCapture = vi.fn()
     area.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }))
@@ -177,7 +215,7 @@ describe("阅读器操作栏", () => {
     '[aria-label="增加自动翻页间隔"]',
     '[aria-label="减少自动翻页间隔"]',
   ])("点击操作栏中的 %s 不会切换显示状态", async (selector) => {
-    query<HTMLElement>(host, selector).click()
+    clickCenter(query(host, selector))
     await vi.advanceTimersByTimeAsync(0)
     expect(controlsState()).toEqual(["visible", "visible"])
   })
@@ -185,7 +223,7 @@ describe("阅读器操作栏", () => {
   it("自动翻页不会重新显示已隐藏的控件", async () => {
     query<HTMLButtonElement>(host, '[aria-label="开始自动翻页"]').click()
     await nextTick()
-    readingArea().click()
+    tap()
     await nextTick()
     await vi.advanceTimersByTimeAsync(5000 + URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("2")
@@ -199,14 +237,14 @@ describe("阅读器操作栏", () => {
     area.dispatchEvent(new PointerEvent("pointermove", { pointerType: "mouse", pointerId: 1, clientX: 20 }))
     area.dispatchEvent(new PointerEvent("pointermove", { pointerType: "mouse", pointerId: 1, clientX: 100 }))
     area.dispatchEvent(new PointerEvent("pointerup", { pointerType: "mouse", pointerId: 1 }))
-    area.click()
+    tap()
     await nextTick()
     expect(controlsState()).toEqual(["visible", "visible"])
 
     area.dispatchEvent(new PointerEvent("pointerdown", { pointerType: "mouse", pointerId: 2, clientX: 100 }))
     area.dispatchEvent(new PointerEvent("pointermove", { pointerType: "mouse", pointerId: 2, clientX: 102 }))
     area.dispatchEvent(new PointerEvent("pointerup", { pointerType: "mouse", pointerId: 2 }))
-    area.click()
+    tap()
     await nextTick()
     expect(controlsState()).toEqual(["hidden", "hidden"])
   })
@@ -293,13 +331,43 @@ describe("阅读器操作栏", () => {
     expect(nextImage).not.toBe(originalImage)
   })
 
+  it("点左右三分之一翻页、不动操作栏，点中间切换操作栏", async () => {
+    const width = window.innerWidth
+    tap(width - 1)
+    tap(width * 0.7)
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
+    expect(router.currentRoute.value.params.page).toBe("3")
+    expect(controlsState()).toEqual(["visible", "visible"])
+    tap(0)
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
+    expect(router.currentRoute.value.params.page).toBe("2")
+    tap(width * 0.4)
+    await nextTick()
+    expect(controlsState()).toEqual(["hidden", "hidden"])
+    /* 操作栏收起时照样能点两侧翻页，也不会把它叫出来。 */
+    tap(width * 0.9)
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
+    expect(router.currentRoute.value.params.page).toBe("3")
+    expect(controlsState()).toEqual(["hidden", "hidden"])
+  })
+
+  it("点两侧翻页不越过首页与末页", async () => {
+    tap(0)
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
+    expect(router.currentRoute.value.params.page).toBe("1")
+    await router.replace("/1/token/10")
+    tap(window.innerWidth - 1)
+    await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
+    expect(router.currentRoute.value.params.page).toBe("10")
+  })
+
   it("触屏轻点同样通过 click 切换，不在按下时切换", async () => {
     const area = readingArea()
     area.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", pointerId: 1 }))
     await nextTick()
     expect(controlsState()).toEqual(["visible", "visible"])
     area.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", pointerId: 1 }))
-    area.click()
+    tap()
     await nextTick()
     expect(controlsState()).toEqual(["hidden", "hidden"])
   })
@@ -327,11 +395,25 @@ describe("阅读器的边界情况", () => {
     expect(query<HTMLInputElement>(host, 'input[type="range"]').value).toBe("3")
   })
 
+  /* 重试本身怎么重签、换地址由 ReaderStrip 的测试管，这里只看阅读器把哪本图集交下去、失败页上的按钮不漏到阅读区。 */
+  it("每页用这本图集的编号与令牌各自签地址；点失败页上的重试不算点阅读区", async () => {
+    await vi.advanceTimersByTimeAsync(200)
+    const signed = vi.mocked(fetchPageImageUrl).mock.calls.map(([gid, token, page]) => `${gid}/${token}/${page}`)
+    const loaded = [...readingArea().children].flatMap((page, index) => (page.querySelector("img") ? [index + 1] : []))
+    expect(loaded.length).toBeGreaterThan(1)
+    expect(signed).toEqual(loaded.map((page) => `1/token/${page}`))
+    const page = present(readingArea().children[0], "第 1 页")
+    query(page, "img").dispatchEvent(new Event("error"))
+    await nextTick()
+    clickCenter(query(page, "button"))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(controlsState()).toEqual(["visible", "visible"])
+  })
+
   it("没有页面的图集直接说明，键盘翻页也不越过第 1 页", async () => {
-    vi.mocked(fetchGalleryDetail).mockResolvedValueOnce({
-      gallery: { title: "空图集", fileCount: 0 },
-      imageUrlTemplate: "/image/{page}",
-    } as Awaited<ReturnType<typeof EhApi.fetchGalleryDetail>>)
+    vi.mocked(fetchGalleryDetail).mockResolvedValueOnce({ title: "空图集", fileCount: 0 } as Awaited<
+      ReturnType<typeof EhApi.fetchGalleryDetail>
+    >)
     await router.replace("/3/empty/1")
     await vi.advanceTimersByTimeAsync(0)
     expect(host.textContent).toContain("这个图集没有可以阅读的页面")
@@ -373,5 +455,37 @@ describe("阅读器的边界情况", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }))
     await vi.advanceTimersByTimeAsync(URL_SYNC_DELAY)
     expect(router.currentRoute.value.params.page).toBe("6")
+  })
+})
+
+describe("阅读器全屏", () => {
+  it("浏览器不支持页面全屏时不给按钮", () => {
+    expect(host.querySelector('[aria-label="全屏"]')).toBeNull()
+  })
+
+  it("点按钮进出全屏，按 Esc 退出后按钮跟着变回来", async () => {
+    const fullscreen = await withFullscreen()
+    query<HTMLButtonElement>(host, '[aria-label="全屏"]').click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fullscreen.active()).toBe(true)
+    query<HTMLButtonElement>(host, '[aria-label="退出全屏"]').click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fullscreen.active()).toBe(false)
+    query<HTMLButtonElement>(host, '[aria-label="全屏"]').click()
+    await vi.advanceTimersByTimeAsync(0)
+    fullscreen.leaveByKey()
+    await nextTick()
+    expect(host.querySelector('[aria-label="全屏"]')).not.toBeNull()
+  })
+
+  it("离开阅读器时退出全屏", async () => {
+    const fullscreen = await withFullscreen()
+    query<HTMLButtonElement>(host, '[aria-label="全屏"]').click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fullscreen.active()).toBe(true)
+    await router.push("/away")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fullscreen.exit).toHaveBeenCalledOnce()
+    expect(fullscreen.active()).toBe(false)
   })
 })

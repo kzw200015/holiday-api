@@ -52,6 +52,9 @@ async function createReader(position: { page?: number; total?: number } = {}) {
                 seeking: state.seeking,
                 visible: state.visible,
                 playback: playback.state,
+                /* 全屏由阅读器管，行为测在 ReaderView 的测试里 */
+                canFullscreen: false,
+                fullscreen: false,
                 onToggleAutoPaging: playback.toggle,
                 onSetInterval: playback.changeInterval,
                 onReloadInterval: playback.reloadInterval,
@@ -106,6 +109,8 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) {
     cleanup()
   }
+  /* happy-dom 本来没有屏幕常亮，用例里装上的替身在这里拆掉。 */
+  Reflect.deleteProperty(navigator, "wakeLock")
   vi.restoreAllMocks()
   vi.useRealTimers()
 })
@@ -379,5 +384,80 @@ describe("阅读器自动翻页控件", () => {
     localStorage.setItem("myapi.reader-interval.1", JSON.stringify(value))
     const { host } = await createReader()
     expect(intervalText(host)).toBe("5 秒")
+  })
+})
+
+/* 阅读器只用得到锁的 release。 */
+interface Lock {
+  release: () => Promise<void>
+}
+
+/* 屏幕常亮的替身：记下每次申请拿到的锁，看它们有没有被放开。 */
+function stubWakeLock(request?: () => Promise<Lock>) {
+  const locks: { release: ReturnType<typeof vi.fn> }[] = []
+  const wakeLock = {
+    request: vi.fn(
+      request ??
+        (async () => {
+          const lock = { release: vi.fn(async () => {}) }
+          locks.push(lock)
+          return lock
+        }),
+    ),
+  }
+  Object.defineProperty(navigator, "wakeLock", { value: wakeLock, configurable: true })
+  return { wakeLock, locks, held: () => locks.filter((lock) => lock.release.mock.calls.length === 0).length }
+}
+
+describe("自动翻页时屏幕常亮", () => {
+  it("开着时屏幕常亮，暂停、翻到末页、卸载都放开", async () => {
+    const { wakeLock, locks, held } = stubWakeLock()
+    const { state, host } = await createReader({ total: 3 })
+    expect(wakeLock.request).not.toHaveBeenCalled()
+    autoButton(host).click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wakeLock.request).toHaveBeenCalledExactlyOnceWith("screen")
+    expect(held()).toBe(1)
+    autoButton(host).click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(held()).toBe(0)
+    /* 自己翻到末页停下时同样放开。 */
+    autoButton(host).click()
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(state.page).toBe(3)
+    expect(held()).toBe(0)
+    state.page = 1
+    await nextTick()
+    autoButton(host).click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(held()).toBe(1)
+    present(cleanups.pop(), "卸载回调")()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(held()).toBe(0)
+    expect(locks).toHaveLength(3)
+  })
+
+  it("还没拿到锁就暂停了，拿到后当场放开", async () => {
+    const granted = deferred<Lock>()
+    const release = vi.fn(async () => {})
+    stubWakeLock(() => granted.promise)
+    const { host } = await createReader()
+    autoButton(host).click()
+    autoButton(host).click()
+    granted.resolve({ release })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(release).toHaveBeenCalledOnce()
+  })
+
+  it("拿不到常亮也照常自动翻页", async () => {
+    stubWakeLock(() => Promise.reject(new Error("省电模式")))
+    const { change, host } = await createReader()
+    autoButton(host).click()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(change).toHaveBeenCalledExactlyOnceWith(2)
+    /* 放开一把没拿到的锁也不出错。 */
+    autoButton(host).click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
   })
 })

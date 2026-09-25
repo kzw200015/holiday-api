@@ -2,18 +2,19 @@
 import { clamp, useResizeObserver, useTimeoutFn } from "@vueuse/core"
 import { computed, nextTick, onScopeDispose, ref, shallowRef, watch } from "vue"
 
-import { Button } from "@/components/ui/button"
-import { galleryImageUrl } from "@/features/eh/api"
+import ReaderPage from "@/features/eh/components/ReaderPage.vue"
 import { createReaderLayout } from "@/features/eh/readerLayout"
 
 const LOAD_DELAY = 200
-const PRELOAD_PAGES = 2
+/* 顺着往后读的多，往后多备几页、往前只留一页：翻到下一页时它多半已经到了。 */
+const PRELOAD_AHEAD = 4
+const PRELOAD_BEHIND = 1
 /* 离开视口这么多页之后把图片卸载：几百页的图集读到后面，不必把前面每一张大图都留在内存里。
  * ratios 不跟着清，页宽因此保持原样，卸载不会让布局跳动，滑回去时也还在原来的位置。 */
 const KEEP_PAGES = 12
 
 /* 父级在页数已知且非零时挂载；换图集时整个阅读器重建，这里不会中途换一本。 */
-const props = withDefaults(defineProps<{ total: number; template: string; seeking?: boolean }>(), {
+const props = withDefaults(defineProps<{ gid: number; token: string; total: number; seeking?: boolean }>(), {
   seeking: false,
 })
 const page = defineModel<number>("page", { required: true })
@@ -22,9 +23,10 @@ const viewport = shallowRef<HTMLElement>()
 const height = ref(1)
 const width = ref(1)
 const ratios = ref<Record<number, number>>({})
-const loaded = ref<Set<number>>(new Set())
-const failed = ref<Set<number>>(new Set())
-const nonces = ref<Record<number, number>>({})
+/* 进了加载窗口的页：挂着 ReaderPage 在签地址、取图，或者已经取到了。 */
+const inWindow = ref<Set<number>>(new Set())
+/* 停下时视口里的页优先取，预加载的往后排，免得眼前这页和后面几页抢带宽。 */
+const visibleRange = ref({ first: 1, last: 0 })
 let pointer: { id: number; x: number; y: number; left: number } | undefined
 let dragged = false
 let scrollTarget: number | undefined
@@ -36,21 +38,22 @@ function loadVisible() {
     return
   }
   const { first, last } = layout.value.visiblePages(viewport.value.scrollLeft)
+  visibleRange.value = { first, last }
   const kept = new Set<number>()
-  for (const pageNumber of loaded.value) {
+  for (const pageNumber of inWindow.value) {
     if (pageNumber >= first - KEEP_PAGES && pageNumber <= last + KEEP_PAGES) {
       kept.add(pageNumber)
     }
   }
-  /* 补充可见页和左右各两页。 */
+  /* 补充可见页，以及往后几页、往前一页。 */
   for (
-    let pageNumber = Math.max(1, first - PRELOAD_PAGES);
-    pageNumber <= Math.min(props.total, last + PRELOAD_PAGES);
+    let pageNumber = Math.max(1, first - PRELOAD_BEHIND);
+    pageNumber <= Math.min(props.total, last + PRELOAD_AHEAD);
     pageNumber++
   ) {
     kept.add(pageNumber)
   }
-  loaded.value = kept
+  inWindow.value = kept
 }
 
 const { start, stop: cancelLoad } = useTimeoutFn(loadVisible, LOAD_DELAY, { immediate: false })
@@ -148,14 +151,13 @@ function onWheel(event: WheelEvent) {
   viewport.value.scrollLeft += event.deltaY * scale
 }
 
-async function onImageLoad(pageNumber: number, event: Event) {
-  const image = event.currentTarget as HTMLImageElement
-  if (!viewport.value || !image.naturalWidth || !image.naturalHeight) {
+async function onImageRatio(pageNumber: number, ratio: number) {
+  if (!viewport.value) {
     return
   }
   /* 占位宽度换成真实比例时，维持当前页在视口中的相对位置；同一批到达的图片只锚定一次。 */
   pendingAnchor ??= { page: page.value, relative: viewport.value.scrollLeft - layout.value.offsetOf(page.value) }
-  ratios.value[pageNumber] = image.naturalWidth / image.naturalHeight
+  ratios.value[pageNumber] = ratio
   await nextTick()
   if (!viewport.value || !pendingAnchor) {
     return
@@ -168,11 +170,6 @@ async function onImageLoad(pageNumber: number, event: Event) {
   }
   viewport.value.scrollLeft = clamp(layout.value.offsetOf(anchor) + relative, 0, layout.value.maxScroll)
   scheduleLoad()
-}
-
-function retry(pageNumber: number) {
-  failed.value.delete(pageNumber)
-  nonces.value[pageNumber] = (nonces.value[pageNumber] ?? 0) + 1
 }
 
 useResizeObserver(viewport, ([entry]) => {
@@ -222,28 +219,17 @@ onScopeDispose(() => {
       class="relative h-full shrink-0"
       :style="{ width: `${layout.widthOf(pageNumber)}px` }"
     >
-      <div
-        v-if="failed.has(pageNumber)"
-        class="flex h-full flex-col items-center justify-center gap-3 p-4 text-white/80"
-      >
-        <p class="text-sm">第 {{ pageNumber }} 页加载失败</p>
-        <Button variant="outline" @click.stop="retry(pageNumber)">重试</Button>
+      <ReaderPage
+        v-if="inWindow.has(pageNumber)"
+        :gid="gid"
+        :token="token"
+        :page="pageNumber"
+        :eager="pageNumber >= visibleRange.first && pageNumber <= visibleRange.last"
+        @ratio="onImageRatio(pageNumber, $event)"
+      />
+      <div v-else class="absolute inset-0 flex items-center justify-center text-sm text-white/40">
+        第 {{ pageNumber }} 页
       </div>
-      <template v-else>
-        <div class="absolute inset-0 flex items-center justify-center text-sm text-white/40">
-          第 {{ pageNumber }} 页
-        </div>
-        <img
-          v-if="loaded.has(pageNumber)"
-          :key="nonces[pageNumber] ?? 0"
-          class="relative block h-full w-full object-contain"
-          :draggable="false"
-          :alt="`第 ${pageNumber} 页`"
-          :src="galleryImageUrl(template, pageNumber, { nonce: nonces[pageNumber] })"
-          @load="onImageLoad(pageNumber, $event)"
-          @error="failed.add(pageNumber)"
-        />
-      </template>
     </div>
   </div>
 </template>

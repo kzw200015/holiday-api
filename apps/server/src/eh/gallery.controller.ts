@@ -4,7 +4,7 @@ import type { z } from "zod"
 
 import { CurrentUser } from "@/auth/auth.decorators"
 import { GalleryService } from "@/eh/gallery.service"
-import { galleryParams, gallerySliceParams } from "@/eh/params"
+import { galleryPageParams, galleryParams, gallerySliceParams } from "@/eh/params"
 import type { GalleryRef } from "@/eh/upstream/gallery-ref"
 
 @Controller("eh/galleries")
@@ -22,8 +22,17 @@ export class GalleryController {
   }
 
   @Get(":gid/:token")
-  detail(@CurrentUser() userId: number, @Param({ schema: galleryParams }) ref: GalleryRef) {
-    return this.galleryService.detail(userId, ref)
+  detail(@Param({ schema: galleryParams }) ref: GalleryRef) {
+    return this.galleryService.detail(ref)
+  }
+
+  /** 阅读器每取一页先来签一次，点重试时也再签一次，所以地址不会拿着过期的用。 */
+  @Get(":gid/:token/pages/:page/image-url")
+  imageUrl(
+    @CurrentUser() userId: number,
+    @Param({ schema: galleryPageParams }) { gid, token, page }: z.output<typeof galleryPageParams>,
+  ) {
+    return this.galleryService.imageUrl(userId, { gid, token }, page)
   }
 
   /** 单独一次请求，不拖慢详情页首屏。 */

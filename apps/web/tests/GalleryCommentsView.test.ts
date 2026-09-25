@@ -33,10 +33,7 @@ function comment(id: number): GalleryComment {
 }
 
 async function mountComments(comments: GalleryComment[], hiddenCount: number) {
-  vi.mocked(fetchGalleryDetail).mockResolvedValue({
-    gallery: { ...galleryCard(7), fileSize: 1, torrentCount: 0, expunged: false },
-    imageUrlTemplate: "/image/{page}",
-  })
+  vi.mocked(fetchGalleryDetail).mockResolvedValue({ ...galleryCard(7), fileSize: 1, torrentCount: 0, expunged: false })
   vi.mocked(fetchGalleryComments).mockResolvedValue({ comments, hiddenCount })
   const router = createRouter({
     history: createMemoryHistory(),

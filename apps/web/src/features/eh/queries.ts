@@ -21,6 +21,8 @@ export const ehKeys = {
   searches: SEARCH,
   search: (keyword: string, categories: GalleryCategory[]) => [...SEARCH, keyword, categories],
   gallery: (gid: number, token: string) => [...GALLERY, gid, token],
+  /* 不按前缀作废：卸载就不留缓存，换绑 e 站账号也不影响签名 */
+  pageImage: (gid: number, token: string, page: number) => ["eh", "page-image", gid, token, page],
   comments: (gid: number, token: string) => [...COMMENTS, gid, token],
   previews: (gid: number, token: string, slice: number) => [...PREVIEWS, gid, token, slice],
   progresses: PROGRESS,

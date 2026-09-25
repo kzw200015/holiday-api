@@ -21,6 +21,7 @@ import {
   fetchGalleryDetail,
   fetchGalleryPreferences,
   fetchGalleryPreviews,
+  fetchPageImageUrl,
   fetchReadingHistory,
   fetchReadingProgress,
   fetchSearchHistory,
@@ -54,6 +55,7 @@ vi.mock("@/features/eh/api", async (original) => ({
   fetchGalleryComments: vi.fn(),
   fetchGalleryPreviews: vi.fn(),
   fetchGalleryDetail: vi.fn(),
+  fetchPageImageUrl: vi.fn(),
   fetchReadingProgress: vi.fn(),
   fetchTagTranslationStatus: vi.fn(),
   saveProgress: vi.fn(),
@@ -129,11 +131,16 @@ beforeEach(async () => {
   /* 进度每次进入详情都重读，所以要像服务端一样记住：没读过的算读到第 3 页，保存、删除都会改它。 */
   const progresses = new Map<number, number | null>()
   vi.mocked(fetchGalleryDetail).mockImplementation(async (gid, token) => ({
-    gallery: { ...gallery, gid, token, title: `测试图集${gid}` },
-    imageUrlTemplate: "/image/{page}",
+    ...gallery,
+    gid,
+    token,
+    title: `测试图集${gid}`,
   }))
   vi.mocked(fetchReadingProgress).mockImplementation(async (gid) => ({
     page: progresses.has(gid) ? (progresses.get(gid) ?? null) : 3,
+  }))
+  vi.mocked(fetchPageImageUrl).mockImplementation(async (gid, _token, page) => ({
+    url: `/image/${gid}/${page}?signed`,
   }))
   vi.mocked(fetchGalleryComments).mockResolvedValue({ comments: [], hiddenCount: 0 })
   vi.mocked(fetchGalleryPreviews).mockResolvedValue([])
@@ -377,7 +384,7 @@ describe("阅读历史与二级导航", () => {
     await visit("/eh/g/1/aaaaaaaaaa")
     await visit("/eh/history")
     expect(fetchReadingHistory).toHaveBeenCalledTimes(1)
-    detail.resolve({ gallery, imageUrlTemplate: "/image/{page}" })
+    detail.resolve(gallery)
     await settle()
     vi.mocked(fetchReadingHistory).mockResolvedValueOnce({ items: [], nextCursor: null })
     query<HTMLElement>(host, '[aria-label="删除阅读记录：1"]').click()
@@ -575,12 +582,12 @@ describe("页面缓存与失效范围", () => {
     const viewport = query(host, '[aria-label="横向阅读区域"]')
     await vi.waitFor(() => expect(viewport.querySelector("img")).not.toBeNull())
     const image = query(viewport, "img")
-    const imageUrl = image.getAttribute("src")
     image.dispatchEvent(new Event("error"))
     await nextTick()
     expect(viewport.textContent).toContain("第 1 页加载失败")
     await click("重试")
-    expect(viewport.querySelector("img")?.getAttribute("src")).not.toBe(imageUrl)
+    await settle()
+    expect(query(viewport, "img").getAttribute("src")).toBe("/image/1/1?signed&r=1")
 
     const range = query<HTMLInputElement>(host, '[aria-label="阅读进度"]')
     range.value = "17"

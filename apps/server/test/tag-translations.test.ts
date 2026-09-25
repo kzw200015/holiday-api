@@ -53,7 +53,7 @@ function release(sha: string, namespaces: Record<string, Record<string, string>>
 const status = async () => (await t.http.get("/api/eh/tag-translations").set(auth).expect(200)).body
 const sync = () => t.http.post("/api/eh/tag-translations/sync").set(auth)
 const tags = async () =>
-  (await t.http.get(`/api/eh/galleries/${GID}/${TOKEN}`).set(auth).expect(200)).body.gallery.tags as GalleryTag[]
+  (await t.http.get(`/api/eh/galleries/${GID}/${TOKEN}`).set(auth).expect(200)).body.tags as GalleryTag[]
 /* 每个标签显示成什么：命名空间的译名 / 标签的译名 */
 const shown = async () => (await tags()).map(({ namespaceName, name }) => `${namespaceName}/${name}`)
 

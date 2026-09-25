@@ -1,10 +1,15 @@
 /* @vitest-environment happy-dom */
+import type { GalleryImageUrlResult } from "@myapi/shared/eh"
 import type * as VueUse from "@vueuse/core"
+import { createPinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, nextTick, reactive } from "vue"
 
+import type * as EhApi from "@/features/eh/api"
+import { fetchPageImageUrl } from "@/features/eh/api"
 import ReaderStrip from "@/features/eh/components/ReaderStrip.vue"
-import { present, query } from "./support"
+import { installQueries } from "@/shared/api/queries"
+import { deferred, present, query } from "./support"
 
 let resize: (entries: { contentRect: { width: number; height: number } }[]) => void
 vi.mock("@vueuse/core", async (importOriginal) => ({
@@ -13,11 +18,19 @@ vi.mock("@vueuse/core", async (importOriginal) => ({
     resize = callback
   }),
 }))
+/* 每页挂载时各自去签地址；签出的地址按页码拼，一眼看得出是哪一页的。 */
+vi.mock("@/features/eh/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof EhApi>()),
+  fetchPageImageUrl: vi.fn(),
+}))
 let app: ReturnType<typeof createApp> | undefined
 let host: HTMLDivElement
 beforeEach(() => {
   vi.useFakeTimers()
   host = document.createElement("div")
+  vi.mocked(fetchPageImageUrl)
+    .mockReset()
+    .mockImplementation(async (_gid, _token, page) => ({ url: `/image/${page}?signed=true` }))
 })
 afterEach(() => {
   app?.unmount()
@@ -26,7 +39,7 @@ afterEach(() => {
 })
 
 async function setup(page = 1) {
-  const props = reactive({ page, total: 100, template: "/image/{page}?signed=true", seeking: false, dragging: false })
+  const props = reactive({ page, gid: 1, token: "token", total: 100, seeking: false, dragging: false })
   const change = vi.fn((next: number) => {
     props.page = next
   })
@@ -36,6 +49,8 @@ async function setup(page = 1) {
   app = createApp({
     render: () => h(ReaderStrip, { ...props, "onUpdate:page": change, "onUpdate:dragging": draggingChange }),
   })
+  app.use(createPinia())
+  installQueries(app)
   app.mount(host)
   const element = host.firstElementChild as HTMLElement
   element.setPointerCapture = vi.fn()
@@ -48,6 +63,11 @@ async function setup(page = 1) {
   await nextTick()
   element.dispatchEvent(new Event("scroll"))
   return { props, element, change, draggingChange }
+}
+
+/* 某一页去签过几次地址。 */
+function signings(page: number) {
+  return vi.mocked(fetchPageImageUrl).mock.calls.filter(([, , signed]) => signed === page).length
 }
 
 function imagePages(element: HTMLElement) {
@@ -81,11 +101,11 @@ describe("横向阅读图片条", () => {
     await vi.advanceTimersByTimeAsync(300)
     expect(props.page).toBe(5)
     expect(change).not.toHaveBeenCalled()
-    expect(imagePages(element)).toEqual([1, 2, 3])
+    expect(imagePages(element)).toEqual([1, 2, 3, 4, 5])
     element.scrollLeft = 2800
     element.dispatchEvent(new Event("scroll"))
     await vi.advanceTimersByTimeAsync(200)
-    expect(imagePages(element)).toEqual([1, 2, 3, 4, 5, 6, 7])
+    expect(imagePages(element)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9])
   })
 
   it("滚轮可打断平滑换页，恢复按实际位置更新页码", async () => {
@@ -117,7 +137,7 @@ describe("横向阅读图片条", () => {
     element.dispatchEvent(new Event("scroll"))
     expect(props.page).toBe(2)
     await vi.advanceTimersByTimeAsync(200)
-    expect(imagePages(element)).toEqual([1, 2, 3, 4])
+    expect(imagePages(element)).toEqual([1, 2, 3, 4, 5, 6])
   })
 
   it("动画途中图片宽度更新会重新定位目标，尺寸变化则即时定位", async () => {
@@ -181,13 +201,30 @@ describe("横向阅读图片条", () => {
     },
   )
 
-  it("停留200毫秒后才加载可见页和两侧各两页，长图集不一次加载全部", async () => {
+  it("停留200毫秒后才加载可见页、往后四页与往前一页，长图集不一次加载全部", async () => {
     const { element } = await setup(20)
     await vi.advanceTimersByTimeAsync(199)
     expect(imagePages(element)).toEqual([])
     await vi.advanceTimersByTimeAsync(1)
-    expect(imagePages(element)).toEqual([18, 19, 20, 21, 22])
+    expect(imagePages(element)).toEqual([19, 20, 21, 22, 23, 24])
     expect(element.children).toHaveLength(100)
+    /* 每页挂载时各签各的，没轮到的页不签 */
+    expect(vi.mocked(fetchPageImageUrl).mock.calls.map(([gid, token, page]) => [gid, token, page])).toEqual(
+      [19, 20, 21, 22, 23, 24].map((page) => [1, "token", page]),
+    )
+  })
+
+  it("视口里的页优先取、预加载的往后排；要取的页到之前转圈，没轮到的不转", async () => {
+    const { element } = await setup(20)
+    await vi.advanceTimersByTimeAsync(200)
+    const priorities = [...element.querySelectorAll("img")].map((image) => image.getAttribute("fetchpriority"))
+    expect(priorities).toEqual(["low", "high", "low", "low", "low", "low"])
+    const spinning = () =>
+      [...element.children].flatMap((page, index) => (page.querySelector('[role="status"]') ? [index + 1] : []))
+    expect(spinning()).toEqual(imagePages(element))
+    loadImage(element, 20, 700, 1000)
+    await nextTick()
+    expect(spinning()).toEqual([19, 21, 22, 23, 24])
   })
 
   it("连续跳页取消途中加载；进度条按住不加载，松手后重新计时", async () => {
@@ -203,7 +240,7 @@ describe("横向阅读图片条", () => {
     await vi.advanceTimersByTimeAsync(199)
     expect(imagePages(element)).toEqual([])
     await vi.advanceTimersByTimeAsync(1)
-    expect(imagePages(element)).toEqual([78, 79, 80, 81, 82])
+    expect(imagePages(element)).toEqual([79, 80, 81, 82, 83, 84])
   })
 
   it("鼠标拖动不吸附，暂停期间不加载，滑远后卸载窗口外的图片但保留窗口内的节点", async () => {
@@ -219,18 +256,18 @@ describe("横向阅读图片条", () => {
     expect(element.scrollLeft).toBe(7050)
     expect(change).toHaveBeenLastCalledWith(11)
     await vi.advanceTimersByTimeAsync(1000)
-    expect(imagePages(element)).toEqual([1, 2, 3])
+    expect(imagePages(element)).toEqual([1, 2, 3, 4, 5])
     element.dispatchEvent(new PointerEvent("pointerup"))
     expect(draggingChange).toHaveBeenLastCalledWith(false)
     await vi.advanceTimersByTimeAsync(200)
-    expect(imagePages(element)).toEqual([1, 2, 3, 9, 10, 11, 12, 13, 14])
+    expect(imagePages(element)).toEqual([1, 2, 3, 4, 5, 10, 11, 12, 13, 14, 15, 16])
     expect(element.scrollLeft).toBe(7050)
     expect(element.querySelector("img")).toBe(firstImage)
     element.scrollLeft = 0
     element.dispatchEvent(new Event("scroll"))
     await vi.advanceTimersByTimeAsync(200)
-    /* 回到首页后第 14 页已经超出保留窗口而卸载，窗口内的节点不重建。 */
-    expect(imagePages(element)).toEqual([1, 2, 3, 9, 10, 11, 12, 13])
+    /* 回到首页后第 14 至 16 页已经超出保留窗口而卸载，窗口内的节点不重建。 */
+    expect(imagePages(element)).toEqual([1, 2, 3, 4, 5, 10, 11, 12, 13])
     expect(element.querySelector("img")).toBe(firstImage)
   })
 
@@ -259,19 +296,19 @@ describe("横向阅读图片条", () => {
     await vi.advanceTimersByTimeAsync(199)
     expect(imagePages(element)).toEqual([])
     await vi.advanceTimersByTimeAsync(1)
-    expect(imagePages(element)).toEqual([1, 2, 3, 4, 5])
+    expect(imagePages(element)).toEqual([2, 3, 4, 5, 6, 7])
   })
 
   it("同批图片变成真实宽度时保留视口锚点，横屏调整仍定位当前页", async () => {
     const { element } = await setup(4)
     await vi.advanceTimersByTimeAsync(200)
-    loadImage(element, 2, 1000, 1000)
     loadImage(element, 3, 500, 1000)
+    loadImage(element, 5, 1000, 1000)
     await nextTick()
     expect(element.scrollLeft).toBe(1900)
     resize([{ contentRect: { width: 700, height: 500 } }])
     await nextTick()
-    expect(element.scrollLeft).toBe(925)
+    expect(element.scrollLeft).toBe(775)
   })
 
   it("宽屏同时显示多页时，拖到两端仍正确标记首页与末页", async () => {
@@ -287,7 +324,7 @@ describe("横向阅读图片条", () => {
     expect(change).toHaveBeenLastCalledWith(1)
   })
 
-  it("失败仅影响当前图片，重试单独换地址，不设加载失败计时", async () => {
+  it("失败仅影响当前图片，点重试时这一页重新签、换个地址重取，不设加载失败计时", async () => {
     const { element } = await setup(5)
     await vi.advanceTimersByTimeAsync(60000)
     expect(element.querySelector("button")).toBeNull()
@@ -296,18 +333,83 @@ describe("横向阅读图片条", () => {
     original.dispatchEvent(new Event("error"))
     await nextTick()
     expect(page.textContent).toContain("第 5 页加载失败")
+    expect(signings(5)).toBe(1)
     query(page, "button").click()
-    await nextTick()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signings(5)).toBe(2)
+    expect(signings(6)).toBe(1)
     expect(page.querySelector("button")).toBeNull()
     expect(page.querySelector("img")).not.toBe(original)
     expect(query(page, "img").getAttribute("src")).toBe("/image/5?signed=true&r=1")
-    expect(imagePages(element)).toEqual([3, 4, 5, 6, 7])
+    expect(query(present(element.children[5], "第 6 页"), "img").getAttribute("src")).toBe("/image/6?signed=true")
+    expect(imagePages(element)).toEqual([4, 5, 6, 7, 8, 9])
+  })
+
+  it("重试途中转圈、再点不重复去签；签不到就留在失败，可以再点", async () => {
+    const { element } = await setup(5)
+    await vi.advanceTimersByTimeAsync(200)
+    const renewal = deferred<GalleryImageUrlResult>()
+    vi.mocked(fetchPageImageUrl).mockReturnValueOnce(renewal.promise)
+    const page = present(element.children[4], "第 5 页")
+    query(page, "img").dispatchEvent(new Event("error"))
+    await nextTick()
+    query(page, "button").click()
+    query(page, "button").click()
+    await nextTick()
+    expect(signings(5)).toBe(2)
+    expect(query(page, "button").querySelector('[role="status"]')).not.toBeNull()
+    renewal.reject(new Error("断网"))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(page.textContent).toContain("第 5 页加载失败")
+    expect(query(page, "button").querySelector('[role="status"]')).toBeNull()
+    query(page, "button").click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signings(5)).toBe(3)
+    expect(query(page, "img").getAttribute("src")).toBe("/image/5?signed=true&r=1")
+  })
+
+  it("地址签不到时这页显示失败，点重试签到了就照常取图", async () => {
+    vi.mocked(fetchPageImageUrl).mockImplementation(async (_gid, _token, page) => {
+      if (page === 5 && signings(5) === 1) {
+        throw new Error("断网")
+      }
+      return { url: `/image/${page}?signed=true` }
+    })
+    const { element } = await setup(5)
+    await vi.advanceTimersByTimeAsync(200)
+    const page = present(element.children[4], "第 5 页")
+    expect(page.textContent).toContain("第 5 页加载失败")
+    expect(page.querySelector("img")).toBeNull()
+    expect(imagePages(element)).toEqual([4, 6, 7, 8, 9])
+    query(page, "button").click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(page.querySelector("button")).toBeNull()
+    expect(query(page, "img").getAttribute("src")).toBe("/image/5?signed=true")
+  })
+
+  it("失败的页离开保留窗口后清掉失败状态，滑回来时重新签、从头取", async () => {
+    const { element } = await setup(5)
+    await vi.advanceTimersByTimeAsync(200)
+    const page = present(element.children[4], "第 5 页")
+    query(page, "img").dispatchEvent(new Event("error"))
+    await nextTick()
+    expect(page.textContent).toContain("第 5 页加载失败")
+    element.scrollLeft = 27300
+    element.dispatchEvent(new Event("scroll"))
+    await vi.advanceTimersByTimeAsync(200)
+    expect(page.querySelector("img, button")).toBeNull()
+    element.scrollLeft = 2800
+    element.dispatchEvent(new Event("scroll"))
+    await vi.advanceTimersByTimeAsync(200)
+    expect(signings(5)).toBe(2)
+    expect(page.querySelector("button")).toBeNull()
+    expect(query(page, "img").getAttribute("src")).toBe("/image/5?signed=true")
   })
 
   it("卸载时取消尚未触发的延迟加载与待执行跳转", async () => {
     const { props, element } = await setup(70)
     await vi.advanceTimersByTimeAsync(200)
-    expect(imagePages(element)).toEqual([68, 69, 70, 71, 72])
+    expect(imagePages(element)).toEqual([69, 70, 71, 72, 73, 74])
     props.page = 80
     await nextTick()
     const scrolls = vi.mocked(element.scrollTo).mock.calls.length
@@ -315,6 +417,6 @@ describe("横向阅读图片条", () => {
     app = undefined
     await vi.advanceTimersByTimeAsync(200)
     expect(element.scrollTo).toHaveBeenCalledTimes(scrolls)
-    expect(imagePages(element)).toEqual([68, 69, 70, 71, 72])
+    expect(imagePages(element)).toEqual([69, 70, 71, 72, 73, 74])
   })
 })

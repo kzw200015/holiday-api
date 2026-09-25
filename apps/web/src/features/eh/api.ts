@@ -4,7 +4,8 @@ import type {
   ehCookieSchema,
   GalleryCard,
   GalleryComments,
-  GalleryDetailResult,
+  GalleryDetail,
+  GalleryImageUrlResult,
   galleryPreferencesPatchSchema,
   galleryPreferencesSchema,
   GalleryPreview,
@@ -30,9 +31,17 @@ export function searchGalleries(search: z.input<typeof gallerySearchSchema>, sig
   return httpClient.post<CursorPage<GalleryCard>>("/eh/galleries/search", search, { signal })
 }
 
-/** 图集详情，顺带返回这本图集的大图地址模板。读到第几页另有接口，见 fetchReadingProgress */
+/** 图集详情。大图地址逐页另签，见 fetchPageImageUrl；读到第几页另有接口，见 fetchReadingProgress */
 export function fetchGalleryDetail(gid: number, token: string, signal?: AbortSignal) {
-  return httpClient.get<GalleryDetailResult>(`/eh/galleries/${gid}/${token}`, { signal })
+  return httpClient.get<GalleryDetail>(`/eh/galleries/${gid}/${token}`, { signal })
+}
+
+/**
+ * 某一页大图的签名地址，直接给 img 的 src 用：img 是浏览器自己发的请求，带不了 Authorization 头，
+ * 所以这条地址的身份由后端签在里面，前端不拼、也不改它。签名只在服务端算，不访问 e 站
+ */
+export function fetchPageImageUrl(gid: number, token: string, page: number, signal?: AbortSignal) {
+  return httpClient.get<GalleryImageUrlResult>(`/eh/galleries/${gid}/${token}/pages/${page}/image-url`, { signal })
 }
 
 /** 评论单独取，不拖慢详情页首屏 */
@@ -43,21 +52,6 @@ export function fetchGalleryComments(gid: number, token: string, signal?: AbortS
 /** 详情页第 slice 片（从 0 起）上的预览图。每片多少页由 e 站账号的设置决定，看第 0 片有几页就知道 */
 export function fetchGalleryPreviews(gid: number, token: string, slice: number, signal?: AbortSignal) {
   return httpClient.get<GalleryPreview[]>(`/eh/galleries/${gid}/${token}/previews/${slice}`, { signal })
-}
-
-/**
- * 某一页大图的地址，直接给 img 的 src 用。
- *
- * template 来自 fetchGalleryDetail：img 是浏览器自己发的请求，带不了 Authorization 头，
- * 所以这条地址的身份由后端签在里面，前端只负责把 {page} 换成页码，不拼、也不改其它部分。
- * 模板本身已经是可直接请求的完整路径，不需要再拼前缀。
- *
- * nonce 用来绕开浏览器缓存重取（取图失败后重试）。不传时地址和预取时完全一致，
- * 两者才会命中同一份缓存
- */
-export function galleryImageUrl(template: string, page: number, options: { nonce?: number } = {}) {
-  const url = template.replace("{page}", String(page))
-  return options.nonce ? `${url}&r=${options.nonce}` : url
 }
 
 export function fetchCredentialStatus(signal?: AbortSignal) {

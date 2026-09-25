@@ -23,7 +23,7 @@ export class ImageController {
 
   constructor(private readonly imageService: ImageService) {}
 
-  /** 大图，地址形如 .../pages/{page}/image?uid=&e=&s=，由详情接口签发。 */
+  /** 大图，地址形如 .../pages/3/image?uid=&e=&s=，由 image-url 接口逐页签发。 */
   @Get("galleries/:gid/:token/pages/:page/image")
   async galleryImage(
     @Param({ schema: galleryPageParams }) { gid, token, page }: z.output<typeof galleryPageParams>,

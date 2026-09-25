@@ -20,7 +20,7 @@
 
 ## 约定
 
-约定大于配置：Nest 与各官方模块默认能用的一律不写配置，非配不可的几处（静态文件只在根路径回 `index.html`、校验失败的文案不带字段路径、登录与搜索回 200）旁边注明原因。配置全来自环境变量，由 `config.ts` 用 zod 在启动时校验，缺了或写错进程拒绝启动；清单与默认值见 `.env.example`，业务代码经 `ConfigService<Env, true>` 读取。主密钥只由 `signing` 模块读取，业务类只拿派生后的子密钥；子密钥的派生方式与图片地址的签名算法是已签发令牌、已发出地址的一部分，不能改。
+约定大于配置：Nest 与各官方模块默认能用的一律不写配置，非配不可的几处（静态文件只在根路径回 `index.html`、校验失败的文案不带字段路径、登录与搜索回 200）旁边注明原因。配置全来自环境变量，由 `config.ts` 用 zod 在启动时校验，缺了或写错进程拒绝启动；清单与默认值见 `.env.example`，业务代码经 `ConfigService<Env, true>` 读取。主密钥只由 `signing` 模块读取，业务类只拿派生后的子密钥；子密钥的派生方式是已签发令牌的一部分，不能改；图片地址的签名算法改了，已发出、还没过期的地址会一齐作废，浏览器缓存的图也要重新取，改之前想清楚。
 
 入参校验统一走全局的 `StandardSchemaValidationPipe`：控制器参数上挂 schema（`@Body({ schema })`、`@Query({ schema })`、`@Param({ schema })`），请求体与查询串的 schema 放在 `@myapi/shared`（类型的写法见 `packages/shared/AGENTS.md`），前端预校验用的是同一份；路径与查询串里的数字先认成一串十进制数字再交给共享的规则（见 `numeric.ts`）。服务端私有的入参 schema（`eh/params.ts` 一类）同样不导出类型别名，控制器参数就地写 `z.output<typeof …>`；输出恰好是已有的领域类型时（如路径上的图集定位就是 `GalleryRef`），schema 用 `satisfies z.ZodType<那个类型>` 对上它，控制器直接用那个类型。控制器只做入参转换，业务在服务里；接口统一由 `AppModule` 里的 `RouterModule` 挂到 `/api` 下，控制器只写领域内的路径。
 

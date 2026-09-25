@@ -213,10 +213,8 @@ describe("上游失败的识别", () => {
     )
     const detail = await t.http.get("/api/eh/galleries/900300/0123456789").set(auth).expect(200)
     /* HTML 实体只认带分号且真实存在的写法 */
-    expect(detail.body.gallery.title).toBe(
-      "Content Warning - I got temporarily banned for excessive pageloads & &notreal;",
-    )
-    expect(detail.body.gallery.tags).toMatchObject([{ namespace: "other", value: "a & b" }])
+    expect(detail.body.title).toBe("Content Warning - I got temporarily banned for excessive pageloads & &notreal;")
+    expect(detail.body.tags).toMatchObject([{ namespace: "other", value: "a & b" }])
 
     eh(() => html("Your IP address has been temporarily banned for excessive pageloads"))
     expect((await t.http.get("/api/eh/galleries/900301/0123456789").set(auth)).status).toBe(429)

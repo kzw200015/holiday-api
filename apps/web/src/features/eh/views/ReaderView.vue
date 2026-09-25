@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { clamp, useEventListener, useTimeoutFn } from "@vueuse/core"
+import { clamp, useEventListener, useFullscreen, useTimeoutFn } from "@vueuse/core"
 import { computed, onScopeDispose, ref, watch } from "vue"
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter, type RouteLocationNormalized } from "vue-router"
 
@@ -39,7 +39,7 @@ const props = withDefaults(
 )
 const router = useRouter()
 const returnTo = useGoBack()
-const { gallery, imageUrlTemplate, loaded, loading, errorMessage } = useGallery(
+const { gallery, loaded, loading, errorMessage } = useGallery(
   () => props.gid,
   () => props.token,
 )
@@ -66,6 +66,13 @@ const seeking = ref(false)
 const dragging = ref(false)
 const controlsVisible = ref(true)
 const playback = useReaderPlayback(page, totalPages, () => seeking.value || dragging.value)
+/* 全屏连浏览器的地址栏、标签栏也收起来，离开阅读器时退出。 */
+const fullscreen = useFullscreen(undefined, { autoExit: true })
+
+function toggleFullscreen() {
+  /* 浏览器拒绝全屏时维持原样，不打扰。 */
+  fullscreen.toggle().catch(() => {})
+}
 
 function goTo(next: number) {
   current.value = withinPages(next)
@@ -136,6 +143,16 @@ watch([loaded, totalPages], () => {
   }
 })
 
+/* 点阅读区左右各三分之一翻页，中间切换操作栏。阅读器铺满整个窗口，所以按窗口宽度分。还没有页面可翻时只切换操作栏。 */
+function onTap(event: MouseEvent) {
+  const third = window.innerWidth / 3
+  if (!totalPages.value || (event.clientX >= third && event.clientX <= third * 2)) {
+    controlsVisible.value = !controlsVisible.value
+  } else {
+    goTo(page.value + (event.clientX < third ? -1 : 1))
+  }
+}
+
 function exit() {
   /* 退出一律回详情页；从阅读历史来的，详情页那边的「返回列表」会继续把人送回历史。 */
   returnTo(galleryDetailLocation(props, props.source))
@@ -181,8 +198,8 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
 </script>
 
 <template>
-  <div class="fixed inset-0 flex flex-col bg-black" @click="controlsVisible = !controlsVisible">
-    <!-- 只有一份都没读到才挡住阅读；手上有旧详情时重取失败，图片地址照样能用，不打断。 -->
+  <div class="fixed inset-0 flex flex-col bg-black" @click="onTap">
+    <!-- 只有一份都没读到才挡住阅读；手上有旧详情时重取失败，照常读，不打断。 -->
     <div v-if="errorMessage" class="flex flex-1 items-center justify-center p-4">
       <div class="max-w-md">
         <ErrorAlert :message="errorMessage" title="打不开这个图集">
@@ -196,11 +213,12 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
     </div>
     <div v-else class="relative flex min-h-0 flex-1 overflow-hidden">
       <ReaderStrip
-        v-if="imageUrlTemplate && totalPages"
+        v-if="totalPages"
         v-model:page="page"
         v-model:dragging="dragging"
         :total="totalPages"
-        :template="imageUrlTemplate"
+        :gid="gid"
+        :token="token"
         :seeking="seeking"
       />
       <Skeleton v-if="loading" class="absolute inset-x-1/4 inset-y-8 rounded-lg" />
@@ -212,9 +230,12 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
       :visible="controlsVisible"
       :total="totalPages"
       :playback="playback.state"
+      :can-fullscreen="fullscreen.isSupported.value"
+      :fullscreen="fullscreen.isFullscreen.value"
       @toggle-auto-paging="playback.toggle"
       @set-interval="playback.changeInterval"
       @reload-interval="playback.reloadInterval"
+      @toggle-fullscreen="toggleFullscreen"
       @exit="exit"
     />
   </div>

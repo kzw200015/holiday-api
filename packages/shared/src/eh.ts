@@ -185,7 +185,7 @@ export interface GalleryCard {
   tags: GalleryTag[]
 }
 
-/** 详情页比卡片多出来的字段，与卡片的字段平铺在一起 */
+/** 详情接口的返回：比卡片多出几个字段，与卡片的字段平铺在一起。阅读进度另有接口，见 {@link ReadingProgress} */
 export interface GalleryDetail extends GalleryCard {
   /** 字节数 */
   fileSize: number
@@ -194,11 +194,10 @@ export interface GalleryDetail extends GalleryCard {
   expunged: boolean
 }
 
-/** 详情接口的整份返回：图集本身，加上大图地址模板。阅读进度另有接口，见 {@link ReadingProgress} */
-export interface GalleryDetailResult {
-  gallery: GalleryDetail
-  /** 含 {page} 占位符的签名地址，前端只把 {page} 换成页码，不自己解析它 */
-  imageUrlTemplate: string
+/** 某一页大图的签名地址：每页各签各的，阅读器取哪页就签哪页 */
+export interface GalleryImageUrlResult {
+  /** 直接给 img 的 src 用，前端不解析、不拼改它 */
+  url: string
 }
 
 /**

@@ -2,7 +2,8 @@ import type {
   CursorPage,
   GalleryCard,
   GalleryComments,
-  GalleryDetailResult,
+  GalleryDetail,
+  GalleryImageUrlResult,
   GalleryPreview,
   gallerySearchSchema,
 } from "@myapi/shared/eh"
@@ -40,13 +41,18 @@ export class GalleryService {
     }
   }
 
-  /** 详情只查一次元数据，评论另有接口懒加载；顺带签发这本图集的大图地址模板。阅读进度另有接口（见 ADR-0006）。 */
-  async detail(userId: number, ref: GalleryRef): Promise<GalleryDetailResult> {
+  /** 详情只查一次元数据，评论另有接口懒加载，大图地址逐页另签。阅读进度另有接口（见 ADR-0006）。 */
+  async detail(ref: GalleryRef): Promise<GalleryDetail> {
     const gallery = await this.galleryCatalog.detail(ref)
     if (!gallery) {
       throw galleryMissing()
     }
-    return { gallery, imageUrlTemplate: this.attachmentUrls.imageTemplate(userId, ref) }
+    return gallery
+  }
+
+  /** 签一页大图的地址，不访问 e 站：图集在不在、页码对不对，取图时的定位自会回 404。 */
+  imageUrl(userId: number, ref: GalleryRef, page: number): GalleryImageUrlResult {
+    return { url: this.attachmentUrls.image(userId, ref, page) }
   }
 
   /** 评论是详情页 HTML 里唯一拿不到 JSON 替代的东西；它与取图共用详情的第 0 片。 */

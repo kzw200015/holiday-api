@@ -1,6 +1,6 @@
 import { readerIntervalSchema } from "@myapi/shared/eh"
 import { useDocumentVisibility, useIntervalFn } from "@vueuse/core"
-import { computed, reactive, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue"
+import { computed, onScopeDispose, reactive, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue"
 
 import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
 
@@ -80,6 +80,8 @@ export function useReaderPlayback(
     { flush: "sync" },
   )
 
+  keepScreenOn(autoPaging)
+
   const state: ReaderPlaybackState = reactive({
     autoPaging,
     canStart,
@@ -88,4 +90,32 @@ export function useReaderPlayback(
     intervalFailed: computed(() => !preferences.ready.value && preferences.loadError.value !== ""),
   })
   return { state, changeInterval, toggle, stop, reloadInterval: preferences.reload }
+}
+
+/**
+ * 开着的时候不让屏幕熄灭，否则手机过一会儿就息屏，自动翻页翻了也看不见。
+ * 拿不到（浏览器不支持、省电模式下被拒）就照常翻，只是会息屏。切去后台时浏览器自己会收回，自动翻页那时也停了。
+ * 不用 VueUse 的 useWakeLock：申请还没拿到就放开时，它等申请回来又把锁记上，这把锁就一直挂着。
+ */
+function keepScreenOn(active: Ref<boolean>) {
+  /* 申请是异步的：还没拿到就要放开时，等拿到了再放，不然这把锁就一直挂着。 */
+  let lock: Promise<WakeLockSentinel | undefined> | undefined
+
+  function release() {
+    void lock?.then((sentinel) => sentinel?.release())
+    lock = undefined
+  }
+
+  watch(
+    active,
+    (on) => {
+      if (!on) {
+        release()
+      } else if ("wakeLock" in navigator) {
+        lock = navigator.wakeLock.request("screen").catch(() => undefined)
+      }
+    },
+    { flush: "sync" },
+  )
+  onScopeDispose(release)
 }

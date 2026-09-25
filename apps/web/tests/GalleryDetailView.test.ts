@@ -89,7 +89,7 @@ async function mountDetail({
   comments = [] as GalleryComment[],
   source = "",
 } = {}) {
-  vi.mocked(fetchGalleryDetail).mockResolvedValue({ gallery: detail(fileCount), imageUrlTemplate: "/image/{page}" })
+  vi.mocked(fetchGalleryDetail).mockResolvedValue(detail(fileCount))
   vi.mocked(fetchReadingProgress).mockResolvedValue({ page: progress })
   vi.mocked(fetchGalleryComments).mockResolvedValue({ comments, hiddenCount: 0 })
   loadPreviews.mockImplementation(async (_gid, _token, slice) => sliceOf(slice, fileCount))
