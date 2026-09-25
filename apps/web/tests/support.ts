@@ -1,6 +1,10 @@
 import type { GalleryCard } from "@myapi/shared/eh"
-import { vi } from "vitest"
-import { nextTick } from "vue"
+import { createPinia, disposePinia } from "pinia"
+import { afterEach, beforeEach, vi } from "vitest"
+import { createApp, nextTick, type App } from "vue"
+
+import { useEhWrites } from "@/features/eh/queries"
+import { installQueries } from "@/shared/api/queries"
 
 /** 测试接下来要用的值：没有就当场失败并说清缺了什么，而不是在后面某一步报出看不懂的错。 */
 export function present<T>(value: T | null | undefined, what: string): T {
@@ -63,5 +67,53 @@ export function galleryCard(gid: number): GalleryCard {
     fileCount: 10,
     rating: 4,
     tags: [],
+  }
+}
+
+/**
+ * 只跑组合式函数的测试：每个用例一个新的 pinia，用例里 mount 的几个应用共用它（账号级的数据每个页面读到的都是同一份），
+ * 和 main.ts 一样装上查询库。用例结束时先等排着队的写入落地（否则它们会在下一个用例里才发出），再卸载、销毁。
+ * 在测试文件顶层调用一次。
+ */
+export function composableTests() {
+  let pinia = createPinia()
+  const apps = new Map<unknown, App>()
+  beforeEach(() => {
+    pinia = createPinia()
+  })
+  afterEach(async () => {
+    await useEhWrites(pinia).settled()
+    for (const app of apps.values()) {
+      app.unmount()
+    }
+    apps.clear()
+    disposePinia(pinia)
+  })
+
+  return {
+    get pinia() {
+      return pinia
+    },
+    /** 在一个新应用里调用组合式函数，交回它的返回值。 */
+    mount<T>(setup: () => T): T {
+      let result: T | undefined
+      const app = createApp({
+        setup() {
+          result = setup()
+          return () => null
+        },
+      })
+      app.use(pinia)
+      installQueries(app)
+      app.mount(document.createElement("div"))
+      const value = present(result, "组合式函数的返回值")
+      apps.set(value, app)
+      return value
+    },
+    /** 提前卸载 mount 出来的某个应用，用来模拟页面离开。 */
+    unmount(result: unknown) {
+      apps.get(result)?.unmount()
+      apps.delete(result)
+    },
   }
 }

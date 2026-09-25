@@ -3,9 +3,9 @@ import { createApp } from "vue"
 
 import AppRoot from "@/app/App.vue"
 import { AppRouter } from "@/app/router"
-import { useThemeStore } from "@/app/themeStore"
 import { useAuthStore } from "@/features/auth/store"
 import { onUnauthorized } from "@/shared/api/httpClient"
+import { installQueries } from "@/shared/api/queries"
 
 import "@/styles/index.css"
 
@@ -13,10 +13,8 @@ const app = createApp(AppRoot)
 const pinia = createPinia()
 
 app.use(pinia)
+installQueries(app)
 app.use(AppRouter)
-
-/* 挂载前落地主题，避免暗色用户首帧按亮色绘制再被覆盖 */
-useThemeStore(pinia).initializeTheme()
 
 /*
  * 会话在使用过程中失效时把人送回登录页。

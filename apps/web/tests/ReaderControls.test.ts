@@ -1,20 +1,22 @@
 /* @vitest-environment happy-dom */
-import type { GalleryPreferences } from "@myapi/shared/eh"
+import type { galleryPreferencesSchema } from "@myapi/shared/eh"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { computed, createApp, h, nextTick, reactive } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
+import type { z } from "zod"
 
 import type * as EhApi from "@/features/eh/api"
-import { fetchGalleryPreferences, saveGalleryPreferences } from "@/features/eh/api"
+import { fetchGalleryPreferences, patchGalleryPreferences } from "@/features/eh/api"
 import ReaderControls from "@/features/eh/components/ReaderControls.vue"
 import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
+import { installQueries } from "@/shared/api/queries"
 import { deferred, present, query } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
   fetchGalleryPreferences: vi.fn(),
-  saveGalleryPreferences: vi.fn(),
+  patchGalleryPreferences: vi.fn(),
 }))
 
 const cleanups: (() => void)[] = []
@@ -73,6 +75,7 @@ async function createReader(position: { page?: number; total?: number } = {}) {
   /* 每个阅读器一份自己的账号数据，和各自打开一个新页面一样。 */
   const pinia = createPinia()
   app.use(pinia)
+  installQueries(app)
   app.mount(host)
   cleanups.push(() => {
     app.unmount()
@@ -95,7 +98,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
   vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: 5 })
-  vi.mocked(saveGalleryPreferences).mockResolvedValue(null)
+  vi.mocked(patchGalleryPreferences).mockResolvedValue(null)
   localStorage.clear()
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
 })
@@ -177,7 +180,7 @@ describe("阅读器自动翻页控件", () => {
     expect(change).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
     expect(change).toHaveBeenCalledTimes(1)
-    expect(saveGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ categories: [], readerInterval: 6 })
+    expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ readerInterval: 6 })
     /* 重开一个阅读器：间隔按存下来的那份显示，自动翻页不跟着恢复。 */
     vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: 6 })
     const reopened = await createReader()
@@ -213,32 +216,32 @@ describe("阅读器自动翻页控件", () => {
     expect(disabledButton.disabled).toBe(true)
     /* 越界那两次点击什么也没发生，只有真的改了值才提交。 */
     await vi.advanceTimersByTimeAsync(0)
-    expect(saveGalleryPreferences).toHaveBeenNthCalledWith(1, { categories: [], readerInterval: next })
-    expect(saveGalleryPreferences).toHaveBeenLastCalledWith({ categories: [], readerInterval: seconds })
+    expect(patchGalleryPreferences).toHaveBeenNthCalledWith(1, { readerInterval: next })
+    expect(patchGalleryPreferences).toHaveBeenLastCalledWith({ readerInterval: seconds })
   })
 
-  /* 改几次就提交几次；同一条 scope 让它们按操作顺序到达，后到的旧值盖不掉新的。 */
+  /* 改几次就提交几次；同一类写入依次发出，让它们按操作顺序到达，后到的旧值盖不掉新的。 */
   it("连续调整逐次提交，前一次没回来就排队等着", async () => {
     const inflight = deferred<null>()
-    vi.mocked(saveGalleryPreferences).mockReturnValueOnce(inflight.promise)
+    vi.mocked(patchGalleryPreferences).mockReturnValueOnce(inflight.promise)
     const { host } = await createReader()
     const increase = query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]')
     increase.click()
-    await nextTick()
-    expect(saveGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ categories: [], readerInterval: 6 })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ readerInterval: 6 })
     increase.click()
-    await nextTick()
+    await vi.advanceTimersByTimeAsync(0)
     /* 第一次还没回来，第二次排在后面。 */
-    expect(saveGalleryPreferences).toHaveBeenCalledTimes(1)
+    expect(patchGalleryPreferences).toHaveBeenCalledTimes(1)
     expect(intervalText(host)).toBe("7 秒")
     inflight.resolve(null)
     await vi.advanceTimersByTimeAsync(0)
-    expect(saveGalleryPreferences).toHaveBeenLastCalledWith({ categories: [], readerInterval: 7 })
+    expect(patchGalleryPreferences).toHaveBeenLastCalledWith({ readerInterval: 7 })
     /* 前一次的响应回来时本地已经是 7 了，不能把它写回 6。 */
     expect(intervalText(host)).toBe("7 秒")
   })
 
-  /* 范围外的间隔会被服务端整份退回，之后每次保存都跟着失败，所以到头了就不让再调。 */
+  /* 范围外的间隔会被服务端退回，所以到头了就不让再调。 */
   it.each([
     [1, "减少自动翻页间隔"],
     [20, "增加自动翻页间隔"],
@@ -250,23 +253,25 @@ describe("阅读器自动翻页控件", () => {
     button.click()
     await vi.advanceTimersByTimeAsync(0)
     expect(intervalText(host)).toBe(`${readerInterval} 秒`)
-    expect(saveGalleryPreferences).not.toHaveBeenCalled()
+    expect(patchGalleryPreferences).not.toHaveBeenCalled()
   })
 
-  it("推送失败不改动当前间隔，也不拿失败打扰用户", async () => {
-    vi.mocked(saveGalleryPreferences).mockRejectedValue(new Error("断网"))
+  it("存不上就以服务端为准，也不拿失败打扰用户", async () => {
+    vi.mocked(patchGalleryPreferences).mockRejectedValue(new Error("断网"))
     const { host } = await createReader()
     query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]').click()
-    await vi.advanceTimersByTimeAsync(0)
     await nextTick()
     expect(intervalText(host)).toBe("6 秒")
+    await vi.advanceTimersByTimeAsync(0)
+    await nextTick()
+    expect(intervalText(host)).toBe("5 秒")
     expect(host.querySelector('[role="alert"]')).toBeNull()
     expect(query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]').disabled).toBe(false)
   })
 
-  /* 阅读器不经过图库布局，偏好可能还没读到或读失败了；这时调了也存不上，按钮不该看起来能用。 */
+  /* 阅读器不经过图库布局，偏好可能还没读到或读失败了；这时手上没有当前间隔可调，按钮不该看起来能用。 */
   it("偏好读到之前间隔不能调", async () => {
-    const pending = deferred<GalleryPreferences>()
+    const pending = deferred<z.output<typeof galleryPreferencesSchema>>()
     vi.mocked(fetchGalleryPreferences).mockReturnValueOnce(pending.promise)
     const { host } = await createReader()
     const decrease = query<HTMLButtonElement>(host, '[aria-label="减少自动翻页间隔"]')
@@ -290,7 +295,7 @@ describe("阅读器自动翻页控件", () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(intervalText(host)).toBe("5 秒")
     expect(increase.disabled).toBe(false)
-    expect(saveGalleryPreferences).not.toHaveBeenCalled()
+    expect(patchGalleryPreferences).not.toHaveBeenCalled()
   })
 
   it("秒数只读，不提供下拉选择或手动输入", async () => {

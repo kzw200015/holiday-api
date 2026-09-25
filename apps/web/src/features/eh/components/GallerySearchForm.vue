@@ -2,8 +2,8 @@
 import { SearchIcon, XIcon } from "@lucide/vue"
 import type { GalleryCategory } from "@myapi/shared/eh"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
 import { Input } from "@/components/ui/input"
 import CategoryFilter from "@/features/eh/components/CategoryFilter.vue"
 import ConfirmDialog from "@/shared/components/ConfirmDialog.vue"
@@ -25,7 +25,7 @@ const emit = defineEmits<{
     <form class="flex min-w-0 flex-wrap gap-2" @submit.prevent="emit('submit')">
       <Input
         v-model="keyword"
-        class="min-w-0 flex-1 basis-40"
+        class="flex-1 basis-40"
         placeholder="搜索标题或标签，例如 language:chinese"
         aria-label="搜索图集"
       />
@@ -45,28 +45,16 @@ const emit = defineEmits<{
           confirm-text="清空历史"
           @confirm="emit('clearHistory')"
         >
-          <Button
-            variant="destructive"
-            size="xs"
-            class="cursor-pointer bg-transparent dark:bg-transparent"
-            type="button"
-          >
-            清空
-          </Button>
+          <Button variant="destructive" size="xs" type="button">清空</Button>
         </ConfirmDialog>
       </div>
       <div class="flex flex-wrap gap-1.5">
-        <Badge
-          v-for="entry in history"
-          :key="entry"
-          as="span"
-          variant="secondary"
-          class="h-auto max-w-full gap-0 rounded-md p-0"
-        >
+        <!-- 长词在按钮里截断：组要能收窄到一行宽，按钮也要能跟着缩。 -->
+        <ButtonGroup v-for="entry in history" :key="entry" class="max-w-full">
           <Button
-            variant="ghost"
+            variant="secondary"
             size="xs"
-            class="min-w-0 shrink cursor-pointer rounded-r-none"
+            class="min-w-0 shrink"
             type="button"
             :title="entry"
             @click="emit('selectHistory', entry)"
@@ -74,16 +62,15 @@ const emit = defineEmits<{
             <span class="truncate">{{ entry }}</span>
           </Button>
           <Button
-            variant="ghost"
+            variant="secondary"
             size="icon-xs"
-            class="cursor-pointer rounded-l-none"
             :aria-label="`删除历史：${entry}`"
             type="button"
             @click="emit('removeHistory', entry)"
           >
-            <XIcon class="size-3" />
+            <XIcon />
           </Button>
-        </Badge>
+        </ButtonGroup>
         <EmptyState v-if="!history.length" compact message="暂无搜索历史" />
       </div>
     </div>

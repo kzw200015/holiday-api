@@ -26,21 +26,14 @@ onDeactivated(() => {
     <AlertDialogTrigger as-child>
       <slot />
     </AlertDialogTrigger>
-    <AlertDialogContent class="w-[calc(100%-2rem)]">
+    <AlertDialogContent>
       <AlertDialogHeader>
         <AlertDialogTitle>{{ title }}</AlertDialogTitle>
         <AlertDialogDescription>{{ description }}</AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        <AlertDialogCancel class="cursor-pointer">取消</AlertDialogCancel>
-        <!-- 触发它的按钮只是红字，到这一步才用实心红：真正动手的是这一下。 -->
-        <AlertDialogAction
-          variant="destructive"
-          class="bg-destructive hover:bg-destructive/90 dark:bg-destructive/60 dark:hover:bg-destructive/50 cursor-pointer text-white"
-          @click="emit('confirm')"
-        >
-          {{ confirmText }}
-        </AlertDialogAction>
+        <AlertDialogCancel>取消</AlertDialogCancel>
+        <AlertDialogAction variant="destructive" @click="emit('confirm')">{{ confirmText }}</AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>

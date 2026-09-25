@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import ReaderControls from "@/features/eh/components/ReaderControls.vue"
 import ReaderStrip from "@/features/eh/components/ReaderStrip.vue"
-import { useGalleryDetail } from "@/features/eh/composables/useGalleryDetail"
+import { useGallery } from "@/features/eh/composables/useGallery"
 import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
 import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
 import { galleryDetailLocation, readerInstanceKey, readerLocation, type GallerySource } from "@/features/eh/navigation"
@@ -39,7 +39,7 @@ const props = withDefaults(
 )
 const router = useRouter()
 const returnTo = useGoBack()
-const { gallery, imageUrlTemplate, loaded, loading, errorMessage } = useGalleryDetail(
+const { gallery, imageUrlTemplate, loaded, loading, errorMessage } = useGallery(
   () => props.gid,
   () => props.token,
 )

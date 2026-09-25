@@ -1,13 +1,19 @@
-import { toValue, type MaybeRefOrGetter } from "vue"
+import { useQuery } from "@pinia/colada"
+import { computed, toValue, type MaybeRefOrGetter } from "vue"
 
 import { fetchHolidayDetail } from "@/features/holiday/api"
-import { useRequest } from "@/shared/composables/useRequest"
 
-/** 某一天是不是休息日。日期变了就丢掉上一天的结果重新查，上一次还没回来的请求一并取消。 */
+/** 某一天是不是休息日。换日期就查那一天，上一次还没回来的请求随之作废。 */
 export function useHolidayDetail(date: MaybeRefOrGetter<string>) {
-  const { data, loading, errorMessage, reload } = useRequest([() => toValue(date)], (signal) =>
-    fetchHolidayDetail(toValue(date), signal),
-  )
+  const query = useQuery(() => {
+    const day = toValue(date)
+    return { key: ["holiday", day], query: ({ signal }) => fetchHolidayDetail(day, signal) }
+  })
 
-  return { detail: data, loading, errorMessage, reload }
+  return {
+    detail: query.data,
+    loading: computed(() => query.data.value === undefined && query.error.value === null),
+    errorMessage: computed(() => query.error.value?.message ?? ""),
+    reload: () => void query.refresh(),
+  }
 }

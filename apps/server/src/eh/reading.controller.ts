@@ -1,5 +1,6 @@
 import { readingProgressSchema, type ReadingProgress } from "@myapi/shared/eh"
 import { Body, Controller, Delete, Get, Param, Post, Query } from "@nestjs/common"
+import type { z } from "zod"
 
 import { CurrentUser } from "@/auth/auth.decorators"
 import { readingHistoryQuery, type HistoryCursor } from "@/eh/history-cursor"
@@ -14,9 +15,18 @@ export class ReadingController {
   @Post("progress")
   async saveProgress(
     @CurrentUser() userId: number,
-    @Body({ schema: readingProgressSchema }) body: ReadingProgress,
+    @Body({ schema: readingProgressSchema }) body: z.output<typeof readingProgressSchema>,
   ): Promise<void> {
     await this.readingService.save(userId, body)
+  }
+
+  /** 这本读到第几页。它不跟详情一起给：详情是上游的元数据，进度是这边高频写、写完就要读到的数据（见 ADR-0006）。 */
+  @Get("progress/:gid")
+  async progress(
+    @CurrentUser() userId: number,
+    @Param("gid", { schema: gidParam }) gid: number,
+  ): Promise<ReadingProgress> {
+    return { page: await this.readingService.progressOf(userId, gid) }
   }
 
   @Get("history")

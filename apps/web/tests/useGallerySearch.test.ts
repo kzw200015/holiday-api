@@ -1,19 +1,23 @@
 /* @vitest-environment happy-dom */
-import { createPinia, disposePinia, setActivePinia } from "pinia"
+import { useQueryCache } from "@pinia/colada"
+import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, h, KeepAlive, nextTick } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
 import type * as EhApi from "@/features/eh/api"
 import {
+  addSearchKeyword,
+  clearSearchHistory,
   fetchGalleryPreferences,
   fetchSearchHistory,
-  saveGalleryPreferences,
-  saveSearchHistory,
+  patchGalleryPreferences,
+  removeSearchKeyword,
   searchGalleries,
 } from "@/features/eh/api"
-import { useGalleryPreferencesStore, useSearchHistoryStore } from "@/features/eh/store"
+import { ehKeys, useEhWrites } from "@/features/eh/queries"
 import GalleryListView from "@/features/eh/views/GalleryListView.vue"
+import { installQueries } from "@/shared/api/queries"
 import { byText, query, settleFakeTimers } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
@@ -21,8 +25,10 @@ vi.mock("@/features/eh/api", async (original) => ({
   searchGalleries: vi.fn(),
   fetchGalleryPreferences: vi.fn(),
   fetchSearchHistory: vi.fn(),
-  saveGalleryPreferences: vi.fn(),
-  saveSearchHistory: vi.fn(),
+  patchGalleryPreferences: vi.fn(),
+  addSearchKeyword: vi.fn(),
+  removeSearchKeyword: vi.fn(),
+  clearSearchHistory: vi.fn(),
 }))
 
 let app: ReturnType<typeof createApp> | undefined
@@ -48,10 +54,10 @@ async function mountForm() {
       ),
   })
   pinia = createPinia()
-  setActivePinia(pinia)
-  /* EhLayout 会先把这两份数据等齐再创建页面，这里照做：页面拿到的分类是确定的。 */
-  await Promise.all([useGalleryPreferencesStore().load(), useSearchHistoryStore().load()])
   app.use(pinia)
+  installQueries(app)
+  /* EhLayout 会先等偏好读到再创建页面，这里照做：页面拿到的分类是确定的。 */
+  useQueryCache(pinia).setQueryData(ehKeys.preferences, await fetchGalleryPreferences())
   app.use(router)
   app.mount(host)
   await settleFakeTimers()
@@ -93,10 +99,13 @@ beforeEach(() => {
   onSearch.mockResolvedValue({ items: [], nextCursor: null })
   vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 5 })
   vi.mocked(fetchSearchHistory).mockResolvedValue(["cat"])
-  vi.mocked(saveSearchHistory).mockResolvedValue(null)
-  vi.mocked(saveGalleryPreferences).mockResolvedValue(null)
+  vi.mocked(addSearchKeyword).mockResolvedValue(null)
+  vi.mocked(removeSearchKeyword).mockResolvedValue(null)
+  vi.mocked(clearSearchHistory).mockResolvedValue(null)
+  vi.mocked(patchGalleryPreferences).mockResolvedValue(null)
 })
-afterEach(() => {
+afterEach(async () => {
+  await useEhWrites(pinia).settled()
   app?.unmount()
   host.remove()
   disposePinia(pinia)
@@ -107,20 +116,19 @@ afterEach(() => {
 describe("图库搜索流程", () => {
   it("进来就按已备齐的分类搜一次，不记历史", async () => {
     await mountForm()
-    expect(fetchGalleryPreferences).toHaveBeenCalledTimes(1)
     expect(fetchSearchHistory).toHaveBeenCalledTimes(1)
     expect(onSearch).toHaveBeenCalledExactlyOnceWith(
       { keyword: "", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
-    expect(saveSearchHistory).not.toHaveBeenCalled()
+    expect(addSearchKeyword).not.toHaveBeenCalled()
     expect(host.querySelector('[title="cat"]')).not.toBeNull()
   })
 
-  it("搜索、删除、清空都当场改本地历史再整份推上去；删除和清空不触发搜索", async () => {
+  it("搜索、删除、清空都当场改本地历史再逐个提交；删除和清空不触发搜索", async () => {
     await mountForm()
     await submit("   ")
-    expect(saveSearchHistory).not.toHaveBeenCalled()
+    expect(addSearchKeyword).not.toHaveBeenCalled()
 
     await submit(" dog ")
     expect(host.querySelector('[title="dog"]')).not.toBeNull()
@@ -128,31 +136,33 @@ describe("图库搜索流程", () => {
       { keyword: "dog", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
-    expect(saveSearchHistory).toHaveBeenLastCalledWith(["dog", "cat"])
+    expect(host.querySelector('[title="cat"]')).not.toBeNull()
+    expect(addSearchKeyword).toHaveBeenCalledExactlyOnceWith("dog")
 
     query<HTMLButtonElement>(host, '[aria-label="删除历史：cat"]').click()
     await settleFakeTimers()
     expect(host.querySelector('[title="cat"]')).toBeNull()
-    expect(saveSearchHistory).toHaveBeenLastCalledWith(["dog"])
+    expect(removeSearchKeyword).toHaveBeenCalledExactlyOnceWith("cat")
 
     await clearHistory()
     expect(host.textContent).toContain("暂无搜索历史")
-    expect(saveSearchHistory).toHaveBeenLastCalledWith([])
+    expect(clearSearchHistory).toHaveBeenCalledTimes(1)
     /* 首屏一次、两次提交各一次；删除和清空历史都不搜索。 */
     expect(onSearch).toHaveBeenCalledTimes(3)
   })
 
-  it("推送失败不动本地历史，也不拿失败打扰用户", async () => {
+  it("提交失败就以服务端为准重读，也不拿失败打扰用户", async () => {
     await mountForm()
-    vi.mocked(saveSearchHistory).mockRejectedValue(new Error("断网"))
+    vi.mocked(addSearchKeyword).mockRejectedValue(new Error("断网"))
     await submit("dog")
     expect(onSearch).toHaveBeenLastCalledWith(
       { keyword: "dog", categories: ["manga"], cursor: "" },
       expect.any(AbortSignal),
     )
     await settleFakeTimers()
-    /* 存不上也不回滚：界面上这一条就是有了。 */
-    expect(host.querySelector('[title="dog"]')).not.toBeNull()
+    /* 服务端那份没有这个词，重读回来它就不在了 */
+    expect(fetchSearchHistory).toHaveBeenCalledTimes(2)
+    expect(host.querySelector('[title="dog"]')).toBeNull()
     expect(host.textContent).not.toContain("失败")
   })
 
@@ -168,15 +178,16 @@ describe("图库搜索流程", () => {
     )
   })
 
-  /* 分类改完立刻就要按新分类搜，中间不隔一次「还是旧条件」的请求。 */
+  /* 分类改完立刻就要按新分类搜，中间不隔一次「还是旧条件」的请求；偏好只提交分类这一项。 */
   it("应用分类立刻按新分类搜一次", async () => {
     await mountForm()
     onSearch.mockClear()
     await applyCategories("同人志")
     expect(onSearch).toHaveBeenCalledExactlyOnceWith(
-      { keyword: "", categories: ["manga", "doujinshi"], cursor: "" },
+      { keyword: "", categories: ["doujinshi", "manga"], cursor: "" },
       expect.any(AbortSignal),
     )
+    expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ categories: ["doujinshi", "manga"] })
   })
 
   /* 失败后条件没变也必须真的重来一次，否则用户重按搜索时界面上没有任何反应。 */

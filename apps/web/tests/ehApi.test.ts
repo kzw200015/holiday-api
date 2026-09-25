@@ -1,7 +1,15 @@
 /* @vitest-environment happy-dom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { fetchGalleryPreferences, saveGalleryPreferences, saveProgress, saveSearchHistory } from "@/features/eh/api"
+import {
+  addSearchKeyword,
+  clearSearchHistory,
+  fetchGalleryPreferences,
+  patchGalleryPreferences,
+  removeSearchKeyword,
+  saveProgress,
+} from "@/features/eh/api"
+import { present } from "./support"
 
 /* 与 api.ts 里的 SAVE_TIMEOUT 对齐。 */
 const SAVE_TIMEOUT = 10_000
@@ -24,12 +32,14 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-/* 排队的保存前一次不回来，后面的就都不发；阅读历史也要等在途的进度保存落地才读。一次挂住的请求不能把它们全部卡死。 */
+/* 同一类的保存前一次不回来，后面的就都不发；读之前也要等在途的保存落地。一次挂住的请求不能把它们全部卡死。 */
 describe("写入的时限", () => {
   it.each([
     { label: "进度", save: () => saveProgress(1, "aaaaaaaaaa", 2) },
-    { label: "偏好", save: () => saveGalleryPreferences({ categories: [], readerInterval: 5 }) },
-    { label: "搜索历史", save: () => saveSearchHistory(["猫"]) },
+    { label: "偏好", save: () => patchGalleryPreferences({ readerInterval: 5 }) },
+    { label: "记搜索历史", save: () => addSearchKeyword("猫") },
+    { label: "删搜索历史", save: () => removeSearchKeyword("猫") },
+    { label: "清空搜索历史", save: () => clearSearchHistory() },
   ])("$label的保存挂住就按时限中止", async ({ save }) => {
     const outcome = save().then(
       () => "成功",
@@ -70,5 +80,15 @@ describe("进度上报的顺序", () => {
     })
     expect(second).toMatchObject({ page: 3, writer: first.writer })
     expect(second.seq).toBeGreaterThan(first.seq)
+  })
+})
+
+/* 要删的词可能是 `..` 这类放进路径会被规范化掉的写法，所以放查询串。 */
+describe("删搜索历史的地址", () => {
+  it("关键词编进查询串", async () => {
+    void removeSearchKeyword("../a b").catch(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+    const url = new URL(present(fetch.mock.calls[0], "请求")[0].url)
+    expect([url.pathname, url.searchParams.get("keyword")]).toEqual(["/api/eh/search-history/entry", "../a b"])
   })
 })

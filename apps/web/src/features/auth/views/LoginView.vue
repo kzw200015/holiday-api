@@ -44,7 +44,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="bg-background flex min-h-svh items-center justify-center p-4">
+  <div class="flex min-h-svh items-center justify-center p-4">
     <Card class="w-full max-w-sm">
       <CardHeader>
         <div
@@ -77,14 +77,7 @@ async function submit() {
           <ErrorAlert v-if="errorMessage" :message="errorMessage" :title="registering ? '注册失败' : '登录失败'" />
           <Button :disabled="loading" type="submit">{{ loading ? "请稍候…" : actionLabel }}</Button>
           <!-- 注册关着就不给切换入口，免得填完表单提交了才知道注册不了。 -->
-          <Button
-            v-if="registrationOpen"
-            class="text-muted-foreground"
-            variant="ghost"
-            type="button"
-            :disabled="loading"
-            @click="switchMode"
-          >
+          <Button v-if="registrationOpen" variant="ghost" type="button" :disabled="loading" @click="switchMode">
             {{ registering ? "已有账号，去登录" : "还没有账号，去注册" }}
           </Button>
         </form>

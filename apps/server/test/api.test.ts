@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { register, startApp, type TestApp } from "./support/app"
 import { createDatabase } from "./support/database"
-import { gallerySlice, image, imagePage, isMetadataApi, metadataApi, REF } from "./support/eh"
+import { gallerySlice, image, imagePage, isMetadataApi, metadataApi, pageToken, REF } from "./support/eh"
 import { withHolidays } from "./support/outbound"
 
 let t: TestApp
@@ -20,7 +20,10 @@ beforeAll(async () => {
         extra:
           `<div id="cdiv"><div class="c1"><div class="c3">Posted on 28 May 2022, 01:53 by: &nbsp; <a>Pokom</a></div>` +
           `<div class="c4">Uploader Comment</div><div class="c6" id="comment_0">第一行<br/>` +
-          `<a href="https://example.com/">链接</a></div></div></div>`,
+          `<a href="https://example.com/">链接</a></div></div></div>` +
+          `<div id="gdt"><a href="https://e-hentai.org/s/${pageToken(1)}/${REF.gid}-1"><div title="Page 1: 1.jpg" ` +
+          `style="width:100px;height:142px;background:transparent url(https://ehgt.org/m/p.jpg) -100px 0 no-repeat">` +
+          `</div></a></div>`,
       })
     }
     if (request.url.pathname.startsWith("/s/")) {
@@ -83,7 +86,11 @@ describe("鉴权边界", () => {
   })
 
   it("请求体不是合法 JSON 回 400", async () => {
-    const response = await t.http.put("/api/eh/preferences").set(auth).set("Content-Type", "application/json").send("{")
+    const response = await t.http
+      .patch("/api/eh/preferences")
+      .set(auth)
+      .set("Content-Type", "application/json")
+      .send("{")
     expect(response.status).toBe(400)
     expect(response.body).toMatchObject({ statusCode: 400, error: "Bad Request" })
   })
@@ -114,12 +121,11 @@ describe("响应体的 JSON 形状", () => {
         postedAt: "2022-05-28T01:53:30.000Z",
         fileCount: 329,
         rating: 4.68,
-        tags: ["artist:gentsuki"],
+        tags: [{ namespace: "artist", namespaceName: "artist", value: "gentsuki", name: "gentsuki" }],
         fileSize: 419547090,
         torrentCount: 4,
         expunged: false,
       },
-      progress: null,
       imageUrlTemplate: expect.stringMatching(
         new RegExp(
           `^/api/eh/galleries/${REF.gid}/${REF.token}/pages/\\{page\\}/image\\?uid=\\d+&e=\\d+&s=[0-9a-f]{32}$`,
@@ -130,28 +136,41 @@ describe("响应体的 JSON 形状", () => {
 
   it("评论正文拆成文本、换行与链接片段", async () => {
     const response = await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}/comments`).set(auth).expect(200)
+    expect(response.body).toEqual({
+      comments: [
+        {
+          id: 0,
+          author: "Pokom",
+          postedAt: "2022-05-28T01:53:00.000Z",
+          isUploader: true,
+          score: "",
+          segments: [
+            { type: "text", text: "第一行" },
+            { type: "break" },
+            { type: "link", text: "链接", href: "https://example.com/" },
+          ],
+        },
+      ],
+      hiddenCount: 0,
+    })
+  })
+
+  it("预览图的尺寸与偏移是数字，地址是本站的代理地址", async () => {
+    const response = await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}/previews/0`).set(auth).expect(200)
     expect(response.body).toEqual([
       {
-        id: 0,
-        author: "Pokom",
-        postedAt: "2022-05-28T01:53:00.000Z",
-        isUploader: true,
-        score: "",
-        segments: [
-          { type: "text", text: "第一行" },
-          { type: "break" },
-          { type: "link", text: "链接", href: "https://example.com/" },
-        ],
+        page: 1,
+        url: expect.stringMatching(/^\/api\/eh\/thumbnail\?u=[\w-]+&e=\d+&s=[0-9a-f]{32}$/),
+        width: 100,
+        height: 142,
+        offsetX: 100,
+        offsetY: 0,
       },
     ])
   })
 
   it("只回成败的接口回空体", async () => {
-    const response = await t.http
-      .put("/api/eh/preferences")
-      .set(auth)
-      .send({ categories: ["manga"], readerInterval: 5 })
-      .expect(200)
+    const response = await t.http.patch("/api/eh/preferences").set(auth).send({ readerInterval: 5 }).expect(200)
     expect(response.text).toBe("")
   })
 
@@ -165,5 +184,7 @@ describe("响应体的 JSON 形状", () => {
     expect(picture.headers["content-security-policy"]).toBe("sandbox")
     expect(Buffer.from(picture.body)).toEqual(Buffer.from([1, 2, 3]))
     await t.http.get(detail.gallery.thumbnail).expect(200)
+    const [preview] = (await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}/previews/0`).set(auth)).body
+    await t.http.get(preview.url).expect(200)
   })
 })

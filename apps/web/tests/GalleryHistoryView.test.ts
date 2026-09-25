@@ -10,6 +10,7 @@ import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"
 import GalleryHistoryView from "@/features/eh/views/GalleryHistoryView.vue"
+import { installQueries } from "@/shared/api/queries"
 import { deferred, galleryCard, present, settle } from "./support"
 
 /* 触底加载靠滚动位置触发，happy-dom 不做布局，所以把入口接出来手动调用。 */
@@ -80,6 +81,7 @@ async function mountHistory() {
   pinia = createPinia()
   app.use(router)
   app.use(pinia)
+  installQueries(app)
   useAuthStore(pinia).user = { id: 1, username: "tester" }
   app.mount(host)
   await settle()
@@ -171,6 +173,25 @@ describe("阅读历史分页", () => {
     expect(titles()).toEqual([])
     scroll.load()
     await settle()
+    expect(titles()).toEqual(["图集 2"])
+  })
+
+  /* 删除还没落地就去读，读回来的还带着正要删掉的那条：回来时照样重读，只是等删除落地再发。 */
+  it("删除在途时回到页面，等删除落地再重读，读回来的不带删掉的那条", async () => {
+    await mountHistory()
+    const removal = deferred<null>()
+    vi.mocked(removeReadingHistory).mockReturnValueOnce(removal.promise)
+    await click("删除")
+    await router.push("/away")
+    await settle()
+    loadHistory.mockResolvedValue(page(2, null))
+    await router.push("/eh/history")
+    await settle()
+    expect(loadHistory).toHaveBeenCalledTimes(1)
+
+    removal.resolve(null)
+    await settle()
+    expect(loadHistory).toHaveBeenCalledTimes(2)
     expect(titles()).toEqual(["图集 2"])
   })
 

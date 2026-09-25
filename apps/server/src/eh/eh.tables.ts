@@ -94,3 +94,27 @@ export const ehPreferences = pgTable(
     check("eh_preferences_search_history_check", sql`CARDINALITY(${table.searchHistory}) <= 10`),
   ],
 )
+
+/*
+ * 标签译名：EhTagTranslation 数据库里的一条，整张表由同步整表替换（见 ADR-0005）。
+ * namespace 为 rows 的几条是命名空间本身的译名（raw 是命名空间名），这是上游的写法，原样照搬。
+ */
+export const ehTagTranslations = pgTable(
+  "eh_tag_translations",
+  {
+    id: id(),
+    namespace: text().notNull(),
+    raw: text().notNull(),
+    name: text().notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("eh_tag_translations_namespace_raw_key").on(table.namespace, table.raw)],
+)
+
+/* 每次同步记一行，最新的一行就是当前译名的版本，created_at 即同步时间。 */
+export const ehTagTranslationSyncs = pgTable("eh_tag_translation_syncs", {
+  id: id(),
+  sha: text().notNull(),
+  count: integer().notNull(),
+  ...timestamps,
+})

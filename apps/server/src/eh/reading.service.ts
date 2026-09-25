@@ -1,6 +1,7 @@
-import type { CursorPage, ReadingHistoryItem, ReadingProgress } from "@myapi/shared/eh"
+import type { CursorPage, ReadingHistoryItem, readingProgressSchema } from "@myapi/shared/eh"
 import { Inject, Injectable } from "@nestjs/common"
 import { and, desc, eq, sql } from "drizzle-orm"
+import type { z } from "zod"
 
 import { DATABASE, type Database } from "@/database/database.module"
 import { ehReadingProgress } from "@/eh/eh.tables"
@@ -24,7 +25,7 @@ export class ReadingService {
    * 记下读到第几页。同一个图集只留一条，重复上报就覆盖；同一上报方的序号不比库里的新，就是迟到的旧上报，不写。
    * 冲突的那行会先被锁住，条件按它的最新版本判断，两次上报同时到也不会让旧的写进去。
    */
-  async save(userId: number, { gid, token, page, writer, seq }: ReadingProgress) {
+  async save(userId: number, { gid, token, page, writer, seq }: z.output<typeof readingProgressSchema>) {
     await this.database
       .insert(ehReadingProgress)
       .values({ userId, gid, token, page, writer, seq })

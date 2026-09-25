@@ -1,10 +1,11 @@
-import type { CredentialStatus, EhCredential } from "@myapi/shared/eh"
+import type { CredentialStatus, ehCookieSchema } from "@myapi/shared/eh"
 import { Inject, Injectable, Logger } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
+import type { z } from "zod"
 
 import { DATABASE, type Database } from "@/database/database.module"
 import { ehCredentials } from "@/eh/eh.tables"
-import { accessOf, ANONYMOUS, type EhAccess, type Site } from "@/eh/upstream/access"
+import { accessOf, ANONYMOUS, type EhAccess } from "@/eh/upstream/access"
 import { EhClient } from "@/eh/upstream/eh-client"
 
 const UNBOUND: CredentialStatus = { bound: false, memberId: "", hasExAccess: false }
@@ -28,7 +29,7 @@ export class CredentialService {
   }
 
   /** 绑定前先拿这组 Cookie 实际请求一次，用不了直接回 400，免得把一组坏凭据存进库再让人一脸茫然。 */
-  async bind(userId: number, credential: EhCredential): Promise<CredentialStatus> {
+  async bind(userId: number, credential: z.output<typeof ehCookieSchema>): Promise<CredentialStatus> {
     const hasExAccess = await this.ehClient.verifyCredential(credential)
     const row = { ...credential, hasExAccess }
     await this.database
@@ -45,13 +46,13 @@ export class CredentialService {
     return UNBOUND
   }
 
-  /** 一次上游请求的身份与站点：有里站权限就默认走里站（内容是表站的超集），调用方显式要表站时才降级。 */
-  async access(userId: number, requested?: Site): Promise<EhAccess> {
+  /** 一次上游请求的身份与站点：有里站权限就走里站，它的内容是表站的超集。 */
+  async access(userId: number): Promise<EhAccess> {
     const binding = await this.find(userId)
     if (!binding) {
       return ANONYMOUS
     }
-    return accessOf(binding.credential, binding.status.hasExAccess && requested !== "e" ? "ex" : "e")
+    return accessOf(binding.credential, binding.status.hasExAccess ? "ex" : "e")
   }
 
   private async find(userId: number) {

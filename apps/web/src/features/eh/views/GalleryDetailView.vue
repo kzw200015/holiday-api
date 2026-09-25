@@ -1,24 +1,26 @@
 <script setup lang="ts">
 import { BookOpenIcon } from "@lucide/vue"
+import type { GalleryDetail } from "@myapi/shared/eh"
 import { computed } from "vue"
 import { RouterLink } from "vue-router"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
-import CommentBody from "@/features/eh/components/CommentBody.vue"
+import GalleryCommentList from "@/features/eh/components/GalleryCommentList.vue"
 import GalleryCover from "@/features/eh/components/GalleryCover.vue"
 import GalleryMeta from "@/features/eh/components/GalleryMeta.vue"
+import GalleryPreviews from "@/features/eh/components/GalleryPreviews.vue"
 import GalleryTag from "@/features/eh/components/GalleryTag.vue"
+import { useGallery } from "@/features/eh/composables/useGallery"
 import { useGalleryComments } from "@/features/eh/composables/useGalleryComments"
-import { useGalleryDetail } from "@/features/eh/composables/useGalleryDetail"
-import { formatNamespace, splitTag } from "@/features/eh/labels"
-import { readerLocation, type GallerySource } from "@/features/eh/navigation"
+import { useGalleryProgress } from "@/features/eh/composables/useGalleryProgress"
+import { galleryCommentsLocation, readerLocation, type GallerySource } from "@/features/eh/navigation"
 import EmptyState from "@/shared/components/EmptyState.vue"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
+import { useRefreshOnActivated } from "@/shared/composables/useRefreshOnActivated"
 import { formatDateTime, formatFileSize } from "@/shared/lib/format"
 
 /* 返回列表的按钮在顶栏（见路由的 meta.back），滚到评论区也点得到，页面里不再放一份。 */
@@ -26,12 +28,16 @@ const props = withDefaults(defineProps<{ gid: number; token: string; source?: Ga
 const identity = () => `${props.gid}/${props.token}`
 usePageScroll(identity)
 
-const { gallery, progress, loading, errorMessage, refreshError, reload } = useGalleryDetail(
+const { gallery, loading, errorMessage, refreshError, reload } = useGallery(
   () => props.gid,
   () => props.token,
 )
+const { progress, reload: reloadProgress } = useGalleryProgress(() => props.gid)
+/* 页面被 KeepAlive 留着，每次回来都重读，好拿到别处读过的进度。 */
+useRefreshOnActivated(reload, reloadProgress)
 const canContinue = computed(() => (progress.value ?? 0) > 1)
-/* 评论需要抓取上游页面，独立加载，失败不阻塞元数据。 */
+/* 评论需要抓取上游页面，独立加载，失败不阻塞元数据。详情页只列前几条，其余的去评论页看。 */
+const COMMENT_LIMIT = 5
 const {
   comments,
   loading: commentsLoading,
@@ -41,15 +47,15 @@ const {
   () => props.gid,
   () => props.token,
 )
+/* 按命名空间分组，组的顺序就是命名空间第一次出现的顺序。 */
 const groupedTags = computed(() => {
-  const groups = new Map<string, string[]>()
+  const groups = new Map<string, { namespaceName: string; tags: GalleryDetail["tags"] }>()
   for (const tag of gallery.value?.tags ?? []) {
-    const { namespace, value } = splitTag(tag)
-    const group = groups.get(namespace)
+    const group = groups.get(tag.namespace)
     if (group) {
-      group.push(value)
+      group.tags.push(tag)
     } else {
-      groups.set(namespace, [value])
+      groups.set(tag.namespace, { namespaceName: tag.namespaceName, tags: [tag] })
     }
   }
   return [...groups.entries()]
@@ -69,7 +75,7 @@ const groupedTags = computed(() => {
     </div>
     <ErrorAlert v-else-if="errorMessage" :message="errorMessage" title="加载失败" retryable @retry="reload" />
     <template v-else-if="gallery">
-      <!-- 过了新鲜期重取失败：手上这份照常显示，只提示一下。 -->
+      <!-- 重读失败：手上这份照常显示，只提示一下。 -->
       <ErrorAlert
         v-if="refreshError"
         :message="refreshError"
@@ -115,17 +121,25 @@ const groupedTags = computed(() => {
         <CardHeader>
           <CardTitle>标签</CardTitle>
         </CardHeader>
-        <CardContent class="flex flex-col gap-2">
+        <CardContent>
           <EmptyState v-if="!groupedTags.length" compact message="这个图集还没有标签。" />
-          <div
-            v-for="[namespace, values] in groupedTags"
-            :key="namespace"
-            class="grid grid-cols-[5rem_minmax(0,1fr)] items-baseline gap-2"
-          >
-            <span class="text-muted-foreground text-xs">{{ formatNamespace(namespace) || "未分类" }}</span>
-            <div class="flex flex-wrap gap-1">
-              <GalleryTag v-for="value in values" :key="value">{{ value }}</GalleryTag>
-            </div>
+          <!--
+            所有命名空间共用一个网格：左列宽度随最长的命名空间名走，各组标签的起点仍然对齐。
+            译名后面跟着浅色的原文；没有译名时两者相同，只显示一次。
+          -->
+          <div v-else class="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2">
+            <template v-for="[namespace, group] in groupedTags" :key="namespace">
+              <span class="text-xs whitespace-nowrap">
+                {{ group.namespaceName }}
+                <span v-if="group.namespaceName !== namespace" class="text-muted-foreground">{{ namespace }}</span>
+              </span>
+              <div class="flex flex-wrap gap-1">
+                <GalleryTag v-for="tag in group.tags" :key="tag.value">
+                  {{ tag.name }}
+                  <span v-if="tag.name !== tag.value" class="text-muted-foreground">{{ tag.value }}</span>
+                </GalleryTag>
+              </div>
+            </template>
           </div>
         </CardContent>
       </Card>
@@ -146,18 +160,30 @@ const groupedTags = computed(() => {
             @retry="reloadComments"
           />
           <EmptyState v-else-if="comments?.length === 0" compact message="还没有评论。" />
-          <template v-else>
-            <div v-for="(comment, index) in comments" :key="comment.id" class="flex flex-col gap-2">
-              <Separator v-if="index > 0" />
-              <div class="flex flex-wrap items-center gap-2 text-xs">
-                <span class="font-medium">{{ comment.author }}</span>
-                <Badge v-if="comment.isUploader" variant="outline">上传者</Badge>
-                <span class="text-muted-foreground">{{ formatDateTime(comment.postedAt) }}</span>
-                <span v-if="comment.score" class="text-muted-foreground">{{ comment.score }}</span>
-              </div>
-              <CommentBody :segments="comment.segments" />
-            </div>
+          <template v-else-if="comments">
+            <GalleryCommentList :comments="comments.slice(0, COMMENT_LIMIT)" />
+            <Button v-if="comments.length > COMMENT_LIMIT" as-child class="self-start" variant="outline">
+              <RouterLink :to="galleryCommentsLocation({ gid, token }, source)">
+                查看全部 {{ comments.length }} 条评论
+              </RouterLink>
+            </Button>
           </template>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>预览</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <!-- 换图集时整个重建：已经进过视口的分片、取不到的图都不该带到另一本上。 -->
+          <GalleryPreviews
+            :key="identity()"
+            :gid="gid"
+            :token="token"
+            :file-count="gallery.fileCount"
+            :progress="progress"
+            :source="source"
+          />
         </CardContent>
       </Card>
     </template>

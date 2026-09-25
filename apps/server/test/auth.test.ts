@@ -61,6 +61,11 @@ describe("注册与登录", () => {
     expect(response.body.message).toEqual(["用户名只能是 3 到 32 位的字母、数字、下划线或连字符", "密码至少 8 位"])
   })
 
+  it("登录不套注册的规则：不合规的输入只是对不上账号", async () => {
+    const response = await t.http.post("/api/auth/login").send({ username: "ab", password: "短" })
+    expect([response.status, response.body.message]).toEqual([400, "用户名或密码错误"])
+  })
+
   it("库里的旧 argon2id 哈希照样验得过，新哈希每次的盐都不同", async () => {
     await sql(databaseUrl, "INSERT INTO users (username, password_hash) VALUES ('legacy-user', $1)", [LEGACY_HASH])
     await t.http.post("/api/auth/login").send({ username: "legacy-user", password: LEGACY_PASSWORD }).expect(200)

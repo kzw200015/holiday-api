@@ -8,7 +8,7 @@ import {
 
 import AppLayout from "@/app/layouts/AppLayout.vue"
 import { useAuthStore } from "@/features/auth/store"
-import { galleryListLocation, gallerySource } from "@/features/eh/navigation"
+import { galleryDetailLocation, galleryIdentity, galleryListLocation, gallerySource } from "@/features/eh/navigation"
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -36,8 +36,7 @@ const routes: RouteRecordRaw[] = [
     name: "reader",
     component: () => import("@/features/eh/views/ReaderView.vue"),
     props: (route) => ({
-      gid: Number(route.params.gid),
-      token: String(route.params.token),
+      ...galleryIdentity(route),
       page: Number(route.params.page ?? 1),
       source: gallerySource(route.query),
     }),
@@ -76,15 +75,24 @@ const routes: RouteRecordRaw[] = [
             path: "g/:gid(\\d+)/:token",
             name: "gallery-detail",
             component: () => import("@/features/eh/views/GalleryDetailView.vue"),
-            props: (route) => ({
-              gid: Number(route.params.gid),
-              token: String(route.params.token),
-              source: gallerySource(route.query),
-            }),
+            props: (route) => ({ ...galleryIdentity(route), source: gallerySource(route.query) }),
             meta: {
               title: "图集详情",
               ownScroll: true,
               back: { label: "返回列表", to: (route) => galleryListLocation(gallerySource(route.query)) },
+            },
+          },
+          {
+            path: "g/:gid(\\d+)/:token/comments",
+            name: "gallery-comments",
+            component: () => import("@/features/eh/views/GalleryCommentsView.vue"),
+            props: (route) => galleryIdentity(route),
+            meta: {
+              title: "全部评论",
+              back: {
+                label: "返回详情",
+                to: (route) => galleryDetailLocation(galleryIdentity(route), gallerySource(route.query)),
+              },
             },
           },
         ],

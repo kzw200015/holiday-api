@@ -1,5 +1,6 @@
-import type { EhCredential, GalleryDetail, GallerySearch } from "@myapi/shared/eh"
+import type { ehCookieSchema, GalleryDetail, gallerySearchSchema, GalleryTag } from "@myapi/shared/eh"
 import { Inject, Injectable, Logger } from "@nestjs/common"
+import type { z } from "zod"
 
 import { ANONYMOUS, cookieHeader, SITES, type EhAccess } from "@/eh/upstream/access"
 import { categoryFilter } from "@/eh/upstream/categories"
@@ -28,8 +29,22 @@ import {
 } from "@/eh/upstream/parse"
 import { OUTBOUND, type Outbound } from "@/outbound/outbound.module"
 
-/** 标准化后的上游元数据：详情的字段，只是缩略图还是上游原地址、没签成本站的代理地址。 */
-export type GalleryMetadata = Omit<GalleryDetail, "thumbnail"> & { thumbnailUrl: string }
+/** 拆好的标签原文，还没套译名。 */
+export type TagRef = Pick<GalleryTag, "namespace" | "value">
+
+/** 标准化后的上游元数据：详情的字段，只是缩略图还是上游原地址、没签成本站的代理地址，标签还没套译名。 */
+export type GalleryMetadata = Omit<GalleryDetail, "thumbnail" | "tags"> & { thumbnailUrl: string; tags: TagRef[] }
+
+/* e 站给临时标签不带前缀 */
+const TEMP_NAMESPACE = "temp"
+
+/** 标签形如 artist:gentsuki，按第一个冒号拆开；没有冒号的是临时标签。 */
+function toTag(tag: string): TagRef {
+  const index = tag.indexOf(":")
+  return index < 0
+    ? { namespace: TEMP_NAMESPACE, value: tag }
+    : { namespace: tag.slice(0, index), value: tag.slice(index + 1) }
+}
 
 /** 已校验过的图片流，外加转发时要带的响应头。 */
 export interface ImageStream {
@@ -67,7 +82,10 @@ export class EhClient {
 
   constructor(@Inject(OUTBOUND) private readonly outbound: Outbound) {}
 
-  async search(access: EhAccess, { keyword, categories, cursor }: GallerySearch): Promise<GalleryList> {
+  async search(
+    access: EhAccess,
+    { keyword, categories, cursor }: z.output<typeof gallerySearchSchema>,
+  ): Promise<GalleryList> {
     /* 表单编码（空格编成 +），与 e 站自己的搜索表单一致 */
     const query = new URLSearchParams()
     if (keyword) {
@@ -178,7 +196,7 @@ export class EhClient {
    * 「Cookie 不对」和「e 站没连上」是两种错：前者回 400 让用户重新复制，后者是 502 或 429，
    * 混成一句「这组 Cookie 用不了」会让人对着一组好好的 Cookie 反复重贴。两个请求互不依赖，一起发出。
    */
-  async verifyCredential(credential: EhCredential): Promise<boolean> {
+  async verifyCredential(credential: z.output<typeof ehCookieSchema>): Promise<boolean> {
     const cookie = cookieHeader(credential)
     const [home, ex] = await Promise.allSettled([this.read(HOME_URL, cookie), this.read(`${SITES.ex.page}/`, cookie)])
     if (home.status === "rejected") {
@@ -369,7 +387,7 @@ function toMetadata(entry: Record<string, unknown>): GalleryMetadata {
     postedAt: new Date(number("posted") * 1000).toISOString(),
     fileCount: number("filecount"),
     rating: number("rating"),
-    tags: Array.isArray(entry.tags) ? entry.tags.map((tag) => decodeEntities(String(tag))) : [],
+    tags: Array.isArray(entry.tags) ? entry.tags.map((tag) => toTag(decodeEntities(String(tag)))) : [],
     fileSize: number("filesize"),
     torrentCount: number("torrentcount"),
     expunged: entry.expunged === true,

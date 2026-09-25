@@ -69,14 +69,7 @@ export const gallerySearchSchema = z.object({
     .string({ error: "分页游标不合法" })
     .regex(/^\d{0,20}$/, "分页游标不合法")
     .default(""),
-  /** 有里站权限时默认走里站，传 "e" 表示这次只要表站。 */
-  site: z.literal("e", { error: "站点不合法" }).optional(),
 })
-
-export type GallerySearchRequest = z.input<typeof gallerySearchSchema>
-
-/** 校验并补齐默认值之后的搜索条件，服务端按它干活。 */
-export type GallerySearch = z.output<typeof gallerySearchSchema>
 
 const COOKIE_CHARS = "Cookie 值里有不允许的字符，检查是不是多复制了分号、空格或引号"
 
@@ -99,11 +92,6 @@ export const ehCookieSchema = z.object({
   igneous: cookieValue.default(""),
 })
 
-export type EhCredentialRequest = z.input<typeof ehCookieSchema>
-
-/** 校验并补齐默认值之后的三个 Cookie。 */
-export type EhCredential = z.output<typeof ehCookieSchema>
-
 const READER_INTERVAL_RULE = `自动翻页间隔应为 ${READER_INTERVAL_MIN}–${READER_INTERVAL_MAX} 秒`
 
 export const readerIntervalSchema = z
@@ -111,33 +99,39 @@ export const readerIntervalSchema = z
   .min(READER_INTERVAL_MIN, { error: READER_INTERVAL_RULE })
   .max(READER_INTERVAL_MAX, { error: READER_INTERVAL_RULE })
 
-/** 浏览偏好：读写两个接口的请求体与响应体。 */
+/** 浏览偏好：读接口的响应体。 */
 export const galleryPreferencesSchema = z.object({
   categories: z.array(categorySchema),
   readerInterval: readerIntervalSchema,
 })
 
-export type GalleryPreferences = z.output<typeof galleryPreferencesSchema>
+/** 改偏好的请求体：只带要改的字段，没带的保持原样，所以两处各改各的字段不会互相覆盖。 */
+export const galleryPreferencesPatchSchema = galleryPreferencesSchema.partial()
 
 /** 还没存过偏好时的样子，与表上的列默认值一致。 */
-export const DEFAULT_GALLERY_PREFERENCES: GalleryPreferences = { categories: [], readerInterval: 5 }
+export const DEFAULT_GALLERY_PREFERENCES: z.output<typeof galleryPreferencesSchema> = {
+  categories: [],
+  readerInterval: 5,
+}
 
 const SEARCH_HISTORY_ENTRY_RULE = `搜索历史关键词应为 1–${KEYWORD_MAX_BYTES} 字节`
 
-/** 搜索历史里的一条。空串存下来没有意义，超长的整份提交会被退回。 */
+/** 搜索历史里的一条。空串存下来没有意义，超长的存不进去。 */
 export const searchHistoryEntrySchema = z
   .string({ error: SEARCH_HISTORY_ENTRY_RULE })
   .min(1, SEARCH_HISTORY_ENTRY_RULE)
   .refine((entry) => utf8Length(entry) <= KEYWORD_MAX_BYTES, SEARCH_HISTORY_ENTRY_RULE)
 
-/** 整份搜索历史。顺序、去重、留哪几条都由前端定，这里只挡存不进去的。 */
-export const searchHistorySchema = z.object({
-  entries: z
-    .array(searchHistoryEntrySchema, { error: `搜索历史最多 ${SEARCH_HISTORY_LIMIT} 条` })
-    .max(SEARCH_HISTORY_LIMIT, `搜索历史最多 ${SEARCH_HISTORY_LIMIT} 条`),
-})
+/** 记一个词、删一个词：记的是请求体，删的是查询串。 */
+export const searchHistoryKeywordSchema = z.object({ keyword: searchHistoryEntrySchema })
 
-export type SearchHistory = z.output<typeof searchHistorySchema>
+/**
+ * 记下一个搜过的词：最近的排最前，同一个词只留一条，总共留 {@link SEARCH_HISTORY_LIMIT} 条。
+ * 服务端按它落库，前端按它当场改本地那份，两边是同一条规则。
+ */
+export function recordSearchKeyword(entries: readonly string[], keyword: string): string[] {
+  return [keyword, ...entries.filter((entry) => entry !== keyword)].slice(0, SEARCH_HISTORY_LIMIT)
+}
 
 /**
  * 一次阅读进度上报。
@@ -156,17 +150,21 @@ export const readingProgressSchema = z.object({
     .max(INT32_MAX, { error: "上报序号不合法" }),
 })
 
-export type ReadingProgress = z.output<typeof readingProgressSchema>
-
-/** 阅读历史的查询参数。游标由服务端编出来、前端原样带回，这里只挡明显不像的。 */
+/** 阅读历史的查询参数。游标由服务端编出来、前端原样带回，解开时逐段校验（见服务端的 history-cursor.ts）。 */
 export const readingHistoryQuerySchema = z.object({
-  cursor: z.string({ error: "阅读历史游标不合法" }).max(256, "阅读历史游标不合法").default(""),
+  cursor: z.string({ error: "阅读历史游标不合法" }).default(""),
 })
 
-/* 只导出输入类型：服务端不直接用这份的输出，而是在它之上把游标解开（见服务端的 history-cursor.ts） */
-export type ReadingHistoryQueryRequest = z.input<typeof readingHistoryQuerySchema>
-
 /* ---------- 响应体 ---------- */
+
+/** 一个标签：原文拆成命名空间与值（female:big breasts），外加两者的中文名。没有译名的，中文名就是原文 */
+export interface GalleryTag {
+  /** e 站给临时标签不带前缀，归到 temp */
+  namespace: string
+  namespaceName: string
+  value: string
+  name: string
+}
 
 /** 列表里一张卡片的内容 */
 export interface GalleryCard {
@@ -184,8 +182,7 @@ export interface GalleryCard {
   postedAt: string
   fileCount: number
   rating: number
-  /** 形如 artist:gentsuki 的带命名空间标签 */
-  tags: string[]
+  tags: GalleryTag[]
 }
 
 /** 详情页比卡片多出来的字段，与卡片的字段平铺在一起 */
@@ -197,13 +194,31 @@ export interface GalleryDetail extends GalleryCard {
   expunged: boolean
 }
 
-/** 详情接口的整份返回：图集本身，加上这个账号的阅读进度与大图地址模板 */
+/** 详情接口的整份返回：图集本身，加上大图地址模板。阅读进度另有接口，见 {@link ReadingProgress} */
 export interface GalleryDetailResult {
   gallery: GalleryDetail
-  /** 从未读过时为 null */
-  progress: number | null
   /** 含 {page} 占位符的签名地址，前端只把 {page} 换成页码，不自己解析它 */
   imageUrlTemplate: string
+}
+
+/**
+ * 图集里一页的预览图。e 站给的要么是一页一张，要么是一片拼成一张（按偏移裁出这一页），两种都按「从这张图的
+ * (offsetX, offsetY) 处裁出 width × height」显示，一页一张时偏移为 0。尺寸与偏移都是图上的原始像素
+ */
+export interface GalleryPreview {
+  page: number
+  /** 已经是本站的代理地址 */
+  url: string
+  width: number
+  height: number
+  offsetX: number
+  offsetY: number
+}
+
+/** 这个账号在某本图集上读到第几页 */
+export interface ReadingProgress {
+  /** 从未读过时为 null */
+  page: number | null
 }
 
 /** 评论正文的片段。服务端拆好再给，前端不做 HTML 渲染，从根上避免 XSS */
@@ -222,6 +237,13 @@ export interface GalleryComment {
   segments: CommentSegment[]
 }
 
+/** 图集的评论：e 站默认只列得分在阈值以上的，其余的只给出条数 */
+export interface GalleryComments {
+  comments: GalleryComment[]
+  /** 得分低于阈值、没有列出的评论条数 */
+  hiddenCount: number
+}
+
 /** e 站账号的绑定状态 */
 export interface CredentialStatus {
   bound: boolean
@@ -229,6 +251,19 @@ export interface CredentialStatus {
   memberId: string
   /** 能否访问里站 */
   hasExAccess: boolean
+}
+
+/** 标签译名的同步状态 */
+export interface TagTranslationStatus {
+  /** 从未同步过时为 null */
+  lastSync: {
+    /** 上游 EhTagTranslation 数据库的提交 sha */
+    sha: string
+    /** 译名条数，含命名空间本身的译名 */
+    count: number
+    /** ISO 8601 */
+    syncedAt: string
+  } | null
 }
 
 /** 触底加载的一页。nextCursor 为 null 表示已经是最后一页 */

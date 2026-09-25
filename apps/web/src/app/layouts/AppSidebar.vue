@@ -4,6 +4,7 @@ import { ref, watch } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
 
 import { getNavigationItems } from "@/app/navigation"
+import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Sidebar,
@@ -41,6 +42,14 @@ watch(
   { immediate: true },
 )
 
+/*
+ * 手机抽屉里的导航项放大到行高 44px、16px 字、20px 图标：shadcn 默认的 32px 是按鼠标设计的，手指点偏小。
+ * 桌面保持官方尺寸。max-md 与 shadcn 判定手机的断点一致（768px），抽屉里也不会出现收起成图标栏的状态。
+ * 子菜单的字号挂在 data-[size=md] 上，要按同样的写法才盖得过去。
+ */
+const MENU_BUTTON_CLASS = "max-md:h-11 max-md:text-base max-md:[&_svg]:size-5"
+const MENU_SUB_BUTTON_CLASS = "max-md:h-10 max-md:data-[size=md]:text-base"
+
 function closeNavigation() {
   setOpenMobile(false)
   openGroup.value = null
@@ -70,7 +79,8 @@ function isActive(name: string) {
       <SidebarGroup>
         <SidebarGroupLabel>导航</SidebarGroupLabel>
         <SidebarGroupContent>
-          <SidebarMenu>
+          <!-- 菜单项默认紧贴，悬停与选中又同色，相邻两项会连成一块；留出与子菜单相同的间距。 -->
+          <SidebarMenu class="gap-1">
             <SidebarMenuItem v-for="item in items" :key="item.name">
               <template v-if="item.children">
                 <Popover
@@ -79,29 +89,39 @@ function isActive(name: string) {
                   @update:open="openGroup = $event ? item.name : null"
                 >
                   <PopoverTrigger as-child>
-                    <SidebarMenuButton :is-active="isActive(item.name)" :tooltip="item.label" :aria-label="item.label">
+                    <SidebarMenuButton
+                      :class="MENU_BUTTON_CLASS"
+                      :is-active="isActive(item.name)"
+                      :tooltip="item.label"
+                      :aria-label="item.label"
+                    >
                       <component :is="item.icon" />
                       <span>{{ item.label }}</span>
                     </SidebarMenuButton>
                   </PopoverTrigger>
-                  <PopoverContent side="right" align="start" class="w-44 p-2">
+                  <PopoverContent side="right" align="start" class="w-44">
                     <nav :aria-label="item.label" class="flex flex-col gap-1">
-                      <RouterLink
+                      <Button
                         v-for="child in item.children"
                         :key="child.name"
-                        :to="{ name: child.name }"
-                        class="hover:bg-accent rounded-md px-3 py-2 text-sm"
-                        :class="{ 'bg-accent': isActive(child.name) }"
-                        :aria-current="isActive(child.name) ? 'page' : undefined"
-                        @click="closeNavigation"
+                        as-child
+                        :variant="isActive(child.name) ? 'secondary' : 'ghost'"
+                        class="justify-start"
                       >
-                        {{ child.label }}
-                      </RouterLink>
+                        <RouterLink
+                          :to="{ name: child.name }"
+                          :aria-current="isActive(child.name) ? 'page' : undefined"
+                          @click="closeNavigation"
+                        >
+                          {{ child.label }}
+                        </RouterLink>
+                      </Button>
                     </nav>
                   </PopoverContent>
                 </Popover>
                 <template v-else>
                   <SidebarMenuButton
+                    :class="MENU_BUTTON_CLASS"
                     :is-active="isActive(item.name)"
                     :aria-expanded="!!expanded[item.name]"
                     :aria-controls="`navigation-${item.name}`"
@@ -116,14 +136,20 @@ function isActive(name: string) {
                   </SidebarMenuButton>
                   <SidebarMenuSub v-show="expanded[item.name]" :id="`navigation-${item.name}`">
                     <SidebarMenuSubItem v-for="child in item.children" :key="child.name">
-                      <SidebarMenuSubButton as-child :is-active="isActive(child.name)">
+                      <SidebarMenuSubButton as-child :class="MENU_SUB_BUTTON_CLASS" :is-active="isActive(child.name)">
                         <RouterLink :to="{ name: child.name }" @click="closeNavigation">{{ child.label }}</RouterLink>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   </SidebarMenuSub>
                 </template>
               </template>
-              <SidebarMenuButton v-else as-child :is-active="isActive(item.name)" :tooltip="item.label">
+              <SidebarMenuButton
+                v-else
+                as-child
+                :class="MENU_BUTTON_CLASS"
+                :is-active="isActive(item.name)"
+                :tooltip="item.label"
+              >
                 <RouterLink :to="{ name: item.name }" @click="closeNavigation">
                   <component :is="item.icon" />
                   <span>{{ item.label }}</span>

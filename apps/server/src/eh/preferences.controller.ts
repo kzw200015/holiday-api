@@ -1,30 +1,33 @@
 import {
-  galleryPreferencesSchema,
-  searchHistorySchema,
-  type GalleryPreferences,
-  type SearchHistory,
+  galleryPreferencesPatchSchema,
+  searchHistoryKeywordSchema,
+  type galleryPreferencesSchema,
 } from "@myapi/shared/eh"
-import { Body, Controller, Get, Put } from "@nestjs/common"
+import { Body, Controller, Delete, Get, Patch, Post, Query } from "@nestjs/common"
+import type { z } from "zod"
 
 import { CurrentUser } from "@/auth/auth.decorators"
 import { PreferencesService } from "@/eh/preferences.service"
 
-/** 本站账号的浏览数据：读一次、之后前端说了算，写入一律整份 PUT，只回成败。 */
+/**
+ * 本站账号的浏览偏好与搜索历史。写接口都与到达顺序无关（见 ADR-0006）：偏好只改带来的字段，搜索历史一次记或删一个词，
+ * 排序、去重、留几条由这边做。都只回成败，前端当场按同一条规则改好了本地那份。
+ */
 @Controller("eh")
 export class PreferencesController {
   constructor(private readonly preferencesService: PreferencesService) {}
 
   @Get("preferences")
-  getPreferences(@CurrentUser() userId: number): Promise<GalleryPreferences> {
+  getPreferences(@CurrentUser() userId: number): Promise<z.output<typeof galleryPreferencesSchema>> {
     return this.preferencesService.preferences(userId)
   }
 
-  @Put("preferences")
-  async savePreferences(
+  @Patch("preferences")
+  async patchPreferences(
     @CurrentUser() userId: number,
-    @Body({ schema: galleryPreferencesSchema }) body: GalleryPreferences,
+    @Body({ schema: galleryPreferencesPatchSchema }) patch: z.output<typeof galleryPreferencesPatchSchema>,
   ): Promise<void> {
-    await this.preferencesService.savePreferences(userId, body)
+    await this.preferencesService.patchPreferences(userId, patch)
   }
 
   @Get("search-history")
@@ -32,11 +35,25 @@ export class PreferencesController {
     return this.preferencesService.searchHistory(userId)
   }
 
-  @Put("search-history")
-  async saveSearchHistory(
+  @Post("search-history")
+  async recordSearch(
     @CurrentUser() userId: number,
-    @Body({ schema: searchHistorySchema }) body: SearchHistory,
+    @Body({ schema: searchHistoryKeywordSchema }) { keyword }: z.output<typeof searchHistoryKeywordSchema>,
   ): Promise<void> {
-    await this.preferencesService.saveSearchHistory(userId, body.entries)
+    await this.preferencesService.recordSearch(userId, keyword)
+  }
+
+  /** 要删的词放查询串：它可能是 `..` 这类放进路径会被浏览器规范化掉的写法。 */
+  @Delete("search-history/entry")
+  async removeSearch(
+    @CurrentUser() userId: number,
+    @Query({ schema: searchHistoryKeywordSchema }) { keyword }: z.output<typeof searchHistoryKeywordSchema>,
+  ): Promise<void> {
+    await this.preferencesService.removeSearch(userId, keyword)
+  }
+
+  @Delete("search-history")
+  async clearSearchHistory(@CurrentUser() userId: number): Promise<void> {
+    await this.preferencesService.clearSearchHistory(userId)
   }
 }

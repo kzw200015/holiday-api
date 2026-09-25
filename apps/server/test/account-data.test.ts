@@ -25,7 +25,7 @@ function eh(home: () => Response | Promise<Response>, ex: () => Response | Promi
 const COOKIE = { ipbMemberId: "123", ipbPassHash: "hash", igneous: "ig" }
 
 describe("绑定 e 站账号", () => {
-  it("表站与里站都放行：带里站权限绑上，之后的请求默认走里站，显式要表站时降级", async () => {
+  it("表站与里站都放行：带里站权限绑上，之后的请求走里站", async () => {
     const { auth } = await user()
     eh(
       () => html("home"),
@@ -43,8 +43,6 @@ describe("绑定 e 站账号", () => {
     t.outbound.respond = withHolidays(() => html("<p>No hits found</p>"))
     await t.http.post("/api/eh/galleries/search").set(auth).send({}).expect(200)
     expect(t.outbound.last().url.host).toBe("exhentai.org")
-    await t.http.post("/api/eh/galleries/search").set(auth).send({ site: "e" }).expect(200)
-    expect(t.outbound.last().url.host).toBe("e-hentai.org")
   })
 
   it("里站回空页面或连不上时只当没有里站权限，表站已经证明凭据是好的", async () => {
@@ -119,49 +117,65 @@ describe("偏好与搜索历史", () => {
     expect((await t.http.get("/api/eh/search-history").set(auth).expect(200)).body).toEqual([])
   })
 
-  it("各自整份替换、互不覆盖；分类排序去重后存，关键词原样存", async () => {
+  it("偏好只改带来的字段，分类排序去重后存；搜索历史一次记或删一个词，关键词原样存", async () => {
     const { auth } = await user()
     const read = async () => ({
       preferences: (await t.http.get("/api/eh/preferences").set(auth).expect(200)).body,
       history: (await t.http.get("/api/eh/search-history").set(auth).expect(200)).body,
     })
-    /* 尚无这一行时先写搜索历史，偏好落表上的默认值 */
-    await t.http
-      .put("/api/eh/search-history")
-      .set(auth)
-      .send({ entries: ["b", "\u001c a"] })
-      .expect(200)
+    const record = (keyword: string) => t.http.post("/api/eh/search-history").set(auth).send({ keyword }).expect(201)
+    /* 尚无这一行时先记搜索历史，偏好落表上的默认值 */
+    await record("\u001c a")
+    await record("b")
     expect(await read()).toEqual({ preferences: { categories: [], readerInterval: 5 }, history: ["b", "\u001c a"] })
 
     await t.http
-      .put("/api/eh/preferences")
+      .patch("/api/eh/preferences")
       .set(auth)
-      .send({ categories: ["manga", "doujinshi", "manga"], readerInterval: 9 })
+      .send({ categories: ["manga", "doujinshi", "manga"] })
       .expect(200)
+    await t.http.patch("/api/eh/preferences").set(auth).send({ readerInterval: 9 }).expect(200)
+    /* 再记一遍已有的词，它挪到最前而不是多一条 */
+    await record("\u001c a")
     expect(await read()).toEqual({
       preferences: { categories: ["doujinshi", "manga"], readerInterval: 9 },
-      history: ["b", "\u001c a"],
+      history: ["\u001c a", "b"],
     })
 
-    /* 清空就是提交一份空列表 */
-    await t.http.put("/api/eh/search-history").set(auth).send({ entries: [] }).expect(200)
+    /* 要删的词在查询串里，`..` 这类放进路径会被规范化掉的写法照样删得掉 */
+    await record("..")
+    await t.http.delete("/api/eh/search-history/entry").query({ keyword: ".." }).set(auth).expect(200)
+    await t.http.delete("/api/eh/search-history/entry").query({ keyword: "b" }).set(auth).expect(200)
+    expect((await read()).history).toEqual(["\u001c a"])
+    await t.http.delete("/api/eh/search-history").set(auth).expect(200)
     expect(await read()).toEqual({
       preferences: { categories: ["doujinshi", "manga"], readerInterval: 9 },
       history: [],
     })
   })
 
-  it("超出规则的整份退回", async () => {
+  it("搜索历史只留最近的 10 个词；同时记的几个词一个也不丢", async () => {
     const { auth } = await user()
-    const cases: [string, object, string][] = [
-      ["/api/eh/preferences", { categories: ["comic"], readerInterval: 5 }, "分类名不合法"],
-      ["/api/eh/preferences", { categories: [], readerInterval: 21 }, "自动翻页间隔应为 1–20 秒"],
-      ["/api/eh/search-history", { entries: Array.from({ length: 11 }, (_, i) => `${i}`) }, "搜索历史最多 10 条"],
-      ["/api/eh/search-history", { entries: ["汉".repeat(67)] }, "搜索历史关键词应为 1–200 字节"],
-      ["/api/eh/search-history", { entries: [null] }, "搜索历史关键词应为 1–200 字节"],
+    const words = Array.from({ length: 12 }, (_, i) => `词${i}`)
+    await Promise.all(words.map((keyword) => t.http.post("/api/eh/search-history").set(auth).send({ keyword })))
+    const history = (await t.http.get("/api/eh/search-history").set(auth).expect(200)).body as string[]
+    expect(history).toHaveLength(10)
+    expect(new Set(history).size).toBe(10)
+    await t.http.post("/api/eh/search-history").set(auth).send({ keyword: "最新" }).expect(201)
+    expect((await t.http.get("/api/eh/search-history").set(auth).expect(200)).body[0]).toBe("最新")
+  })
+
+  it("超出规则的退回", async () => {
+    const { auth } = await user()
+    const cases: [ReturnType<typeof t.http.patch>, string][] = [
+      [t.http.patch("/api/eh/preferences").send({ categories: ["comic"] }), "分类名不合法"],
+      [t.http.patch("/api/eh/preferences").send({ readerInterval: 21 }), "自动翻页间隔应为 1–20 秒"],
+      [t.http.post("/api/eh/search-history").send({ keyword: "汉".repeat(67) }), "搜索历史关键词应为 1–200 字节"],
+      [t.http.post("/api/eh/search-history").send({ keyword: null }), "搜索历史关键词应为 1–200 字节"],
+      [t.http.delete("/api/eh/search-history/entry"), "搜索历史关键词应为 1–200 字节"],
     ]
-    for (const [path, body, message] of cases) {
-      const response = await t.http.put(path).set(auth).send(body)
+    for (const [request, message] of cases) {
+      const response = await request.set(auth)
       expect([response.status, response.body.message]).toEqual([400, [message]])
     }
   })

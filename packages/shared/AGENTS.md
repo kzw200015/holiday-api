@@ -6,8 +6,8 @@
 
 这是只有源码的工作区包，不构建：`exports` 直接指向 `src/*.ts`，前后端都照普通依赖引用，由各自的工具当场编译——后端是 Bun，前端是 Vite 与 vue-tsc（见 ADR-0004）。改了两端直接看见，不用构建也不用 watch；`typecheck` 脚本只做类型检查。没有汇总入口：`src/` 下每个文件就是一个子路径（`exports` 的 `./*`），按领域分文件、与后端模块和前端 feature 同名（`text.ts` 是两端共用的长度口径），引用时写到领域，如 `@myapi/shared/eh`；新增一个领域加一个文件即可，不用改 `package.json`。包内引用用相对路径、不写扩展名：这里的源码是由前后端各自的配置编译的，路径别名只在各自的包里定义，共享包里写了别名，两端都解析不了。
 
-## schema 与命名类型
+## schema 与类型
 
 服务端用这里的 schema 做入参校验，前端提交前用同一份预校验，不另写一份规则；文案是给用户看的中文，校验失败时原样显示。
 
-每个请求 schema 都在旁边导出命名类型，控制器参数与前端提交一律用它，不就地写 `z.output<typeof …>`。命名类型一律用 `z.output` 推（`z.infer` 是它的别名，不混着写）；带默认值或转换、输入输出不一样的，再用 `z.input` 导出一个 `XxxRequest` 给前端提交用，`Xxx` 留给服务端。
+请求 schema 不另起类型别名，要类型的地方就地从 schema 推：服务端收到的、前端读回来的写 `z.output<typeof xxxSchema>`，前端提交的写 `z.input<typeof xxxSchema>`（带默认值或转换时两者才不一样），不用 `z.infer`。类型里写的就是 schema 名，不必再记一套名字。前端只拿它推类型，所以用 `import type` 引 schema 和 `z`，不进打包产物。响应体没有 schema，照旧是手写的 interface。

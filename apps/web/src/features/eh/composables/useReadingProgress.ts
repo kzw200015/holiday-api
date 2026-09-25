@@ -1,8 +1,10 @@
+import { useQueryCache } from "@pinia/colada"
 import { useEventListener, useTimeoutFn } from "@vueuse/core"
 import { onScopeDispose } from "vue"
 
 import { useAuthStore } from "@/features/auth/store"
-import { useGalleryContentStore } from "@/features/eh/store"
+import { saveProgress } from "@/features/eh/api"
+import { ehKeys, useEhWrites } from "@/features/eh/queries"
 
 /* 翻页是一路连着来的，合并这么久再发一次，不然一本两百页就是两百个请求。 */
 const SAVE_DELAY = 1200
@@ -10,14 +12,15 @@ const SAVE_DELAY = 1200
 /**
  * 上报读到第几页。
  *
- * 页码当场写进这本图集的详情——服务端记的进度本来就是那份数据的一个字段，所以翻页改的和
- * 读回来的是同一处，详情页的「继续阅读第 N 页」不必等网络。往服务端存则合并后再发，
+ * 页码当场写进这本图集的进度缓存，详情页的「继续阅读第 N 页」不必等网络。往服务端存则合并后再发，
  * 发时不等前一次回来：乱序到达由服务端按上报序号挡住，页面卸载时补发的那次也就不会卡在前一次后面发不出去。
+ * 读进度与阅读历史之前会先等这些上报落地（见 useEhWrites）。
  *
  * 一个实例只管一本：阅读器按图集重建，不会中途换。
  */
 export function useReadingProgress(gid: number, token: string) {
-  const content = useGalleryContentStore()
+  const queryCache = useQueryCache()
+  const writes = useEhWrites()
   const auth = useAuthStore()
   /* 阅读器属于打开它时的本站账号。令牌失效时先退出、再跳登录页，离开时补发的页码再发出去带的就不是这个账号的令牌了，所以换过账号就一律不发。 */
   const account = auth.pageRevision
@@ -35,7 +38,8 @@ export function useReadingProgress(gid: number, token: string) {
   function flush() {
     cancelSave()
     if (pending !== undefined && auth.pageRevision === account) {
-      content.persistProgress(gid, token, pending)
+      /* 存不上不提示也不回退：下次翻页会再报一次。 */
+      writes.track(saveProgress(gid, token, pending)).catch(() => {})
     }
     pending = undefined
   }
@@ -52,7 +56,9 @@ export function useReadingProgress(gid: number, token: string) {
 
   return {
     report: (page: number) => {
-      content.setProgress(gid, token, page)
+      /* 在途的读取带回的是翻页之前的页码，先取消，不让它落在本地这页后面。 */
+      queryCache.cancelQueries({ key: ehKeys.progress(gid), exact: true })
+      queryCache.setQueryData(ehKeys.progress(gid), page)
       pending = page
       if (!saveScheduled.value) {
         scheduleSave()

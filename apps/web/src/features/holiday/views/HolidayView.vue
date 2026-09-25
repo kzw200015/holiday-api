@@ -46,8 +46,9 @@ function onSelect(value: DateValue | DateValue[] | undefined) {
         <CardDescription>点击日历中的日期即可查询。</CardDescription>
       </CardHeader>
       <CardContent>
+        <!-- 默认 28px 的日期格在手机上不好点，放大到 36px。 -->
         <Calendar
-          class="p-0 [--cell-size:--spacing(9)]"
+          class="[--cell-size:--spacing(9)]"
           fixed-weeks
           locale="zh-CN"
           :model-value="selected"

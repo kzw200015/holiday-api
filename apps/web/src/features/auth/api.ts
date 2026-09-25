@@ -1,4 +1,5 @@
-import type { Authenticated, AuthOptions, Credentials, CurrentUser } from "@myapi/shared/auth"
+import type { Authenticated, AuthOptions, credentialsSchema, CurrentUser } from "@myapi/shared/auth"
+import type { z } from "zod"
 
 import { httpClient } from "@/shared/api/httpClient"
 
@@ -15,6 +16,6 @@ export function fetchCurrentUser() {
 export type AuthAction = "login" | "register"
 
 /** 登录与注册都返回新会话，持久化和账号切换交给 AuthStore。 */
-export function authenticate(action: AuthAction, credentials: Credentials) {
+export function authenticate(action: AuthAction, credentials: z.input<typeof credentialsSchema>) {
   return httpClient.post<Authenticated>(`/auth/${action}`, credentials)
 }

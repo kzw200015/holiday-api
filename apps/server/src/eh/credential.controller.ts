@@ -1,5 +1,6 @@
-import { ehCookieSchema, type CredentialStatus, type EhCredential } from "@myapi/shared/eh"
+import { ehCookieSchema, type CredentialStatus } from "@myapi/shared/eh"
 import { Body, Controller, Delete, Get, Post } from "@nestjs/common"
+import type { z } from "zod"
 
 import { CurrentUser } from "@/auth/auth.decorators"
 import { CredentialService } from "@/eh/credential.service"
@@ -17,7 +18,7 @@ export class CredentialController {
   @Post()
   bind(
     @CurrentUser() userId: number,
-    @Body({ schema: ehCookieSchema }) cookie: EhCredential,
+    @Body({ schema: ehCookieSchema }) cookie: z.output<typeof ehCookieSchema>,
   ): Promise<CredentialStatus> {
     return this.credentialService.bind(userId, cookie)
   }

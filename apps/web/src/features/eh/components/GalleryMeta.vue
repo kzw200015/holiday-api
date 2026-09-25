@@ -26,7 +26,7 @@ const starWidths = computed(() =>
       aria-hidden="true"
     >
       <StarIcon class="text-muted-foreground/50 size-full" />
-      <span class="absolute inset-y-0 left-0 overflow-hidden text-amber-500 dark:text-amber-400" :style="{ width }">
+      <span class="absolute inset-y-0 left-0 overflow-hidden text-amber-500" :style="{ width }">
         <StarIcon :class="compact ? 'size-3' : 'size-3.5'" fill="currentColor" />
       </span>
     </span>

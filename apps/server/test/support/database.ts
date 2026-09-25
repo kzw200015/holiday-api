@@ -22,6 +22,3 @@ export async function sql<T = Record<string, unknown>>(url: string, text: string
     await client.close()
   }
 }
-
-/** Kotlin 版时期人工执行的建表脚本，原样保留在测试目录里，用来模拟线上已有的库。 */
-export const LEGACY_SCHEMA = await Bun.file(new URL("../fixtures/legacy-schema.sql", import.meta.url)).text()

@@ -114,9 +114,9 @@ export const httpClient = {
     return dataOf(await instance.post<T | "">(url, data, config))
   },
 
-  /** 整份替换：同一份重复提交结果不变，重试是安全的。（乱序提交仍会用旧快照盖掉新的，由调用方自己串行。） */
-  async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    return dataOf(await instance.put<T | "">(url, data, config))
+  /** 只改带来的字段。同一字段先后两次改动乱序到达会以后到的为准，要保序的由调用方依次发出。 */
+  async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    return dataOf(await instance.patch<T | "">(url, data, config))
   },
 
   /** 删的是哪一个写在地址上，不带请求体：DELETE 的请求体没有约定的含义，后端也不读。 */

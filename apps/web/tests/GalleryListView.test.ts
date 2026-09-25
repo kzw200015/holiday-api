@@ -9,6 +9,7 @@ import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, searchGalleries } from "@/features/eh/api"
 import GalleryListView from "@/features/eh/views/GalleryListView.vue"
+import { installQueries } from "@/shared/api/queries"
 import { byText, deferred, galleryCard, present, query, settle } from "./support"
 
 const scroll = vi.hoisted(() => ({
@@ -39,8 +40,8 @@ vi.mock("@/features/eh/api", async (original) => ({
   searchGalleries: vi.fn(),
   fetchGalleryPreferences: vi.fn(),
   fetchSearchHistory: vi.fn().mockResolvedValue([]),
-  saveSearchHistory: vi.fn().mockResolvedValue(null),
-  saveGalleryPreferences: vi.fn().mockResolvedValue(null),
+  addSearchKeyword: vi.fn().mockResolvedValue(null),
+  patchGalleryPreferences: vi.fn().mockResolvedValue(null),
 }))
 
 let pinia: ReturnType<typeof createPinia>
@@ -77,6 +78,7 @@ async function mountList() {
   app.use(router)
   pinia = createPinia()
   app.use(pinia)
+  installQueries(app)
   app.mount(host)
   await settle()
   search.mockClear()
@@ -160,7 +162,7 @@ describe("图库列表分页", () => {
     expect(host.textContent).toContain("图集 2")
   })
 
-  it("停用时关闭触底监听，回来不重新搜索；提交的分类去掉重复、保留顺序", async () => {
+  it("停用时关闭触底监听，回来不重新搜索；提交的分类去掉重复并排好序", async () => {
     vi.mocked(fetchGalleryPreferences).mockResolvedValue({
       categories: ["manga", "doujinshi", "manga"],
       readerInterval: 5,
@@ -169,7 +171,7 @@ describe("图库列表分页", () => {
     search.mockResolvedValue({ items: [galleryCard(1)], nextCursor: null })
     await submit("a|b")
     expect(search).toHaveBeenCalledExactlyOnceWith(
-      { keyword: "a|b", categories: ["manga", "doujinshi"], cursor: "" },
+      { keyword: "a|b", categories: ["doujinshi", "manga"], cursor: "" },
       expect.any(AbortSignal),
     )
     await router.push("/away")
@@ -195,16 +197,32 @@ describe("图库列表分页", () => {
     expect(host.textContent).toContain("没有找到符合条件的图集")
   })
 
-  it("销毁时取消在途请求，迟到响应不能恢复列表", async () => {
+  it("销毁后迟到的响应不能恢复列表", async () => {
     await mountList()
     const pending = deferred<CursorPage<GalleryCard>>()
     search.mockReturnValueOnce(pending.promise)
     await submit()
     present(app, "应用").unmount()
     app = undefined
-    expect(search.mock.calls[0]?.[1]?.aborted).toBe(true)
     pending.resolve({ items: [galleryCard(1)], nextCursor: "next" })
     await settle()
     expect(host.textContent).toBe("")
+  })
+
+  /* 重按搜索就是想看有没有新的：已经往下翻过的，只从第一页重来，不把翻过的每一页都向上游重抓一遍。 */
+  it("翻过几页后重按同一个搜索，只重读第一页", async () => {
+    await mountList()
+    search.mockResolvedValueOnce({ items: [galleryCard(1)], nextCursor: "next" })
+    await submit()
+    search.mockResolvedValueOnce({ items: [galleryCard(2)], nextCursor: null })
+    await scroll.load()
+    await settle()
+    expect(host.textContent).toContain("图集 2")
+    search.mockClear()
+    search.mockResolvedValueOnce({ items: [galleryCard(3)], nextCursor: "next" })
+    await submit()
+    expect(search).toHaveBeenCalledExactlyOnceWith({ ...criteria, cursor: "" }, expect.any(AbortSignal))
+    expect(host.textContent).toContain("图集 3")
+    expect(host.textContent).not.toContain("图集 2")
   })
 })

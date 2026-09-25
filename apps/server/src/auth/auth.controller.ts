@@ -1,5 +1,6 @@
-import { credentialsSchema, type AuthOptions, type Credentials, type CurrentUser as User } from "@myapi/shared/auth"
+import { credentialsSchema, loginSchema, type AuthOptions, type CurrentUser as User } from "@myapi/shared/auth"
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from "@nestjs/common"
+import type { z } from "zod"
 
 import { CurrentUser, Public } from "@/auth/auth.decorators"
 import { AuthService } from "@/auth/auth.service"
@@ -17,14 +18,14 @@ export class AuthController {
   }
 
   @Post("register")
-  register(@Body({ schema: credentialsSchema }) body: Credentials) {
+  register(@Body({ schema: credentialsSchema }) body: z.output<typeof credentialsSchema>) {
     return this.authService.register(body)
   }
 
   /* 登录不创建资源，回 200 而不是 POST 默认的 201 */
   @Post("login")
   @HttpCode(HttpStatus.OK)
-  login(@Body({ schema: credentialsSchema }) body: Credentials) {
+  login(@Body({ schema: loginSchema }) body: z.output<typeof loginSchema>) {
     return this.authService.login(body)
   }
 

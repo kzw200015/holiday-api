@@ -25,9 +25,14 @@ withDefaults(defineProps<{ item: GalleryCard; source?: GallerySource }>(), { sou
         <span class="text-muted-foreground">{{ item.fileCount }} 页</span>
       </div>
       <p class="text-muted-foreground truncate text-xs">{{ item.uploader }} · {{ formatDateTime(item.postedAt) }}</p>
-      <!-- 标签只露前几个，全部标签在详情页看。 -->
+      <!-- 标签只露前几个的中文名，全部标签在详情页看；原文放在 title 里，悬停可见。 -->
       <div class="flex flex-wrap gap-1">
-        <GalleryTag v-for="tag in item.tags.slice(0, 6)" :key="tag">{{ tag }}</GalleryTag>
+        <GalleryTag
+          v-for="tag in item.tags.slice(0, 6)"
+          :key="`${tag.namespace}:${tag.value}`"
+          :title="`${tag.namespace}:${tag.value}`"
+          >{{ tag.name }}</GalleryTag
+        >
       </div>
     </div>
   </RouterLink>

@@ -17,3 +17,16 @@ export function isAllowedImageUrl(raw: string): boolean {
     (host === "ehgt.org" || host.endsWith(".hath.network"))
   )
 }
+
+/**
+ * 里站详情页上的预览图（/t/ 下一页一张、/m/ 下一片拼成一张）在 s.exhentai.org 上，不带里站 Cookie 取不到；
+ * 同一路径在 ehgt.org 上照样有（按内容哈希存放），所以改到那里取，白名单不必放宽，取图也照旧不带 Cookie。
+ * 别的地址原样交回，由白名单把关。
+ */
+export function onPublicThumbnailHost(raw: string): string {
+  const url = URL.parse(raw)
+  if (url?.protocol !== "https:" || url.hostname !== "s.exhentai.org" || !/^\/[tm]\//.test(url.pathname)) {
+    return raw
+  }
+  return `https://ehgt.org${url.pathname}${url.search}`
+}

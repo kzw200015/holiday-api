@@ -1,17 +1,22 @@
 import type {
   CredentialStatus,
   CursorPage,
-  EhCredentialRequest,
+  ehCookieSchema,
   GalleryCard,
-  GalleryComment,
+  GalleryComments,
   GalleryDetailResult,
-  GalleryPreferences,
-  GallerySearchRequest,
+  galleryPreferencesPatchSchema,
+  galleryPreferencesSchema,
+  GalleryPreview,
+  gallerySearchSchema,
   ReadingHistoryItem,
-  ReadingHistoryQueryRequest,
+  readingHistoryQuerySchema,
   ReadingProgress,
-  SearchHistory,
+  readingProgressSchema,
+  searchHistoryKeywordSchema,
+  TagTranslationStatus,
 } from "@myapi/shared/eh"
+import type { z } from "zod"
 
 import { httpClient } from "@/shared/api/httpClient"
 
@@ -21,18 +26,23 @@ import { httpClient } from "@/shared/api/httpClient"
  * 条件整条放在请求体里：分类是一组名字，塞进查询串就得两头各写一份拼装和拆解的规则。
  * 用 POST 只是为了带这段 JSON，它仍是一次读取——所以照常接 AbortSignal，离开页面要能取消。
  */
-export function searchGalleries(search: GallerySearchRequest, signal?: AbortSignal) {
+export function searchGalleries(search: z.input<typeof gallerySearchSchema>, signal?: AbortSignal) {
   return httpClient.post<CursorPage<GalleryCard>>("/eh/galleries/search", search, { signal })
 }
 
-/** 图集详情，顺带返回这个账号读到第几页，以及这本图集的大图地址模板 */
+/** 图集详情，顺带返回这本图集的大图地址模板。读到第几页另有接口，见 fetchReadingProgress */
 export function fetchGalleryDetail(gid: number, token: string, signal?: AbortSignal) {
   return httpClient.get<GalleryDetailResult>(`/eh/galleries/${gid}/${token}`, { signal })
 }
 
 /** 评论单独取，不拖慢详情页首屏 */
 export function fetchGalleryComments(gid: number, token: string, signal?: AbortSignal) {
-  return httpClient.get<GalleryComment[]>(`/eh/galleries/${gid}/${token}/comments`, { signal })
+  return httpClient.get<GalleryComments>(`/eh/galleries/${gid}/${token}/comments`, { signal })
+}
+
+/** 详情页第 slice 片（从 0 起）上的预览图。每片多少页由 e 站账号的设置决定，看第 0 片有几页就知道 */
+export function fetchGalleryPreviews(gid: number, token: string, slice: number, signal?: AbortSignal) {
+  return httpClient.get<GalleryPreview[]>(`/eh/galleries/${gid}/${token}/previews/${slice}`, { signal })
 }
 
 /**
@@ -55,7 +65,7 @@ export function fetchCredentialStatus(signal?: AbortSignal) {
 }
 
 /** 绑定 e 站 Cookie。后端会先拿它实际请求一次，无效就不入库 */
-export function bindCredential(cookie: EhCredentialRequest) {
+export function bindCredential(cookie: z.input<typeof ehCookieSchema>) {
   return httpClient.post<CredentialStatus>("/eh/credential", cookie)
 }
 
@@ -64,47 +74,77 @@ export function unbindCredential() {
   return httpClient.delete<CredentialStatus>("/eh/credential")
 }
 
-/* 偏好与搜索历史读一次之后由前端说了算，写入都是把当前这份整个推上去，不再逐个动作上报。
- * 以下写接口一律不接 AbortSignal：已经发出的保存不该因为离开页面被取消，只有挂住太久的才中止（见 SAVE_TIMEOUT）。 */
+export function fetchTagTranslationStatus(signal?: AbortSignal) {
+  return httpClient.get<TagTranslationStatus>("/eh/tag-translations", { signal })
+}
+
+/** 从上游拉一版标签译名替换掉库里的，回同步后的状态。拉取与写入都完成才回，可能要十几秒，所以不设保存的时限 */
+export function syncTagTranslations() {
+  return httpClient.post<TagTranslationStatus>("/eh/tag-translations/sync")
+}
+
+/*
+ * 以下写接口一律不接 AbortSignal：已经发出的保存不该因为离开页面被取消，只有挂住太久的才中止（见 SAVE_TIMEOUT）。
+ * 都只回成败：本地已经按同一条规则改好了。
+ */
 
 /*
  * 保存的时限。保存只是落库，正常百毫秒内就回来；十秒还没回来多半是连接半开（移动网络切换时常见），
- * 再等下去同一条队后面的保存、等着进度落地才读的阅读历史全都跟着卡住。超时即中止，这一次算没存上。
+ * 再等下去后面排队的保存、等着写入落地才读的数据全都跟着卡住。超时即中止，这一次算没存上。
  * 读取不设这个时限：换页面时由调用方取消，搜索这类要抓上游页面的读取本来就可能很慢。
  */
 const SAVE_TIMEOUT = 10_000
 
 export function fetchGalleryPreferences(signal?: AbortSignal) {
-  return httpClient.get<GalleryPreferences>("/eh/preferences", { signal })
+  return httpClient.get<z.output<typeof galleryPreferencesSchema>>("/eh/preferences", { signal })
 }
 
-/** 只回成败：本地那份才是用户正在用的，服务端存成什么样不回写。 */
-export function saveGalleryPreferences(preferences: GalleryPreferences) {
-  return httpClient.put<null>("/eh/preferences", preferences, { timeout: SAVE_TIMEOUT })
+/** 只改带来的字段。 */
+export function patchGalleryPreferences(patch: z.input<typeof galleryPreferencesPatchSchema>) {
+  return httpClient.patch<null>("/eh/preferences", patch, { timeout: SAVE_TIMEOUT })
 }
 
 export function fetchSearchHistory(signal?: AbortSignal) {
   return httpClient.get<string[]>("/eh/search-history", { signal })
 }
 
-/** 同样只回成败。超过 10 条或含超过 200 字节的关键词会被整份退回。 */
-export function saveSearchHistory(entries: string[]) {
-  return httpClient.put<null>("/eh/search-history", { entries } satisfies SearchHistory, { timeout: SAVE_TIMEOUT })
+/** 记下一个搜过的词，排到最前。超过 200 字节的会被退回。 */
+export function addSearchKeyword(keyword: string) {
+  return httpClient.post<null>("/eh/search-history", { keyword } satisfies z.input<typeof searchHistoryKeywordSchema>, {
+    timeout: SAVE_TIMEOUT,
+  })
+}
+
+/** 要删的词放查询串：它可能是 `..` 这类放进路径会被规范化掉的写法。 */
+export function removeSearchKeyword(keyword: string) {
+  return httpClient.delete<null>("/eh/search-history/entry", {
+    params: { keyword } satisfies z.input<typeof searchHistoryKeywordSchema>,
+    timeout: SAVE_TIMEOUT,
+  })
+}
+
+export function clearSearchHistory() {
+  return httpClient.delete<null>("/eh/search-history", { timeout: SAVE_TIMEOUT })
+}
+
+/** 这个账号在这本图集上读到第几页。 */
+export function fetchReadingProgress(gid: number, signal?: AbortSignal) {
+  return httpClient.get<ReadingProgress>(`/eh/progress/${gid}`, { signal })
 }
 
 export function fetchReadingHistory(cursor: string, signal?: AbortSignal) {
   return httpClient.get<CursorPage<ReadingHistoryItem>>("/eh/history", {
-    params: { cursor } satisfies ReadingHistoryQueryRequest,
+    params: { cursor } satisfies z.input<typeof readingHistoryQuerySchema>,
     signal,
   })
 }
 
 export function removeReadingHistory(gid: number) {
-  return httpClient.delete<null>(`/eh/history/${gid}`)
+  return httpClient.delete<null>(`/eh/history/${gid}`, { timeout: SAVE_TIMEOUT })
 }
 
 export function clearReadingHistory() {
-  return httpClient.delete<null>("/eh/history")
+  return httpClient.delete<null>("/eh/history", { timeout: SAVE_TIMEOUT })
 }
 
 /*
@@ -122,7 +162,7 @@ export function saveProgress(gid: number, token: string, page: number) {
   progressSeq += 1
   return httpClient.post<null>(
     "/eh/progress",
-    { gid, token, page, writer: progressWriter, seq: progressSeq } satisfies ReadingProgress,
+    { gid, token, page, writer: progressWriter, seq: progressSeq } satisfies z.input<typeof readingProgressSchema>,
     { timeout: SAVE_TIMEOUT, fetchOptions: { keepalive: true } },
   )
 }

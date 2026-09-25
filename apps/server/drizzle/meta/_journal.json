@@ -36,6 +36,13 @@
       "when": 1790217031911,
       "tag": "0004_split_credential_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790265484152,
+      "tag": "0005_tag_translations",
+      "breakpoints": true
     }
   ]
 }

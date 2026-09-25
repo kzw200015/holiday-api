@@ -1,37 +1,39 @@
-import { SEARCH_HISTORY_LIMIT, searchHistoryEntrySchema } from "@myapi/shared/eh"
+import { recordSearchKeyword, searchHistoryEntrySchema } from "@myapi/shared/eh"
 import { computed } from "vue"
 
-import { useSearchHistoryStore } from "@/features/eh/store"
+import { addSearchKeyword, clearSearchHistory, fetchSearchHistory, removeSearchKeyword } from "@/features/eh/api"
+import { ehKeys, useEhWrites } from "@/features/eh/queries"
+import { useOptimisticData } from "@/shared/api/optimistic"
 
 /**
  * 账号共享的搜索历史。
  *
- * 最近搜的排最前、同一个词只留一条、总共留 10 条——这三条本来就是界面的规则，所以由这里说了算；
- * 服务端只负责校验和存住。关键词进来之前已经去过两端空白，和服务端存下的那份一致。
+ * 一次记或删一个词（见 ADR-0006）：本地当场按共享包里的同一条规则改好，改动随后依次发出，存不上就重读一次。
+ * 关键词进来之前已经去过两端空白，和服务端存下的那份一致。
  */
 export function useSearchHistory() {
-  const store = useSearchHistoryStore()
-  void store.load()
-  const entries = computed(() => store.data ?? [])
+  const { query, change } = useOptimisticData(ehKeys.searchHistory, fetchSearchHistory, useEhWrites())
 
   return {
-    /* 和偏好一样，真的读到了才算就绪。 */
-    ready: computed(() => store.data !== undefined),
-    loadError: computed(() => store.error?.message ?? ""),
-    reload: () => void store.reload(),
-    entries,
-    /* 记、删、清空在没读到时都不生效，见 store 的 update。 */
+    ready: computed(() => query.data.value !== undefined),
+    loadError: computed(() => query.error.value?.message ?? ""),
+    reload: () => void query.refresh(),
+    entries: computed(() => query.data.value ?? []),
     record: (keyword: string) => {
-      /* 服务端会退回的词（超长）整份提交里混进一条，之后每次保存都会跟着失败，所以干脆不记。 */
+      /* 服务端会退回的词（超长）不记：记了本地也会被重读按回去。 */
       if (!searchHistoryEntrySchema.safeParse(keyword).success) {
         return
       }
-      /* 最多留几条是服务端也会校验的规则，超了会被整份退回，所以直接用同一个数。 */
-      store.update((current) =>
-        [keyword, ...current.filter((entry) => entry !== keyword)].slice(0, SEARCH_HISTORY_LIMIT),
-      )
+      change({
+        apply: (entries) => recordSearchKeyword(entries, keyword),
+        send: () => addSearchKeyword(keyword),
+      })
     },
-    remove: (keyword: string) => store.update((current) => current.filter((entry) => entry !== keyword)),
-    clear: () => store.update(() => []),
+    remove: (keyword: string) =>
+      change({
+        apply: (entries) => entries.filter((entry) => entry !== keyword),
+        send: () => removeSearchKeyword(keyword),
+      }),
+    clear: () => change({ apply: () => [], send: clearSearchHistory }),
   }
 }
