@@ -35,9 +35,17 @@ export const GALLERY_CATEGORIES = [
 
 export type GalleryCategory = (typeof GALLERY_CATEGORIES)[number]
 
+/** 最低评分可选的星数。e 站只有这几档下限，「不限」用 null 表示，不拿哪个数冒充。 */
+export const GALLERY_MIN_RATINGS = [2, 3, 4, 5] as const
+
+export type GalleryMinRating = (typeof GALLERY_MIN_RATINGS)[number]
+
 /* ---------- 各处共用的字段 ---------- */
 
 const categorySchema = z.enum(GALLERY_CATEGORIES, { error: "分类名不合法" })
+
+/** 最低评分，null 表示不限。它会被拼进上游地址。 */
+const minRatingSchema = z.literal(GALLERY_MIN_RATINGS, { error: "最低评分应为 2–5 星" }).nullable()
 
 /** 图集编号。它会被拼进上游地址，所以从外部来的都得先过这一道。 */
 export const gidSchema = z.int({ error: "图集编号不合法" }).positive({ error: "图集编号不合法" })
@@ -64,6 +72,7 @@ export const keywordSchema = z
 export const gallerySearchSchema = z.object({
   keyword: keywordSchema.default(""),
   categories: z.array(categorySchema).default([]),
+  minRating: minRatingSchema.default(null),
   /** 空串表示第一页；它是 e 站给的一串数字，会被拼进上游地址。 */
   cursor: z
     .string({ error: "分页游标不合法" })
@@ -102,6 +111,7 @@ export const readerIntervalSchema = z
 /** 浏览偏好：读接口的响应体。 */
 export const galleryPreferencesSchema = z.object({
   categories: z.array(categorySchema),
+  minRating: minRatingSchema,
   readerInterval: readerIntervalSchema,
 })
 
@@ -111,6 +121,7 @@ export const galleryPreferencesPatchSchema = galleryPreferencesSchema.partial()
 /** 还没存过偏好时的样子，与表上的列默认值一致。 */
 export const DEFAULT_GALLERY_PREFERENCES: z.output<typeof galleryPreferencesSchema> = {
   categories: [],
+  minRating: null,
   readerInterval: 5,
 }
 

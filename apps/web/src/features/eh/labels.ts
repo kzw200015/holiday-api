@@ -1,6 +1,6 @@
-/* 分类的中文词汇表。这些是展示用的说法，跟接口无关，所以不放在 api 里。标签的中文名由服务端连同标签一起给出。 */
+/* 分类与最低评分的中文词汇表。这些是展示用的说法，跟接口无关，所以不放在 api 里。标签的中文名由服务端连同标签一起给出。 */
 
-import type { GalleryCategory } from "@myapi/shared/eh"
+import { GALLERY_MIN_RATINGS, type GalleryCategory, type GalleryMinRating } from "@myapi/shared/eh"
 
 /**
  * 分类的三种叫法：value 是后端筛选参数认的名字，name 是 gdata 返回的展示名，label 是界面文案。
@@ -28,3 +28,9 @@ export const categoryLabels: Record<string, string> = {
 
 /** 分类筛选项。value 的取值由共享包的 GalleryCategory 约束，拼错编译不过 */
 export const galleryCategories = CATEGORIES.map(({ value, label }) => ({ value, label }))
+
+/** 最低评分的选项，头一项是不限 */
+export const minRatingOptions: readonly { value: GalleryMinRating | null; label: string }[] = [
+  { value: null, label: "不限" },
+  ...GALLERY_MIN_RATINGS.map((value) => ({ value, label: `${value} 星` })),
+]

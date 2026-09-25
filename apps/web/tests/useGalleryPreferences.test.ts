@@ -21,7 +21,7 @@ const mount = () => t.mount(useGalleryPreferences)
 beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
-  vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 8 })
+  vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], minRating: null, readerInterval: 8 })
   vi.mocked(patchGalleryPreferences).mockResolvedValue(null)
 })
 afterEach(() => {
@@ -37,7 +37,7 @@ describe("账号浏览偏好", () => {
     const reader = mount()
     await settleFakeTimers()
     expect(preferences.ready.value).toBe(true)
-    expect(preferences.categories.value).toEqual(["manga"])
+    expect(preferences.filters.value).toEqual({ categories: ["manga"], minRating: null })
     expect(reader.interval.value).toBe(8)
     expect(fetchGalleryPreferences).toHaveBeenCalledTimes(1)
   })
@@ -51,14 +51,14 @@ describe("账号浏览偏好", () => {
     vi.mocked(patchGalleryPreferences).mockReturnValueOnce(first.promise)
     reader.interval.value = 12
     expect(list.interval.value).toBe(12)
-    list.applyCategories(["misc", "cosplay", "misc"])
-    expect(reader.categories.value).toEqual(["cosplay", "misc"])
+    list.applyFilters({ categories: ["misc", "cosplay", "misc"], minRating: 4 })
+    expect(reader.filters.value).toEqual({ categories: ["cosplay", "misc"], minRating: 4 })
     await settleFakeTimers()
     /* 前一次没回来，后一次不发：同一字段先后两次改动乱序到达就会旧盖新。 */
     expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ readerInterval: 12 })
     first.resolve(null)
     await settleFakeTimers()
-    expect(patchGalleryPreferences).toHaveBeenLastCalledWith({ categories: ["cosplay", "misc"] })
+    expect(patchGalleryPreferences).toHaveBeenLastCalledWith({ categories: ["cosplay", "misc"], minRating: 4 })
   })
 
   it("存不上就重读一次，以服务端为准", async () => {
@@ -83,7 +83,7 @@ describe("账号浏览偏好", () => {
     preferences.reload()
     await settleFakeTimers()
     expect(fetchGalleryPreferences).toHaveBeenCalledTimes(1)
-    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 15 })
+    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], minRating: null, readerInterval: 15 })
     saving.resolve(null)
     await settleFakeTimers()
     expect(fetchGalleryPreferences).toHaveBeenCalledTimes(2)
@@ -110,13 +110,13 @@ describe("账号浏览偏好", () => {
     const before = mount()
     await settleFakeTimers()
     useAuthStore(t.pinia).logout()
-    loading.resolve({ categories: ["cosplay"], readerInterval: 9 })
+    loading.resolve({ categories: ["cosplay"], minRating: null, readerInterval: 9 })
     await settleFakeTimers()
     expect(before.ready.value).toBe(false)
 
     const after = mount()
     await settleFakeTimers()
-    expect(after.categories.value).toEqual(["manga"])
+    expect(after.filters.value.categories).toEqual(["manga"])
     expect(fetchGalleryPreferences).toHaveBeenCalledTimes(2)
   })
 

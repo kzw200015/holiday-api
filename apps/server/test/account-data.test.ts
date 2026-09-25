@@ -112,6 +112,7 @@ describe("偏好与搜索历史", () => {
     const { auth } = await user()
     expect((await t.http.get("/api/eh/preferences").set(auth).expect(200)).body).toEqual({
       categories: [],
+      minRating: null,
       readerInterval: 5,
     })
     expect((await t.http.get("/api/eh/search-history").set(auth).expect(200)).body).toEqual([])
@@ -127,7 +128,10 @@ describe("偏好与搜索历史", () => {
     /* 尚无这一行时先记搜索历史，偏好落表上的默认值 */
     await record("\u001c a")
     await record("b")
-    expect(await read()).toEqual({ preferences: { categories: [], readerInterval: 5 }, history: ["b", "\u001c a"] })
+    expect(await read()).toEqual({
+      preferences: { categories: [], minRating: null, readerInterval: 5 },
+      history: ["b", "\u001c a"],
+    })
 
     await t.http
       .patch("/api/eh/preferences")
@@ -135,10 +139,11 @@ describe("偏好与搜索历史", () => {
       .send({ categories: ["manga", "doujinshi", "manga"] })
       .expect(200)
     await t.http.patch("/api/eh/preferences").set(auth).send({ readerInterval: 9 }).expect(200)
+    await t.http.patch("/api/eh/preferences").set(auth).send({ minRating: 4 }).expect(200)
     /* 再记一遍已有的词，它挪到最前而不是多一条 */
     await record("\u001c a")
     expect(await read()).toEqual({
-      preferences: { categories: ["doujinshi", "manga"], readerInterval: 9 },
+      preferences: { categories: ["doujinshi", "manga"], minRating: 4, readerInterval: 9 },
       history: ["\u001c a", "b"],
     })
 
@@ -148,8 +153,10 @@ describe("偏好与搜索历史", () => {
     await t.http.delete("/api/eh/search-history/entry").query({ keyword: "b" }).set(auth).expect(200)
     expect((await read()).history).toEqual(["\u001c a"])
     await t.http.delete("/api/eh/search-history").set(auth).expect(200)
+    /* 最低评分改回不限 */
+    await t.http.patch("/api/eh/preferences").set(auth).send({ minRating: null }).expect(200)
     expect(await read()).toEqual({
-      preferences: { categories: ["doujinshi", "manga"], readerInterval: 9 },
+      preferences: { categories: ["doujinshi", "manga"], minRating: null, readerInterval: 9 },
       history: [],
     })
   })
@@ -169,6 +176,7 @@ describe("偏好与搜索历史", () => {
     const { auth } = await user()
     const cases: [ReturnType<typeof t.http.patch>, string][] = [
       [t.http.patch("/api/eh/preferences").send({ categories: ["comic"] }), "分类名不合法"],
+      [t.http.patch("/api/eh/preferences").send({ minRating: 1 }), "最低评分应为 2–5 星"],
       [t.http.patch("/api/eh/preferences").send({ readerInterval: 21 }), "自动翻页间隔应为 1–20 秒"],
       [t.http.post("/api/eh/search-history").send({ keyword: "汉".repeat(67) }), "搜索历史关键词应为 1–200 字节"],
       [t.http.post("/api/eh/search-history").send({ keyword: null }), "搜索历史关键词应为 1–200 字节"],

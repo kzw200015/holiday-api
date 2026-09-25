@@ -15,7 +15,7 @@ const {
   preferences,
   history,
   submit,
-  applyCategories,
+  applyFilters,
   selectHistory,
   retry,
 } = useGallerySearch()
@@ -25,10 +25,10 @@ const {
   <div class="page-content flex flex-col gap-4">
     <GallerySearchForm
       v-model:keyword="keyword"
-      :categories="preferences.categories"
+      :filters="preferences.filters"
       :history="history.entries"
       @submit="submit"
-      @apply-categories="applyCategories"
+      @apply-filters="applyFilters"
       @select-history="selectHistory"
       @remove-history="history.remove"
       @clear-history="history.clear"

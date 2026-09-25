@@ -49,7 +49,7 @@ let app: ReturnType<typeof createApp> | undefined
 let router: ReturnType<typeof createRouter>
 let host: HTMLDivElement
 const search = vi.mocked(searchGalleries)
-const criteria = { keyword: "language:chinese", categories: ["manga"] }
+const criteria = { keyword: "language:chinese", categories: ["manga"], minRating: null }
 
 async function mountList() {
   router = createRouter({
@@ -96,7 +96,7 @@ async function submit(keyword = criteria.keyword) {
 beforeEach(() => {
   vi.clearAllMocks()
   search.mockReset().mockResolvedValue({ items: [], nextCursor: null })
-  vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 5 })
+  vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], minRating: null, readerInterval: 5 })
   vi.spyOn(window, "scrollTo").mockImplementation(() => {})
 })
 afterEach(() => {
@@ -165,13 +165,14 @@ describe("图库列表分页", () => {
   it("停用时关闭触底监听，回来不重新搜索；提交的分类去掉重复并排好序", async () => {
     vi.mocked(fetchGalleryPreferences).mockResolvedValue({
       categories: ["manga", "doujinshi", "manga"],
+      minRating: null,
       readerInterval: 5,
     })
     await mountList()
     search.mockResolvedValue({ items: [galleryCard(1)], nextCursor: null })
     await submit("a|b")
     expect(search).toHaveBeenCalledExactlyOnceWith(
-      { keyword: "a|b", categories: ["doujinshi", "manga"], cursor: "" },
+      { keyword: "a|b", categories: ["doujinshi", "manga"], minRating: null, cursor: "" },
       expect.any(AbortSignal),
     )
     await router.push("/away")

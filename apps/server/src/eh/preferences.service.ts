@@ -21,7 +21,11 @@ export class PreferencesService {
 
   async preferences(userId: number): Promise<z.output<typeof galleryPreferencesSchema>> {
     const [row] = await this.database
-      .select({ categories: ehPreferences.categories, readerInterval: ehPreferences.readerInterval })
+      .select({
+        categories: ehPreferences.categories,
+        minRating: ehPreferences.minRating,
+        readerInterval: ehPreferences.readerInterval,
+      })
       .from(ehPreferences)
       .where(eq(ehPreferences.userId, userId))
     return row ?? DEFAULT_GALLERY_PREFERENCES
@@ -30,10 +34,11 @@ export class PreferencesService {
   /** 只改带来的字段，没带的保持原样；还没有这一行时，没带的落表上的默认值。分类排序去重后入库，存的始终是同一种写法。 */
   async patchPreferences(
     userId: number,
-    { categories, readerInterval }: z.output<typeof galleryPreferencesPatchSchema>,
+    { categories, minRating, readerInterval }: z.output<typeof galleryPreferencesPatchSchema>,
   ) {
     const value = {
       ...(categories && { categories: [...new Set(categories)].toSorted() }),
+      ...(minRating !== undefined && { minRating }),
       ...(readerInterval !== undefined && { readerInterval }),
     }
     await this.database

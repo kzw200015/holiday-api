@@ -71,10 +71,10 @@ describe("搜索", () => {
     expect([changed.status, changed.body.message]).toEqual([502, "没有识别出图集搜索结果，e 站版面可能改了"])
   })
 
-  it("条件按表单编码拼进地址，分类换算成要排除的位和；全选与全不选都不加分类参数", async () => {
+  it("条件按表单编码拼进地址，分类换算成要排除的位和；全选与全不选都不加分类参数，不限评分不加评分参数", async () => {
     eh(() => html("<p>No hits found</p>"))
-    await search({ keyword: "a b&c", categories: ["manga", "doujinshi"], cursor: "123" }).expect(200)
-    expect(t.outbound.last().url.search).toBe("?f_search=a+b%26c&f_cats=1017&next=123")
+    await search({ keyword: "a b&c", categories: ["manga", "doujinshi"], minRating: 4, cursor: "123" }).expect(200)
+    expect(t.outbound.last().url.search).toBe("?f_search=a+b%26c&f_cats=1017&f_srdd=4&next=123")
 
     const all = [
       "doujinshi",
@@ -89,7 +89,7 @@ describe("搜索", () => {
       "misc",
     ]
     await search({ categories: all }).expect(200)
-    await search({ categories: [] }).expect(200)
+    await search({ categories: [], minRating: null }).expect(200)
     expect(t.outbound.requests.slice(-2).map((request) => request.url.search)).toEqual(["", ""])
   })
 
@@ -97,6 +97,8 @@ describe("搜索", () => {
     for (const [body, message] of [
       [{ keyword: "汉".repeat(67) }, "关键词太长了"],
       [{ categories: ["comic"] }, "分类名不合法"],
+      [{ minRating: 1 }, "最低评分应为 2–5 星"],
+      [{ minRating: "4" }, "最低评分应为 2–5 星"],
       [{ cursor: "1&f_cats=0" }, "分页游标不合法"],
     ] as const) {
       const response = await search(body)

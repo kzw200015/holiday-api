@@ -100,7 +100,7 @@ function intervalText(host: HTMLElement) {
 beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
-  vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: 5 })
+  vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], minRating: null, readerInterval: 5 })
   vi.mocked(patchGalleryPreferences).mockResolvedValue(null)
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
 })
@@ -186,7 +186,7 @@ describe("阅读器自动翻页控件", () => {
     expect(change).toHaveBeenCalledTimes(1)
     expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ readerInterval: 6 })
     /* 重开一个阅读器：间隔按存下来的那份显示，自动翻页不跟着恢复。 */
-    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: 6 })
+    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], minRating: null, readerInterval: 6 })
     const reopened = await createReader()
     expect(intervalText(reopened.host)).toBe("6 秒")
     expect(autoButton(reopened.host).getAttribute("aria-pressed")).toBe("false")
@@ -201,7 +201,7 @@ describe("阅读器自动翻页控件", () => {
     { seconds: 1, disabledLabel: "减少自动翻页间隔", enabledLabel: "增加自动翻页间隔", next: 2 },
     { seconds: 20, disabledLabel: "增加自动翻页间隔", enabledLabel: "减少自动翻页间隔", next: 19 },
   ])("间隔为 $seconds 秒时禁用越界按钮，反向调整仍可用", async ({ seconds, disabledLabel, enabledLabel, next }) => {
-    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], readerInterval: seconds })
+    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], minRating: null, readerInterval: seconds })
     const { host } = await createReader()
     const disabledButton = query<HTMLButtonElement>(host, `[aria-label="${disabledLabel}"]`)
     const enabledButton = query<HTMLButtonElement>(host, `[aria-label="${enabledLabel}"]`)
@@ -268,7 +268,7 @@ describe("阅读器自动翻页控件", () => {
     expect(decrease.disabled).toBe(true)
     expect(increase.disabled).toBe(true)
     expect(intervalText(host)).toBe("…")
-    pending.resolve({ categories: [], readerInterval: 8 })
+    pending.resolve({ categories: [], minRating: null, readerInterval: 8 })
     await vi.advanceTimersByTimeAsync(0)
     expect(intervalText(host)).toBe("8 秒")
     expect(increase.disabled).toBe(false)

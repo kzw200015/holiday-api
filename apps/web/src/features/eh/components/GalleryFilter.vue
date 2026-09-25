@@ -1,23 +1,24 @@
 <script setup lang="ts">
 import { SlidersHorizontalIcon } from "@lucide/vue"
-import type { GalleryCategory } from "@myapi/shared/eh"
 import { useMediaQuery } from "@vueuse/core"
-import { onDeactivated, ref, watch } from "vue"
+import { computed, onDeactivated, ref, watch } from "vue"
 
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import CategoryChoices from "@/features/eh/components/CategoryChoices.vue"
+import FilterChoices from "@/features/eh/components/FilterChoices.vue"
+import { activeFilterCount, type GalleryFilters } from "@/features/eh/composables/useGalleryPreferences"
 
-const props = defineProps<{ selected: GalleryCategory[] }>()
-const emit = defineEmits<{ apply: [categories: GalleryCategory[]] }>()
+const props = defineProps<{ applied: GalleryFilters }>()
+const emit = defineEmits<{ apply: [filters: GalleryFilters] }>()
 const mobile = useMediaQuery("(max-width: 639px)")
 const open = ref(false)
-const draft = ref<GalleryCategory[]>([])
+const draft = ref<GalleryFilters>({ categories: [], minRating: null })
+const count = computed(() => activeFilterCount(props.applied))
 /* 每次打开才从已应用条件建立草稿，关闭不提交。 */
 watch(open, (value) => {
   if (value) {
-    draft.value = [...props.selected]
+    draft.value = { categories: [...props.applied.categories], minRating: props.applied.minRating }
   }
 })
 onDeactivated(() => {
@@ -25,7 +26,7 @@ onDeactivated(() => {
 })
 
 function apply() {
-  emit("apply", [...draft.value])
+  emit("apply", { categories: [...draft.value.categories], minRating: draft.value.minRating })
   open.value = false
 }
 </script>
@@ -33,9 +34,9 @@ function apply() {
 <template>
   <Sheet v-if="mobile" v-model:open="open">
     <SheetTrigger as-child>
-      <Button variant="outline" type="button" aria-label="分类筛选">
+      <Button variant="outline" type="button" aria-label="筛选">
         <SlidersHorizontalIcon />
-        分类{{ selected.length ? ` (${selected.length})` : "" }}
+        筛选{{ count ? ` (${count})` : "" }}
       </Button>
     </SheetTrigger>
     <!--
@@ -44,24 +45,25 @@ function apply() {
     -->
     <SheetContent side="bottom" class="max-h-[85svh] overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <SheetHeader>
-        <SheetTitle>分类筛选</SheetTitle>
-        <SheetDescription>选择分类后点击应用。</SheetDescription>
+        <SheetTitle>筛选</SheetTitle>
+        <SheetDescription>选好条件后点击应用。</SheetDescription>
       </SheetHeader>
-      <CategoryChoices v-model="draft" class="px-4" block @apply="apply" />
+      <FilterChoices v-model="draft" class="px-4" block @apply="apply" />
     </SheetContent>
   </Sheet>
   <Popover v-else v-model:open="open">
     <PopoverTrigger as-child>
-      <Button variant="outline" type="button" aria-label="分类筛选">
+      <Button variant="outline" type="button" aria-label="筛选">
         <SlidersHorizontalIcon />
-        分类{{ selected.length ? ` (${selected.length})` : "" }}
+        筛选{{ count ? ` (${count})` : "" }}
       </Button>
     </PopoverTrigger>
-    <PopoverContent align="end" aria-label="分类筛选">
+    <!-- 默认的 w-72 放不下一行五档评分 -->
+    <PopoverContent align="end" class="w-80" aria-label="筛选">
       <PopoverHeader>
-        <PopoverTitle>分类筛选</PopoverTitle>
+        <PopoverTitle>筛选</PopoverTitle>
       </PopoverHeader>
-      <CategoryChoices v-model="draft" @apply="apply" />
+      <FilterChoices v-model="draft" @apply="apply" />
     </PopoverContent>
   </Popover>
 </template>

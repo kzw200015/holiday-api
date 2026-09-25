@@ -14,7 +14,7 @@ const credential = useEhCredential()
 const anonymous = computed(() => credential.status.value?.bound === false)
 
 /*
- * 偏好在这里等到，页面组件延到读到之后才创建：搜索页开出的第一次查询要用分类偏好，
+ * 偏好在这里等到，页面组件延到读到之后才创建：搜索页开出的第一次查询要用偏好里的筛选条件，
  * 偏好还没到就发出去，搜的是一组不对的条件。读不到就停在这里让用户重试，不拿默认值放行。
  */
 const { ready, loadError, reload } = useGalleryPreferences()

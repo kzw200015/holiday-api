@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { SearchIcon, XIcon } from "@lucide/vue"
-import type { GalleryCategory } from "@myapi/shared/eh"
 
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Input } from "@/components/ui/input"
-import CategoryFilter from "@/features/eh/components/CategoryFilter.vue"
+import GalleryFilter from "@/features/eh/components/GalleryFilter.vue"
+import type { GalleryFilters } from "@/features/eh/composables/useGalleryPreferences"
 import ConfirmDialog from "@/shared/components/ConfirmDialog.vue"
 import EmptyState from "@/shared/components/EmptyState.vue"
 
-defineProps<{ categories: GalleryCategory[]; history: string[] }>()
+defineProps<{ filters: GalleryFilters; history: string[] }>()
 const keyword = defineModel<string>("keyword", { required: true })
 const emit = defineEmits<{
   submit: []
-  applyCategories: [categories: GalleryCategory[]]
+  applyFilters: [filters: GalleryFilters]
   selectHistory: [entry: string]
   removeHistory: [entry: string]
   clearHistory: []
@@ -33,7 +33,7 @@ const emit = defineEmits<{
         <SearchIcon />
         搜索
       </Button>
-      <CategoryFilter :selected="categories" @apply="emit('applyCategories', $event)" />
+      <GalleryFilter :applied="filters" @apply="emit('applyFilters', $event)" />
     </form>
     <div class="flex flex-col gap-2" aria-label="搜索历史">
       <div class="text-muted-foreground flex items-center justify-between text-xs">

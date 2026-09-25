@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
-import { recordSearchKeyword, type GalleryCategory, type GalleryDetail } from "@myapi/shared/eh"
+import { recordSearchKeyword, type GalleryDetail, type galleryPreferencesSchema } from "@myapi/shared/eh"
 import { useQueryCache } from "@pinia/colada"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, type App as VueApp } from "vue"
 import { createRouter, createWebHistory, type Router } from "vue-router"
+import type { z } from "zod"
 
 import App from "@/app/App.vue"
 import { AppRouter } from "@/app/router"
@@ -104,7 +105,7 @@ async function enterKeyword(value: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }))
   await nextTick()
 }
-/* 分类面板挂在 body 下的 Portal 里，要从 document 找 */
+/* 筛选面板挂在 body 下的 Portal 里，要从 document 找 */
 const category = (text: string) => byText(document, "button", text)
 async function click(text: string) {
   const button = [...host.querySelectorAll<HTMLElement>("button, a")].find(
@@ -169,7 +170,7 @@ beforeEach(async () => {
   vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
   vi.mocked(fetchTagTranslationStatus).mockResolvedValue({ lastSync: null })
   vi.mocked(fetchHolidayDetail).mockImplementation(async (date) => ({ date, name: "", isOffDay: false }))
-  let preferences = { categories: [] as GalleryCategory[], readerInterval: 5 }
+  let preferences: z.output<typeof galleryPreferencesSchema> = { categories: [], minRating: null, readerInterval: 5 }
   let history: string[] = []
   vi.mocked(fetchGalleryPreferences).mockImplementation(async () => structuredClone(preferences))
   /* 像服务端一样：偏好只改带来的字段，搜索历史一次记或删一个词。 */
@@ -682,16 +683,16 @@ describe("页面缓存与失效范围", () => {
     expect(searchGalleries).toHaveBeenCalledTimes(1)
   })
 
-  it("分类草稿关闭不生效，应用才搜索；历史词沿用当前分类", async () => {
+  it("筛选草稿关闭不生效，应用才搜索；历史词沿用当前筛选条件", async () => {
     await enterKeyword("cat")
-    await click("分类")
+    await click("筛选")
     category("漫画").click()
     await settle()
     expect(searchGalleries).toHaveBeenCalledTimes(1)
     category("漫画").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
     await settle()
     expect(router.currentRoute.value.query.categories).toBeUndefined()
-    await click("分类")
+    await click("筛选")
     expect(category("漫画").getAttribute("aria-pressed")).toBe("false")
     category("漫画").click()
     await settle()
@@ -699,32 +700,32 @@ describe("页面缓存与失效范围", () => {
     await settle()
     expect(router.currentRoute.value.fullPath).toBe("/eh")
     expect(searchGalleries).toHaveBeenLastCalledWith(
-      { keyword: "cat", categories: ["manga"], cursor: "" },
+      { keyword: "cat", categories: ["manga"], minRating: null, cursor: "" },
       expect.any(AbortSignal),
     )
-    expect(host.textContent).toContain("分类 (1)")
+    expect(host.textContent).toContain("筛选 (1)")
     /* 两份数据各自只提交改了的那一项，界面不等它们。 */
     await vi.waitFor(() => {
-      expect(patchGalleryPreferences).toHaveBeenCalledWith({ categories: ["manga"] })
+      expect(patchGalleryPreferences).toHaveBeenCalledWith({ categories: ["manga"], minRating: null })
       expect(addSearchKeyword).toHaveBeenCalledWith("cat")
     })
     await enterKeyword("dog")
     await click("搜索")
     expect(searchGalleries).toHaveBeenLastCalledWith(
-      { keyword: "dog", categories: ["manga"], cursor: "" },
+      { keyword: "dog", categories: ["manga"], minRating: null, cursor: "" },
       expect.any(AbortSignal),
     )
     await click("cat")
     expect(router.currentRoute.value.fullPath).toBe("/eh")
     expect(query(host, "input").value).toBe("cat")
-    /* 点历史词就是拿它配上当前分类重新搜一次。 */
+    /* 点历史词就是拿它配上当前筛选条件重新搜一次。 */
     expect(searchGalleries).toHaveBeenLastCalledWith(
-      { keyword: "cat", categories: ["manga"], cursor: "" },
+      { keyword: "cat", categories: ["manga"], minRating: null, cursor: "" },
       expect.any(AbortSignal),
     )
   })
 
-  /* 搜索页开出的第一次查询要用分类偏好：偏好没读到就停在布局层，不拿默认值放行。 */
+  /* 搜索页开出的第一次查询要用偏好里的筛选条件：偏好没读到就停在布局层，不拿默认值放行。 */
   it("偏好读不到就停在布局层，重试读到后才放页面进来", async () => {
     vi.mocked(fetchGalleryPreferences).mockRejectedValueOnce(new Error("偏好读取失败"))
     /* 在图库里换个账号：页面整个重建，账号数据都要重新读，偏好这次读失败。 */
@@ -757,7 +758,7 @@ describe("页面缓存与失效范围", () => {
     await enterKeyword("尚未提交")
     await visit("/eh/g/1/aaaaaaaaaa")
     const reads = vi.mocked(fetchGalleryPreferences).mock.calls.length
-    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 5 })
+    vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], minRating: null, readerInterval: 5 })
     vi.mocked(fetchSearchHistory).mockResolvedValue(["其他设备的搜索"])
     await click("返回列表")
     expect(host.querySelector("input")?.value).toBe("尚未提交")
@@ -765,7 +766,7 @@ describe("页面缓存与失效范围", () => {
     expect(host.textContent).toContain("cat")
     expect(fetchGalleryPreferences).toHaveBeenCalledTimes(reads)
     expect(searchGalleries).toHaveBeenLastCalledWith(
-      { keyword: "cat", categories: [], cursor: "" },
+      { keyword: "cat", categories: [], minRating: null, cursor: "" },
       expect.any(AbortSignal),
     )
   })
@@ -774,20 +775,20 @@ describe("页面缓存与失效范围", () => {
     vi.mocked(patchGalleryPreferences).mockRejectedValue(new Error("断网"))
     vi.mocked(addSearchKeyword).mockRejectedValue(new Error("断网"))
     await enterKeyword("cat")
-    await click("分类")
+    await click("筛选")
     category("漫画").click()
     await settle()
     category("应用").click()
     await settle()
     expect(searchGalleries).toHaveBeenLastCalledWith(
-      { keyword: "cat", categories: ["manga"], cursor: "" },
+      { keyword: "cat", categories: ["manga"], minRating: null, cursor: "" },
       expect.any(AbortSignal),
     )
     await vi.waitFor(() => expect(patchGalleryPreferences).toHaveBeenCalled())
     await settle()
     /* 存不上也不说；服务端那份没有这次改动，重读回来就照服务端的显示。 */
     expect(host.textContent).not.toContain("失败")
-    expect(host.textContent).not.toContain("分类 (1)")
+    expect(host.textContent).not.toContain("筛选 (1)")
     expect(host.querySelector('[title="cat"]')).toBeNull()
   })
 

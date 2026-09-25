@@ -1,4 +1,4 @@
-import type { GalleryCategory } from "@myapi/shared/eh"
+import type { GalleryCategory, GalleryMinRating } from "@myapi/shared/eh"
 import { sql } from "drizzle-orm"
 import {
   bigint,
@@ -80,6 +80,8 @@ export const ehPreferences = pgTable(
       .$type<GalleryCategory[]>()
       .notNull()
       .default(sql`'{}'`),
+    /* 空表示不限 */
+    minRating: integer("min_rating").$type<GalleryMinRating>(),
     readerInterval: integer("reader_interval").notNull().default(5),
     searchHistory: text("search_history")
       .array()
@@ -90,6 +92,7 @@ export const ehPreferences = pgTable(
   (table) => [
     uniqueIndex("eh_preferences_user_id_key").on(table.userId),
     ownedByUser(table, "eh_preferences"),
+    check("eh_preferences_min_rating_check", sql`${table.minRating} BETWEEN 2 AND 5`),
     check("eh_preferences_reader_interval_check", sql`${table.readerInterval} BETWEEN 1 AND 20`),
     check("eh_preferences_search_history_check", sql`CARDINALITY(${table.searchHistory}) <= 10`),
   ],

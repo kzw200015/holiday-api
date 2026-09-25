@@ -3,6 +3,7 @@ import {
   GALLERY_CATEGORIES,
   type GalleryCategory,
   type galleryPreferencesPatchSchema,
+  type galleryPreferencesSchema,
 } from "@myapi/shared/eh"
 import { computed } from "vue"
 import type { z } from "zod"
@@ -13,9 +14,18 @@ import { useOptimisticData } from "@/shared/api/optimistic"
 
 type PreferencesPatch = z.input<typeof galleryPreferencesPatchSchema>
 
-/** 分类是集合：去重并按固定顺序排好才用，同一组分类的写法只有一种，搜索结果的缓存 key 才对得上。 */
-export function normalizeCategories(categories: readonly GalleryCategory[]): GalleryCategory[] {
-  return GALLERY_CATEGORIES.filter((category) => categories.includes(category))
+/** 筛选条件：搜索时关键词以外的条件，存在偏好里，在同一个面板里一起改、一起应用。 */
+export type GalleryFilters = Pick<z.output<typeof galleryPreferencesSchema>, "categories" | "minRating">
+
+/** 分类是集合：去重并按固定顺序排好才用，同一组筛选条件的写法只有一种，搜索结果的缓存 key 才对得上。 */
+export function normalizeFilters({ categories, minRating }: GalleryFilters): GalleryFilters {
+  return { categories: GALLERY_CATEGORIES.filter((category) => categories.includes(category)), minRating }
+}
+
+/** 生效的筛选条件有几项：分类全不选、全选都是不限，不算。 */
+export function activeFilterCount({ categories, minRating }: GalleryFilters): number {
+  const selected = new Set<GalleryCategory>(categories).size
+  return Number(selected > 0 && selected < GALLERY_CATEGORIES.length) + Number(minRating !== null)
 }
 
 /**
@@ -36,11 +46,15 @@ export function useGalleryPreferences() {
     ready: computed(() => query.data.value !== undefined),
     loadError: computed(() => query.error.value?.message ?? ""),
     reload: () => void query.refresh(),
-    categories: computed(() => current.value.categories),
+    filters: computed<GalleryFilters>(() => ({
+      categories: current.value.categories,
+      minRating: current.value.minRating,
+    })),
     interval: computed({
       get: () => current.value.readerInterval,
       set: (seconds: number) => save({ readerInterval: seconds }),
     }),
-    applyCategories: (next: GalleryCategory[]) => save({ categories: normalizeCategories(next) }),
+    /* 面板里的几项一起提交：它们只在这一处改，不会和别处的改动互相覆盖。 */
+    applyFilters: (next: GalleryFilters) => save(normalizeFilters(next)),
   }
 }

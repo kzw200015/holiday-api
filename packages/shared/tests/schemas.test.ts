@@ -46,7 +46,7 @@ describe("注册与登录", () => {
 
 describe("图集搜索", () => {
   it("缺省的条件都有默认值", () => {
-    expect(gallerySearchSchema.parse({})).toEqual({ keyword: "", categories: [], cursor: "" })
+    expect(gallerySearchSchema.parse({})).toEqual({ keyword: "", categories: [], minRating: null, cursor: "" })
   })
 
   it("关键词按 UTF-8 字节数限制在 200 以内", () => {
@@ -59,6 +59,15 @@ describe("图集搜索", () => {
   it("认不出的分类名与不是数字的游标被退回", () => {
     expect(errors(gallerySearchSchema, { categories: ["manga", "comic"] })).toEqual(["分类名不合法"])
     expect(errors(gallerySearchSchema, { cursor: "12a" })).toEqual(["分页游标不合法"])
+  })
+
+  it("最低评分只有 2–5 星与不限（null）这几档", () => {
+    for (const minRating of [null, 2, 3, 4, 5]) {
+      expect(errors(gallerySearchSchema, { minRating })).toEqual([])
+    }
+    for (const minRating of [0, 1, 6, 4.5, "4"]) {
+      expect(errors(gallerySearchSchema, { minRating })).toEqual(["最低评分应为 2–5 星"])
+    }
   })
 })
 
@@ -86,10 +95,12 @@ describe("e 站凭据", () => {
 describe("偏好与搜索历史", () => {
   it("自动翻页间隔是 1–20 的整数", () => {
     for (const readerInterval of [1, 20]) {
-      expect(errors(galleryPreferencesSchema, { categories: [], readerInterval })).toEqual([])
+      expect(errors(galleryPreferencesSchema, { categories: [], minRating: null, readerInterval })).toEqual([])
     }
     for (const readerInterval of [0, 21, 1.5, "5"]) {
-      expect(errors(galleryPreferencesSchema, { categories: [], readerInterval })).toEqual(["自动翻页间隔应为 1–20 秒"])
+      expect(errors(galleryPreferencesSchema, { categories: [], minRating: null, readerInterval })).toEqual([
+        "自动翻页间隔应为 1–20 秒",
+      ])
     }
   })
 
@@ -98,6 +109,8 @@ describe("偏好与搜索历史", () => {
     expect(errors(galleryPreferencesPatchSchema, { readerInterval: 9 })).toEqual([])
     expect(errors(galleryPreferencesPatchSchema, { readerInterval: 21 })).toEqual(["自动翻页间隔应为 1–20 秒"])
     expect(errors(galleryPreferencesPatchSchema, { categories: ["comic"] })).toEqual(["分类名不合法"])
+    expect(errors(galleryPreferencesPatchSchema, { minRating: null })).toEqual([])
+    expect(errors(galleryPreferencesPatchSchema, { minRating: 1 })).toEqual(["最低评分应为 2–5 星"])
   })
 
   it("搜索历史的一个词 1–200 字节", () => {

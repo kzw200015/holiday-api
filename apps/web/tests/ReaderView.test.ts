@@ -16,7 +16,7 @@ vi.mock("@/features/eh/api", async (importOriginal) => ({
   fetchGalleryDetail: vi.fn().mockResolvedValue({ title: "测试图集", fileCount: 10 }),
   saveProgress: vi.fn().mockResolvedValue(undefined),
   fetchPageImageUrl: vi.fn(async (_gid: number, _token: string, page: number) => ({ url: `/image/${page}?signed` })),
-  fetchGalleryPreferences: vi.fn().mockResolvedValue({ categories: [], readerInterval: 5 }),
+  fetchGalleryPreferences: vi.fn().mockResolvedValue({ categories: [], minRating: null, readerInterval: 5 }),
   patchGalleryPreferences: vi.fn().mockResolvedValue(null),
 }))
 

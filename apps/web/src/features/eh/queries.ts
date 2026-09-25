@@ -1,4 +1,4 @@
-import type { GalleryCategory } from "@myapi/shared/eh"
+import type { GalleryCategory, GalleryMinRating } from "@myapi/shared/eh"
 import type { QueryCache } from "@pinia/colada"
 import { defineStore } from "pinia"
 
@@ -19,7 +19,12 @@ export const ehKeys = {
   preferences: ["eh", "preferences"],
   searchHistory: ["eh", "search-history"],
   searches: SEARCH,
-  search: (keyword: string, categories: GalleryCategory[]) => [...SEARCH, keyword, categories],
+  search: (keyword: string, categories: GalleryCategory[], minRating: GalleryMinRating | null) => [
+    ...SEARCH,
+    keyword,
+    categories,
+    minRating,
+  ],
   gallery: (gid: number, token: string) => [...GALLERY, gid, token],
   /* 不按前缀作废：卸载就不留缓存，换绑 e 站账号也不影响签名 */
   pageImage: (gid: number, token: string, page: number) => ["eh", "page-image", gid, token, page],

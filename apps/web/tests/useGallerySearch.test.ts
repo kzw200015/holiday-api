@@ -15,6 +15,7 @@ import {
   removeSearchKeyword,
   searchGalleries,
 } from "@/features/eh/api"
+import { galleryCategories } from "@/features/eh/labels"
 import { ehKeys, useEhWrites } from "@/features/eh/queries"
 import GalleryListView from "@/features/eh/views/GalleryListView.vue"
 import { installQueries } from "@/shared/api/queries"
@@ -72,13 +73,16 @@ async function submit(keyword: string) {
   await settleFakeTimers()
 }
 
-/* 走真实控件：打开分类筛选、点几个分类、按应用。 */
-async function applyCategories(...labels: string[]) {
-  query<HTMLButtonElement>(host, '[aria-label="分类筛选"]').click()
+/* 走真实控件：打开筛选、点几个分类或评分档、按应用。 */
+async function applyFilters(...labels: string[]) {
+  query<HTMLButtonElement>(host, '[aria-label="筛选"]').click()
   await settleFakeTimers()
   const click = (label: string) => byText(document, "button", label).click()
-  labels.forEach(click)
-  await settleFakeTimers()
+  /* 每点一下都等它渲染完：组里的值要刷新过，下一下才是在它的基础上点 */
+  for (const label of labels) {
+    click(label)
+    await settleFakeTimers()
+  }
   click("应用")
   await settleFakeTimers()
 }
@@ -97,7 +101,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.spyOn(window, "scrollTo").mockImplementation(() => {})
   onSearch.mockResolvedValue({ items: [], nextCursor: null })
-  vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], readerInterval: 5 })
+  vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], minRating: null, readerInterval: 5 })
   vi.mocked(fetchSearchHistory).mockResolvedValue(["cat"])
   vi.mocked(addSearchKeyword).mockResolvedValue(null)
   vi.mocked(removeSearchKeyword).mockResolvedValue(null)
@@ -118,7 +122,7 @@ describe("图库搜索流程", () => {
     await mountForm()
     expect(fetchSearchHistory).toHaveBeenCalledTimes(1)
     expect(onSearch).toHaveBeenCalledExactlyOnceWith(
-      { keyword: "", categories: ["manga"], cursor: "" },
+      { keyword: "", categories: ["manga"], minRating: null, cursor: "" },
       expect.any(AbortSignal),
     )
     expect(addSearchKeyword).not.toHaveBeenCalled()
@@ -133,7 +137,7 @@ describe("图库搜索流程", () => {
     await submit(" dog ")
     expect(host.querySelector('[title="dog"]')).not.toBeNull()
     expect(onSearch).toHaveBeenLastCalledWith(
-      { keyword: "dog", categories: ["manga"], cursor: "" },
+      { keyword: "dog", categories: ["manga"], minRating: null, cursor: "" },
       expect.any(AbortSignal),
     )
     expect(host.querySelector('[title="cat"]')).not.toBeNull()
@@ -156,7 +160,7 @@ describe("图库搜索流程", () => {
     vi.mocked(addSearchKeyword).mockRejectedValue(new Error("断网"))
     await submit("dog")
     expect(onSearch).toHaveBeenLastCalledWith(
-      { keyword: "dog", categories: ["manga"], cursor: "" },
+      { keyword: "dog", categories: ["manga"], minRating: null, cursor: "" },
       expect.any(AbortSignal),
     )
     await settleFakeTimers()
@@ -166,16 +170,47 @@ describe("图库搜索流程", () => {
     expect(host.textContent).not.toContain("失败")
   })
 
-  /* 分类改完立刻就要按新分类搜，中间不隔一次「还是旧条件」的请求；偏好只提交分类这一项。 */
+  /* 条件改完立刻就要按新条件搜，中间不隔一次「还是旧条件」的请求；偏好只提交筛选条件这几项。 */
   it("应用分类立刻按新分类搜一次", async () => {
     await mountForm()
     onSearch.mockClear()
-    await applyCategories("同人志")
+    await applyFilters("同人志")
     expect(onSearch).toHaveBeenCalledExactlyOnceWith(
-      { keyword: "", categories: ["doujinshi", "manga"], cursor: "" },
+      { keyword: "", categories: ["doujinshi", "manga"], minRating: null, cursor: "" },
       expect.any(AbortSignal),
     )
-    expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ categories: ["doujinshi", "manga"] })
+    expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({
+      categories: ["doujinshi", "manga"],
+      minRating: null,
+    })
+  })
+
+  it("应用最低评分立刻按它搜一次；按钮数的是生效的条件项数，重置把分类和评分一起清掉", async () => {
+    await mountForm()
+    expect(host.textContent).toContain("筛选 (1)")
+    onSearch.mockClear()
+    await applyFilters("4 星")
+    expect(onSearch).toHaveBeenCalledExactlyOnceWith(
+      { keyword: "", categories: ["manga"], minRating: 4, cursor: "" },
+      expect.any(AbortSignal),
+    )
+    expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ categories: ["manga"], minRating: 4 })
+    expect(host.textContent).toContain("筛选 (2)")
+
+    await applyFilters("重置")
+    expect(onSearch).toHaveBeenLastCalledWith(
+      { keyword: "", categories: [], minRating: null, cursor: "" },
+      expect.any(AbortSignal),
+    )
+    expect(host.textContent).not.toContain("筛选 (")
+
+    /* 全选分类等于不限，不算一项 */
+    await applyFilters(...galleryCategories.map((category) => category.label))
+    expect(onSearch).toHaveBeenLastCalledWith(
+      { keyword: "", categories: galleryCategories.map((category) => category.value), minRating: null, cursor: "" },
+      expect.any(AbortSignal),
+    )
+    expect(host.textContent).not.toContain("筛选 (")
   })
 
   /* 失败后条件没变也必须真的重来一次，否则用户重按搜索时界面上没有任何反应。 */

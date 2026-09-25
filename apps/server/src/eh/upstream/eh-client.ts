@@ -89,7 +89,7 @@ export class EhClient {
 
   async search(
     access: EhAccess,
-    { keyword, categories, cursor }: z.output<typeof gallerySearchSchema>,
+    { keyword, categories, minRating, cursor }: z.output<typeof gallerySearchSchema>,
   ): Promise<GalleryList> {
     /* 表单编码（空格编成 +），与 e 站自己的搜索表单一致 */
     const query = new URLSearchParams()
@@ -99,6 +99,10 @@ export class EhClient {
     const filter = categoryFilter(categories)
     if (filter !== null) {
       query.set("f_cats", String(filter))
+    }
+    /* f_srdd 单独就生效，不必像 e 站自己的表单那样另带 advsearch=1 */
+    if (minRating !== null) {
+      query.set("f_srdd", String(minRating))
     }
     if (cursor) {
       query.set("next", cursor)
