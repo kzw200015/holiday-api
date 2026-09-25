@@ -3,6 +3,7 @@ import { ArrowLeftIcon } from "@lucide/vue"
 import { RouterView, useRoute } from "vue-router"
 
 import AppSidebar from "@/app/layouts/AppSidebar.vue"
+import UpdatePrompt from "@/app/layouts/UpdatePrompt.vue"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
@@ -37,6 +38,7 @@ function goBack() {
         <h1 class="flex-1 truncate text-sm font-medium">{{ route.meta.title ?? "" }}</h1>
       </header>
       <div class="flex flex-1 flex-col gap-4 p-4">
+        <UpdatePrompt />
         <RouterView v-slot="{ Component }">
           <!-- 按上层组件身份缓存，不使用叶子路由名；账号变化时整体清空。 -->
           <KeepAlive :key="authStore.pageRevision">

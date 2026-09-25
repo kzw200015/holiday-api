@@ -8,8 +8,9 @@ export default defineConfig({
     vue(),
     tailwindcss(),
     VitePWA({
-      // 新版本在关闭旧页面后接管，避免阅读途中强制刷新。
-      injectRegister: "script-defer",
+      // 由布局里的 UpdatePrompt 注册：新版本装好后提示，用户点了才接管并刷新，避免阅读途中被强制刷新。
+      registerType: "prompt",
+      injectRegister: false,
       manifest: {
         name: "MyAPI",
         short_name: "MyAPI",
