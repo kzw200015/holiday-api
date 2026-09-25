@@ -181,13 +181,16 @@ export function parseGalleryComments(html: string): GalleryComments {
       const comment = $(block)
       const meta = comment.find(".c3").first()
       const body = comment.find(".c6").first()
+      const id = /^comment_(\d+)$/.exec(body.attr("id") ?? "")?.[1]
       return {
-        /* 上传者留言固定是 comment_0 */
-        id: Number(/^comment_(\d+)$/.exec(body.attr("id") ?? "")?.[1] ?? 0),
+        id: Number(id ?? 0),
         author: meta.find("a").first().text().trim(),
         postedAt: parsePostedAt(meta.text()),
-        /* 上传者留言那格用 .c4 写着 Uploader Comment，其余条目那个位置是 .c5 的分数 */
-        isUploader: comment.find(".c4").length > 0,
+        /*
+         * 上传者留言的正文固定是 comment_0。不能看有没有 .c4：没登录时只有上传者留言有这格（写着 Uploader Comment），
+         * 登录后每条普通评论的同一位置都是 Vote+ / Vote- 投票链接。
+         */
+        isUploader: id === "0",
         score: comment
           .find(".c5")
           .first()

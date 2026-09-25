@@ -299,6 +299,23 @@ describe("详情与评论", () => {
     expect(third.score).toBe("+30")
   })
 
+  it("登录后每条评论都有投票格，只有上传者留言算上传者", async () => {
+    const page = await fixture("gallery-page-logged-in.html")
+    eh(() => html(page))
+    const response = await t.http.get(`/api/eh/galleries/${REF.gid}/${REF.token}/comments`).set(auth).expect(200)
+    expect(
+      response.body.comments.map(({ id, isUploader, score }: { id: number; isUploader: boolean; score: string }) => ({
+        id,
+        isUploader,
+        score,
+      })),
+    ).toEqual([
+      { id: 0, isUploader: true, score: "" },
+      { id: 4567998, isUploader: false, score: "+7" },
+      { id: 4605522, isUploader: false, score: "+30" },
+    ])
+  })
+
   it("只放行 http/https 的链接，javascript: 降级成纯文本", async () => {
     eh(() =>
       html(
