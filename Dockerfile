@@ -6,13 +6,16 @@ COPY --from=oven/bun:1.4.2-alpine /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 
 # 先复制依赖清单，利用镜像层缓存避免每次改代码都重新安装依赖；Bun 的下载缓存挂成构建缓存。
-# 这一阶段只构建前端，只装前端（连带共享包）的依赖，锁文件里其余的工作区不在也照样对得上
+# 这一阶段只构建前端，但前端的类型检查顺着 import type { App } 读到后端源码，后端源码引的包也要解析得到，
+# 所以连后端的依赖与源码一起放进来（只用于类型检查，不进运行时镜像）
 COPY package.json bun.lock ./
 COPY packages/shared/package.json packages/shared/
+COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
-RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile --filter web
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile --filter web --filter server
 
 COPY packages/ packages/
+COPY apps/server/src apps/server/src
 COPY apps/web/ apps/web/
 # 后端与共享包由 Bun 直接运行源码，不用构建；测试要起 Testcontainers，镜像构建里没有 Docker，所以只构建前端，测试在提交前本地跑
 RUN bun --filter web build
