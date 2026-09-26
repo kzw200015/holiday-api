@@ -9,7 +9,7 @@ import { Logger } from "@server/logger"
 import { requestLog } from "@server/request-log"
 import { staticFiles } from "@server/static-files"
 
-const logger = new Logger("App")
+const logger = new Logger(import.meta.url)
 
 /**
  * 整个应用：接口一律挂在 /api 下，各领域的路由只写领域内的路径；其余路径是前端的静态文件。

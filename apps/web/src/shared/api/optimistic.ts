@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryCache, type EntryKey } from "@pinia/cola
 import type { Writes } from "@/shared/api/writes"
 
 /** 一次改动：apply 当场改本地那份（规则与服务端相同），send 随后把改动发出去。 */
-export interface OptimisticChange<T> {
+interface OptimisticChange<T> {
   apply: (current: T) => T
   send: () => Promise<unknown>
 }

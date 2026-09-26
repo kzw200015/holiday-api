@@ -1,6 +1,6 @@
 # @myapi/shared
 
-前后端共用的接口契约：请求体与查询串的 zod schema、响应的类型（只有类型，不做运行时校验），以及两端都要用的规则里的数（字节上限、条数上限、取值范围）。全仓通用的约定见根目录 `AGENTS.md`。
+前后端共用的接口契约：请求体与查询串的 zod schema，以及两端都要用的规则里的数（字节上限、条数上限、取值范围）。全仓通用的约定见根目录 `AGENTS.md`。
 
 ## 引用
 
@@ -10,4 +10,4 @@
 
 服务端用这里的 schema 做入参校验，前端提交前用同一份预校验，不另写一份规则；文案是给用户看的中文，校验失败时原样显示。
 
-请求 schema 不另起类型别名，要类型的地方就地从 schema 推，一律写 `z.output<typeof xxxSchema>`，不用 `z.infer`。类型里写的就是 schema 名，不必再记一套名字。前端提交的也写 `z.output`：它调接口经 Eden，Eden 按后端路由上 schema 的输出类型推断要传什么，带默认值的字段前端要给全；所以请求体与查询串的 schema 不做 transform，否则前端被要求传的就成了转换之后的东西（见 ADR-0007）。前端只拿 schema 推类型的地方用 `import type` 引 schema 和 `z`，不进打包产物。响应体没有 schema，照旧是手写的 interface，由后端的服务标注返回类型，前端从 Eden 的推断里拿到它。
+请求 schema 不另起类型别名。后端要类型的地方就地从 schema 推，写 `z.output<typeof xxxSchema>`，不用 `z.infer`，类型里写的就是 schema 名，不必再记一套名字；它只在路由到服务之间传，领域里流转的东西（如 e 站凭据）另有后端自己的类型。前端提交的类型不从 schema 推，取自那次 Eden 调用（见 `apps/web/AGENTS.md`）。Eden 按后端路由上 schema 的输出类型推断要传什么，带默认值的字段前端要给全；所以请求体与查询串的 schema 不做 transform，否则前端被要求传的就成了转换之后的东西（见 ADR-0007）。响应类型不放这里：它定义在后端产出它的模块里，前端从 Eden 的推断里拿到它（见 `apps/server/AGENTS.md`）。

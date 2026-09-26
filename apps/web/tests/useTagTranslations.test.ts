@@ -1,10 +1,10 @@
 /* @vitest-environment happy-dom */
-import type { TagTranslationStatus } from "@myapi/shared/eh"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type * as EhApi from "@/features/eh/api"
 import { fetchTagTranslationStatus, syncTagTranslations } from "@/features/eh/api"
 import { useTagTranslations } from "@/features/eh/composables/useTagTranslations"
+import type { TagTranslationStatus } from "@server/eh/tag-translation.service"
 import { composableTests, deferred, settleFakeTimers } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({

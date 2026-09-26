@@ -1,10 +1,10 @@
-import type { GalleryCard } from "@myapi/shared/eh"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, vi } from "vitest"
 import { createApp, nextTick, type App } from "vue"
 
 import { useEhWrites } from "@/features/eh/queries"
 import { installQueries } from "@/shared/api/queries"
+import type { GalleryCard } from "@server/eh/gallery-catalog"
 
 /** 测试接下来要用的值：没有就当场失败并说清缺了什么，而不是在后面某一步报出看不懂的错。 */
 export function present<T>(value: T | null | undefined, what: string): T {

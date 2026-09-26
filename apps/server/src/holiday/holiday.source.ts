@@ -1,19 +1,10 @@
 import { isCalendarDate } from "@myapi/shared/holiday"
 import { z } from "zod"
 
+import type { HolidayDetail } from "@server/holiday/holiday.service"
 import { outbound } from "@server/outbound"
 
 /* 节假日安排的数据源：GitHub 上的 holiday-cn 仓库，一年一个 JSON 文件。 */
-
-/** 某一天的节假日安排 */
-export interface HolidayDetail {
-  /** 查询的日期，格式 YYYY-MM-DD */
-  date: string
-  /** 是否为休息日 */
-  isOffDay: boolean
-  /** 节假日名称；为空表示该日期不在节假日安排里（普通工作日或普通周末） */
-  name: string
-}
 
 const payloadSchema = z.object({
   days: z.array(

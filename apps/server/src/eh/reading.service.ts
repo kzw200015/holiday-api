@@ -1,14 +1,32 @@
-import type { CursorPage, ReadingHistoryItem, readingProgressSchema } from "@myapi/shared/eh"
+import type { readingProgressSchema } from "@myapi/shared/eh"
 import { and, desc, eq, sql } from "drizzle-orm"
 import type { z } from "zod"
 
 import { database } from "@server/database/connection"
+import type { CursorPage } from "@server/eh/cursor-page"
 import { ehReadingProgress } from "@server/eh/eh.tables"
 import * as galleryCatalog from "@server/eh/gallery-catalog"
+import type { GalleryCard } from "@server/eh/gallery-catalog"
 import { encodeHistoryCursor, type HistoryCursor } from "@server/eh/history-cursor"
 import { refKey } from "@server/eh/upstream/gallery-ref"
 
 const PAGE_SIZE = 25
+
+/** 这个账号在某本图集上读到第几页 */
+export interface ReadingProgress {
+  /** 从未读过时为 null */
+  page: number | null
+}
+
+export interface ReadingHistoryItem {
+  gid: number
+  token: string
+  page: number
+  /** ISO 8601 */
+  readAt: string
+  /** 元数据不可访问时为 null，仍保留记录和删除入口 */
+  gallery: GalleryCard | null
+}
 
 /*
  * 阅读进度与阅读历史：它们是同一张表，删一条阅读历史，对应的阅读进度也就没了。

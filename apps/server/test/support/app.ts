@@ -1,19 +1,15 @@
-import type { Cron } from "croner"
 import request from "supertest"
 import type TestAgent from "supertest/lib/agent.js"
 
-import type { App } from "@server/app"
+import type { startServer } from "@server/server"
 import { FakeOutbound, withHolidays } from "./outbound"
 import { present } from "./present"
 
 export const SECRET_KEY = "test-secret-test-secret-test-secret"
 
-export interface TestApp {
-  app: App
+export interface TestApp extends Awaited<ReturnType<typeof startServer>> {
   http: TestAgent
   outbound: FakeOutbound
-  holidayRefresh: Cron
-  close(): Promise<void>
 }
 
 /**
@@ -42,8 +38,8 @@ export async function startApp(
   })
   const { replaceOutbound } = await import("@server/outbound")
   replaceOutbound(outbound.fetch)
-  const { startServer } = await import("@server/server")
-  const { app, holidayRefresh, close } = await startServer()
+  const server = await import("@server/server")
+  const { app, holidayRefresh, close } = await server.startServer()
   /* 只听 127.0.0.1 的随机端口，按同一个地址发请求：听 :: 而连 127.0.0.1 的话，macOS 上别的进程能单独占住同一端口的 127.0.0.1 */
   app.listen({ port: 0, hostname: "127.0.0.1" })
   const port = present(app.server?.port, "应用监听的端口")

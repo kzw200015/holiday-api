@@ -1,6 +1,6 @@
 import type { LocationQuery, RouteLocationNormalized, RouteLocationRaw } from "vue-router"
 
-export interface GalleryIdentity {
+interface GalleryIdentity {
   gid: number
   token: string
 }

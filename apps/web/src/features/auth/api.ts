@@ -1,6 +1,3 @@
-import type { credentialsSchema } from "@myapi/shared/auth"
-import type { z } from "zod"
-
 import { api, request } from "@/shared/api/httpClient"
 
 /** 不用登录也能取 */
@@ -16,6 +13,6 @@ export function fetchCurrentUser() {
 export type AuthAction = "login" | "register"
 
 /** 登录与注册都返回新会话，持久化和账号切换交给 AuthStore。 */
-export function authenticate(action: AuthAction, credentials: z.output<typeof credentialsSchema>) {
+export function authenticate(action: AuthAction, credentials: Parameters<(typeof api.auth)[AuthAction]["post"]>[0]) {
   return request(api.auth[action].post(credentials))
 }

@@ -14,7 +14,10 @@ import { ehPreferences } from "@server/eh/eh.tables"
  * 浏览偏好与搜索历史，存在同一行。写入都与到达顺序无关（见 ADR-0006）：偏好只改带来的字段，
  * 搜索历史一次记或删一个词，在行锁下按共享包的同一条规则算出新列表。
  */
-export async function preferences(userId: number): Promise<z.output<typeof galleryPreferencesSchema>> {
+/** 浏览偏好：读接口的响应体。改偏好的请求体是它的每个字段都可省（见共享包的 galleryPreferencesPatchSchema） */
+export type GalleryPreferences = z.output<typeof galleryPreferencesSchema>
+
+export async function preferences(userId: number): Promise<GalleryPreferences> {
   const [row] = await database
     .select({
       categories: ehPreferences.categories,

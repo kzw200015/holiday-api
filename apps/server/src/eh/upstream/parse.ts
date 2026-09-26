@@ -1,4 +1,3 @@
-import type { CommentSegment, GalleryComment, GalleryComments, GalleryPreview } from "@myapi/shared/eh"
 import { load, type Cheerio, type CheerioAPI } from "cheerio"
 import type { AnyNode, Element } from "domhandler"
 import { decodeHTMLStrict } from "entities"
@@ -22,8 +21,41 @@ export interface GalleryList {
   nextCursor: string | null
 }
 
-/** 详情页上的一张预览图，地址还是上游的。 */
-export type PreviewImage = Omit<GalleryPreview, "url"> & { imageUrl: string }
+/**
+ * 详情页上一页的预览图，地址还是上游的。e 站给的要么是一页一张，要么是一片拼成一张（按偏移裁出这一页），两种都按
+ * 「从这张图的 (offsetX, offsetY) 处裁出 width × height」显示，一页一张时偏移为 0。尺寸与偏移都是图上的原始像素
+ */
+export interface PreviewImage {
+  page: number
+  imageUrl: string
+  width: number
+  height: number
+  offsetX: number
+  offsetY: number
+}
+
+/** 评论正文的片段。服务端拆好再给，前端不做 HTML 渲染，从根上避免 XSS */
+export type CommentSegment =
+  { type: "text"; text: string } | { type: "break" } | { type: "link"; text: string; href: string }
+
+export interface GalleryComment {
+  /** 上传者留言固定是 0 */
+  id: number
+  author: string
+  /** ISO 8601；页面上的时间解析不出来时是空串 */
+  postedAt: string
+  isUploader: boolean
+  /** 形如 +7，未登录时看不到，此时为空串 */
+  score: string
+  segments: CommentSegment[]
+}
+
+/** 图集的评论：e 站默认只列得分在阈值以上的，其余的只给出条数 */
+export interface GalleryComments {
+  comments: GalleryComment[]
+  /** 得分低于阈值、没有列出的评论条数 */
+  hiddenCount: number
+}
 
 /** 详情页的一个分片：取图要用的页令牌与分片大小，外加这一片上的预览图与评论（评论每片都带着一份，只用第 0 片的）。 */
 export interface GallerySlice {

@@ -1,7 +1,8 @@
-import { credentialsSchema, loginSchema, type AuthOptions } from "@myapi/shared/auth"
+import { credentialsSchema, loginSchema } from "@myapi/shared/auth"
 import { Elysia } from "elysia"
 
 import * as authService from "@server/auth/auth.service"
+import type { AuthOptions } from "@server/auth/auth.service"
 import { maybeSignedIn } from "@server/auth/session"
 
 /** 登录页要用的这几条都不要求登录。e 站的绑定状态是 eh 的事，不在这里返回。 */

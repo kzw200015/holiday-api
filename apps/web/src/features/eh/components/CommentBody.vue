@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CommentSegment } from "@myapi/shared/eh"
+import type { CommentSegment } from "@server/eh/upstream/parse"
 
 defineProps<{ segments: CommentSegment[] }>()
 </script>

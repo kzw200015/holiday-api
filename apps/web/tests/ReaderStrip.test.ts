@@ -1,5 +1,4 @@
 /* @vitest-environment happy-dom */
-import type { GalleryImageUrlResult } from "@myapi/shared/eh"
 import type * as VueUse from "@vueuse/core"
 import { createPinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -9,6 +8,7 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchPageImageUrl } from "@/features/eh/api"
 import ReaderStrip from "@/features/eh/components/ReaderStrip.vue"
 import { installQueries } from "@/shared/api/queries"
+import type { GalleryImageUrlResult } from "@server/eh/gallery.service"
 import { deferred, present, query } from "./support"
 
 let resize: (entries: { contentRect: { width: number; height: number } }[]) => void

@@ -10,10 +10,10 @@ const REASONS = {
   503: "Service Unavailable",
 } as const
 
-export type ErrorStatus = keyof typeof REASONS
+type ErrorStatus = keyof typeof REASONS
 
 /** 失败时的响应体：message 是给用户看的中文，校验失败时是一组文案。 */
-export interface ErrorBody {
+interface ErrorBody {
   statusCode: ErrorStatus
   message: string | string[]
   error: (typeof REASONS)[ErrorStatus]

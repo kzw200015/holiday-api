@@ -9,7 +9,7 @@ import { Logger } from "@server/logger"
 /** 图集内容不会变，浏览器缓存住之后来回翻页就不再回源，也就不再消耗 e 站配额。 */
 const CACHE_CONTROL = "max-age=2592000, private, immutable"
 
-const logger = new Logger("ImageRoutes")
+const logger = new Logger(import.meta.url)
 
 /**
  * 两条图片接口。<img> 发的请求带不了 Authorization 头，所以它们不要求登录，改由地址里的签名认人——

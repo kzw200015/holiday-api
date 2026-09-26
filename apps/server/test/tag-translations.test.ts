@@ -1,6 +1,6 @@
-import type { GalleryTag } from "@myapi/shared/eh"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
+import type { GalleryTag } from "@server/eh/tag-translation.service"
 import { register, startApp, type TestApp } from "./support/app"
 import { createDatabase, sql } from "./support/database"
 import { isMetadataApi, metadata } from "./support/eh"

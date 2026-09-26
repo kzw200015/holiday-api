@@ -1,12 +1,24 @@
-import type { GalleryCard, GalleryDetail } from "@myapi/shared/eh"
 import { LRUCache } from "lru-cache"
 
 import * as attachmentUrls from "@server/eh/attachment-urls"
 import * as tagTranslationService from "@server/eh/tag-translation.service"
-import type { Translate } from "@server/eh/tag-translation.service"
+import type { GalleryTag, Translate } from "@server/eh/tag-translation.service"
 import * as ehClient from "@server/eh/upstream/eh-client"
 import { METADATA_BATCH_SIZE, type GalleryMetadata } from "@server/eh/upstream/eh-client"
 import { refKey, type GalleryRef } from "@server/eh/upstream/gallery-ref"
+
+/** 列表里一张卡片的内容：元数据里给人看的那些，缩略图签成本站的代理地址、标签套上译名 */
+export interface GalleryCard extends Omit<
+  GalleryMetadata,
+  "thumbnailUrl" | "tags" | "fileSize" | "torrentCount" | "expunged"
+> {
+  /** 已经是本站的代理地址，可直接放进 img 的 src */
+  thumbnail: string
+  tags: GalleryTag[]
+}
+
+/** 详情接口的返回：比卡片多出几个字段，与卡片的字段平铺在一起。阅读进度另有接口，见 reading.service.ts 的 ReadingProgress */
+export type GalleryDetail = GalleryCard & Pick<GalleryMetadata, "fileSize" | "torrentCount" | "expunged">
 
 interface Waiting {
   ref: GalleryRef

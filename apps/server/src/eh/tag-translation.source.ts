@@ -24,12 +24,12 @@ const payloadSchema = z.object({
 })
 
 /** 译名表的一版：上游的提交 sha，外加每一条译名。 */
-export interface TagTranslationRelease {
+interface TagTranslationRelease {
   sha: string
   entries: { namespace: string; raw: string; name: string }[]
 }
 
-const logger = new Logger("TagTranslationSource")
+const logger = new Logger(import.meta.url)
 
 /** 拉不到或拉到的不对：原因只进日志，前端只看到一句中文。 */
 function unavailable(message: string, detail: unknown) {

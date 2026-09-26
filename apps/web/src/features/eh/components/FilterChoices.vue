@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { GalleryCategory } from "@myapi/shared/eh"
 import type { AcceptableValue } from "reka-ui"
 import { computed } from "vue"
 
@@ -14,7 +13,7 @@ const selected = defineModel<GalleryFilters>({ required: true })
 const emit = defineEmits<{ apply: [] }>()
 
 /* 多选组回传的值不带分类类型，对着分类表认回来。 */
-function isCategory(value: AcceptableValue): value is GalleryCategory {
+function isCategory(value: AcceptableValue): value is GalleryFilters["categories"][number] {
   return galleryCategories.some((category) => category.value === value)
 }
 

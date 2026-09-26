@@ -1,10 +1,9 @@
-import type { CredentialStatus, ehCookieSchema } from "@myapi/shared/eh"
 import { useMutation, useQuery, useQueryCache } from "@pinia/colada"
 import { computed } from "vue"
-import type { z } from "zod"
 
 import { bindCredential, fetchCredentialStatus, unbindCredential } from "@/features/eh/api"
 import { ehKeys, invalidateEhContent } from "@/features/eh/queries"
+import type { CredentialStatus } from "@server/eh/credential.service"
 
 /**
  * e 站账号的绑定状态，以及绑定与解绑。
@@ -37,7 +36,7 @@ export function useEhCredential() {
     /* 不会 reject，失败落在 loadError 上 */
     reload: () => query.refresh(),
     /* 失败照样抛给调用方，设置页要据此决定显不显示成功提示。 */
-    bind: (cookie: z.output<typeof ehCookieSchema>) => change.mutateAsync(() => bindCredential(cookie)),
+    bind: (cookie: Parameters<typeof bindCredential>[0]) => change.mutateAsync(() => bindCredential(cookie)),
     unbind: () => change.mutateAsync(unbindCredential),
   }
 }

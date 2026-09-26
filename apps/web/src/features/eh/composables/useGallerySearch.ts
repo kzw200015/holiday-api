@@ -1,4 +1,3 @@
-import type { CursorPage, GalleryCard } from "@myapi/shared/eh"
 import { useInfiniteQuery, useQueryCache } from "@pinia/colada"
 import { computed, reactive, ref, shallowRef } from "vue"
 
@@ -13,6 +12,8 @@ import { ehKeys } from "@/features/eh/queries"
 import { keepFirstPage } from "@/shared/api/queries"
 import { useInfiniteLoad } from "@/shared/composables/useInfiniteLoad"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
+import type { CursorPage } from "@server/eh/cursor-page"
+import type { GalleryCard } from "@server/eh/gallery-catalog"
 
 /** 草稿、已提交条件与分页在同一个页面作用域内协调。 */
 export function useGallerySearch() {

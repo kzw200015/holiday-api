@@ -2,7 +2,7 @@ import { Elysia } from "elysia"
 
 import { Logger } from "@server/logger"
 
-const logger = new Logger("Request")
+const logger = new Logger(import.meta.url)
 
 const starts = new WeakMap<Request, number>()
 

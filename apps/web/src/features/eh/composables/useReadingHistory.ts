@@ -1,4 +1,3 @@
-import type { CursorPage, ReadingHistoryItem } from "@myapi/shared/eh"
 import { useInfiniteQuery, useMutation, useQueryCache, type UseInfiniteQueryData } from "@pinia/colada"
 import { computed, ref } from "vue"
 
@@ -7,6 +6,8 @@ import { ehKeys, useEhWrites } from "@/features/eh/queries"
 import { useInfiniteLoad } from "@/shared/composables/useInfiniteLoad"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
 import { useRefreshOnActivated } from "@/shared/composables/useRefreshOnActivated"
+import type { CursorPage } from "@server/eh/cursor-page"
+import type { ReadingHistoryItem } from "@server/eh/reading.service"
 
 type HistoryPages = UseInfiniteQueryData<CursorPage<ReadingHistoryItem>, string>
 

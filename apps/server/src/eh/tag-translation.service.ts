@@ -1,4 +1,3 @@
-import type { GalleryTag, TagTranslationStatus } from "@myapi/shared/eh"
 import { desc, sql } from "drizzle-orm"
 import { LRUCache } from "lru-cache"
 
@@ -28,6 +27,25 @@ const keysOf = ({ namespace, value }: TagRef): [TranslationKey, TranslationKey] 
   { namespace, raw: value },
 ]
 
+/** 一个标签：原文拆成命名空间与值，外加两者的中文名。没有译名的，中文名就是原文 */
+export interface GalleryTag extends TagRef {
+  namespaceName: string
+  name: string
+}
+
+/** 标签译名的同步状态 */
+export interface TagTranslationStatus {
+  /** 从未同步过时为 null */
+  lastSync: {
+    /** 上游 EhTagTranslation 数据库的提交 sha */
+    sha: string
+    /** 译名条数，含命名空间本身的译名 */
+    count: number
+    /** ISO 8601 */
+    syncedAt: string
+  } | null
+}
+
 /** 备齐译名之后的换算：标签原文 → 带译名的标签，同步完成。 */
 export type Translate = (tags: TagRef[]) => GalleryTag[]
 
@@ -41,7 +59,7 @@ const createCache = () => new LRUCache<string, string>({ max: 50_000 })
  * 同步之后整个换一份新缓存；查询途中撞上同步的，结果写进它开始时的那份旧缓存，随它一起丢掉，不会把旧译名留到新缓存里。
  */
 
-const logger = new Logger("TagTranslationService")
+const logger = new Logger(import.meta.url)
 
 let cache = createCache()
 

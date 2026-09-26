@@ -12,7 +12,7 @@ import { Logger } from "@server/logger"
  * 记在这里而不是抛出的地方，是为了哪条路径都漏不掉。
  */
 
-const logger = new Logger("EhUpstream")
+const logger = new Logger(import.meta.url)
 
 const tooManyRequests = (message: string) => new HttpError(429, message)
 

@@ -2,7 +2,7 @@ import { env } from "@server/config"
 import { Logger } from "@server/logger"
 import { startServer } from "@server/server"
 
-const logger = new Logger("Main")
+const logger = new Logger(import.meta.url)
 
 const server = await startServer()
 server.app.listen(env.PORT)

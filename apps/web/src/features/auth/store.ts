@@ -1,4 +1,3 @@
-import type { CurrentUser } from "@myapi/shared/auth"
 import { useQueryCache } from "@pinia/colada"
 import { defineStore } from "pinia"
 import { ref } from "vue"
@@ -6,6 +5,7 @@ import { ref } from "vue"
 import * as authApi from "@/features/auth/api"
 import { hasToken, setToken } from "@/shared/api/httpClient"
 import { forgetQueries } from "@/shared/api/queries"
+import type { CurrentUser } from "@server/auth/auth.service"
 
 export const useAuthStore = defineStore("AuthStore", () => {
   const queryCache = useQueryCache()

@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import type { GalleryComment } from "@myapi/shared/eh"
-
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import CommentBody from "@/features/eh/components/CommentBody.vue"
 import { formatDateTime } from "@/shared/lib/format"
+import type { GalleryComment } from "@server/eh/upstream/parse"
 
 /* 一串评论，条与条之间用分隔线隔开。详情页列前几条，评论页列全部。 */
 defineProps<{ comments: GalleryComment[] }>()

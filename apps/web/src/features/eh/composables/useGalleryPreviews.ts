@@ -1,12 +1,12 @@
-import type { GalleryPreview } from "@myapi/shared/eh"
 import { useQuery } from "@pinia/colada"
 import { computed, toValue, type MaybeRefOrGetter } from "vue"
 
 import { fetchGalleryPreviews } from "@/features/eh/api"
 import { ehKeys } from "@/features/eh/queries"
+import type { GalleryPreview } from "@server/eh/gallery.service"
 
 /** 详情页的一片：第几片、含哪几页。 */
-export interface PreviewSlice {
+interface PreviewSlice {
   index: number
   pages: number[]
 }
@@ -15,7 +15,7 @@ export interface PreviewSlice {
  * 预览图按 e 站详情页的分片取，每片几页由 e 站账号的设置决定：第 0 片最后一页的页码就是每片的页数，
  * 第 0 片到手之前（或者整本只有一片）把全部页码都算在第 0 片里。
  */
-export function previewSlices(fileCount: number, first: GalleryPreview[] | undefined): PreviewSlice[] {
+function previewSlices(fileCount: number, first: GalleryPreview[] | undefined): PreviewSlice[] {
   const lastInFirst = Math.max(0, ...(first ?? []).map((preview) => preview.page))
   const size = lastInFirst > 0 && lastInFirst < fileCount ? lastInFirst : fileCount
   const slices: PreviewSlice[] = []

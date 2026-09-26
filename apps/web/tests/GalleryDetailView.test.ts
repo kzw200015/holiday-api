@@ -1,5 +1,4 @@
 /* @vitest-environment happy-dom */
-import type { GalleryComment, GalleryDetail, GalleryPreview } from "@myapi/shared/eh"
 import type * as VueUse from "@vueuse/core"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -11,6 +10,9 @@ import { fetchGalleryComments, fetchGalleryDetail, fetchGalleryPreviews, fetchRe
 import { gallerySource } from "@/features/eh/navigation"
 import GalleryDetailView from "@/features/eh/views/GalleryDetailView.vue"
 import { installQueries } from "@/shared/api/queries"
+import type { GalleryDetail } from "@server/eh/gallery-catalog"
+import type { GalleryPreview } from "@server/eh/gallery.service"
+import type { GalleryComment } from "@server/eh/upstream/parse"
 import { byText, galleryCard, present, query, settle } from "./support"
 
 /* 滚到哪一片才取哪一片靠 IntersectionObserver，happy-dom 不做布局，所以把观察的元素和回调接出来，由测试说哪里进了视口。 */

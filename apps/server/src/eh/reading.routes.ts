@@ -1,4 +1,4 @@
-import { readingHistoryQuerySchema, readingProgressSchema, type ReadingProgress } from "@myapi/shared/eh"
+import { readingHistoryQuerySchema, readingProgressSchema } from "@myapi/shared/eh"
 import { Elysia } from "elysia"
 import { z } from "zod"
 
@@ -6,6 +6,7 @@ import { signedIn } from "@server/auth/session"
 import { decodeHistoryCursor } from "@server/eh/history-cursor"
 import { gidParam } from "@server/eh/params"
 import * as readingService from "@server/eh/reading.service"
+import type { ReadingProgress } from "@server/eh/reading.service"
 
 const gidParams = z.object({ gid: gidParam })
 

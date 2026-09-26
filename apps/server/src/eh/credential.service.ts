@@ -1,10 +1,8 @@
-import type { CredentialStatus, ehCookieSchema } from "@myapi/shared/eh"
 import { eq, sql } from "drizzle-orm"
-import type { z } from "zod"
 
 import { database } from "@server/database/connection"
 import { ehCredentials } from "@server/eh/eh.tables"
-import { accessOf, ANONYMOUS, type EhAccess } from "@server/eh/upstream/access"
+import { accessOf, ANONYMOUS, type EhAccess, type EhCredential } from "@server/eh/upstream/access"
 import * as ehClient from "@server/eh/upstream/eh-client"
 import { Logger } from "@server/logger"
 
@@ -14,7 +12,16 @@ import { Logger } from "@server/logger"
  * 凭据每次都从库里读（按唯一索引查一行），不在进程里缓存：换绑、解绑当场生效，也就没有「作废缓存时撞上在途回填」这类问题。
  */
 
-const logger = new Logger("CredentialService")
+const logger = new Logger(import.meta.url)
+
+/** e 站账号的绑定状态 */
+export interface CredentialStatus {
+  bound: boolean
+  /** 未绑定时为空串 */
+  memberId: string
+  /** 能否访问里站 */
+  hasExAccess: boolean
+}
 
 const UNBOUND: CredentialStatus = { bound: false, memberId: "", hasExAccess: false }
 
@@ -23,7 +30,7 @@ export async function status(userId: number): Promise<CredentialStatus> {
 }
 
 /** 绑定前先拿这组 Cookie 实际请求一次，用不了直接回 400，免得把一组坏凭据存进库再让人一脸茫然。 */
-export async function bind(userId: number, credential: z.output<typeof ehCookieSchema>): Promise<CredentialStatus> {
+export async function bind(userId: number, credential: EhCredential): Promise<CredentialStatus> {
   const hasExAccess = await ehClient.verifyCredential(credential)
   const row = { ...credential, hasExAccess }
   await database

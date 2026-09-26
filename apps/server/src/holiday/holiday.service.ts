@@ -3,13 +3,22 @@ import { eq, like } from "drizzle-orm"
 
 import { database } from "@server/database/connection"
 import * as holidaySource from "@server/holiday/holiday.source"
-import type { HolidayDetail } from "@server/holiday/holiday.source"
 import { holidayDays } from "@server/holiday/holiday.tables"
 import { Logger } from "@server/logger"
 
 /* 休息日查询：节假日安排里有的按安排，没有的按周末判断；以及安排数据的定期刷新。 */
 
-const logger = new Logger("HolidayService")
+const logger = new Logger(import.meta.url)
+
+/** 某一天的节假日安排 */
+export interface HolidayDetail {
+  /** 查询的日期，格式 YYYY-MM-DD */
+  date: string
+  /** 是否为休息日 */
+  isOffDay: boolean
+  /** 节假日名称；为空表示该日期不在节假日安排里（普通工作日或普通周末） */
+  name: string
+}
 
 /** 节假日安排是中国的：「今天」「今年」一律按北京时间算，不跟着服务器的时区走（容器默认是 UTC）。 */
 const CHINA_ZONE = "Asia/Shanghai"

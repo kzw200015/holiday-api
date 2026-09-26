@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { GalleryCard } from "@myapi/shared/eh"
 import { RouterLink } from "vue-router"
 
 import GalleryCover from "@/features/eh/components/GalleryCover.vue"
@@ -7,6 +6,7 @@ import GalleryMeta from "@/features/eh/components/GalleryMeta.vue"
 import GalleryTag from "@/features/eh/components/GalleryTag.vue"
 import { galleryDetailLocation, type GallerySource } from "@/features/eh/navigation"
 import { formatDateTime } from "@/shared/lib/format"
+import type { GalleryCard } from "@server/eh/gallery-catalog"
 
 withDefaults(defineProps<{ item: GalleryCard; source?: GallerySource }>(), { source: "search" })
 </script>

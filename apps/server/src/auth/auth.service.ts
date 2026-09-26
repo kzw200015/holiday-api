@@ -1,4 +1,4 @@
-import type { Authenticated, credentialsSchema, CurrentUser, loginSchema } from "@myapi/shared/auth"
+import type { credentialsSchema, loginSchema } from "@myapi/shared/auth"
 import { SQL } from "bun"
 import { eq } from "drizzle-orm"
 import type { z } from "zod"
@@ -13,7 +13,25 @@ import { Logger } from "@server/logger"
 
 /* 本站账号：注册、登录与「我是谁」。 */
 
-const logger = new Logger("AuthService")
+const logger = new Logger(import.meta.url)
+
+/** 当前登录的本站账号 */
+export interface CurrentUser {
+  id: number
+  username: string
+}
+
+/** 登录与注册的返回：令牌加用户本身 */
+export interface Authenticated {
+  token: string
+  user: CurrentUser
+}
+
+/** 登录页要先知道的站点设置 */
+export interface AuthOptions {
+  /** 是否开放注册，部署时决定 */
+  allowRegistration: boolean
+}
 
 /** PostgreSQL 的唯一约束冲突。Bun 的 PostgresError 把 SQLSTATE 放在 errno 里，code 是 Bun 自己的错误码 */
 const UNIQUE_VIOLATION = "23505"

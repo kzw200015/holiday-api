@@ -1,5 +1,4 @@
 /* @vitest-environment happy-dom */
-import type { ReadingProgress } from "@myapi/shared/eh"
 import { useQueryCache } from "@pinia/colada"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { nextTick } from "vue"
@@ -10,6 +9,7 @@ import { fetchReadingProgress, saveProgress } from "@/features/eh/api"
 import { useGalleryProgress } from "@/features/eh/composables/useGalleryProgress"
 import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
 import { ehKeys } from "@/features/eh/queries"
+import type { ReadingProgress } from "@server/eh/reading.service"
 import { composableTests, deferred } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({

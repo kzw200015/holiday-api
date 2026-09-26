@@ -1,5 +1,4 @@
 /* @vitest-environment happy-dom */
-import type { CursorPage, GalleryCard } from "@myapi/shared/eh"
 import type * as VueUse from "@vueuse/core"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -10,6 +9,8 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, searchGalleries } from "@/features/eh/api"
 import GalleryListView from "@/features/eh/views/GalleryListView.vue"
 import { installQueries } from "@/shared/api/queries"
+import type { CursorPage } from "@server/eh/cursor-page"
+import type { GalleryCard } from "@server/eh/gallery-catalog"
 import { byText, deferred, galleryCard, present, query, settle } from "./support"
 
 const scroll = vi.hoisted(() => ({

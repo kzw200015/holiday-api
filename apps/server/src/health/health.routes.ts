@@ -5,7 +5,7 @@ import { database } from "@server/database/connection"
 import { serviceUnavailable } from "@server/http-error"
 import { Logger } from "@server/logger"
 
-const logger = new Logger("Health")
+const logger = new Logger(import.meta.url)
 
 /**
  * 给 Kubernetes 的探针，不要求登录，只看状态码。

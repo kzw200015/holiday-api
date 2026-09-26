@@ -1,16 +1,15 @@
 /* @vitest-environment happy-dom */
-import type { galleryPreferencesSchema } from "@myapi/shared/eh"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { computed, createApp, h, nextTick, reactive } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
-import type { z } from "zod"
 
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, patchGalleryPreferences } from "@/features/eh/api"
 import ReaderControls from "@/features/eh/components/ReaderControls.vue"
 import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
 import { installQueries } from "@/shared/api/queries"
+import type { GalleryPreferences } from "@server/eh/preferences.service"
 import { deferred, present, query } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
@@ -260,7 +259,7 @@ describe("阅读器自动翻页控件", () => {
 
   /* 阅读器不经过图库布局，偏好可能还没读到或读失败了；这时手上没有当前间隔可调，按钮不该看起来能用。 */
   it("偏好读到之前间隔不能调", async () => {
-    const pending = deferred<z.output<typeof galleryPreferencesSchema>>()
+    const pending = deferred<GalleryPreferences>()
     vi.mocked(fetchGalleryPreferences).mockReturnValueOnce(pending.promise)
     const { host } = await createReader()
     const decrease = query<HTMLButtonElement>(host, '[aria-label="减少自动翻页间隔"]')

@@ -28,21 +28,3 @@ export const loginSchema = z.object({
   username: z.string({ error: LOGIN_REQUIRED }),
   password: z.string({ error: LOGIN_REQUIRED }),
 })
-
-/** 当前登录的本站账号 */
-export interface CurrentUser {
-  id: number
-  username: string
-}
-
-/** 登录与注册的返回：令牌加用户本身 */
-export interface Authenticated {
-  token: string
-  user: CurrentUser
-}
-
-/** 登录页要先知道的站点设置 */
-export interface AuthOptions {
-  /** 是否开放注册，部署时决定 */
-  allowRegistration: boolean
-}

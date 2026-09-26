@@ -1,7 +1,7 @@
-import type { ehCookieSchema, GalleryDetail, gallerySearchSchema, GalleryTag } from "@myapi/shared/eh"
+import type { gallerySearchSchema } from "@myapi/shared/eh"
 import type { z } from "zod"
 
-import { ANONYMOUS, cookieHeader, SITES, type EhAccess } from "@server/eh/upstream/access"
+import { ANONYMOUS, cookieHeader, SITES, type EhAccess, type EhCredential } from "@server/eh/upstream/access"
 import { categoryFilter } from "@server/eh/upstream/categories"
 import {
   banned,
@@ -29,11 +29,35 @@ import {
 import { Logger } from "@server/logger"
 import { outbound } from "@server/outbound"
 
-/** 拆好的标签原文，还没套译名。 */
-export type TagRef = Pick<GalleryTag, "namespace" | "value">
+/** 拆好的标签原文（female:big breasts 拆成 female 与 big breasts），还没套译名。 */
+export interface TagRef {
+  /** e 站给临时标签不带前缀，归到 temp */
+  namespace: string
+  value: string
+}
 
-/** 标准化后的上游元数据：详情的字段，只是缩略图还是上游原地址、没签成本站的代理地址，标签还没套译名。 */
-export type GalleryMetadata = Omit<GalleryDetail, "thumbnail" | "tags"> & { thumbnailUrl: string; tags: TagRef[] }
+/** 标准化后的上游元数据：缩略图还是上游原地址、没签成本站的代理地址，标签还没套译名。 */
+export interface GalleryMetadata {
+  gid: number
+  token: string
+  title: string
+  /** 日文原标题，可能为空 */
+  titleJpn: string
+  /** e 站的英文分类名，如 Doujinshi */
+  category: string
+  thumbnailUrl: string
+  uploader: string
+  /** ISO 8601 */
+  postedAt: string
+  fileCount: number
+  rating: number
+  tags: TagRef[]
+  /** 字节数 */
+  fileSize: number
+  torrentCount: number
+  /** 图集是否已被删除 */
+  expunged: boolean
+}
 
 /* e 站给临时标签不带前缀 */
 const TEMP_NAMESPACE = "temp"
@@ -82,7 +106,7 @@ interface UpstreamResponse {
  * 出网只有 outbound 这一个出口。
  */
 
-const logger = new Logger("EhClient")
+const logger = new Logger(import.meta.url)
 
 export async function search(
   access: EhAccess,
@@ -202,7 +226,7 @@ export async function showImage(
  * 「Cookie 不对」和「e 站没连上」是两种错：前者回 400 让用户重新复制，后者是 502 或 429，
  * 混成一句「这组 Cookie 用不了」会让人对着一组好好的 Cookie 反复重贴。两个请求互不依赖，一起发出。
  */
-export async function verifyCredential(credential: z.output<typeof ehCookieSchema>): Promise<boolean> {
+export async function verifyCredential(credential: EhCredential): Promise<boolean> {
   const cookie = cookieHeader(credential)
   const [home, ex] = await Promise.allSettled([read(HOME_URL, cookie), read(`${SITES.ex.page}/`, cookie)])
   if (home.status === "rejected") {

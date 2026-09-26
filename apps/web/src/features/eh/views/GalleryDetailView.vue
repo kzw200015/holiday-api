@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { BookOpenIcon } from "@lucide/vue"
-import type { GalleryDetail } from "@myapi/shared/eh"
 import { computed } from "vue"
 import { RouterLink } from "vue-router"
 
@@ -22,6 +21,7 @@ import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
 import { useRefreshOnActivated } from "@/shared/composables/useRefreshOnActivated"
 import { formatDateTime, formatFileSize } from "@/shared/lib/format"
+import type { GalleryDetail } from "@server/eh/gallery-catalog"
 
 /* 返回列表的按钮在顶栏（见路由的 meta.back），滚到评论区也点得到，页面里不再放一份。 */
 const props = withDefaults(defineProps<{ gid: number; token: string; source?: GallerySource }>(), { source: "search" })

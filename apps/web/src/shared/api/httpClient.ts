@@ -1,4 +1,4 @@
-import { treaty } from "@elysia/eden"
+import { treaty, type Treaty } from "@elysia/eden"
 
 import type { App } from "@server/app"
 
@@ -64,9 +64,11 @@ export const api = treaty<App>(location.origin, {
   headers: () => (token ? { authorization: `Bearer ${token}` } : undefined),
 }).api
 
-/* Eden 的调用结果。出网本身失败（断网、中止、超时）时没有 response，error.value 是原本抛出的那个错误 */
-type Result<T> =
-  { data: T; error: null } | { data: null; error: { status: unknown; value: unknown }; response: Response | undefined }
+/*
+ * Eden 的调用结果，只看成功时的数据类型。Eden 的类型里 response 一定有，但出网本身失败（断网、中止、超时）时
+ * 它其实是 undefined，error.value 是原本抛出的那个错误，request 照这个运行时的事实处理。
+ */
+type Result<T> = Treaty.TreatyResponse<{ 200: T }>
 
 /**
  * HTTP 边界：交出接口的数据，失败一律变成带中文说明的 Error。

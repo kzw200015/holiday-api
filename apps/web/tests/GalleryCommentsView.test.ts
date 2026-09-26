@@ -1,5 +1,4 @@
 /* @vitest-environment happy-dom */
-import type { GalleryComment } from "@myapi/shared/eh"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { createApp, h } from "vue"
@@ -9,6 +8,7 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryComments, fetchGalleryDetail } from "@/features/eh/api"
 import GalleryCommentsView from "@/features/eh/views/GalleryCommentsView.vue"
 import { installQueries } from "@/shared/api/queries"
+import type { GalleryComment } from "@server/eh/upstream/parse"
 import { galleryCard, settle } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({

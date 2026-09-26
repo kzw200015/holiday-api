@@ -6,7 +6,7 @@ MyAPI 提供账号、图集浏览和节假日查询。领域术语见 `CONTEXT.m
 
 - `apps/server`：后端，Elysia + Drizzle + PostgreSQL，由 Bun 直接运行 TypeScript 源码。前端经 Eden 从后端导出的 `App` 类型推断每条接口（见 ADR-0007）。
 - `apps/web`：前端，Vue 3 + Vite。前端工具链（Vite、vue-tsc、Vitest）跑在 Node 上：vue-tsc 在 Bun 下认不出 `.vue`，所以本机除了 Bun 还要装 Node 24。
-- `packages/shared`（包名 `@myapi/shared`）：前后端共用的请求 zod schema、响应的类型与两端都要执行的规则，不构建，两端直接引用源码。
+- `packages/shared`（包名 `@myapi/shared`）：前后端共用的请求 zod schema 与两端都要执行的规则（响应类型定义在后端，前端经 Eden 推断），不构建，两端直接引用源码。
 
 Bun 的版本写在根目录 `package.json` 的 `packageManager` 与 `Dockerfile` 的两处 `oven/bun` 镜像标签里，升级时三处一起改。
 

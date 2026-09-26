@@ -1,7 +1,6 @@
-import type { ehCookieSchema, galleryPreferencesPatchSchema, gallerySearchSchema } from "@myapi/shared/eh"
-import type { z } from "zod"
-
 import { api, request, requestWithin } from "@/shared/api/httpClient"
+
+/* 带请求体的接口，参数类型取自这次调用本身（Parameters<typeof api.….post>[0]）：接口收什么由后端的路由决定，这里不另写一份 */
 
 /**
  * 搜索图集。cursor 为空表示第一页，翻页时关键词和分类要一起带上。
@@ -9,7 +8,7 @@ import { api, request, requestWithin } from "@/shared/api/httpClient"
  * 条件整条放在请求体里：分类是一组名字，塞进查询串就得两头各写一份拼装和拆解的规则。
  * 用 POST 只是为了带这段 JSON，它仍是一次读取——所以照常接 AbortSignal，离开页面要能取消。
  */
-export function searchGalleries(search: z.output<typeof gallerySearchSchema>, signal?: AbortSignal) {
+export function searchGalleries(search: Parameters<typeof api.eh.galleries.search.post>[0], signal?: AbortSignal) {
   return request(api.eh.galleries.search.post(search, { fetch: { signal } }))
 }
 
@@ -41,7 +40,7 @@ export function fetchCredentialStatus(signal?: AbortSignal) {
 }
 
 /** 绑定 e 站 Cookie。后端会先拿它实际请求一次，无效就不入库 */
-export function bindCredential(cookie: z.output<typeof ehCookieSchema>) {
+export function bindCredential(cookie: Parameters<typeof api.eh.credential.post>[0]) {
   return request(api.eh.credential.post(cookie))
 }
 
@@ -76,7 +75,7 @@ export function fetchGalleryPreferences(signal?: AbortSignal) {
 }
 
 /** 只改带来的字段。 */
-export function patchGalleryPreferences(patch: z.output<typeof galleryPreferencesPatchSchema>) {
+export function patchGalleryPreferences(patch: Parameters<typeof api.eh.preferences.patch>[0]) {
   return requestWithin(SAVE_TIMEOUT, (signal) => api.eh.preferences.patch(patch, { fetch: { signal } }))
 }
 

@@ -10,7 +10,7 @@ import { Logger } from "@server/logger"
 
 /* 图片代理：签名校验通过才取图，交回可以直接转发的图片流。 */
 
-const logger = new Logger("ImageService")
+const logger = new Logger(import.meta.url)
 
 /** 校验签名后用签发对象的凭据取图。uid 要等签名校验通过，才能拿它去读凭据。图床节点失败时换源重试一次。 */
 export async function openGalleryImage(

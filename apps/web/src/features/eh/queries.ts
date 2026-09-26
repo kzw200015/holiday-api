@@ -1,10 +1,13 @@
-import type { GalleryCategory, GalleryMinRating } from "@myapi/shared/eh"
 import type { QueryCache } from "@pinia/colada"
 import { defineStore } from "pinia"
 
 import { useAuthStore } from "@/features/auth/store"
+import type { searchGalleries } from "@/features/eh/api"
 import { keepFirstPage } from "@/shared/api/queries"
 import { createWrites } from "@/shared/api/writes"
+
+/* 搜索的缓存 key 就是提交给搜索接口的那组条件 */
+type SearchCriteria = Parameters<typeof searchGalleries>[0]
 
 /* 带参数的几类数据的前缀：按前缀作废或改写时用 */
 const SEARCH = ["eh", "search"] as const
@@ -19,7 +22,7 @@ export const ehKeys = {
   preferences: ["eh", "preferences"],
   searchHistory: ["eh", "search-history"],
   searches: SEARCH,
-  search: (keyword: string, categories: GalleryCategory[], minRating: GalleryMinRating | null) => [
+  search: (keyword: string, categories: SearchCriteria["categories"], minRating: SearchCriteria["minRating"]) => [
     ...SEARCH,
     keyword,
     categories,
