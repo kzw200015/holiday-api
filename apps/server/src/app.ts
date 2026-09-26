@@ -32,7 +32,7 @@ export const app = new Elysia()
     } else if (code === "NOT_FOUND") {
       failure = notFound("这个地址不存在")
     } else {
-      logger.error("未预料的异常", error instanceof Error ? error.stack : error)
+      logger.error("未预料的异常", error)
       failure = new HttpError(500, "服务器出错了")
     }
     set.status = failure.status

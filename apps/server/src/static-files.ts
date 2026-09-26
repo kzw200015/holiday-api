@@ -1,7 +1,5 @@
 import { join, sep } from "node:path"
-import { Elysia } from "elysia"
-
-import { notFound } from "@server/http-error"
+import { Elysia, NotFoundError } from "elysia"
 
 /* 镜像里前端产物放在 apps/server/client，本文件往上一级；开发时没有这个目录，一律 404 */
 const CLIENT = join(import.meta.dirname, "../client")
@@ -19,7 +17,8 @@ async function serve(path: string): Promise<Response> {
   /* 路径已经由 URL 解析去掉了 . 与 ..，这里再确认一遍落在目录里面 */
   const file = Bun.file(join(CLIENT, path))
   if (!file.name?.startsWith(CLIENT + sep) || !(await file.exists())) {
-    throw notFound("这个地址不存在")
+    /* 交给 app.ts 的 onError，404 只在那一处成形 */
+    throw new NotFoundError()
   }
   const cacheControl = path.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache"
   return new Response(file, { headers: { "Cache-Control": cacheControl } })

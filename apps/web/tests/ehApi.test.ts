@@ -9,18 +9,13 @@ import {
   removeSearchKeyword,
   saveProgress,
 } from "@/features/eh/api"
-import { present } from "./support"
+import { hanging, present } from "./support"
 
 /* 与 api.ts 里的 SAVE_TIMEOUT 对齐。 */
 const SAVE_TIMEOUT = 10_000
 
-/* 挂住的连接：永远不回，只在被中止时失败。Eden 按 fetch(地址, 选项) 调用 */
-const fetch = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(
-  (_url, { signal }) =>
-    new Promise((_resolve, reject) => {
-      signal?.addEventListener("abort", () => reject(signal.reason))
-    }),
-)
+/* Eden 按 fetch(地址, 选项) 调用 */
+const fetch = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(hanging)
 
 beforeEach(() => {
   vi.useFakeTimers()

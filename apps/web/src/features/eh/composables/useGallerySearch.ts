@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQueryCache } from "@pinia/colada"
 import { computed, reactive, ref, shallowRef } from "vue"
 
-import { searchGalleries } from "@/features/eh/api"
+import { searchGalleries, type GallerySearchPage } from "@/features/eh/api"
 import {
   normalizeFilters,
   useGalleryPreferences,
@@ -34,7 +34,7 @@ export function useGallerySearch() {
       key: ehKeys.search(criteria.keyword, criteria.categories, criteria.minRating),
       query: ({ pageParam, signal }) => searchGalleries({ ...criteria, cursor: pageParam }, signal),
       initialPageParam: "",
-      getNextPageParam: (last: Awaited<ReturnType<typeof searchGalleries>>) => last.nextCursor,
+      getNextPageParam: (last: GallerySearchPage) => last.nextCursor,
     }
   })
 

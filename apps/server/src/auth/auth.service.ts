@@ -32,7 +32,7 @@ interface Credentials {
 }
 
 /** 登录页要先知道的站点设置 */
-export interface AuthOptions {
+interface AuthOptions {
   /** 是否开放注册，部署时决定 */
   allowRegistration: boolean
 }
@@ -40,8 +40,13 @@ export interface AuthOptions {
 /** PostgreSQL 的唯一约束冲突。Bun 的 PostgresError 把 SQLSTATE 放在 errno 里，code 是 Bun 自己的错误码 */
 const UNIQUE_VIOLATION = "23505"
 
-/** 是否开放注册。它是部署时的配置，前端打包时无从知道，只能来问。 */
-export const registrationOpen = env.ALLOW_REGISTRATION
+/* 是否开放注册。它是部署时的配置，前端打包时无从知道，只能来问（见 options）。 */
+const registrationOpen = env.ALLOW_REGISTRATION
+
+/** 登录页要先知道的站点设置 */
+export function options(): AuthOptions {
+  return { allowRegistration: registrationOpen }
+}
 
 /** 注册成功即登录。 */
 export async function register({ username, password }: Credentials): Promise<Authenticated> {

@@ -411,9 +411,7 @@ describe("阅读器的边界情况", () => {
   })
 
   it("没有页面的图集直接说明，键盘翻页也不越过第 1 页", async () => {
-    vi.mocked(fetchGalleryDetail).mockResolvedValueOnce({ title: "空图集", fileCount: 0 } as Awaited<
-      ReturnType<typeof EhApi.fetchGalleryDetail>
-    >)
+    vi.mocked(fetchGalleryDetail).mockResolvedValueOnce({ title: "空图集", fileCount: 0 } as EhApi.GalleryDetail)
     await router.replace("/3/empty/1")
     await vi.advanceTimersByTimeAsync(0)
     expect(host.textContent).toContain("这个图集没有可以阅读的页面")

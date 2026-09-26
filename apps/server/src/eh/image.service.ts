@@ -1,9 +1,7 @@
 import * as attachmentUrls from "@server/eh/attachment-urls"
-import type { Signature } from "@server/eh/attachment-urls"
 import * as credentialService from "@server/eh/credential.service"
 import * as imageLocator from "@server/eh/image-locator"
 import * as ehClient from "@server/eh/upstream/eh-client"
-import type { ImageStream } from "@server/eh/upstream/eh-client"
 import { ImageNodeFailure } from "@server/eh/upstream/failures"
 import type { GalleryRef } from "@server/eh/upstream/gallery-ref"
 import { Logger } from "@server/logger"
@@ -17,8 +15,8 @@ export async function openGalleryImage(
   userId: number,
   ref: GalleryRef,
   page: number,
-  signature: Signature,
-): Promise<ImageStream> {
+  signature: attachmentUrls.Signature,
+): Promise<ehClient.ImageStream> {
   attachmentUrls.checkImage(userId, ref, page, signature)
   const access = await credentialService.access(userId)
   const image = await imageLocator.locate(access, ref, page)
@@ -35,6 +33,6 @@ export async function openGalleryImage(
 }
 
 /** 缩略图落在图床上，图床不认 e 站的 Cookie，取图与是谁在看无关，所以不需要账号。 */
-export function openThumbnail(encoded: string, signature: Signature): Promise<ImageStream> {
+export function openThumbnail(encoded: string, signature: attachmentUrls.Signature): Promise<ehClient.ImageStream> {
   return ehClient.openImage(attachmentUrls.checkThumbnail(encoded, signature))
 }

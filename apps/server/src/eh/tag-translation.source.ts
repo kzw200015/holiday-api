@@ -1,8 +1,9 @@
 import { z } from "zod"
 
-import { HttpError } from "@server/http-error"
+import { badGateway } from "@server/http-error"
 import { Logger } from "@server/logger"
 import { outbound } from "@server/outbound"
+import { failureReason } from "@server/outbound-fetch"
 
 /* 标签译名的数据源：GitHub 上 EhTagTranslation 社区维护的数据库，整库一个 JSON 文件。 */
 
@@ -33,8 +34,8 @@ const logger = new Logger(import.meta.url)
 
 /** 拉不到或拉到的不对：原因只进日志，前端只看到一句中文。 */
 function unavailable(message: string, detail: unknown) {
-  logger.warn(`${message} ${String(detail instanceof Error ? (detail.cause ?? detail) : detail)}`)
-  return new HttpError(502, message, { cause: detail })
+  logger.warn(`${message} ${failureReason(detail)}`)
+  return badGateway(message, { cause: detail })
 }
 
 /** 拉取整库并校验格式，免得脏数据入库。一条译名都没有也算拉坏了：整表替换会把已有的译名清空。 */

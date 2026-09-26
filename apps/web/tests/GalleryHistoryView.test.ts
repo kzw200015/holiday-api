@@ -45,7 +45,7 @@ let router: ReturnType<typeof createRouter>
 let host: HTMLDivElement
 const loadHistory = vi.mocked(fetchReadingHistory)
 
-function page(gid: number, nextCursor: string | null): Awaited<ReturnType<typeof EhApi.fetchReadingHistory>> {
+function page(gid: number, nextCursor: string | null): EhApi.ReadingHistoryPage {
   return {
     items: [{ gid, token: `token${gid}`, page: gid, readAt: "2026-09-05T00:00:00Z", gallery: galleryCard(gid) }],
     nextCursor,

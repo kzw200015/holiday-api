@@ -43,4 +43,6 @@ export const badRequest = (message: string | string[]) => new HttpError(400, mes
 export const unauthorized = (message: string) => new HttpError(401, message)
 export const forbidden = (message: string) => new HttpError(403, message)
 export const notFound = (message: string) => new HttpError(404, message)
+export const tooManyRequests = (message: string) => new HttpError(429, message)
+export const badGateway = (message: string, options?: ErrorOptions) => new HttpError(502, message, options)
 export const serviceUnavailable = (message: string) => new HttpError(503, message)

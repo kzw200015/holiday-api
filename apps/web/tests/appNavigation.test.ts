@@ -379,7 +379,7 @@ describe("阅读历史与二级导航", () => {
   })
 
   it("详情在途不挡历史查询；删除之后缓存里的详情不再显示继续阅读", async () => {
-    const detail = deferred<Awaited<ReturnType<typeof fetchGalleryDetail>>>()
+    const detail = deferred<EhApi.GalleryDetail>()
     vi.mocked(fetchGalleryDetail).mockReturnValueOnce(detail.promise)
     await visit("/eh/g/1/aaaaaaaaaa")
     await visit("/eh/history")
@@ -417,7 +417,7 @@ describe("阅读历史与二级导航", () => {
 
   /* 历史页被 KeepAlive 留着：回来时请求还在途就不发第二次，它的结果照样落到列表上。 */
   it("离开历史再回来，在途请求的结果仍然落到列表上", async () => {
-    const history = deferred<Awaited<ReturnType<typeof fetchReadingHistory>>>()
+    const history = deferred<EhApi.ReadingHistoryPage>()
     vi.mocked(fetchReadingHistory).mockReturnValueOnce(history.promise)
     await visit("/eh/history")
     await visit("/eh")

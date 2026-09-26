@@ -4,14 +4,13 @@ import { database } from "@server/database/connection"
 import type { CursorPage } from "@server/eh/cursor-page"
 import { ehReadingProgress } from "@server/eh/eh.tables"
 import * as galleryCatalog from "@server/eh/gallery-catalog"
-import type { GalleryCard } from "@server/eh/gallery-catalog"
 import { encodeHistoryCursor, type HistoryCursor } from "@server/eh/history-cursor"
 import { refKey, type GalleryRef } from "@server/eh/upstream/gallery-ref"
 
 const PAGE_SIZE = 25
 
 /** 这个账号在某本图集上读到第几页 */
-export interface ReadingProgress {
+interface ReadingProgress {
   /** 从未读过时为 null */
   page: number | null
 }
@@ -23,7 +22,7 @@ interface ReadingHistoryItem {
   /** ISO 8601 */
   readAt: string
   /** 元数据不可访问时为 null，仍保留记录和删除入口 */
-  gallery: GalleryCard | null
+  gallery: galleryCatalog.GalleryCard | null
 }
 
 /** 一次阅读进度上报。writer 是上报方（前端的一次页面加载）的标识，seq 是它的第几次上报 */
@@ -57,13 +56,13 @@ export async function save(userId: number, { gid, token, page, writer, seq }: Pr
     })
 }
 
-/** 这本读到第几页，没读过是 null。 */
-export async function progressOf(userId: number, gid: number): Promise<number | null> {
+/** 这本读到第几页。 */
+export async function progressOf(userId: number, gid: number): Promise<ReadingProgress> {
   const [row] = await database
     .select({ page: ehReadingProgress.page })
     .from(ehReadingProgress)
     .where(and(eq(ehReadingProgress.userId, userId), eq(ehReadingProgress.gid, gid)))
-  return row?.page ?? null
+  return { page: row?.page ?? null }
 }
 
 /** 一页阅读历史，按最近阅读排序：记录来自本站的库，每条的展示信息再向上游补齐。before 为 null 是第一页。 */

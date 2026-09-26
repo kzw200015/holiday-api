@@ -2,7 +2,6 @@ import * as attachmentUrls from "@server/eh/attachment-urls"
 import * as credentialService from "@server/eh/credential.service"
 import type { CursorPage } from "@server/eh/cursor-page"
 import * as galleryCatalog from "@server/eh/gallery-catalog"
-import type { GalleryCard, GalleryDetail } from "@server/eh/gallery-catalog"
 import * as imageLocator from "@server/eh/image-locator"
 import * as ehClient from "@server/eh/upstream/eh-client"
 import { galleryMissing } from "@server/eh/upstream/failures"
@@ -23,7 +22,10 @@ interface GalleryPreview extends Omit<PreviewImage, "imageUrl"> {
 }
 
 /** 从列表页拿图集顺序和游标，再用元数据接口补全；元数据取不到的图集不出现在结果里。 */
-export async function search(userId: number, criteria: ehClient.GallerySearch): Promise<CursorPage<GalleryCard>> {
+export async function search(
+  userId: number,
+  criteria: ehClient.GallerySearch,
+): Promise<CursorPage<galleryCatalog.GalleryCard>> {
   const access = await credentialService.access(userId)
   const list = await ehClient.search(access, criteria)
   const cards = await galleryCatalog.cards(list.refs)
@@ -34,7 +36,7 @@ export async function search(userId: number, criteria: ehClient.GallerySearch): 
 }
 
 /** 详情只查一次元数据，评论另有接口懒加载，大图地址逐页另签。阅读进度另有接口（见 ADR-0006）。 */
-export async function detail(ref: GalleryRef): Promise<GalleryDetail> {
+export async function detail(ref: GalleryRef): Promise<galleryCatalog.GalleryDetail> {
   const gallery = await galleryCatalog.detail(ref)
   if (!gallery) {
     throw galleryMissing()

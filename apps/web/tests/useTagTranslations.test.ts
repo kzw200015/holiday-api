@@ -15,7 +15,9 @@ vi.mock("@/features/eh/api", async (original) => ({
 const t = composableTests()
 const mount = () => t.mount(useTagTranslations)
 
-const synced = (sha: string): Awaited<ReturnType<typeof EhApi.fetchTagTranslationStatus>> => ({
+type TagTranslationStatus = Awaited<ReturnType<typeof EhApi.fetchTagTranslationStatus>>
+
+const synced = (sha: string): TagTranslationStatus => ({
   lastSync: { sha, count: 44299, syncedAt: "2026-09-24T16:00:00.000Z" },
 })
 
@@ -34,7 +36,7 @@ describe("标签译名同步", () => {
     await settleFakeTimers()
     expect(translations.status.value).toEqual({ lastSync: null })
 
-    const pending = deferred<Awaited<ReturnType<typeof EhApi.fetchTagTranslationStatus>>>()
+    const pending = deferred<TagTranslationStatus>()
     vi.mocked(syncTagTranslations).mockReturnValue(pending.promise)
     const done = translations.sync()
     expect(translations.syncing.value).toBe(true)
@@ -56,7 +58,7 @@ describe("标签译名同步", () => {
     expect(translations.status.value).toEqual(synced("old"))
     expect(translations.syncing.value).toBe(false)
 
-    const pending = deferred<Awaited<ReturnType<typeof EhApi.fetchTagTranslationStatus>>>()
+    const pending = deferred<TagTranslationStatus>()
     vi.mocked(syncTagTranslations).mockReturnValue(pending.promise)
     const retry = translations.sync()
     await settleFakeTimers()

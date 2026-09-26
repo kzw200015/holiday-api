@@ -6,6 +6,17 @@ import type { GalleryCard } from "@/features/eh/api"
 import { useEhWrites } from "@/features/eh/queries"
 import { installQueries } from "@/shared/api/queries"
 
+/** 挂住的连接，拿来替换 fetch：永远不回，只在被中止时失败；和真的 fetch 一样，拿到已经中止的 signal 当场失败。 */
+export function hanging(_url: string, init: RequestInit) {
+  const signal = present(init.signal, "请求的 signal")
+  return new Promise<Response>((_resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason)
+    }
+    signal.addEventListener("abort", () => reject(signal.reason))
+  })
+}
+
 /** 测试接下来要用的值：没有就当场失败并说清缺了什么，而不是在后面某一步报出看不懂的错。 */
 export function present<T>(value: T | null | undefined, what: string): T {
   if (value === null || value === undefined) {

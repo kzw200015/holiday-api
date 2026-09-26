@@ -7,13 +7,17 @@ import { api, request, requestWithin } from "@/shared/api/httpClient"
 
 /** 一次搜索的条件 */
 export type GallerySearch = Parameters<typeof api.eh.galleries.search.post>[0]
+/** 搜索结果的一页 */
+export type GallerySearchPage = Awaited<ReturnType<typeof searchGalleries>>
 /** 搜索结果里的一本图集 */
-export type GalleryCard = Awaited<ReturnType<typeof searchGalleries>>["items"][number]
+export type GalleryCard = GallerySearchPage["items"][number]
 export type GalleryDetail = Awaited<ReturnType<typeof fetchGalleryDetail>>
 export type GalleryComment = Awaited<ReturnType<typeof fetchGalleryComments>>["comments"][number]
 /** 详情页一片里的一页预览图 */
 export type GalleryPreview = Awaited<ReturnType<typeof fetchGalleryPreviews>>[number]
 export type GalleryPreferences = Awaited<ReturnType<typeof fetchGalleryPreferences>>
+/** 阅读历史的一页 */
+export type ReadingHistoryPage = Awaited<ReturnType<typeof fetchReadingHistory>>
 
 /**
  * 搜索图集。cursor 为空表示第一页，翻页时关键词和分类要一起带上。

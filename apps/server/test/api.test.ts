@@ -73,7 +73,7 @@ describe("鉴权边界", () => {
     for (const path of ["/api/unknown", "/api", "/nowhere"]) {
       const response = await t.http.get(path)
       expect(response.status).toBe(404)
-      expect(response.body).toMatchObject({ statusCode: 404, error: "Not Found" })
+      expect(response.body).toEqual({ statusCode: 404, message: "这个地址不存在", error: "Not Found" })
     }
     expect((await t.http.get("/api/eh/progress").set(auth)).status).toBe(404)
   })

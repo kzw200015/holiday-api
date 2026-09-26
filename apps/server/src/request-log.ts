@@ -16,8 +16,7 @@ export const requestLog = new Elysia()
   .onRequest(({ request }) => {
     starts.set(request, performance.now())
   })
-  .onAfterResponse({ as: "global" }, ({ request, set, responseValue }) => {
-    const path = new URL(request.url).pathname
+  .onAfterResponse({ as: "global" }, ({ request, path, set, responseValue }) => {
     const start = starts.get(request)
     if (!path.startsWith("/api/") || start === undefined) {
       return

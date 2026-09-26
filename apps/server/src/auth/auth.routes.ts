@@ -2,7 +2,6 @@ import { Elysia } from "elysia"
 import { z } from "zod"
 
 import * as authService from "@server/auth/auth.service"
-import type { AuthOptions } from "@server/auth/auth.service"
 import { maybeSignedIn } from "@server/auth/session"
 
 const USERNAME_RULE = "用户名只能是 3 到 32 位的字母、数字、下划线或连字符"
@@ -16,7 +15,7 @@ const LOGIN_REQUIRED = "请填写用户名和密码"
 export const authRoutes = new Elysia({ prefix: "/auth" })
   .use(maybeSignedIn)
   /* 登录页据此决定给不给注册入口，否则关了注册的站点上，用户要把表单填完提交了才知道注册不了 */
-  .get("/options", (): AuthOptions => ({ allowRegistration: authService.registrationOpen }))
+  .get("/options", () => authService.options())
   /*
    * 用户名限制成一眼能认的字符集，因为它会出现在 URL 和日志里；密码只卡长度、不强制复杂度——
    * 强制复杂度反而会逼出「Passw0rd!」这种可预测的密码。

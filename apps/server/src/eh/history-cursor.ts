@@ -13,7 +13,8 @@ export interface HistoryCursor {
   gid: number
 }
 
-const INVALID = "阅读历史游标不合法"
+/** 游标不合法时的文案：查询串不是字符串、解不开，说的都是这一句。 */
+export const INVALID_HISTORY_CURSOR = "阅读历史游标不合法"
 
 /* 游标解开后是「ISO 时间,gid」两段 */
 const parts = z.tuple([z.iso.datetime().transform((text) => new Date(text)), gidParam])
@@ -33,7 +34,7 @@ export function decodeHistoryCursor(cursor: string): HistoryCursor | null {
   }
   const parsed = parts.safeParse(Buffer.from(cursor, "base64url").toString().split(","))
   if (!parsed.success) {
-    throw badRequest(INVALID)
+    throw badRequest(INVALID_HISTORY_CURSOR)
   }
   const [readAt, gid] = parsed.data
   return { readAt, gid }

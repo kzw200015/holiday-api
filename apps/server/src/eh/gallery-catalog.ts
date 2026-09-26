@@ -2,27 +2,25 @@ import { LRUCache } from "lru-cache"
 
 import * as attachmentUrls from "@server/eh/attachment-urls"
 import * as tagTranslationService from "@server/eh/tag-translation.service"
-import type { GalleryTag, Translate } from "@server/eh/tag-translation.service"
 import * as ehClient from "@server/eh/upstream/eh-client"
-import { METADATA_BATCH_SIZE, type GalleryMetadata } from "@server/eh/upstream/eh-client"
 import { refKey, type GalleryRef } from "@server/eh/upstream/gallery-ref"
 
 /** 列表里一张卡片的内容：元数据里给人看的那些，缩略图签成本站的代理地址、标签套上译名 */
 export interface GalleryCard extends Omit<
-  GalleryMetadata,
+  ehClient.GalleryMetadata,
   "thumbnailUrl" | "tags" | "fileSize" | "torrentCount" | "expunged"
 > {
   /** 已经是本站的代理地址，可直接放进 img 的 src */
   thumbnail: string
-  tags: GalleryTag[]
+  tags: tagTranslationService.GalleryTag[]
 }
 
 /** 详情接口的返回：比卡片多出几个字段，与卡片的字段平铺在一起。阅读进度另有接口，见 reading.service.ts 的 ReadingProgress */
-export type GalleryDetail = GalleryCard & Pick<GalleryMetadata, "fileSize" | "torrentCount" | "expunged">
+export type GalleryDetail = GalleryCard & Pick<ehClient.GalleryMetadata, "fileSize" | "torrentCount" | "expunged">
 
 interface Waiting {
   ref: GalleryRef
-  resolve: (metadata: GalleryMetadata | undefined) => void
+  resolve: (metadata: ehClient.GalleryMetadata | undefined) => void
   reject: (error: unknown) => void
 }
 
@@ -34,7 +32,7 @@ interface Waiting {
  * 标签也在这时才套上译名：签名的有效期不受缓存时长影响，同步过的译名也当场生效。
  */
 
-const cache = new LRUCache<string, GalleryMetadata, GalleryRef>({
+const cache = new LRUCache<string, ehClient.GalleryMetadata, GalleryRef>({
   max: 500,
   ttl: 10 * 60_000,
   fetchMethod: (_key, _stale, { context }) => enqueue(context),
@@ -66,11 +64,11 @@ export async function detail(ref: GalleryRef): Promise<GalleryDetail | undefined
   }
 }
 
-function load(ref: GalleryRef): Promise<GalleryMetadata | undefined> {
+function load(ref: GalleryRef): Promise<ehClient.GalleryMetadata | undefined> {
   return cache.fetch(refKey(ref), { context: ref })
 }
 
-function card(metadata: GalleryMetadata, translate: Translate): GalleryCard {
+function card(metadata: ehClient.GalleryMetadata, translate: tagTranslationService.Translate): GalleryCard {
   return {
     gid: metadata.gid,
     token: metadata.token,
@@ -86,7 +84,7 @@ function card(metadata: GalleryMetadata, translate: Translate): GalleryCard {
   }
 }
 
-function enqueue(ref: GalleryRef): Promise<GalleryMetadata | undefined> {
+function enqueue(ref: GalleryRef): Promise<ehClient.GalleryMetadata | undefined> {
   return new Promise((resolve, reject) => {
     waiting.push({ ref, resolve, reject })
     if (waiting.length === 1) {
@@ -98,8 +96,8 @@ function enqueue(ref: GalleryRef): Promise<GalleryMetadata | undefined> {
 function flush() {
   const pending = waiting
   waiting = []
-  for (let start = 0; start < pending.length; start += METADATA_BATCH_SIZE) {
-    const batch = pending.slice(start, start + METADATA_BATCH_SIZE)
+  for (let start = 0; start < pending.length; start += ehClient.METADATA_BATCH_SIZE) {
+    const batch = pending.slice(start, start + ehClient.METADATA_BATCH_SIZE)
     ehClient.fetchMetadata(batch.map(({ ref }) => ref)).then(
       (found) => batch.forEach(({ ref, resolve }) => resolve(found.get(refKey(ref)))),
       (error: unknown) => batch.forEach(({ reject }) => reject(error)),

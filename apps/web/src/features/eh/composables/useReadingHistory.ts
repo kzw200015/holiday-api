@@ -1,14 +1,18 @@
 import { useInfiniteQuery, useMutation, useQueryCache, type UseInfiniteQueryData } from "@pinia/colada"
 import { computed, ref } from "vue"
 
-import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"
+import {
+  clearReadingHistory,
+  fetchReadingHistory,
+  removeReadingHistory,
+  type ReadingHistoryPage,
+} from "@/features/eh/api"
 import { ehKeys, useEhWrites } from "@/features/eh/queries"
 import { useInfiniteLoad } from "@/shared/composables/useInfiniteLoad"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
 import { useRefreshOnActivated } from "@/shared/composables/useRefreshOnActivated"
 
-type HistoryPage = Awaited<ReturnType<typeof fetchReadingHistory>>
-type HistoryPages = UseInfiniteQueryData<HistoryPage, string>
+type HistoryPages = UseInfiniteQueryData<ReadingHistoryPage, string>
 
 interface Change {
   send: () => Promise<unknown>
@@ -66,7 +70,7 @@ export function useReadingHistory() {
     }
   }
 
-  function remove(item: HistoryPage["items"][number]) {
+  function remove(item: ReadingHistoryPage["items"][number]) {
     change.mutate({
       send: () => removeReadingHistory(item.gid),
       apply: () => {

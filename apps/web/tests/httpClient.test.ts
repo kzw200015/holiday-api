@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { api, hasToken, onUnauthorized, request, requestWithin, setToken } from "@/shared/api/httpClient"
-import { present } from "./support"
+import { hanging, present } from "./support"
 
 /* Eden 按 fetch(地址, 选项) 调用 */
 const fetch = vi.fn<(url: string, init: RequestInit) => Promise<Response>>()
@@ -22,17 +22,6 @@ afterEach(() => {
 function call(index: number) {
   const [url, init] = present(fetch.mock.calls[index], `第 ${index + 1} 次请求`)
   return { url: new URL(url), init, headers: new Headers(init.headers) }
-}
-
-/* 挂住的连接：永远不回，只在被中止时失败；和真的 fetch 一样，拿到已经中止的 signal 当场失败 */
-function hanging(_url: string, init: RequestInit) {
-  const signal = present(init.signal, "请求的 signal")
-  return new Promise<Response>((_resolve, reject) => {
-    if (signal.aborted) {
-      reject(signal.reason)
-    }
-    signal.addEventListener("abort", () => reject(signal.reason))
-  })
 }
 
 const failure = (status: number, message: string | string[]) =>

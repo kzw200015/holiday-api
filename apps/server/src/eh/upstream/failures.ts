@@ -1,5 +1,6 @@
-import { badRequest, HttpError, notFound } from "@server/http-error"
+import { badGateway, badRequest, HttpError, notFound, tooManyRequests } from "@server/http-error"
 import { Logger } from "@server/logger"
+import { failureReason } from "@server/outbound-fetch"
 
 /*
  * e 站那些可预期的失败，以及各自回给前端的状态码与文案。同一种失败可能从好几条路径冒出来（页面请求和图片请求
@@ -14,26 +15,20 @@ import { Logger } from "@server/logger"
 
 const logger = new Logger(import.meta.url)
 
-const tooManyRequests = (message: string) => new HttpError(429, message)
-
-/** 出网失败的 Error 真正有用的是它的 cause（如 ECONNRESET），「fetch failed」本身什么也没说。 */
-function describe(detail: unknown): string {
-  return String(detail instanceof Error ? (detail.cause ?? detail) : detail)
-}
-
 function log(message: string, detail: unknown) {
-  logger.warn(detail === undefined ? message : `${message} ${describe(detail)}`)
+  logger.warn(detail === undefined ? message : `${message} ${failureReason(detail)}`)
 }
 
-function badGateway(message: string, detail?: unknown) {
+/** 上游返回了意料之外的东西，通常是版面改了。message 给用户看，detail 只进日志。 */
+export function unavailable(message: string, detail?: unknown) {
   log(message, detail)
-  return new HttpError(502, message, { cause: detail })
+  return badGateway(message, { cause: detail })
 }
 
 /** 与某个上游地址有关的失败：日志里带上地址，排查时才知道是哪台主机、哪个页面。 */
-function badGatewayAt(message: string, url: string, detail: unknown) {
-  log(message, `url=${url} ${describe(detail)}`)
-  return new HttpError(502, message, { cause: detail })
+function unavailableAt(message: string, url: string, detail: unknown) {
+  log(message, `url=${url} ${failureReason(detail)}`)
+  return badGateway(message, { cause: detail })
 }
 
 export const quotaExceeded = () => tooManyRequests("e 站图片配额已用尽，等额度恢复后再试")
@@ -47,7 +42,7 @@ export function banned(url: string) {
 export const sadPanda = () => badRequest("里站没有放行这次请求，检查一下绑定的 Cookie 是否仍然有效")
 
 /** 撞上内容警告插页。请求里固定带了 nw=1，还撞上说明 e 站改了这套机制。 */
-export const contentWarning = (url: string) => badGateway("e 站返回了内容警告页，nw cookie 可能已失效", `url=${url}`)
+export const contentWarning = (url: string) => unavailable("e 站返回了内容警告页，nw cookie 可能已失效", `url=${url}`)
 
 /** 用户贴进来的那组 Cookie 拿去实际请求过一次，上游没认。 */
 export const credentialRejected = () => badRequest("这组 Cookie 用不了，确认一下是否复制完整、是否已经过期")
@@ -58,15 +53,12 @@ export const galleryMissing = () => notFound("这个图集取不到，可能已�
 /** e 站用一段说明代替了页面：图集被删或转私有、令牌不对、页码越界。说明原文照转，它比我们猜的准。 */
 export const upstreamNotice = (text: string) => notFound(`e 站提示：${text}`)
 
-/** 上游返回了意料之外的东西，通常是版面改了。message 给用户看，detail 只进日志。 */
-export const unavailable = (message: string, detail?: unknown) => badGateway(message, detail)
-
 /** 图片流开始转发之后上游断了。 */
-export const imageBroken = (url: string, cause: unknown) => badGatewayAt("图片传到一半，e 站那边断了", url, cause)
+export const imageBroken = (url: string, cause: unknown) => unavailableAt("图片传到一半，e 站那边断了", url, cause)
 
 /** 出网这一步本身失败了。 */
 export const unreachable = (url: string, cause: unknown) =>
-  badGatewayAt("请求 e 站失败，可能是网络不通或超时", url, cause)
+  unavailableAt("请求 e 站失败，可能是网络不通或超时", url, cause)
 
 /**
  * 图床节点取图失败：回了错误状态码，或者根本连不上——节点下线多半是后一种。
@@ -80,6 +72,6 @@ export class ImageNodeFailure extends HttpError {
 
 export function imageNodeFailure(url: string, detail: unknown) {
   const message = "图床节点取不到这张图"
-  log(message, `url=${url} ${describe(detail)}`)
+  log(message, `url=${url} ${failureReason(detail)}`)
   return new ImageNodeFailure(message, { cause: detail })
 }

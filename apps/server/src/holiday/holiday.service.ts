@@ -45,9 +45,7 @@ export async function refreshOnStartup() {
     await refreshUpcomingYears()
     return
   }
-  refreshUpcomingYears().catch((error: unknown) =>
-    logger.error("启动时刷新节假日数据失败，先用库里已有的数据", error instanceof Error ? error.stack : error),
-  )
+  refreshUpcomingYears().catch((error: unknown) => logger.error("启动时刷新节假日数据失败，先用库里已有的数据", error))
 }
 
 /**
@@ -59,7 +57,7 @@ export function scheduleDailyRefresh(): Cron {
     try {
       await refreshUpcomingYears()
     } catch (error) {
-      logger.error("定时刷新节假日数据失败", error instanceof Error ? error.stack : error)
+      logger.error("定时刷新节假日数据失败", error)
     }
   })
 }

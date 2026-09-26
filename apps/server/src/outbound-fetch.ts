@@ -1,3 +1,8 @@
+/** 出网失败时拿去记日志的原因：出网失败的 Error 真正有用的是它的 cause（如 ECONNRESET），「fetch failed」本身什么也没说。 */
+export function failureReason(detail: unknown): string {
+  return String(detail instanceof Error ? (detail.cause ?? detail) : detail)
+}
+
 /** 出网请求里用得到的那几项。 */
 export interface OutboundInit {
   method?: "GET" | "POST"
