@@ -1,6 +1,6 @@
 import { galleryTokenSchema } from "@myapi/shared/eh"
 
-import { isDecimal } from "@/numeric"
+import { isDecimal } from "@server/numeric"
 
 /** 图集定位信息：e 站用 gid 加 10 位十六进制的 token 认一本图集。 */
 export interface GalleryRef {

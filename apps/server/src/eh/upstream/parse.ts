@@ -3,9 +3,9 @@ import { load, type Cheerio, type CheerioAPI } from "cheerio"
 import type { AnyNode, Element } from "domhandler"
 import { decodeHTMLStrict } from "entities"
 
-import { galleryOfLink, imagePageOfLink, type GalleryRef } from "@/eh/upstream/gallery-ref"
-import { onPublicThumbnailHost } from "@/eh/upstream/image-hosts"
-import { isDecimal } from "@/numeric"
+import { galleryOfLink, imagePageOfLink, type GalleryRef } from "@server/eh/upstream/gallery-ref"
+import { onPublicThumbnailHost } from "@server/eh/upstream/image-hosts"
+import { isDecimal } from "@server/numeric"
 
 /*
  * 解析只由 HTML 提供的东西：图集列表、取图用的定位信息、预览图与评论。不发请求、不碰缓存。

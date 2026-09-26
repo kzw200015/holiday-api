@@ -1,8 +1,3 @@
-import { Module } from "@nestjs/common"
-import { ConfigService } from "@nestjs/config"
-
-import type { Env } from "@/config"
-
 /** 出网请求里用得到的那几项。 */
 export interface OutboundInit {
   method?: "GET" | "POST"
@@ -13,14 +8,11 @@ export interface OutboundInit {
 /**
  * 出网：本进程访问外部网站（e 站、图床、节假日数据源）的唯一出口，形状就是 fetch。
  *
- * 做成可注入的 provider，是测试换掉外部网站的唯一接缝：测试里换成按请求回放内存响应、并记下每个请求的实现。
+ * 由应用装配时交给用得到的领域，是测试换掉外部网站的唯一接缝：测试里换成按请求回放内存响应、并记下每个请求的实现。
  * 响应一律不跟随重定向，调用方自己看 3xx：里站 Cookie 无效时会 302 回表站，跟随的话会拿到一个「看起来正常」的表站页面；
  * 图床若被诱导 302 到内网，跟随就等于绕过了图片主机白名单。
  */
 export type Outbound = (url: string, init?: OutboundInit) => Promise<Response>
-
-/** 注入出网用的令牌：`@Inject(OUTBOUND) outbound: Outbound`。 */
-export const OUTBOUND = Symbol("OUTBOUND")
 
 /**
  * 真实的出网：Bun 的 fetch，请求超时由这里用 AbortController 自己计。
@@ -80,19 +72,3 @@ export function createOutbound(userAgent: string, timeout: number): Outbound {
     return wrapped
   }
 }
-
-@Module({
-  providers: [
-    {
-      provide: OUTBOUND,
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService<Env, true>) =>
-        createOutbound(
-          configService.get("EH_USER_AGENT", { infer: true }),
-          configService.get("EH_REQUEST_TIMEOUT", { infer: true }),
-        ),
-    },
-  ],
-  exports: [OUTBOUND],
-})
-export class OutboundModule {}

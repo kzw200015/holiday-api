@@ -1,6 +1,6 @@
 # 后端改用 Bun 运行，共享包不再编译
 
-Node 下后端要先经 `nest build` 编译成 JS 才能运行，ESM 又要求导入写全 `.js` 后缀；共享包因此也得先编译到 `dist`，开发时一直 watch。改用 Bun 之后，它直接运行 TypeScript 源码、照 tsconfig 解析路径别名并生成装饰器元数据，这些构建环节都不要了。所以后端由 Bun 直接运行 `src/main.ts`，包管理换成 Bun 工作区，共享包改成只有源码的包，能用 Bun 原生 API 的地方用它：密码哈希 `Bun.password`，哈希与 HMAC `Bun.CryptoHasher`，数据库 `Bun.sql`（Drizzle 的 `bun-sql` 驱动），出网用 Bun 的 fetch。库表、旧密码哈希、旧令牌、旧图片签名地址全部保持兼容。
+Node 下后端要先经 `nest build` 编译成 JS 才能运行，ESM 又要求导入写全 `.js` 后缀；共享包因此也得先编译到 `dist`，开发时一直 watch。改用 Bun 之后，它直接运行 TypeScript 源码、照 tsconfig 解析路径别名并生成装饰器元数据，这些构建环节都不要了（ADR-0007 换成 Elysia 之后不再用装饰器）。所以后端由 Bun 直接运行 `src/main.ts`，包管理换成 Bun 工作区，共享包改成只有源码的包，能用 Bun 原生 API 的地方用它：密码哈希 `Bun.password`，哈希与 HMAC `Bun.CryptoHasher`，数据库 `Bun.sql`（Drizzle 的 `bun-sql` 驱动），出网用 Bun 的 fetch。库表、旧密码哈希、旧令牌、旧图片签名地址全部保持兼容。
 
 几处取舍：
 

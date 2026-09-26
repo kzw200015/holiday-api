@@ -6,15 +6,14 @@
     "moduleResolution": "bundler",
     "noEmit": true,
     "isolatedModules": true,
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
     "skipLibCheck": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "strictPropertyInitialization": false,
+    /* 前端经 Eden 从 App 推断接口类型，类型检查会按前端的配置读到这里的源码，那边开着它 */
+    "erasableSyntaxOnly": true,
     "types": ["bun"],
     "paths": {
-      "@/*": ["./src/*"]
+      "@server/*": ["./src/*"]
     }
   }
 }

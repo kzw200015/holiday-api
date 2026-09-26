@@ -10,4 +10,4 @@
 
 服务端用这里的 schema 做入参校验，前端提交前用同一份预校验，不另写一份规则；文案是给用户看的中文，校验失败时原样显示。
 
-请求 schema 不另起类型别名，要类型的地方就地从 schema 推：服务端收到的、前端读回来的写 `z.output<typeof xxxSchema>`，前端提交的写 `z.input<typeof xxxSchema>`（带默认值或转换时两者才不一样），不用 `z.infer`。类型里写的就是 schema 名，不必再记一套名字。前端只拿它推类型，所以用 `import type` 引 schema 和 `z`，不进打包产物。响应体没有 schema，照旧是手写的 interface。
+请求 schema 不另起类型别名，要类型的地方就地从 schema 推，一律写 `z.output<typeof xxxSchema>`，不用 `z.infer`。类型里写的就是 schema 名，不必再记一套名字。前端提交的也写 `z.output`：它调接口经 Eden，Eden 按后端路由上 schema 的输出类型推断要传什么，带默认值的字段前端要给全；所以请求体与查询串的 schema 不做 transform，否则前端被要求传的就成了转换之后的东西（见 ADR-0007）。前端只拿 schema 推类型的地方用 `import type` 引 schema 和 `z`，不进打包产物。响应体没有 schema，照旧是手写的 interface，由后端的服务标注返回类型，前端从 Eden 的推断里拿到它。

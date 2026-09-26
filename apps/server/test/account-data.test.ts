@@ -31,7 +31,7 @@ describe("绑定 e 站账号", () => {
       () => html("home"),
       () => html("gallery list"),
     )
-    const bound = await t.http.post("/api/eh/credential").set(auth).send(COOKIE).expect(201)
+    const bound = await t.http.post("/api/eh/credential").set(auth).send(COOKIE).expect(200)
     expect(bound.body).toEqual({ bound: true, memberId: "123", hasExAccess: true })
     await t.http.get("/api/eh/credential").set(auth).expect(200, bound.body)
 
@@ -49,7 +49,7 @@ describe("绑定 e 站账号", () => {
     const { auth } = await user()
     for (const ex of [() => html(""), () => Promise.reject(new TypeError("fetch failed"))]) {
       eh(() => html("home"), ex)
-      const response = await t.http.post("/api/eh/credential").set(auth).send(COOKIE).expect(201)
+      const response = await t.http.post("/api/eh/credential").set(auth).send(COOKIE).expect(200)
       expect(response.body.hasExAccess).toBe(false)
     }
   })
@@ -90,7 +90,7 @@ describe("绑定 e 站账号", () => {
       () => html("home"),
       () => html("gallery list"),
     )
-    await t.http.post("/api/eh/credential").set(auth).send(COOKIE).expect(201)
+    await t.http.post("/api/eh/credential").set(auth).send(COOKIE).expect(200)
     eh(
       () => html("home"),
       () => html(""),
@@ -124,7 +124,7 @@ describe("偏好与搜索历史", () => {
       preferences: (await t.http.get("/api/eh/preferences").set(auth).expect(200)).body,
       history: (await t.http.get("/api/eh/search-history").set(auth).expect(200)).body,
     })
-    const record = (keyword: string) => t.http.post("/api/eh/search-history").set(auth).send({ keyword }).expect(201)
+    const record = (keyword: string) => t.http.post("/api/eh/search-history").set(auth).send({ keyword }).expect(200)
     /* 尚无这一行时先记搜索历史，偏好落表上的默认值 */
     await record("\u001c a")
     await record("b")
@@ -168,7 +168,7 @@ describe("偏好与搜索历史", () => {
     const history = (await t.http.get("/api/eh/search-history").set(auth).expect(200)).body as string[]
     expect(history).toHaveLength(10)
     expect(new Set(history).size).toBe(10)
-    await t.http.post("/api/eh/search-history").set(auth).send({ keyword: "最新" }).expect(201)
+    await t.http.post("/api/eh/search-history").set(auth).send({ keyword: "最新" }).expect(200)
     expect((await t.http.get("/api/eh/search-history").set(auth).expect(200)).body[0]).toBe("最新")
   })
 

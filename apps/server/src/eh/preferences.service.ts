@@ -4,20 +4,22 @@ import {
   type galleryPreferencesPatchSchema,
   type galleryPreferencesSchema,
 } from "@myapi/shared/eh"
-import { Inject, Injectable } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
 import type { z } from "zod"
 
-import { DATABASE, type Database } from "@/database/database.module"
-import { ehPreferences } from "@/eh/eh.tables"
+import type { Database } from "@server/database/connection"
+import { ehPreferences } from "@server/eh/eh.tables"
 
 /**
  * 浏览偏好与搜索历史，存在同一行。写入都与到达顺序无关（见 ADR-0006）：偏好只改带来的字段，
  * 搜索历史一次记或删一个词，在行锁下按共享包的同一条规则算出新列表。
  */
-@Injectable()
 export class PreferencesService {
-  constructor(@Inject(DATABASE) private readonly database: Database) {}
+  private readonly database: Database
+
+  constructor(database: Database) {
+    this.database = database
+  }
 
   async preferences(userId: number): Promise<z.output<typeof galleryPreferencesSchema>> {
     const [row] = await this.database
@@ -37,7 +39,8 @@ export class PreferencesService {
     { categories, minRating, readerInterval }: z.output<typeof galleryPreferencesPatchSchema>,
   ) {
     const value = {
-      ...(categories && { categories: [...new Set(categories)].toSorted() }),
+      /* oxlint-disable-next-line unicorn/no-array-sort -- 排的是刚展开的副本。前端的类型检查也会读到这里，它的 lib 是 ES2022，没有 toSorted */
+      ...(categories && { categories: [...new Set(categories)].sort() }),
       ...(minRating !== undefined && { minRating }),
       ...(readerInterval !== undefined && { readerInterval }),
     }

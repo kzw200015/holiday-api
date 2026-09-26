@@ -26,7 +26,7 @@ describe("阅读进度", () => {
   it("同一上报方迟到的旧进度不算数，别的上报方照到达顺序覆盖", async () => {
     const { auth } = await user()
     const report = (page: number, writer: string, seq: number) =>
-      t.http.post("/api/eh/progress").set(auth).send({ gid: 1, token: TOKEN, page, writer, seq }).expect(201)
+      t.http.post("/api/eh/progress").set(auth).send({ gid: 1, token: TOKEN, page, writer, seq }).expect(200)
     const progress = async () => (await t.http.get("/api/eh/progress/1").set(auth).expect(200)).body.page
 
     expect(await progress()).toBeNull()
@@ -71,7 +71,7 @@ describe("阅读历史", () => {
       .post("/api/eh/progress")
       .set(other.auth)
       .send({ gid: 99, token: TOKEN, page: 1, writer: "w", seq: 1 })
-      .expect(201)
+      .expect(200)
 
     const seen: number[] = []
     let cursor = ""

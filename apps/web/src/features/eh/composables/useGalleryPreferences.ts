@@ -12,7 +12,7 @@ import { fetchGalleryPreferences, patchGalleryPreferences } from "@/features/eh/
 import { ehKeys, useEhWrites } from "@/features/eh/queries"
 import { useOptimisticData } from "@/shared/api/optimistic"
 
-type PreferencesPatch = z.input<typeof galleryPreferencesPatchSchema>
+type PreferencesPatch = z.output<typeof galleryPreferencesPatchSchema>
 
 /** 筛选条件：搜索时关键词以外的条件，存在偏好里，在同一个面板里一起改、一起应用。 */
 export type GalleryFilters = Pick<z.output<typeof galleryPreferencesSchema>, "categories" | "minRating">

@@ -1,25 +1,7 @@
-import type {
-  CredentialStatus,
-  CursorPage,
-  ehCookieSchema,
-  GalleryCard,
-  GalleryComments,
-  GalleryDetail,
-  GalleryImageUrlResult,
-  galleryPreferencesPatchSchema,
-  galleryPreferencesSchema,
-  GalleryPreview,
-  gallerySearchSchema,
-  ReadingHistoryItem,
-  readingHistoryQuerySchema,
-  ReadingProgress,
-  readingProgressSchema,
-  searchHistoryKeywordSchema,
-  TagTranslationStatus,
-} from "@myapi/shared/eh"
+import type { ehCookieSchema, galleryPreferencesPatchSchema, gallerySearchSchema } from "@myapi/shared/eh"
 import type { z } from "zod"
 
-import { httpClient } from "@/shared/api/httpClient"
+import { api, request, requestWithin } from "@/shared/api/httpClient"
 
 /**
  * 搜索图集。cursor 为空表示第一页，翻页时关键词和分类要一起带上。
@@ -27,13 +9,13 @@ import { httpClient } from "@/shared/api/httpClient"
  * 条件整条放在请求体里：分类是一组名字，塞进查询串就得两头各写一份拼装和拆解的规则。
  * 用 POST 只是为了带这段 JSON，它仍是一次读取——所以照常接 AbortSignal，离开页面要能取消。
  */
-export function searchGalleries(search: z.input<typeof gallerySearchSchema>, signal?: AbortSignal) {
-  return httpClient.post<CursorPage<GalleryCard>>("/eh/galleries/search", search, { signal })
+export function searchGalleries(search: z.output<typeof gallerySearchSchema>, signal?: AbortSignal) {
+  return request(api.eh.galleries.search.post(search, { fetch: { signal } }))
 }
 
 /** 图集详情。大图地址逐页另签，见 fetchPageImageUrl；读到第几页另有接口，见 fetchReadingProgress */
 export function fetchGalleryDetail(gid: number, token: string, signal?: AbortSignal) {
-  return httpClient.get<GalleryDetail>(`/eh/galleries/${gid}/${token}`, { signal })
+  return request(api.eh.galleries({ gid })({ token }).get({ fetch: { signal } }))
 }
 
 /**
@@ -41,40 +23,40 @@ export function fetchGalleryDetail(gid: number, token: string, signal?: AbortSig
  * 所以这条地址的身份由后端签在里面，前端不拼、也不改它。签名只在服务端算，不访问 e 站
  */
 export function fetchPageImageUrl(gid: number, token: string, page: number, signal?: AbortSignal) {
-  return httpClient.get<GalleryImageUrlResult>(`/eh/galleries/${gid}/${token}/pages/${page}/image-url`, { signal })
+  return request(api.eh.galleries({ gid })({ token }).pages({ page })["image-url"].get({ fetch: { signal } }))
 }
 
 /** 评论单独取，不拖慢详情页首屏 */
 export function fetchGalleryComments(gid: number, token: string, signal?: AbortSignal) {
-  return httpClient.get<GalleryComments>(`/eh/galleries/${gid}/${token}/comments`, { signal })
+  return request(api.eh.galleries({ gid })({ token }).comments.get({ fetch: { signal } }))
 }
 
 /** 详情页第 slice 片（从 0 起）上的预览图。每片多少页由 e 站账号的设置决定，看第 0 片有几页就知道 */
 export function fetchGalleryPreviews(gid: number, token: string, slice: number, signal?: AbortSignal) {
-  return httpClient.get<GalleryPreview[]>(`/eh/galleries/${gid}/${token}/previews/${slice}`, { signal })
+  return request(api.eh.galleries({ gid })({ token }).previews({ slice }).get({ fetch: { signal } }))
 }
 
 export function fetchCredentialStatus(signal?: AbortSignal) {
-  return httpClient.get<CredentialStatus>("/eh/credential", { signal })
+  return request(api.eh.credential.get({ fetch: { signal } }))
 }
 
 /** 绑定 e 站 Cookie。后端会先拿它实际请求一次，无效就不入库 */
-export function bindCredential(cookie: z.input<typeof ehCookieSchema>) {
-  return httpClient.post<CredentialStatus>("/eh/credential", cookie)
+export function bindCredential(cookie: z.output<typeof ehCookieSchema>) {
+  return request(api.eh.credential.post(cookie))
 }
 
 /** 解绑，返回解绑后的状态 */
 export function unbindCredential() {
-  return httpClient.delete<CredentialStatus>("/eh/credential")
+  return request(api.eh.credential.delete())
 }
 
 export function fetchTagTranslationStatus(signal?: AbortSignal) {
-  return httpClient.get<TagTranslationStatus>("/eh/tag-translations", { signal })
+  return request(api.eh["tag-translations"].get({ fetch: { signal } }))
 }
 
 /** 从上游拉一版标签译名替换掉库里的，回同步后的状态。拉取与写入都完成才回，可能要十几秒，所以不设保存的时限 */
 export function syncTagTranslations() {
-  return httpClient.post<TagTranslationStatus>("/eh/tag-translations/sync")
+  return request(api.eh["tag-translations"].sync.post())
 }
 
 /*
@@ -90,55 +72,49 @@ export function syncTagTranslations() {
 const SAVE_TIMEOUT = 10_000
 
 export function fetchGalleryPreferences(signal?: AbortSignal) {
-  return httpClient.get<z.output<typeof galleryPreferencesSchema>>("/eh/preferences", { signal })
+  return request(api.eh.preferences.get({ fetch: { signal } }))
 }
 
 /** 只改带来的字段。 */
-export function patchGalleryPreferences(patch: z.input<typeof galleryPreferencesPatchSchema>) {
-  return httpClient.patch<null>("/eh/preferences", patch, { timeout: SAVE_TIMEOUT })
+export function patchGalleryPreferences(patch: z.output<typeof galleryPreferencesPatchSchema>) {
+  return requestWithin(SAVE_TIMEOUT, (signal) => api.eh.preferences.patch(patch, { fetch: { signal } }))
 }
 
 export function fetchSearchHistory(signal?: AbortSignal) {
-  return httpClient.get<string[]>("/eh/search-history", { signal })
+  return request(api.eh["search-history"].get({ fetch: { signal } }))
 }
 
 /** 记下一个搜过的词，排到最前。超过 200 字节的会被退回。 */
 export function addSearchKeyword(keyword: string) {
-  return httpClient.post<null>("/eh/search-history", { keyword } satisfies z.input<typeof searchHistoryKeywordSchema>, {
-    timeout: SAVE_TIMEOUT,
-  })
+  return requestWithin(SAVE_TIMEOUT, (signal) => api.eh["search-history"].post({ keyword }, { fetch: { signal } }))
 }
 
 /** 要删的词放查询串：它可能是 `..` 这类放进路径会被规范化掉的写法。 */
 export function removeSearchKeyword(keyword: string) {
-  return httpClient.delete<null>("/eh/search-history/entry", {
-    params: { keyword } satisfies z.input<typeof searchHistoryKeywordSchema>,
-    timeout: SAVE_TIMEOUT,
-  })
+  return requestWithin(SAVE_TIMEOUT, (signal) =>
+    api.eh["search-history"].entry.delete(undefined, { query: { keyword }, fetch: { signal } }),
+  )
 }
 
 export function clearSearchHistory() {
-  return httpClient.delete<null>("/eh/search-history", { timeout: SAVE_TIMEOUT })
+  return requestWithin(SAVE_TIMEOUT, (signal) => api.eh["search-history"].delete(undefined, { fetch: { signal } }))
 }
 
 /** 这个账号在这本图集上读到第几页。 */
 export function fetchReadingProgress(gid: number, signal?: AbortSignal) {
-  return httpClient.get<ReadingProgress>(`/eh/progress/${gid}`, { signal })
+  return request(api.eh.progress({ gid }).get({ fetch: { signal } }))
 }
 
 export function fetchReadingHistory(cursor: string, signal?: AbortSignal) {
-  return httpClient.get<CursorPage<ReadingHistoryItem>>("/eh/history", {
-    params: { cursor } satisfies z.input<typeof readingHistoryQuerySchema>,
-    signal,
-  })
+  return request(api.eh.history.get({ query: { cursor }, fetch: { signal } }))
 }
 
 export function removeReadingHistory(gid: number) {
-  return httpClient.delete<null>(`/eh/history/${gid}`, { timeout: SAVE_TIMEOUT })
+  return requestWithin(SAVE_TIMEOUT, (signal) => api.eh.history({ gid }).delete(undefined, { fetch: { signal } }))
 }
 
 export function clearReadingHistory() {
-  return httpClient.delete<null>("/eh/history", { timeout: SAVE_TIMEOUT })
+  return requestWithin(SAVE_TIMEOUT, (signal) => api.eh.history.delete(undefined, { fetch: { signal } }))
 }
 
 /*
@@ -154,9 +130,6 @@ let progressSeq = 0
 /** 上报读到第几页。带 keepalive：刷新、关标签页时发出的那次，页面卸载之后浏览器照样把它送完。 */
 export function saveProgress(gid: number, token: string, page: number) {
   progressSeq += 1
-  return httpClient.post<null>(
-    "/eh/progress",
-    { gid, token, page, writer: progressWriter, seq: progressSeq } satisfies z.input<typeof readingProgressSchema>,
-    { timeout: SAVE_TIMEOUT, fetchOptions: { keepalive: true } },
-  )
+  const report = { gid, token, page, writer: progressWriter, seq: progressSeq }
+  return requestWithin(SAVE_TIMEOUT, (signal) => api.eh.progress.post(report, { fetch: { signal, keepalive: true } }))
 }

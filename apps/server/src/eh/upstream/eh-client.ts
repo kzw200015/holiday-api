@@ -1,9 +1,8 @@
 import type { ehCookieSchema, GalleryDetail, gallerySearchSchema, GalleryTag } from "@myapi/shared/eh"
-import { Inject, Injectable, Logger } from "@nestjs/common"
 import type { z } from "zod"
 
-import { ANONYMOUS, cookieHeader, SITES, type EhAccess } from "@/eh/upstream/access"
-import { categoryFilter } from "@/eh/upstream/categories"
+import { ANONYMOUS, cookieHeader, SITES, type EhAccess } from "@server/eh/upstream/access"
+import { categoryFilter } from "@server/eh/upstream/categories"
 import {
   banned,
   contentWarning,
@@ -14,9 +13,9 @@ import {
   unavailable,
   unreachable,
   upstreamNotice,
-} from "@/eh/upstream/failures"
-import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref"
-import { isAllowedImageUrl } from "@/eh/upstream/image-hosts"
+} from "@server/eh/upstream/failures"
+import { refKey, type GalleryRef } from "@server/eh/upstream/gallery-ref"
+import { isAllowedImageUrl } from "@server/eh/upstream/image-hosts"
 import {
   decodeEntities,
   parseGalleryList,
@@ -26,8 +25,9 @@ import {
   type GalleryList,
   type GallerySlice,
   type ImagePage,
-} from "@/eh/upstream/parse"
-import { OUTBOUND, type Outbound } from "@/outbound/outbound.module"
+} from "@server/eh/upstream/parse"
+import { Logger } from "@server/logger"
+import type { Outbound } from "@server/outbound"
 
 /** 拆好的标签原文，还没套译名。 */
 export type TagRef = Pick<GalleryTag, "namespace" | "value">
@@ -81,11 +81,14 @@ interface UpstreamResponse {
  * e 站的只读客户端：上游协议、「200 但不是内容」的识别与失败翻译，以及已校验过的图片流。
  * 出网只有 Outbound 这一个出口。
  */
-@Injectable()
 export class EhClient {
   private readonly logger = new Logger(EhClient.name)
 
-  constructor(@Inject(OUTBOUND) private readonly outbound: Outbound) {}
+  private readonly outbound: Outbound
+
+  constructor(outbound: Outbound) {
+    this.outbound = outbound
+  }
 
   async search(
     access: EhAccess,

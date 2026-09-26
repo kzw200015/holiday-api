@@ -1,28 +1,18 @@
-import axios, { AxiosError, type AxiosRequestConfig, type AxiosResponse } from "axios"
+import { treaty } from "@elysia/eden"
 
-/* 后端失败时的响应体（NestJS 的默认结构）。校验失败时 message 是一组文案，其余情况是一句 */
-interface ErrorBody {
-  statusCode: number
-  message: string | string[]
-  error?: string
-}
+import type { App } from "@server/app"
 
 /* 令牌在 localStorage 里的键名 */
 const TOKEN_KEY = "myapi_token"
-
-const instance = axios.create({
-  baseURL: "/api",
-  adapter: "fetch",
-})
 
 /*
  * 登录令牌。
  *
  * 存 localStorage 而不是 Cookie：Cookie 由浏览器自动带上，跨站页面能借用户的身份发写请求，
  * 于是还要配一层 CSRF 校验；令牌得由前端主动塞进 Authorization 头，跨站页面读不到也就伪造不了。
- * 代价是 <img src> 这类浏览器直接发起的请求带不了头，图片因此改用后端签名过的地址（见 api/eh.ts）。
+ * 代价是 <img src> 这类浏览器直接发起的请求带不了头，图片因此改用后端签名过的地址（见 features/eh/api.ts）。
  *
- * 读一次就缓在内存里：请求拦截器每个请求都要用，而 localStorage 的读是同步的
+ * 读一次就缓在内存里：每个请求都要用，而 localStorage 的读是同步的
  */
 let token = readStoredToken()
 
@@ -53,13 +43,6 @@ export function hasToken() {
   return token !== ""
 }
 
-instance.interceptors.request.use((config) => {
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-
 /*
  * 令牌失效时的去处。由 main.ts 注入而不是这里直接 import router：
  * router 会加载各个页面，页面又会 import 本文件，直接依赖就成环了
@@ -70,57 +53,78 @@ export function onUnauthorized(handler: () => void) {
   handleUnauthorized = handler
 }
 
-instance.interceptors.response.use(undefined, (error: AxiosError<ErrorBody>) => {
-  /* 取消请求是页面切换的一部分，保留 Axios 的取消标识。 */
-  if (axios.isCancel(error)) {
-    return Promise.reject(error)
+/**
+ * 后端接口：路径、入参与响应都从后端的 App 类型推断（Eden），不再手写。只经 request 调用，由它统一处理失败。
+ *
+ * parseDate 要关掉：它默认把 "2026-01-01" 这样像日期的字符串转成 Date，推断出的类型却仍是 string。
+ * 请求头在发起调用的当场取（同步），令牌换了之后发出的请求自然带新令牌。
+ */
+export const api = treaty<App>(location.origin, {
+  parseDate: false,
+  headers: () => (token ? { authorization: `Bearer ${token}` } : undefined),
+}).api
+
+/* Eden 的调用结果。出网本身失败（断网、中止、超时）时没有 response，error.value 是原本抛出的那个错误 */
+type Result<T> =
+  { data: T; error: null } | { data: null; error: { status: unknown; value: unknown }; response: Response | undefined }
+
+/**
+ * HTTP 边界：交出接口的数据，失败一律变成带中文说明的 Error。
+ *
+ * 要在发起调用的同一处当场套上，如 `request(api.eh.preferences.get())`：这时的令牌就是这次请求带出去的那个，
+ * 旧会话的迟到 401 不会清掉刚登录的新会话。取消请求原样抛出，交给查询库识别。
+ * 只回成败的接口（以及「没登录」时的「我是谁」）回的是空体，统一交出 null。
+ */
+export async function request<T>(pending: Promise<Result<T>>): Promise<T> {
+  const sentWith = token
+  const result = await pending
+  if (!result.error) {
+    return (result.data === "" ? null : result.data) as T
   }
-  if (error.response?.status === 401 && token && error.config?.headers.Authorization === `Bearer ${token}`) {
-    /* 旧会话的迟到响应不能清掉刚登录的新会话。 */
+  const { status, value } = result.error
+  if (!result.response) {
+    throw offline(value)
+  }
+  if (status === 401 && token && sentWith === token) {
     setToken("")
     handleUnauthorized?.()
   }
-  return Promise.reject(new Error(describeFailure(error)))
-})
+  throw new Error(describeFailure(status, value))
+}
+
+/* 请求没发出去或中途断了。取消原样交回；超时与断网换成能直接显示的说明 */
+function offline(error: unknown) {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return error
+  }
+  const timedOut = error instanceof DOMException && error.name === "TimeoutError"
+  return new Error(timedOut ? "请求超时" : "网络连接失败", { cause: error })
+}
 
 /*
- * 失败时给界面看的那句话。有本站响应体就用它的 message（一组文案时连成一句）；没有的（断网、超时、反向代理返回的空体或 HTML），
- * Axios 的原文是英文，还带着「timeout of 10000ms exceeded」这类细节，换成能直接显示的说明。
+ * 失败时给界面看的那句话。有本站响应体就用它的 message（一组文案时连成一句）；
+ * 没有的（反向代理返回的空体或 HTML）只说状态码。
  */
-function describeFailure(error: AxiosError<ErrorBody>) {
-  const message = error.response?.data?.message
+function describeFailure(status: unknown, value: unknown) {
+  const message = typeof value === "object" && value !== null && "message" in value ? value.message : undefined
   const text = Array.isArray(message) ? message.join("；") : message
   if (typeof text === "string" && text) {
     return text
   }
-  if (error.response) {
-    return `服务器返回了 HTTP ${error.response.status}`
+  return `服务器返回了 HTTP ${String(status)}`
+}
+
+/**
+ * 带时限的 request：到点就中止，这一次算没存上（报「请求超时」）。send 要把给它的 signal 交给这次调用，
+ * 如 `requestWithin(ms, (signal) => api.eh.history.delete(undefined, { fetch: { signal } }))`。
+ * 不用 AbortSignal.timeout：它的计时器不经页面的 setTimeout，测试里的假时钟推不动它。
+ */
+export async function requestWithin<T>(ms: number, send: (signal: AbortSignal) => Promise<Result<T>>): Promise<T> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(new DOMException("请求超时", "TimeoutError")), ms)
+  try {
+    return await request(send(controller.signal))
+  } finally {
+    clearTimeout(timer)
   }
-  return error.code === AxiosError.ETIMEDOUT ? "请求超时" : "网络连接失败"
-}
-
-/* 成功时响应体就是数据本身；只回成败的接口（以及「没登录」时的「我是谁」）回空体，统一交出 null。 */
-function dataOf<T>(response: AxiosResponse<T | "">): T {
-  return (response.data === "" ? null : response.data) as T
-}
-
-/** HTTP 边界：业务接口只拿到领域数据，失败一律变成带中文说明的 Error。 */
-export const httpClient = {
-  async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return dataOf(await instance.get<T | "">(url, config))
-  },
-
-  async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    return dataOf(await instance.post<T | "">(url, data, config))
-  },
-
-  /** 只改带来的字段。同一字段先后两次改动乱序到达会以后到的为准，要保序的由调用方依次发出。 */
-  async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    return dataOf(await instance.patch<T | "">(url, data, config))
-  },
-
-  /** 删的是哪一个写在地址上，不带请求体：DELETE 的请求体没有约定的含义，后端也不读。 */
-  async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return dataOf(await instance.delete<T | "">(url, config))
-  },
 }

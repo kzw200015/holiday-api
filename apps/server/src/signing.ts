@@ -1,8 +1,3 @@
-import { Injectable, Module } from "@nestjs/common"
-import { ConfigService } from "@nestjs/config"
-
-import type { Env } from "@/config"
-
 /**
  * 按用途从主密钥派生的子密钥：SHA-256(主密钥原文 + ":" + 用途标签)。
  *
@@ -10,21 +5,16 @@ import type { Env } from "@/config"
  * 两把摆在这一处派生，业务代码只拿子密钥。算法与用途标签是已签发令牌和已发出图片地址的一部分，改了等于换密钥，
  * 所有人要重新登录、所有图片地址一起失效。
  */
-@Injectable()
-export class SigningKeys {
-  readonly token: Buffer
-  readonly attachment: Buffer
+export interface SigningKeys {
+  token: Buffer
+  attachment: Buffer
+}
 
-  constructor(configService: ConfigService<Env, true>) {
-    const secret = configService.get("SECRET_KEY", { infer: true })
-    this.token = derive(secret, "token-v1")
-    this.attachment = derive(secret, "attachment-v1")
-  }
+/** 只有这里读主密钥。 */
+export function deriveSigningKeys(secret: string): SigningKeys {
+  return { token: derive(secret, "token-v1"), attachment: derive(secret, "attachment-v1") }
 }
 
 function derive(secret: string, purpose: string): Buffer {
   return new Bun.CryptoHasher("sha256").update(`${secret}:${purpose}`).digest()
 }
-
-@Module({ providers: [SigningKeys], exports: [SigningKeys] })
-export class SigningModule {}

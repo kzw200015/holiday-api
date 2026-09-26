@@ -1,7 +1,8 @@
-import { BadGatewayException, Inject, Injectable, Logger } from "@nestjs/common"
 import { z } from "zod"
 
-import { OUTBOUND, type Outbound } from "@/outbound/outbound.module"
+import { HttpError } from "@server/http-error"
+import { Logger } from "@server/logger"
+import type { Outbound } from "@server/outbound"
 
 /*
  * 取 release 分支上的镜像而不是 Release 资产：releases/latest/download 要经两次重定向，出网不跟随；
@@ -31,13 +32,16 @@ const logger = new Logger("TagTranslationSource")
 /** 拉不到或拉到的不对：原因只进日志，前端只看到一句中文。 */
 function unavailable(message: string, detail: unknown) {
   logger.warn(`${message} ${String(detail instanceof Error ? (detail.cause ?? detail) : detail)}`)
-  return new BadGatewayException(message, { cause: detail })
+  return new HttpError(502, message, { cause: detail })
 }
 
 /** 标签译名的数据源：GitHub 上 EhTagTranslation 社区维护的数据库，整库一个 JSON 文件。 */
-@Injectable()
 export class TagTranslationSource {
-  constructor(@Inject(OUTBOUND) private readonly outbound: Outbound) {}
+  private readonly outbound: Outbound
+
+  constructor(outbound: Outbound) {
+    this.outbound = outbound
+  }
 
   /** 拉取整库并校验格式，免得脏数据入库。一条译名都没有也算拉坏了：整表替换会把已有的译名清空。 */
   async fetchRelease(): Promise<TagTranslationRelease> {

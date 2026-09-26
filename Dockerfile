@@ -29,11 +29,11 @@ COPY apps/server/package.json apps/server/
 RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile --production --filter server
 
 COPY packages/shared/src packages/shared/src
-# tsconfig 要一起带上：路径别名与装饰器元数据都由 Bun 照它处理
+# tsconfig 要一起带上：路径别名由 Bun 照它解析
 COPY apps/server/tsconfig.json apps/server/
 COPY apps/server/drizzle apps/server/drizzle
 COPY apps/server/src apps/server/src
-# 前端产物放在后端旁边，由后端的静态文件模块统一提供
+# 前端产物放在后端旁边，由后端的 static-files.ts 统一提供
 COPY --from=build /app/apps/web/dist apps/server/client
 
 WORKDIR /app/apps/server

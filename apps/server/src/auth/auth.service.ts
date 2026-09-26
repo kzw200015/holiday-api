@@ -1,39 +1,37 @@
 import type { Authenticated, credentialsSchema, CurrentUser, loginSchema } from "@myapi/shared/auth"
-import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common"
-import { ConfigService } from "@nestjs/config"
-import { JwtService } from "@nestjs/jwt"
 import { SQL } from "bun"
 import { eq } from "drizzle-orm"
 import type { z } from "zod"
 
-import { users } from "@/auth/auth.tables"
-import { hashPassword, verifyPassword } from "@/auth/passwords"
-import type { Env } from "@/config"
-import { DATABASE, type Database } from "@/database/database.module"
+import { users } from "@server/auth/auth.tables"
+import { hashPassword, verifyPassword } from "@server/auth/passwords"
+import type { Tokens } from "@server/auth/tokens"
+import type { Database } from "@server/database/connection"
+import { badRequest } from "@server/http-error"
+import { Logger } from "@server/logger"
 
 /** PostgreSQL 的唯一约束冲突。Bun 的 PostgresError 把 SQLSTATE 放在 errno 里，code 是 Bun 自己的错误码 */
 const UNIQUE_VIOLATION = "23505"
 
 /** 本站账号：注册、登录与「我是谁」。 */
-@Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name)
 
-  constructor(
-    @Inject(DATABASE) private readonly database: Database,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService<Env, true>,
-  ) {}
-
+  private readonly database: Database
+  private readonly tokens: Tokens
   /** 是否开放注册。它是部署时的配置，前端打包时无从知道，只能来问。 */
-  get registrationOpen(): boolean {
-    return this.configService.get("ALLOW_REGISTRATION", { infer: true })
+  readonly registrationOpen: boolean
+
+  constructor(database: Database, tokens: Tokens, registrationOpen: boolean) {
+    this.database = database
+    this.tokens = tokens
+    this.registrationOpen = registrationOpen
   }
 
   /** 注册成功即登录。 */
   async register({ username, password }: z.output<typeof credentialsSchema>): Promise<Authenticated> {
     if (!this.registrationOpen) {
-      throw new BadRequestException("本站已关闭注册")
+      throw badRequest("本站已关闭注册")
     }
     const passwordHash = await hashPassword(password)
     /* 判重交给唯一索引而不是先查再插：先查再插在两个并发请求之间是有窗口的 */
@@ -49,7 +47,7 @@ export class AuthService {
         error.cause instanceof SQL.PostgresError &&
         error.cause.errno === UNIQUE_VIOLATION
       ) {
-        throw new BadRequestException("用户名已被占用")
+        throw badRequest("用户名已被占用")
       }
       throw error
     }
@@ -65,7 +63,7 @@ export class AuthService {
   async login({ username, password }: z.output<typeof loginSchema>): Promise<Authenticated> {
     const [user] = await this.database.select().from(users).where(eq(users.username, username))
     if (!(await verifyPassword(password, user?.passwordHash ?? null)) || !user) {
-      throw new BadRequestException("用户名或密码错误")
+      throw badRequest("用户名或密码错误")
     }
     return this.authenticated(user)
   }
@@ -79,12 +77,9 @@ export class AuthService {
     return user ?? null
   }
 
-  /**
-   * 登录令牌是无状态的 JWT，前端自己保管、每次放进 Authorization 头。服务端不存已签发的令牌，
-   * 所以没法强制踢掉某个会话，也就没有登出接口：退出登录就是前端把令牌丢掉。
-   */
+  /** 登录令牌见 Tokens。 */
   private async authenticated(user: CurrentUser): Promise<Authenticated> {
-    const token = await this.jwtService.signAsync({ sub: String(user.id) })
+    const token = await this.tokens.sign(user.id)
     return { token, user: { id: user.id, username: user.username } }
   }
 }

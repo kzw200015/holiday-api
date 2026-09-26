@@ -80,7 +80,7 @@ describe("标签译名", () => {
         language: { chinese: "汉语" },
         female: { "big breasts": "巨乳" },
       })
-    const response = await sync().expect(201)
+    const response = await sync().expect(200)
     expect(response.body).toEqual({ lastSync: { sha: "sha-1", count: 5, syncedAt: expect.any(String) } })
     expect(t.outbound.to("raw.githubusercontent.com").map(({ url }) => url.pathname)).toEqual([
       "/EhTagTranslation/Database/release/db.text.json",
@@ -97,7 +97,7 @@ describe("标签译名", () => {
         rows: { language: "语言", female: "女性", temp: "临时" },
         female: { "big breasts": "大胸" },
       })
-    expect((await sync().expect(201)).body.lastSync).toMatchObject({ sha: "sha-2", count: 4 })
+    expect((await sync().expect(200)).body.lastSync).toMatchObject({ sha: "sha-2", count: 4 })
     expect(await shown()).toEqual(["语言/chinese", "女性/大胸", "artist/nobody", "临时/furtatooo"])
     expect(await sql(databaseUrl, "SELECT count(*)::int AS count FROM eh_tag_translations")).toEqual([{ count: 4 }])
   })
@@ -105,7 +105,7 @@ describe("标签译名", () => {
   it("上游没变就不重写译名，只记下这次同步", async () => {
     const ids = await sql(databaseUrl, "SELECT id FROM eh_tag_translations ORDER BY id")
     const before = (await status()).lastSync
-    const after = (await sync().expect(201)).body.lastSync
+    const after = (await sync().expect(200)).body.lastSync
     expect(after).toMatchObject({ sha: "sha-2", count: 4 })
     expect(after.syncedAt >= before.syncedAt).toBe(true)
     expect(await sql(databaseUrl, "SELECT id FROM eh_tag_translations ORDER BY id")).toEqual(ids)
@@ -137,7 +137,7 @@ describe("标签译名", () => {
       return release("sha-4", { female: { "big breasts": "巨乳" } })
     }
     const responses = await Promise.all([sync(), sync(), sync()])
-    expect(responses.map((response) => response.status)).toEqual([201, 201, 201])
+    expect(responses.map((response) => response.status)).toEqual([200, 200, 200])
     expect(new Set(responses.map(({ body }) => JSON.stringify(body))).size).toBe(1)
     expect(t.outbound.to("raw.githubusercontent.com")).toHaveLength(1)
   })

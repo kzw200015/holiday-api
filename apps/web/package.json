@@ -11,12 +11,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@elysia/eden": "1.4.10",
     "@internationalized/date": "^3.12.4",
     "@lucide/vue": "^1.48.0",
     "@myapi/shared": "workspace:*",
     "@pinia/colada": "^1.4.6",
     "@vueuse/core": "^15.0.0",
-    "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "pinia": "^4.0.3",
@@ -31,6 +31,7 @@
     "@types/node": "^26.6.2",
     "@vitejs/plugin-vue": "^6.0.9",
     "@vue/tsconfig": "^0.9.1",
+    "elysia": "1.4.30",
     "happy-dom": "^20.14.5",
     "shadcn-vue": "^2.8.2",
     "tailwindcss": "^4.3.3",

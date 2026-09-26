@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config"
 
 export default defineConfig({
-  /* @/ 别名定义在 tsconfig 的 paths 里，Bun 运行时与测试都照它解析 */
+  /* @server/ 别名定义在 tsconfig 的 paths 里，Bun 运行时与测试都照它解析 */
   resolve: { tsconfigPaths: true },
   test: {
     include: ["test/**/*.test.ts"],

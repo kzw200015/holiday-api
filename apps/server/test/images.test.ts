@@ -51,7 +51,7 @@ async function reader(respond: Responder) {
   const { auth } = await register(t.http)
   t.outbound.respond = withHolidays((request) => (request.url.host === "exhentai.org" ? html("") : html("home")))
   const member = String(++gidSeed)
-  await t.http.post("/api/eh/credential").set(auth).send({ ipbMemberId: member, ipbPassHash: "hash" }).expect(201)
+  await t.http.post("/api/eh/credential").set(auth).send({ ipbMemberId: member, ipbPassHash: "hash" }).expect(200)
   t.outbound.respond = withHolidays((request) =>
     isMetadataApi(request) ? metadataApi(request) : request.url.host === "ehgt.org" ? image() : respond(request),
   )

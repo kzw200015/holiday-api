@@ -1,4 +1,4 @@
-import type { Outbound, OutboundInit } from "@/outbound/outbound.module"
+import type { Outbound, OutboundInit } from "@server/outbound"
 import { present } from "./present"
 
 /** 发往外部网站的一次请求，按发出的顺序记下来。 */
@@ -16,13 +16,17 @@ export type Responder = (request: RecordedRequest) => Response | undefined | Pro
 export const unconfigured = () => new Response("未配置的请求", { status: 599 })
 
 /**
- * 假的外部网站：替换掉出网 provider，按请求回放内存里的响应，并记下每个请求。
+ * 假的外部网站：替换掉真实的出网，按请求回放内存里的响应，并记下每个请求。
  * 请求照样走完服务端的整条链路（拼地址、带 Cookie、认「200 但不是内容」），只在出网这一步换掉。
  */
 export class FakeOutbound {
   readonly requests: RecordedRequest[] = []
 
-  constructor(public respond: Responder = unconfigured) {}
+  respond: Responder
+
+  constructor(respond: Responder = unconfigured) {
+    this.respond = respond
+  }
 
   readonly fetch: Outbound = async (url: string, init: OutboundInit = {}) => {
     const request: RecordedRequest = {

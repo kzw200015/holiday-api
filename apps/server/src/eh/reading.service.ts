@@ -1,25 +1,26 @@
 import type { CursorPage, ReadingHistoryItem, readingProgressSchema } from "@myapi/shared/eh"
-import { Inject, Injectable } from "@nestjs/common"
 import { and, desc, eq, sql } from "drizzle-orm"
 import type { z } from "zod"
 
-import { DATABASE, type Database } from "@/database/database.module"
-import { ehReadingProgress } from "@/eh/eh.tables"
-import { GalleryCatalog } from "@/eh/gallery-catalog"
-import { encodeHistoryCursor, type HistoryCursor } from "@/eh/history-cursor"
-import { refKey } from "@/eh/upstream/gallery-ref"
+import type { Database } from "@server/database/connection"
+import { ehReadingProgress } from "@server/eh/eh.tables"
+import type { GalleryCatalog } from "@server/eh/gallery-catalog"
+import { encodeHistoryCursor, type HistoryCursor } from "@server/eh/history-cursor"
+import { refKey } from "@server/eh/upstream/gallery-ref"
 
 const PAGE_SIZE = 25
 
 /**
  * 阅读进度与阅读历史：它们是同一张表，删一条阅读历史，对应的阅读进度也就没了。
  */
-@Injectable()
 export class ReadingService {
-  constructor(
-    @Inject(DATABASE) private readonly database: Database,
-    private readonly galleryCatalog: GalleryCatalog,
-  ) {}
+  private readonly database: Database
+  private readonly galleryCatalog: GalleryCatalog
+
+  constructor(database: Database, galleryCatalog: GalleryCatalog) {
+    this.database = database
+    this.galleryCatalog = galleryCatalog
+  }
 
   /**
    * 记下读到第几页。同一个图集只留一条，重复上报就覆盖；同一上报方的序号不比库里的新，就是迟到的旧上报，不写。

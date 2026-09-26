@@ -1,17 +1,13 @@
-import type { HolidayDetail } from "@myapi/shared/holiday"
-import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common"
-import { Cron } from "@nestjs/schedule"
+import { Cron } from "croner"
 import { eq, like } from "drizzle-orm"
 
-import { DATABASE, type Database } from "@/database/database.module"
-import { HolidaySource } from "@/holiday/holiday.source"
-import { holidayDays } from "@/holiday/holiday.tables"
+import type { Database } from "@server/database/connection"
+import type { HolidaySource } from "@server/holiday/holiday.source"
+import { holidayDays } from "@server/holiday/holiday.tables"
+import { Logger } from "@server/logger"
 
 /** 节假日安排是中国的：「今天」「今年」一律按北京时间算，不跟着服务器的时区走（容器默认是 UTC）。 */
 const CHINA_ZONE = "Asia/Shanghai"
-
-/** 每日刷新节假日数据的定时任务名。 */
-export const HOLIDAY_REFRESH_JOB = "holiday-refresh"
 
 /* en-CA 的日期格式恰好是 YYYY-MM-DD */
 const CHINA_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: CHINA_ZONE })
@@ -21,22 +17,38 @@ function chinaToday(): string {
   return CHINA_DATE.format(new Date())
 }
 
+function currentYear(): number {
+  return Number(chinaToday().slice(0, 4))
+}
+
+/** 某一天的节假日安排 */
+export interface HolidayDetail {
+  /** 查询的日期，格式 YYYY-MM-DD */
+  date: string
+  /** 是否为休息日 */
+  isOffDay: boolean
+  /** 节假日名称；为空表示该日期不在节假日安排里（普通工作日或普通周末） */
+  name: string
+}
+
 /** 休息日查询：节假日安排里有的按安排，没有的按周末判断；以及安排数据的定期刷新。 */
-@Injectable()
-export class HolidayService implements OnModuleInit {
+export class HolidayService {
   private readonly logger = new Logger(HolidayService.name)
 
-  constructor(
-    @Inject(DATABASE) private readonly database: Database,
-    private readonly holidaySource: HolidaySource,
-  ) {}
+  private readonly database: Database
+  private readonly holidaySource: HolidaySource
+
+  constructor(database: Database, holidaySource: HolidaySource) {
+    this.database = database
+    this.holidaySource = holidaySource
+  }
 
   /**
-   * 启动时拉当年和次年。库里已经有今年的安排就放到后台去拉，不拖慢启动，拉不到只记日志——
-   * 数据源在 GitHub 上，偶尔又慢又连不上，不该连登录、图库一起起不来。连今年的都没有才等它拉完再开始监听端口，
+   * 启动时拉当年和次年，在开始监听端口之前调用。库里已经有今年的安排就放到后台去拉，不拖慢启动，拉不到只记日志——
+   * 数据源在 GitHub 上，偶尔又慢又连不上，不该连登录、图库一起起不来。连今年的都没有才等它拉完，
    * 拉不到就拒绝启动，免得接口带着空表一直按周末规则回错误答案。
    */
-  async onModuleInit() {
+  async refreshOnStartup() {
     if (!(await this.hasYear(currentYear()))) {
       await this.refreshUpcomingYears()
       return
@@ -47,16 +59,17 @@ export class HolidayService implements OnModuleInit {
   }
 
   /**
-   * 数据源一年只更新几次（次年安排公布、临时调休），每天拉一次足够。失败只记日志，第二天再试。
-   * 上一次还没跑完就不再叠一次。
+   * 每天北京时间 4:30 刷新一次：数据源一年只更新几次（次年安排公布、临时调休），每天拉一次足够。
+   * 失败只记日志，第二天再试；上一次还没跑完就跳过这一次，不叠着跑。关停时要 stop() 掉返回的任务。
    */
-  @Cron("0 30 4 * * *", { name: HOLIDAY_REFRESH_JOB, timeZone: CHINA_ZONE, waitForCompletion: true })
-  async refreshDaily() {
-    try {
-      await this.refreshUpcomingYears()
-    } catch (error) {
-      this.logger.error("定时刷新节假日数据失败", error instanceof Error ? error.stack : error)
-    }
+  scheduleDailyRefresh(): Cron {
+    return new Cron("0 30 4 * * *", { timezone: CHINA_ZONE, protect: true }, async () => {
+      try {
+        await this.refreshUpcomingYears()
+      } catch (error) {
+        this.logger.error("定时刷新节假日数据失败", error instanceof Error ? error.stack : error)
+      }
+    })
   }
 
   /** 表中没有安排的日期按周末判断，此时名称为空。省略日期或给空串时查北京时间的今天。 */
@@ -107,8 +120,4 @@ export class HolidayService implements OnModuleInit {
       .limit(1)
     return rows.length > 0
   }
-}
-
-function currentYear(): number {
-  return Number(chinaToday().slice(0, 4))
 }

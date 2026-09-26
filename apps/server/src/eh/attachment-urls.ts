@@ -1,10 +1,6 @@
-import { ForbiddenException, Injectable } from "@nestjs/common"
-import { ConfigService } from "@nestjs/config"
-
-import type { Env } from "@/config"
-import type { GalleryRef } from "@/eh/upstream/gallery-ref"
-import { isDecimal } from "@/numeric"
-import { SigningKeys } from "@/signing/signing.module"
+import type { GalleryRef } from "@server/eh/upstream/gallery-ref"
+import { forbidden } from "@server/http-error"
+import { isDecimal } from "@server/numeric"
 
 /** 地址上固定的两个签名参数：e 是过期时间（毫秒），s 是签名值。 */
 export interface Signature {
@@ -20,14 +16,15 @@ export interface Signature {
  * 地址本身会出现在浏览器历史和转发日志里，签得再长也挡不住转发泄露，所以有效期才是重点。
  * 改了签名的算法或地址的形状，已发出去、还没过期的地址就一齐作废（最多三十来个小时），浏览器缓存的图也得重新取一遍。
  */
-@Injectable()
 export class AttachmentUrls {
+  /** 由主密钥派生的图片地址子密钥 */
   private readonly key: Buffer
+  /** 签出地址的有效期（毫秒） */
   private readonly ttl: number
 
-  constructor(signingKeys: SigningKeys, configService: ConfigService<Env, true>) {
-    this.key = signingKeys.attachment
-    this.ttl = configService.get("ATTACHMENT_TTL", { infer: true })
+  constructor(key: Buffer, ttl: number) {
+    this.key = key
+    this.ttl = ttl
   }
 
   /** 缩略图：签的是上游原始地址，校验通过才代理，客户端指定不了主机。 */
@@ -44,7 +41,7 @@ export class AttachmentUrls {
   checkThumbnail(encoded: string, signature: Signature): string {
     const raw = Buffer.from(encoded, "base64url").toString()
     if (!this.verify(raw, signature)) {
-      throw new ForbiddenException("缩略图地址签名不正确或已过期")
+      throw forbidden("缩略图地址签名不正确或已过期")
     }
     return raw
   }
@@ -52,7 +49,7 @@ export class AttachmentUrls {
   /** 签名覆盖了 uid：改地址上的 uid 冒充别人就对不上，否则拿到一条地址就能用别人的 e 站凭据取图。 */
   checkImage(userId: number, ref: GalleryRef, page: number, signature: Signature) {
     if (!this.verify(imageSubject(userId, ref, page), signature)) {
-      throw new ForbiddenException("图片地址签名不正确或已过期")
+      throw forbidden("图片地址签名不正确或已过期")
     }
   }
 

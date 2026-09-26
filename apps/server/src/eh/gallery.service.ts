@@ -7,27 +7,37 @@ import type {
   GalleryPreview,
   gallerySearchSchema,
 } from "@myapi/shared/eh"
-import { Injectable } from "@nestjs/common"
 import type { z } from "zod"
 
-import { AttachmentUrls } from "@/eh/attachment-urls"
-import { CredentialService } from "@/eh/credential.service"
-import { GalleryCatalog } from "@/eh/gallery-catalog"
-import { ImageLocator } from "@/eh/image-locator"
-import { EhClient } from "@/eh/upstream/eh-client"
-import { galleryMissing } from "@/eh/upstream/failures"
-import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref"
+import type { AttachmentUrls } from "@server/eh/attachment-urls"
+import type { CredentialService } from "@server/eh/credential.service"
+import type { GalleryCatalog } from "@server/eh/gallery-catalog"
+import type { ImageLocator } from "@server/eh/image-locator"
+import type { EhClient } from "@server/eh/upstream/eh-client"
+import { galleryMissing } from "@server/eh/upstream/failures"
+import { refKey, type GalleryRef } from "@server/eh/upstream/gallery-ref"
 
 /** 图集浏览：搜索 → 详情 → 评论与预览图。 */
-@Injectable()
 export class GalleryService {
+  private readonly ehClient: EhClient
+  private readonly credentialService: CredentialService
+  private readonly galleryCatalog: GalleryCatalog
+  private readonly imageLocator: ImageLocator
+  private readonly attachmentUrls: AttachmentUrls
+
   constructor(
-    private readonly ehClient: EhClient,
-    private readonly credentialService: CredentialService,
-    private readonly galleryCatalog: GalleryCatalog,
-    private readonly imageLocator: ImageLocator,
-    private readonly attachmentUrls: AttachmentUrls,
-  ) {}
+    ehClient: EhClient,
+    credentialService: CredentialService,
+    galleryCatalog: GalleryCatalog,
+    imageLocator: ImageLocator,
+    attachmentUrls: AttachmentUrls,
+  ) {
+    this.ehClient = ehClient
+    this.credentialService = credentialService
+    this.galleryCatalog = galleryCatalog
+    this.imageLocator = imageLocator
+    this.attachmentUrls = attachmentUrls
+  }
 
   /** 从列表页拿图集顺序和游标，再用元数据接口补全；元数据取不到的图集不出现在结果里。 */
   async search(userId: number, search: z.output<typeof gallerySearchSchema>): Promise<CursorPage<GalleryCard>> {

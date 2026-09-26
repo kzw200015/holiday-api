@@ -1,23 +1,31 @@
-import { Injectable, Logger } from "@nestjs/common"
-
-import { AttachmentUrls, type Signature } from "@/eh/attachment-urls"
-import { CredentialService } from "@/eh/credential.service"
-import { ImageLocator } from "@/eh/image-locator"
-import { EhClient, type ImageStream } from "@/eh/upstream/eh-client"
-import { ImageNodeFailure } from "@/eh/upstream/failures"
-import type { GalleryRef } from "@/eh/upstream/gallery-ref"
+import type { AttachmentUrls, Signature } from "@server/eh/attachment-urls"
+import type { CredentialService } from "@server/eh/credential.service"
+import type { ImageLocator } from "@server/eh/image-locator"
+import type { EhClient, ImageStream } from "@server/eh/upstream/eh-client"
+import { ImageNodeFailure } from "@server/eh/upstream/failures"
+import type { GalleryRef } from "@server/eh/upstream/gallery-ref"
+import { Logger } from "@server/logger"
 
 /** 图片代理：签名校验通过才取图，交回可以直接转发的图片流。 */
-@Injectable()
 export class ImageService {
   private readonly logger = new Logger(ImageService.name)
 
+  private readonly attachmentUrls: AttachmentUrls
+  private readonly credentialService: CredentialService
+  private readonly imageLocator: ImageLocator
+  private readonly ehClient: EhClient
+
   constructor(
-    private readonly attachmentUrls: AttachmentUrls,
-    private readonly credentialService: CredentialService,
-    private readonly imageLocator: ImageLocator,
-    private readonly ehClient: EhClient,
-  ) {}
+    attachmentUrls: AttachmentUrls,
+    credentialService: CredentialService,
+    imageLocator: ImageLocator,
+    ehClient: EhClient,
+  ) {
+    this.attachmentUrls = attachmentUrls
+    this.credentialService = credentialService
+    this.imageLocator = imageLocator
+    this.ehClient = ehClient
+  }
 
   /** 校验签名后用签发对象的凭据取图。uid 要等签名校验通过，才能拿它去读凭据。图床节点失败时换源重试一次。 */
   async openGalleryImage(userId: number, ref: GalleryRef, page: number, signature: Signature): Promise<ImageStream> {

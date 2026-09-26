@@ -1,8 +1,8 @@
-import { isCalendarDate, type HolidayDetail } from "@myapi/shared/holiday"
-import { Inject, Injectable } from "@nestjs/common"
+import { isCalendarDate } from "@myapi/shared/holiday"
 import { z } from "zod"
 
-import { OUTBOUND, type Outbound } from "@/outbound/outbound.module"
+import type { HolidayDetail } from "@server/holiday/holiday.service"
+import type { Outbound } from "@server/outbound"
 
 const payloadSchema = z.object({
   days: z.array(
@@ -15,9 +15,12 @@ const payloadSchema = z.object({
 })
 
 /** 节假日安排的数据源：GitHub 上的 holiday-cn 仓库，一年一个 JSON 文件。 */
-@Injectable()
 export class HolidaySource {
-  constructor(@Inject(OUTBOUND) private readonly outbound: Outbound) {}
+  private readonly outbound: Outbound
+
+  constructor(outbound: Outbound) {
+    this.outbound = outbound
+  }
 
   /** 拉取一整年并校验格式，免得脏数据入库。还没发布时是空列表。 */
   async fetchYear(year: number): Promise<HolidayDetail[]> {

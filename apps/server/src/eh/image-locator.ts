@@ -1,11 +1,11 @@
-import { Injectable, NotFoundException } from "@nestjs/common"
 import { LRUCache } from "lru-cache"
 
-import type { EhAccess } from "@/eh/upstream/access"
-import { EhClient } from "@/eh/upstream/eh-client"
-import { unavailable } from "@/eh/upstream/failures"
-import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref"
-import type { GallerySlice, ImagePage } from "@/eh/upstream/parse"
+import type { EhAccess } from "@server/eh/upstream/access"
+import type { EhClient } from "@server/eh/upstream/eh-client"
+import { unavailable } from "@server/eh/upstream/failures"
+import { refKey, type GalleryRef } from "@server/eh/upstream/gallery-ref"
+import type { GallerySlice, ImagePage } from "@server/eh/upstream/parse"
+import { notFound } from "@server/http-error"
 
 interface SliceRequest {
   access: EhAccess
@@ -23,7 +23,6 @@ const DEFAULT_SLICE_SIZE = 20
  * 途中拿到的东西都记下来，顺序翻页时就不必回头再抓：分片顺带给出一整片的页令牌，图片页顺带给出下一页的令牌和 showkey。
  * 这些一律按上游身份（EhAccess.scope）与图集隔离，换绑凭据就进入新的作用域，不同身份之间不共享页面。
  */
-@Injectable()
 export class ImageLocator {
   /** 评论与第一页图常常同时要同一片：同一片同一时刻只抓一次，抓到后留一会儿给紧跟着的请求用。 */
   private readonly slices = new LRUCache<string, GallerySlice, SliceRequest>({
@@ -36,7 +35,11 @@ export class ImageLocator {
   private readonly sliceSizes = new LRUCache<string, number>({ max: 200, ttl: 30 * 60_000 })
   private readonly showKeys = new LRUCache<string, string>({ max: 200, ttl: 30 * 60_000 })
 
-  constructor(private readonly ehClient: EhClient) {}
+  private readonly ehClient: EhClient
+
+  constructor(ehClient: EhClient) {
+    this.ehClient = ehClient
+  }
 
   /** 详情页的某一片。评论也从第 0 片里取。fetchSlice 要么给出分片要么抛出，forceFetch 在没拿到值时也会抛出。 */
   gallerySlice(access: EhAccess, ref: GalleryRef, index: number): Promise<GallerySlice> {
@@ -98,7 +101,7 @@ export class ImageLocator {
       return token
     }
     if (slice.pageCount !== null && page > slice.pageCount) {
-      throw new NotFoundException(`第 ${page} 页超出了图集的页数（共 ${slice.pageCount} 页）`)
+      throw notFound(`第 ${page} 页超出了图集的页数（共 ${slice.pageCount} 页）`)
     }
     let size = slice.sliceSize
     if (size === null) {

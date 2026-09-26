@@ -3,7 +3,7 @@ import { z } from "zod"
 
 /*
  * 全部配置都来自环境变量，启动时校验一次，缺了或写错进程直接拒绝启动。本地开发写在 apps/server/.env 里
- * （已被 Git 忽略；Bun 启动时就会把当前目录的 .env 读进环境变量，@nestjs/config 再读一遍也不冲突），部署时由容器环境给出。清单见 .env.example。
+ * （已被 Git 忽略；Bun 启动时就会把当前目录的 .env 读进环境变量），部署时由容器环境给出。清单见 .env.example。
  */
 
 const DURATION_UNITS = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 } as const
@@ -26,7 +26,7 @@ const duration = z.string().transform((text, ctx) => {
 const envSchema = z.object({
   DATABASE_URL: z.string({ error: "缺少 DATABASE_URL，形如 postgres://用户:口令@主机:5432/库名" }).min(1),
   /**
-   * 主密钥，登录令牌与图片地址的签名密钥都由它派生，只由 SigningKeys 读取。
+   * 主密钥，登录令牌与图片地址的签名密钥都由它派生，只由 signing.ts 读取。
    *
    * 故意没有默认值：数据库口令泄露只影响这一个库，签名密钥泄露则意味着任何人都能伪造任意账号的令牌。
    * 太短时拒绝启动：拿到一个令牌就能离线猜密钥，短密钥猜得出来。
@@ -64,7 +64,7 @@ const envSchema = z.object({
 
 export type Env = z.output<typeof envSchema>
 
-/** 交给 ConfigModule 的校验函数：失败时把每一项的问题列出来。 */
+/** 启动时校验环境变量：失败时把每一项的问题列出来。 */
 export function validateEnv(env: Record<string, unknown>): Env {
   const result = envSchema.safeParse(env)
   if (!result.success) {

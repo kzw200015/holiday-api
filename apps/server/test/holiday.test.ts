@@ -1,7 +1,5 @@
-import { SchedulerRegistry } from "@nestjs/schedule"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
-import { HOLIDAY_REFRESH_JOB } from "@/holiday/holiday.service"
 import { startApp, type TestApp } from "./support/app"
 import { createDatabase } from "./support/database"
 import { holidaySource, json, type Responder } from "./support/outbound"
@@ -62,7 +60,7 @@ describe("休息日查询", () => {
 describe("每日刷新", () => {
   async function refreshWith(respond: Responder) {
     t.outbound.respond = respond
-    await t.app.get(SchedulerRegistry).getCronJob(HOLIDAY_REFRESH_JOB).fireOnTick()
+    await t.holidayRefresh.trigger()
   }
 
   it("拉到空的不动库，拉取失败也不动库", async () => {

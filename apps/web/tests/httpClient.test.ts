@@ -1,78 +1,100 @@
-import { AxiosError, CanceledError, type AxiosAdapter, type AxiosResponse } from "axios"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+/* @vitest-environment happy-dom */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { hasToken, httpClient, onUnauthorized, setToken } from "@/shared/api/httpClient"
+import { api, hasToken, onUnauthorized, request, requestWithin, setToken } from "@/shared/api/httpClient"
 import { present } from "./support"
+
+/* Eden 按 fetch(地址, 选项) 调用 */
+const fetch = vi.fn<(url: string, init: RequestInit) => Promise<Response>>()
 
 beforeEach(() => {
   setToken("")
   onUnauthorized(vi.fn())
+  fetch.mockReset()
+  vi.stubGlobal("fetch", fetch)
+})
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
+/** 第 index 次请求的地址与选项 */
+function call(index: number) {
+  const [url, init] = present(fetch.mock.calls[index], `第 ${index + 1} 次请求`)
+  return { url: new URL(url), init, headers: new Headers(init.headers) }
+}
+
+/* 挂住的连接：永远不回，只在被中止时失败；和真的 fetch 一样，拿到已经中止的 signal 当场失败 */
+function hanging(_url: string, init: RequestInit) {
+  const signal = present(init.signal, "请求的 signal")
+  return new Promise<Response>((_resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason)
+    }
+    signal.addEventListener("abort", () => reject(signal.reason))
+  })
+}
+
+const failure = (status: number, message: string | string[]) =>
+  Response.json({ statusCode: status, message, error: "Bad Request" }, { status })
+
 describe("HTTP 边界", () => {
-  it("默认使用 fetch 适配器，保留查询参数、鉴权头和 JSON 请求体", async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => Response.json({ id: 1 }))
-    const config = { baseURL: "https://myapi.test/api", env: { fetch } }
+  it("带上查询参数、鉴权头和 JSON 请求体", async () => {
+    fetch.mockImplementation(async () => Response.json({ id: 1 }))
     setToken("current")
 
-    expect(await httpClient.get("/eh/galleries", { ...config, params: { keyword: "中文 & cat" } })).toEqual({ id: 1 })
-    const getRequest = present(fetch.mock.calls[0], "GET 请求")[0] as Request
-    expect(getRequest.method).toBe("GET")
-    expect(new URL(getRequest.url).pathname).toBe("/api/eh/galleries")
-    expect(new URL(getRequest.url).searchParams.get("keyword")).toBe("中文 & cat")
-    expect(getRequest.headers.get("Authorization")).toBe("Bearer current")
+    expect(await request(api.holiday.detail.get({ query: { date: "2026-01-01" } }))).toEqual({ id: 1 })
+    const get = call(0)
+    expect(get.init.method).toBe("GET")
+    expect(get.url.pathname).toBe("/api/holiday/detail")
+    expect(get.url.searchParams.get("date")).toBe("2026-01-01")
+    expect(get.headers.get("Authorization")).toBe("Bearer current")
 
-    expect(await httpClient.post("/eh/preferences/reader-interval", { interval: 6 }, config)).toEqual({ id: 1 })
-    const postRequest = present(fetch.mock.calls[1], "POST 请求")[0] as Request
-    expect(postRequest.method).toBe("POST")
-    expect(postRequest.headers.get("Content-Type")).toBe("application/json")
-    expect(await postRequest.json()).toEqual({ interval: 6 })
+    await request(api.eh["search-history"].post({ keyword: "中文 & cat" }))
+    const post = call(1)
+    expect(post.init.method).toBe("POST")
+    expect(post.headers.get("Content-Type")).toBe("application/json")
+    expect(JSON.parse(String(post.init.body))).toEqual({ keyword: "中文 & cat" })
 
-    expect(await httpClient.delete("/eh/history/27", config)).toEqual({ id: 1 })
-    const deleteRequest = present(fetch.mock.calls[2], "DELETE 请求")[0] as Request
-    expect(deleteRequest.method).toBe("DELETE")
-    expect(new URL(deleteRequest.url).pathname).toBe("/api/eh/history/27")
-    expect(deleteRequest.body).toBeNull()
-    expect(fetch).toHaveBeenCalledTimes(3)
+    await request(api.eh.history({ gid: 27 }).delete())
+    const remove = call(2)
+    expect(remove.init.method).toBe("DELETE")
+    expect(remove.url.pathname).toBe("/api/eh/history/27")
+    expect(remove.init.body).toBeUndefined()
+  })
+
+  it("没登录时不带鉴权头", async () => {
+    fetch.mockImplementation(async () => new Response(null))
+    await request(api.auth.me.get())
+    expect(call(0).headers.has("Authorization")).toBe(false)
   })
 
   it("响应体就是业务数据；空体交出 null", async () => {
-    const fetch = vi
-      .fn<typeof globalThis.fetch>()
-      .mockImplementationOnce(async () => Response.json({ id: 1 }))
-      .mockImplementationOnce(async () => Response.json(false))
-      .mockImplementation(async () => new Response(null, { status: 201 }))
-    const config = { baseURL: "https://myapi.test/api", env: { fetch } }
-    expect(await httpClient.get("/auth/me", config)).toEqual({ id: 1 })
-    expect(await httpClient.get("/holiday/is-holiday", config)).toBe(false)
-    expect(await httpClient.post("/eh/progress", {}, config)).toBeNull()
-    expect(await httpClient.get("/auth/me", config)).toBeNull()
+    fetch
+      .mockImplementationOnce(async () => Response.json({ id: 1, username: "a" }))
+      .mockImplementation(async () => new Response(null))
+    expect(await request(api.auth.me.get())).toEqual({ id: 1, username: "a" })
+    expect(await request(api.eh.history.delete())).toBeNull()
+    expect(await request(api.auth.me.get())).toBeNull()
+  })
+
+  it("像日期的字符串原样交出，不转成 Date", async () => {
+    fetch.mockImplementation(async () => Response.json({ date: "2026-01-01", isOffDay: true, name: "元旦" }))
+    expect((await request(api.holiday.detail.get({ query: { date: "2026-01-01" } }))).date).toBe("2026-01-01")
   })
 
   it("校验失败时的一组文案连成一句", async () => {
-    const adapter: AxiosAdapter = async (config) => {
-      throw new AxiosError("Bad Request", "ERR_BAD_REQUEST", config, null, {
-        data: { statusCode: 400, message: ["页码不合法", "上报方标识不合法"], error: "Bad Request" },
-        status: 400,
-      } as AxiosResponse)
-    }
-    await expect(httpClient.post("/eh/progress", {}, { adapter })).rejects.toThrow(
-      new Error("页码不合法；上报方标识不合法"),
-    )
+    fetch.mockImplementation(async () => failure(400, ["页码不合法", "上报方标识不合法"]))
+    await expect(request(api.eh.history.delete())).rejects.toThrow(new Error("页码不合法；上报方标识不合法"))
   })
 
   it("当前令牌失效时清理会话，并使用后端错误文案", async () => {
     const unauthorized = vi.fn()
     onUnauthorized(unauthorized)
     setToken("expired")
-    const adapter: AxiosAdapter = async (config) => {
-      expect(config.headers.Authorization).toBe("Bearer expired")
-      throw new AxiosError("Unauthorized", "ERR_BAD_REQUEST", config, null, {
-        data: { statusCode: 401, message: "请重新登录", error: "Unauthorized" },
-        status: 401,
-      } as AxiosResponse)
-    }
-    await expect(httpClient.get("/eh/galleries", { adapter })).rejects.toThrow("请重新登录")
+    fetch.mockImplementation(async () => failure(401, "请先登录"))
+    await expect(request(api.eh.credential.get())).rejects.toThrow("请先登录")
+    expect(call(0).headers.get("Authorization")).toBe("Bearer expired")
     expect(hasToken()).toBe(false)
     expect(unauthorized).toHaveBeenCalledOnce()
   })
@@ -82,17 +104,13 @@ describe("HTTP 边界", () => {
     onUnauthorized(unauthorized)
     setToken("old")
     let fail: (() => void) | undefined
-    const adapter: AxiosAdapter = (config) =>
-      new Promise((_resolve, reject) => {
-        fail = () =>
-          reject(
-            new AxiosError("Unauthorized", "ERR_BAD_REQUEST", config, null, {
-              data: { statusCode: 401, message: "已过期", error: "Unauthorized" },
-              status: 401,
-            } as AxiosResponse),
-          )
-      })
-    const pending = httpClient.get("/eh/galleries", { adapter })
+    fetch.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          fail = () => resolve(failure(401, "已过期"))
+        }),
+    )
+    const pending = request(api.eh.credential.get())
     await vi.waitFor(() => expect(fail).toBeDefined())
     setToken("new")
     present(fail, "让请求失败的回调")()
@@ -101,50 +119,37 @@ describe("HTTP 边界", () => {
     expect(unauthorized).not.toHaveBeenCalled()
   })
 
-  it("取消请求保留取消标识", async () => {
-    const canceled = new CanceledError("canceled")
-    await expect(
-      httpClient.get("/holiday/detail", {
-        adapter: async () => {
-          throw canceled
-        },
-      }),
-    ).rejects.toBe(canceled)
+  it("取消请求原样抛出取消", async () => {
+    const controller = new AbortController()
+    fetch.mockImplementation(hanging)
+    const pending = request(api.holiday.detail.get({ query: { date: "" }, fetch: { signal: controller.signal } }))
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" })
   })
 
-  /* 没有本站响应体的失败：Axios 的原文是英文，还带着内部细节，换成界面能直接显示的说明。 */
+  it("带时限的请求到点就中止，报请求超时", async () => {
+    vi.useFakeTimers()
+    fetch.mockImplementation(hanging)
+    const outcome = requestWithin(1000, (signal) => api.eh.history.delete(undefined, { fetch: { signal } })).then(
+      () => "成功",
+      (error: Error) => error.message,
+    )
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(await outcome).toBe("请求超时")
+  })
+
+  /* 没有本站响应体的失败：换成界面能直接显示的说明。 */
   it.each([
-    { label: "断网", error: () => new AxiosError("Network Error", AxiosError.ERR_NETWORK), message: "网络连接失败" },
-    {
-      label: "超时",
-      error: () => new AxiosError("timeout of 10000ms exceeded", AxiosError.ETIMEDOUT),
-      message: "请求超时",
-    },
+    { label: "断网", respond: () => Promise.reject(new TypeError("Failed to fetch")), message: "网络连接失败" },
     {
       label: "反向代理回 HTML",
-      error: () =>
-        new AxiosError("Request failed with status code 502", AxiosError.ERR_BAD_RESPONSE, undefined, null, {
-          data: "<html>Bad Gateway</html>",
-          status: 502,
-        } as AxiosResponse),
+      respond: async () =>
+        new Response("<html>Bad Gateway</html>", { status: 502, headers: { "content-type": "text/html" } }),
       message: "服务器返回了 HTTP 502",
     },
-    {
-      label: "空响应体",
-      error: () =>
-        new AxiosError("Request failed with status code 504", AxiosError.ERR_BAD_RESPONSE, undefined, null, {
-          data: "",
-          status: 504,
-        } as AxiosResponse),
-      message: "服务器返回了 HTTP 504",
-    },
-  ])("$label时给出中文说明", async ({ error, message }) => {
-    await expect(
-      httpClient.get("/holiday/detail", {
-        adapter: async () => {
-          throw error()
-        },
-      }),
-    ).rejects.toThrow(new Error(message))
+    { label: "空响应体", respond: async () => new Response(null, { status: 504 }), message: "服务器返回了 HTTP 504" },
+  ])("$label时给出中文说明", async ({ respond, message }) => {
+    fetch.mockImplementation(respond)
+    await expect(request(api.holiday.detail.get({ query: { date: "" } }))).rejects.toThrow(new Error(message))
   })
 })

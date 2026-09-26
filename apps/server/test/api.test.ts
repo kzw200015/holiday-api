@@ -1,4 +1,3 @@
-import type { Express } from "express"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { register, startApp, type TestApp } from "./support/app"
@@ -38,23 +37,14 @@ afterAll(async () => {
 describe("鉴权边界", () => {
   /**
    * 按整张路由表扫，每条都不带令牌实际请求一次：不回 401 的恰好是这几条。逐条列路径的话，新加的接口没人记得补进来；
-   * 反过来，图片接口要是被误改成要登录，<img> 就全打不开了。看的是响应而不是装饰器，Guard 的规则怎么改都照样锁得住。
+   * 反过来，图片接口要是被误改成要登录，<img> 就全打不开了。看的是响应而不是哪组路由 use 了鉴权插件，鉴权怎么改都照样锁得住。
    */
   it("公开接口恰好是这几条，其余不带令牌一律 401", async () => {
-    const router = (t.app.getHttpAdapter().getInstance() as Express).router
-    /* express 路由表里的方法名是小写的 */
-    const routes = router.stack.flatMap(({ route }) =>
-      route
-        ? Object.keys((route as unknown as { methods: Record<string, boolean> }).methods).map((method) => ({
-            method,
-            path: route.path,
-          }))
-        : [],
-    )
+    const routes = t.app.routes.map(({ method, path }) => ({ method: method.toLowerCase(), path }))
     /* 扫整张路由表，不只扫 /api 下的：漏写前缀的接口同样要被锁住 */
     const open: string[] = []
     for (const { method, path } of routes) {
-      const response = await t.http[method as "get"](path.replaceAll(/:\w+/g, "1"))
+      const response = await t.http[method as "get"](path.replaceAll(/:\w+/g, "1").replaceAll("*", "x"))
       if (response.status !== 401) {
         open.push(`${method.toUpperCase()} ${path}`)
       }
@@ -71,6 +61,9 @@ describe("鉴权边界", () => {
         "GET /api/eh/thumbnail",
         "GET /api/health/live",
         "GET /api/health/ready",
+        /* 前端的静态文件 */
+        "GET /",
+        "GET /*",
       ]),
     )
     expect(routes.length - open.length).toBeGreaterThan(10)

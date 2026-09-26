@@ -22,13 +22,3 @@ export const holidayQuerySchema = z.object({
     .refine((date) => date === "" || isCalendarDate(date), DATE_RULE)
     .optional(),
 })
-
-/** 某一天的节假日安排 */
-export interface HolidayDetail {
-  /** 查询的日期，格式 YYYY-MM-DD */
-  date: string
-  /** 是否为休息日 */
-  isOffDay: boolean
-  /** 节假日名称；为空表示该日期不在节假日安排里（普通工作日或普通周末） */
-  name: string
-}

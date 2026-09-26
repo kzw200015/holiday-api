@@ -1,12 +1,12 @@
 import type { CredentialStatus, ehCookieSchema } from "@myapi/shared/eh"
-import { Inject, Injectable, Logger } from "@nestjs/common"
 import { eq, sql } from "drizzle-orm"
 import type { z } from "zod"
 
-import { DATABASE, type Database } from "@/database/database.module"
-import { ehCredentials } from "@/eh/eh.tables"
-import { accessOf, ANONYMOUS, type EhAccess } from "@/eh/upstream/access"
-import { EhClient } from "@/eh/upstream/eh-client"
+import type { Database } from "@server/database/connection"
+import { ehCredentials } from "@server/eh/eh.tables"
+import { accessOf, ANONYMOUS, type EhAccess } from "@server/eh/upstream/access"
+import type { EhClient } from "@server/eh/upstream/eh-client"
+import { Logger } from "@server/logger"
 
 const UNBOUND: CredentialStatus = { bound: false, memberId: "", hasExAccess: false }
 
@@ -15,14 +15,16 @@ const UNBOUND: CredentialStatus = { bound: false, memberId: "", hasExAccess: fal
  *
  * 凭据每次都从库里读（按唯一索引查一行），不在进程里缓存：换绑、解绑当场生效，也就没有「作废缓存时撞上在途回填」这类问题。
  */
-@Injectable()
 export class CredentialService {
   private readonly logger = new Logger(CredentialService.name)
 
-  constructor(
-    @Inject(DATABASE) private readonly database: Database,
-    private readonly ehClient: EhClient,
-  ) {}
+  private readonly database: Database
+  private readonly ehClient: EhClient
+
+  constructor(database: Database, ehClient: EhClient) {
+    this.database = database
+    this.ehClient = ehClient
+  }
 
   async status(userId: number): Promise<CredentialStatus> {
     return (await this.find(userId))?.status ?? UNBOUND

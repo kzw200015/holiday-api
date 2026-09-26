@@ -14,11 +14,11 @@ import { present } from "./support"
 /* 与 api.ts 里的 SAVE_TIMEOUT 对齐。 */
 const SAVE_TIMEOUT = 10_000
 
-/* 挂住的连接：永远不回，只在被中止时失败。 */
-const fetch = vi.fn<(request: Request, init?: RequestInit) => Promise<Response>>(
-  (request) =>
+/* 挂住的连接：永远不回，只在被中止时失败。Eden 按 fetch(地址, 选项) 调用 */
+const fetch = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(
+  (_url, { signal }) =>
     new Promise((_resolve, reject) => {
-      request.signal.addEventListener("abort", () => reject(request.signal.reason))
+      signal?.addEventListener("abort", () => reject(signal.reason))
     }),
 )
 
@@ -46,7 +46,7 @@ describe("写入的时限", () => {
       (error: Error) => error.message,
     )
     await vi.advanceTimersByTimeAsync(SAVE_TIMEOUT - 1)
-    expect(fetch.mock.calls[0]?.[0].signal.aborted).toBe(false)
+    expect(fetch.mock.calls[0]?.[1].signal?.aborted).toBe(false)
     await vi.advanceTimersByTimeAsync(1)
     expect(await outcome).toBe("请求超时")
   })
@@ -54,7 +54,7 @@ describe("写入的时限", () => {
   it("读取不受这个时限约束", async () => {
     void fetchGalleryPreferences()
     await vi.advanceTimersByTimeAsync(SAVE_TIMEOUT * 3)
-    expect(fetch.mock.calls[0]?.[0].signal.aborted).toBe(false)
+    expect(fetch.mock.calls[0]?.[1].signal?.aborted ?? false).toBe(false)
   })
 
   /* 刷新、关标签页时发出的那次进度要能在页面卸载后继续送完。 */
@@ -71,7 +71,7 @@ describe("进度上报的顺序", () => {
     void saveProgress(1, "aaaaaaaaaa", 2).catch(() => {})
     void saveProgress(1, "aaaaaaaaaa", 3).catch(() => {})
     await vi.advanceTimersByTimeAsync(0)
-    const [first, second] = await Promise.all(fetch.mock.calls.map(([request]) => request.json()))
+    const [first, second] = fetch.mock.calls.map(([, init]) => JSON.parse(String(init.body)))
     expect(first).toMatchObject({
       gid: 1,
       token: "aaaaaaaaaa",
@@ -88,7 +88,7 @@ describe("删搜索历史的地址", () => {
   it("关键词编进查询串", async () => {
     void removeSearchKeyword("../a b").catch(() => {})
     await vi.advanceTimersByTimeAsync(0)
-    const url = new URL(present(fetch.mock.calls[0], "请求")[0].url)
+    const url = new URL(present(fetch.mock.calls[0], "请求")[0])
     expect([url.pathname, url.searchParams.get("keyword")]).toEqual(["/api/eh/search-history/entry", "../a b"])
   })
 })

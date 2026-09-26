@@ -1,12 +1,12 @@
 import type { GalleryTag, TagTranslationStatus } from "@myapi/shared/eh"
-import { Inject, Injectable, Logger } from "@nestjs/common"
 import { desc, sql } from "drizzle-orm"
 import { LRUCache } from "lru-cache"
 
-import { DATABASE, type Database } from "@/database/database.module"
-import { ehTagTranslations, ehTagTranslationSyncs } from "@/eh/eh.tables"
-import { TagTranslationSource } from "@/eh/tag-translation.source"
-import type { TagRef } from "@/eh/upstream/eh-client"
+import type { Database } from "@server/database/connection"
+import { ehTagTranslations, ehTagTranslationSyncs } from "@server/eh/eh.tables"
+import type { TagTranslationSource } from "@server/eh/tag-translation.source"
+import type { TagRef } from "@server/eh/upstream/eh-client"
+import { Logger } from "@server/logger"
 
 /* 命名空间本身的译名，上游归在这个命名空间下，raw 是命名空间名 */
 const NAMESPACE_NAMES = "rows"
@@ -40,16 +40,18 @@ const createCache = () => new LRUCache<string, string>({ max: 50_000 })
  * 一次响应里的标签一起备齐：缓存里没有的攒到一起，一条 SQL 查回来——一页搜索结果几百个标签，也只查一次库。
  * 同步之后整个换一份新缓存；查询途中撞上同步的，结果写进它开始时的那份旧缓存，随它一起丢掉，不会把旧译名留到新缓存里。
  */
-@Injectable()
 export class TagTranslationService {
   private readonly logger = new Logger(TagTranslationService.name)
   private cache = createCache()
   private syncing: Promise<TagTranslationStatus> | undefined
 
-  constructor(
-    @Inject(DATABASE) private readonly database: Database,
-    private readonly source: TagTranslationSource,
-  ) {}
+  private readonly database: Database
+  private readonly source: TagTranslationSource
+
+  constructor(database: Database, source: TagTranslationSource) {
+    this.database = database
+    this.source = source
+  }
 
   /** 备齐这些标签的译名，回一个同步的换算：没有译名的用原文。 */
   async translator(tags: TagRef[]): Promise<Translate> {

@@ -1,12 +1,6 @@
-import type { HolidayDetail, holidayQuerySchema } from "@myapi/shared/holiday"
-import type { z } from "zod"
-
-import { httpClient } from "@/shared/api/httpClient"
+import { api, request } from "@/shared/api/httpClient"
 
 /** 查询某一天是否为休息日及对应的节假日 */
 export function fetchHolidayDetail(date: string, signal?: AbortSignal) {
-  return httpClient.get<HolidayDetail>("/holiday/detail", {
-    params: { date } satisfies z.input<typeof holidayQuerySchema>,
-    signal,
-  })
+  return request(api.holiday.detail.get({ query: { date }, fetch: { signal } }))
 }

@@ -37,7 +37,7 @@ export function useEhCredential() {
     /* 不会 reject，失败落在 loadError 上 */
     reload: () => query.refresh(),
     /* 失败照样抛给调用方，设置页要据此决定显不显示成功提示。 */
-    bind: (cookie: z.input<typeof ehCookieSchema>) => change.mutateAsync(() => bindCredential(cookie)),
+    bind: (cookie: z.output<typeof ehCookieSchema>) => change.mutateAsync(() => bindCredential(cookie)),
     unbind: () => change.mutateAsync(unbindCredential),
   }
 }

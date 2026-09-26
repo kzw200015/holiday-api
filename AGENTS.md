@@ -4,9 +4,9 @@
 
 MyAPI 提供账号、图集浏览和节假日查询。领域术语见 `CONTEXT.md`，架构决策见 `docs/adr/`，辅助工作流见 `docs/agents/`。仓库是 Bun 工作区（见 ADR-0003、ADR-0004），三个包：
 
-- `apps/server`：后端，NestJS 12（Express 适配器）+ Drizzle + PostgreSQL，由 Bun 直接运行 TypeScript 源码。
+- `apps/server`：后端，Elysia + Drizzle + PostgreSQL，由 Bun 直接运行 TypeScript 源码。前端经 Eden 从后端导出的 `App` 类型推断每条接口（见 ADR-0007）。
 - `apps/web`：前端，Vue 3 + Vite。前端工具链（Vite、vue-tsc、Vitest）跑在 Node 上：vue-tsc 在 Bun 下认不出 `.vue`，所以本机除了 Bun 还要装 Node 24。
-- `packages/shared`（包名 `@myapi/shared`）：前后端共用的接口契约——请求的 zod schema 与响应的类型，不构建，两端直接引用源码。
+- `packages/shared`（包名 `@myapi/shared`）：前后端共用的请求 zod schema、响应的类型与两端都要执行的规则，不构建，两端直接引用源码。
 
 Bun 的版本写在根目录 `package.json` 的 `packageManager` 与 `Dockerfile` 的两处 `oven/bun` 镜像标签里，升级时三处一起改。
 
@@ -14,9 +14,9 @@ Bun 的版本写在根目录 `package.json` 的 `packageManager` 与 `Dockerfile
 
 各包与领域模块的约定写在各自目录下的 `AGENTS.md` 里。本文件只放全仓通用的部分；动手改某处之前，从包到领域逐级读完对应的 `AGENTS.md`：
 
-- `apps/server/AGENTS.md`：后端结构、Nest 的用法（配置、入参、响应、鉴权、数据、出网、缓存）、后端测试、本地配置。
+- `apps/server/AGENTS.md`：后端结构与装配、Elysia 的用法（配置、入参、响应、鉴权、数据、出网、缓存）、后端测试、本地配置。
 - `apps/server/src/eh/AGENTS.md`：与 e 站打交道的协议层、上游失败与文案、图片代理、图集元数据与凭据的读取。
-- `apps/web/AGENTS.md`：前端结构与分层、组件与界面规范、数据层通则（读取、作废、写入）、前端测试。
+- `apps/web/AGENTS.md`：前端结构与分层、对后端的依赖、组件与界面规范、数据层通则（读取、作废、写入）、前端测试。
 - `apps/web/src/features/eh/AGENTS.md`：本站账号数据、图集详情、阅读进度与阅读历史、换绑 e 站账号时的作废。
 - `packages/shared/AGENTS.md`：共享包的引用方式、schema 与类型的写法。
 

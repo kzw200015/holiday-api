@@ -1,11 +1,10 @@
 import type { GalleryCard, GalleryDetail } from "@myapi/shared/eh"
-import { Injectable } from "@nestjs/common"
 import { LRUCache } from "lru-cache"
 
-import { AttachmentUrls } from "@/eh/attachment-urls"
-import { TagTranslationService, type Translate } from "@/eh/tag-translation.service"
-import { EhClient, METADATA_BATCH_SIZE, type GalleryMetadata } from "@/eh/upstream/eh-client"
-import { refKey, type GalleryRef } from "@/eh/upstream/gallery-ref"
+import type { AttachmentUrls } from "@server/eh/attachment-urls"
+import type { TagTranslationService, Translate } from "@server/eh/tag-translation.service"
+import { METADATA_BATCH_SIZE, type EhClient, type GalleryMetadata } from "@server/eh/upstream/eh-client"
+import { refKey, type GalleryRef } from "@server/eh/upstream/gallery-ref"
 
 interface Waiting {
   ref: GalleryRef
@@ -20,7 +19,6 @@ interface Waiting {
  * 同一轮事件循环里缺的攒成一批，一次向上游要（每批最多 25 本）。缓存里存的是上游原始数据，缩略图在组装卡片时才签名，
  * 标签也在这时才套上译名：签名的有效期不受缓存时长影响，同步过的译名也当场生效。
  */
-@Injectable()
 export class GalleryCatalog {
   private readonly cache = new LRUCache<string, GalleryMetadata, GalleryRef>({
     max: 500,
@@ -29,11 +27,15 @@ export class GalleryCatalog {
   })
   private waiting: Waiting[] = []
 
-  constructor(
-    private readonly ehClient: EhClient,
-    private readonly attachmentUrls: AttachmentUrls,
-    private readonly tagTranslationService: TagTranslationService,
-  ) {}
+  private readonly ehClient: EhClient
+  private readonly attachmentUrls: AttachmentUrls
+  private readonly tagTranslationService: TagTranslationService
+
+  constructor(ehClient: EhClient, attachmentUrls: AttachmentUrls, tagTranslationService: TagTranslationService) {
+    this.ehClient = ehClient
+    this.attachmentUrls = attachmentUrls
+    this.tagTranslationService = tagTranslationService
+  }
 
   /** 一批图集的卡片，按 refKey 查；元数据取不到的（被删、转私有）不在结果里，整批请求失败则抛出。搜索结果与阅读历史都用它。 */
   async cards(refs: GalleryRef[]): Promise<Map<string, GalleryCard>> {
