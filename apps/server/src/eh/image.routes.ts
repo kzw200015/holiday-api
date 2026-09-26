@@ -1,15 +1,20 @@
 import { Elysia } from "elysia"
+import { z } from "zod"
 
 import * as imageService from "@server/eh/image.service"
-import { galleryImageQuery, galleryPageParams, thumbnailQuery } from "@server/eh/params"
+import { galleryPageParams } from "@server/eh/params"
 import type { ImageStream } from "@server/eh/upstream/eh-client"
 import { imageBroken } from "@server/eh/upstream/failures"
 import { Logger } from "@server/logger"
+import { numeric } from "@server/numeric"
 
 /** 图集内容不会变，浏览器缓存住之后来回翻页就不再回源，也就不再消耗 e 站配额。 */
 const CACHE_CONTROL = "max-age=2592000, private, immutable"
 
 const logger = new Logger(import.meta.url)
+
+/* 签名只挡缺参数：空的、乱写的一律交给签名校验，回 403 */
+const signature = z.string({ error: "图片地址缺少签名参数" })
 
 /**
  * 两条图片接口。<img> 发的请求带不了 Authorization 头，所以它们不要求登录，改由地址里的签名认人——
@@ -21,11 +26,15 @@ export const imageRoutes = new Elysia()
     "/galleries/:gid/:token/pages/:page/image",
     async ({ params: { gid, token, page }, query: { uid, e, s } }) =>
       forward(await imageService.openGalleryImage(uid, { gid, token }, page, { e, s })),
-    { params: galleryPageParams, query: galleryImageQuery },
+    {
+      params: galleryPageParams,
+      /* uid 是签发给谁的，e 与 s 是签名 */
+      query: z.object({ uid: numeric(z.int().positive(), "用户标识不合法"), e: signature, s: signature }),
+    },
   )
-  /* 缩略图，地址形如 /thumbnail?u=&e=&s=，只接受本服务签发过的地址 */
+  /* 缩略图，地址形如 /thumbnail?u=&e=&s=，u 是编码过的上游地址，只接受本服务签发过的地址 */
   .get("/thumbnail", async ({ query: { u, e, s } }) => forward(await imageService.openThumbnail(u, { e, s })), {
-    query: thumbnailQuery,
+    query: z.object({ u: z.string({ error: "缺少缩略图地址" }), e: signature, s: signature }),
   })
 
 /**

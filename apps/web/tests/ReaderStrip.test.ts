@@ -8,7 +8,6 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchPageImageUrl } from "@/features/eh/api"
 import ReaderStrip from "@/features/eh/components/ReaderStrip.vue"
 import { installQueries } from "@/shared/api/queries"
-import type { GalleryImageUrlResult } from "@server/eh/gallery.service"
 import { deferred, present, query } from "./support"
 
 let resize: (entries: { contentRect: { width: number; height: number } }[]) => void
@@ -348,7 +347,7 @@ describe("横向阅读图片条", () => {
   it("重试途中转圈、再点不重复去签；签不到就留在失败，可以再点", async () => {
     const { element } = await setup(5)
     await vi.advanceTimersByTimeAsync(200)
-    const renewal = deferred<GalleryImageUrlResult>()
+    const renewal = deferred<Awaited<ReturnType<typeof EhApi.fetchPageImageUrl>>>()
     vi.mocked(fetchPageImageUrl).mockReturnValueOnce(renewal.promise)
     const page = present(element.children[4], "第 5 页")
     query(page, "img").dispatchEvent(new Event("error"))

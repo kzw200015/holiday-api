@@ -1,6 +1,3 @@
-import type { gallerySearchSchema } from "@myapi/shared/eh"
-import type { z } from "zod"
-
 import * as attachmentUrls from "@server/eh/attachment-urls"
 import * as credentialService from "@server/eh/credential.service"
 import type { CursorPage } from "@server/eh/cursor-page"
@@ -15,21 +12,18 @@ import type { GalleryComments, PreviewImage } from "@server/eh/upstream/parse"
 /* 图集浏览：搜索 → 详情 → 评论与预览图。 */
 
 /** 某一页大图的签名地址：每页各签各的，阅读器取哪页就签哪页 */
-export interface GalleryImageUrlResult {
+interface GalleryImageUrlResult {
   /** 直接给 img 的 src 用，前端不解析、不拼改它 */
   url: string
 }
 
 /** 图集里一页的预览图（尺寸与偏移的含义见 PreviewImage），地址签成了本站的代理地址 */
-export interface GalleryPreview extends Omit<PreviewImage, "imageUrl"> {
+interface GalleryPreview extends Omit<PreviewImage, "imageUrl"> {
   url: string
 }
 
 /** 从列表页拿图集顺序和游标，再用元数据接口补全；元数据取不到的图集不出现在结果里。 */
-export async function search(
-  userId: number,
-  criteria: z.output<typeof gallerySearchSchema>,
-): Promise<CursorPage<GalleryCard>> {
+export async function search(userId: number, criteria: ehClient.GallerySearch): Promise<CursorPage<GalleryCard>> {
   const access = await credentialService.access(userId)
   const list = await ehClient.search(access, criteria)
   const cards = await galleryCatalog.cards(list.refs)

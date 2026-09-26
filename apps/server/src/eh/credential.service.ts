@@ -15,7 +15,7 @@ import { Logger } from "@server/logger"
 const logger = new Logger(import.meta.url)
 
 /** e 站账号的绑定状态 */
-export interface CredentialStatus {
+interface CredentialStatus {
   bound: boolean
   /** 未绑定时为空串 */
   memberId: string

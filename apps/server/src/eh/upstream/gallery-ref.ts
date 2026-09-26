@@ -1,4 +1,4 @@
-import { galleryTokenSchema } from "@myapi/shared/eh"
+import { z } from "zod"
 
 import { isDecimal } from "@server/numeric"
 
@@ -7,6 +7,9 @@ export interface GalleryRef {
   gid: number
   token: string
 }
+
+/** 图集令牌：10 位小写十六进制。路径与请求体里的令牌、上游页面链接里的令牌都按它认。 */
+export const galleryTokenSchema = z.string({ error: "图集令牌不合法" }).regex(/^[0-9a-f]{10}$/, "图集令牌不合法")
 
 /** 按图集查表、做缓存键时用的写法。 */
 export const refKey = (ref: GalleryRef) => `${ref.gid}:${ref.token}`

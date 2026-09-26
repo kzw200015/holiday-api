@@ -42,11 +42,23 @@ describe("阅读进度", () => {
 
   it("上报的内容在落库前校验", async () => {
     const { auth } = await user()
-    const response = await t.http
-      .post("/api/eh/progress")
-      .set(auth)
-      .send({ gid: 1, token: TOKEN, page: 0, writer: "", seq: 1 })
-    expect([response.status, response.body.message]).toEqual([400, ["页码不合法", "上报方标识不合法"]])
+    const valid = { gid: 1, token: TOKEN, page: 3, writer: "tab", seq: 1 }
+    const cases: [Partial<typeof valid>, string][] = [
+      [{ gid: 0 }, "图集编号不合法"],
+      [{ token: "ABCDEF0123" }, "图集令牌不合法"],
+      [{ page: 0 }, "页码不合法"],
+      [{ page: 2 ** 31 }, "页码不合法"],
+      [{ writer: "" }, "上报方标识不合法"],
+      [{ writer: "w".repeat(65) }, "上报方标识不合法"],
+      [{ seq: 0 }, "上报序号不合法"],
+    ]
+    for (const [change, message] of cases) {
+      const response = await t.http
+        .post("/api/eh/progress")
+        .set(auth)
+        .send({ ...valid, ...change })
+      expect([response.status, response.body.message]).toEqual([400, [message]])
+    }
   })
 })
 

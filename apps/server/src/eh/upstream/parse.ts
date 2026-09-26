@@ -35,10 +35,9 @@ export interface PreviewImage {
 }
 
 /** 评论正文的片段。服务端拆好再给，前端不做 HTML 渲染，从根上避免 XSS */
-export type CommentSegment =
-  { type: "text"; text: string } | { type: "break" } | { type: "link"; text: string; href: string }
+type CommentSegment = { type: "text"; text: string } | { type: "break" } | { type: "link"; text: string; href: string }
 
-export interface GalleryComment {
+interface GalleryComment {
   /** 上传者留言固定是 0 */
   id: number
   author: string

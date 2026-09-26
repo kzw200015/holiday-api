@@ -40,7 +40,7 @@ describe("休息日查询", () => {
   })
 
   it("日期严格按日历校验", async () => {
-    for (const date of ["invalid", "2026-02-30", "2026-1-4", "2026-13-01"]) {
+    for (const date of ["invalid", "2026-02-30", "2025-02-29", "2026-1-4", "2026-13-01", "20260101"]) {
       for (const path of ["/api/holiday/detail", "/api/holiday/is-holiday"]) {
         const response = await t.http.get(path).query({ date })
         expect(response.status).toBe(400)

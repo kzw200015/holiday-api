@@ -1,6 +1,19 @@
 import { api, request, requestWithin } from "@/shared/api/httpClient"
 
-/* 带请求体的接口，参数类型取自这次调用本身（Parameters<typeof api.….post>[0]）：接口收什么由后端的路由决定，这里不另写一份 */
+/*
+ * 出入参的类型一律取自这里的调用：入参是 Parameters<typeof api.….post>[0]，出参是 Awaited<ReturnType<typeof fetchXxx>>，
+ * 接口收什么、回什么由后端的路由决定，前端不另写一份。几处都要用的在这里起个名字，只一处用的在用的地方就地推。
+ */
+
+/** 一次搜索的条件 */
+export type GallerySearch = Parameters<typeof api.eh.galleries.search.post>[0]
+/** 搜索结果里的一本图集 */
+export type GalleryCard = Awaited<ReturnType<typeof searchGalleries>>["items"][number]
+export type GalleryDetail = Awaited<ReturnType<typeof fetchGalleryDetail>>
+export type GalleryComment = Awaited<ReturnType<typeof fetchGalleryComments>>["comments"][number]
+/** 详情页一片里的一页预览图 */
+export type GalleryPreview = Awaited<ReturnType<typeof fetchGalleryPreviews>>[number]
+export type GalleryPreferences = Awaited<ReturnType<typeof fetchGalleryPreferences>>
 
 /**
  * 搜索图集。cursor 为空表示第一页，翻页时关键词和分类要一起带上。
@@ -8,7 +21,7 @@ import { api, request, requestWithin } from "@/shared/api/httpClient"
  * 条件整条放在请求体里：分类是一组名字，塞进查询串就得两头各写一份拼装和拆解的规则。
  * 用 POST 只是为了带这段 JSON，它仍是一次读取——所以照常接 AbortSignal，离开页面要能取消。
  */
-export function searchGalleries(search: Parameters<typeof api.eh.galleries.search.post>[0], signal?: AbortSignal) {
+export function searchGalleries(search: GallerySearch, signal?: AbortSignal) {
   return request(api.eh.galleries.search.post(search, { fetch: { signal } }))
 }
 

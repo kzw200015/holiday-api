@@ -5,11 +5,10 @@ import { ref } from "vue"
 import * as authApi from "@/features/auth/api"
 import { hasToken, setToken } from "@/shared/api/httpClient"
 import { forgetQueries } from "@/shared/api/queries"
-import type { CurrentUser } from "@server/auth/auth.service"
 
 export const useAuthStore = defineStore("AuthStore", () => {
   const queryCache = useQueryCache()
-  const user = ref<CurrentUser | null>(null)
+  const user = ref<Awaited<ReturnType<typeof authApi.fetchCurrentUser>>>(null)
 
   /* 是否已经问过后端「我是谁」。路由守卫要等这一步完成才敢判断放不放行 */
   const ready = ref(false)

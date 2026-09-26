@@ -6,10 +6,9 @@ import { ehKeys, useEhWrites } from "@/features/eh/queries"
 import { useInfiniteLoad } from "@/shared/composables/useInfiniteLoad"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
 import { useRefreshOnActivated } from "@/shared/composables/useRefreshOnActivated"
-import type { CursorPage } from "@server/eh/cursor-page"
-import type { ReadingHistoryItem } from "@server/eh/reading.service"
 
-type HistoryPages = UseInfiniteQueryData<CursorPage<ReadingHistoryItem>, string>
+type HistoryPage = Awaited<ReturnType<typeof fetchReadingHistory>>
+type HistoryPages = UseInfiniteQueryData<HistoryPage, string>
 
 interface Change {
   send: () => Promise<unknown>
@@ -67,7 +66,7 @@ export function useReadingHistory() {
     }
   }
 
-  function remove(item: ReadingHistoryItem) {
+  function remove(item: HistoryPage["items"][number]) {
     change.mutate({
       send: () => removeReadingHistory(item.gid),
       apply: () => {

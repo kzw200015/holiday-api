@@ -1,11 +1,10 @@
 import {
   DEFAULT_GALLERY_PREFERENCES,
   recordSearchKeyword,
-  type galleryPreferencesPatchSchema,
-  type galleryPreferencesSchema,
+  type GalleryCategory,
+  type GalleryMinRating,
 } from "@myapi/shared/eh"
 import { eq, sql } from "drizzle-orm"
-import type { z } from "zod"
 
 import { database } from "@server/database/connection"
 import { ehPreferences } from "@server/eh/eh.tables"
@@ -14,8 +13,14 @@ import { ehPreferences } from "@server/eh/eh.tables"
  * 浏览偏好与搜索历史，存在同一行。写入都与到达顺序无关（见 ADR-0006）：偏好只改带来的字段，
  * 搜索历史一次记或删一个词，在行锁下按共享包的同一条规则算出新列表。
  */
-/** 浏览偏好：读接口的响应体。改偏好的请求体是它的每个字段都可省（见共享包的 galleryPreferencesPatchSchema） */
-export type GalleryPreferences = z.output<typeof galleryPreferencesSchema>
+/** 浏览偏好：读接口的响应体。改偏好时每个字段都可省，只改带来的 */
+interface GalleryPreferences {
+  categories: GalleryCategory[]
+  /** null 表示不限 */
+  minRating: GalleryMinRating | null
+  /** 自动翻页间隔，单位秒 */
+  readerInterval: number
+}
 
 export async function preferences(userId: number): Promise<GalleryPreferences> {
   const [row] = await database
@@ -32,7 +37,7 @@ export async function preferences(userId: number): Promise<GalleryPreferences> {
 /** 只改带来的字段，没带的保持原样；还没有这一行时，没带的落表上的默认值。分类排序去重后入库，存的始终是同一种写法。 */
 export async function patchPreferences(
   userId: number,
-  { categories, minRating, readerInterval }: z.output<typeof galleryPreferencesPatchSchema>,
+  { categories, minRating, readerInterval }: Partial<GalleryPreferences>,
 ) {
   const value = {
     /* oxlint-disable-next-line unicorn/no-array-sort -- 排的是刚展开的副本。前端的类型检查也会读到这里，它的 lib 是 ES2022，没有 toSorted */

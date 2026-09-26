@@ -8,7 +8,6 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryComments, fetchGalleryDetail } from "@/features/eh/api"
 import GalleryCommentsView from "@/features/eh/views/GalleryCommentsView.vue"
 import { installQueries } from "@/shared/api/queries"
-import type { GalleryComment } from "@server/eh/upstream/parse"
 import { galleryCard, settle } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
@@ -21,7 +20,7 @@ let pinia: ReturnType<typeof createPinia>
 let app: ReturnType<typeof createApp> | undefined
 let host: HTMLDivElement
 
-function comment(id: number): GalleryComment {
+function comment(id: number): EhApi.GalleryComment {
   return {
     id,
     author: `作者${id}`,
@@ -32,7 +31,7 @@ function comment(id: number): GalleryComment {
   }
 }
 
-async function mountComments(comments: GalleryComment[], hiddenCount: number) {
+async function mountComments(comments: EhApi.GalleryComment[], hiddenCount: number) {
   vi.mocked(fetchGalleryDetail).mockResolvedValue({ ...galleryCard(7), fileSize: 1, torrentCount: 0, expunged: false })
   vi.mocked(fetchGalleryComments).mockResolvedValue({ comments, hiddenCount })
   const router = createRouter({

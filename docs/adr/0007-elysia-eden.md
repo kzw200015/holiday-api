@@ -15,5 +15,5 @@
 - 前端的类型检查按前端的配置读到后端源码：后端能被 `App` 类型追到的代码要在两边的配置下都通过。已知的两处约束是 `erasableSyntaxOnly`（不写构造器参数属性，后端 tsconfig 也开着它）与前端 `lib` 只到 ES2022（后端不用 `toSorted` 这类更新的内置方法）。
 - 前端的类型检查会看到 Bun 与 Node 的全局类型：`elysia` 自己的声明引用了 `bun`，躲不开。
 - Eden 按 schema 的**输出**类型推断请求要传什么：请求体与查询串的 schema 不做 transform，带默认值的字段前端要自己给全。路径参数的 transform（字符串转数字）不受影响。
-- 前端只能 `import type` 后端，按值引用会把后端代码连同 drizzle 打进前端。由 lint 挡住：前端引 `@server/**` 只允许 `import type`，并开着 `typescript/no-import-type-side-effects`——前端开着 `verbatimModuleSyntax`，`import { type X }` 编译后会留下一句副作用导入，整个模块照样打进来。
-- 响应类型从共享包挪到后端，定义在产出它的模块里、由服务标注返回类型；前端调接口时从推断取，组件与测试要具名类型时 `import type` 后端的定义。共享包只剩请求 schema 与两端都要执行的规则。
+- 前端只有 `httpClient.ts` 引后端，且只能 `import type` `App`，按值引用会把后端代码连同 drizzle 打进前端。由 lint 挡住：前端别处引 `@server/**` 一律报错，`httpClient.ts` 只允许 `import type`，并开着 `typescript/no-import-type-side-effects`——前端开着 `verbatimModuleSyntax`，`import { type X }` 编译后会留下一句副作用导入，整个模块照样打进来。
+- 接口收什么、回什么都定义在后端：请求 schema 挂在路由上、就近定义，响应类型定义在产出它的模块里、由服务标注返回类型。前端的出入参类型一律从 `api.ts` 的 Eden 调用推导，除 `httpClient.ts` 引 `App` 以外不引后端。共享包只剩两端都要执行的规则。

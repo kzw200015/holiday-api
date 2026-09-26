@@ -10,9 +10,6 @@ import { fetchGalleryComments, fetchGalleryDetail, fetchGalleryPreviews, fetchRe
 import { gallerySource } from "@/features/eh/navigation"
 import GalleryDetailView from "@/features/eh/views/GalleryDetailView.vue"
 import { installQueries } from "@/shared/api/queries"
-import type { GalleryDetail } from "@server/eh/gallery-catalog"
-import type { GalleryPreview } from "@server/eh/gallery.service"
-import type { GalleryComment } from "@server/eh/upstream/parse"
 import { byText, galleryCard, present, query, settle } from "./support"
 
 /* 滚到哪一片才取哪一片靠 IntersectionObserver，happy-dom 不做布局，所以把观察的元素和回调接出来，由测试说哪里进了视口。 */
@@ -56,12 +53,12 @@ let router: ReturnType<typeof createRouter>
 let host: HTMLDivElement
 const loadPreviews = vi.mocked(fetchGalleryPreviews)
 
-function detail(fileCount: number): GalleryDetail {
+function detail(fileCount: number): EhApi.GalleryDetail {
   return { ...galleryCard(GID), token: TOKEN, fileCount, fileSize: 1, torrentCount: 0, expunged: false }
 }
 
 /** 第 slice 片的预览图：按每片 SLICE_SIZE 页切，最后一片到 fileCount 为止。 */
-function sliceOf(slice: number, fileCount: number): GalleryPreview[] {
+function sliceOf(slice: number, fileCount: number): EhApi.GalleryPreview[] {
   const from = slice * SLICE_SIZE + 1
   const to = Math.min(fileCount, from + SLICE_SIZE - 1)
   return Array.from({ length: to - from + 1 }, (_, index) => ({
@@ -74,7 +71,7 @@ function sliceOf(slice: number, fileCount: number): GalleryPreview[] {
   }))
 }
 
-function comment(id: number): GalleryComment {
+function comment(id: number): EhApi.GalleryComment {
   return {
     id,
     author: `作者${id}`,
@@ -88,7 +85,7 @@ function comment(id: number): GalleryComment {
 async function mountDetail({
   fileCount = 45,
   progress = null as number | null,
-  comments = [] as GalleryComment[],
+  comments = [] as EhApi.GalleryComment[],
   source = "",
 } = {}) {
   vi.mocked(fetchGalleryDetail).mockResolvedValue(detail(fileCount))

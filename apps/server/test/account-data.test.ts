@@ -78,9 +78,15 @@ describe("绑定 e 站账号", () => {
   it("入参不合格时不出网", async () => {
     const { auth } = await user()
     const before = t.outbound.requests.length
-    const response = await t.http.post("/api/eh/credential").set(auth).send({ ipbMemberId: "1", ipbPassHash: "a; b" })
-    expect(response.status).toBe(400)
-    expect(response.body.message).toEqual(["Cookie 值里有不允许的字符，检查是不是多复制了分号、空格或引号"])
+    for (const bad of ["a;b", "a b", 'a"b', "a,b", "a\\b", "中"]) {
+      const response = await t.http.post("/api/eh/credential").set(auth).send({ ipbMemberId: "1", ipbPassHash: bad })
+      expect([response.status, response.body.message]).toEqual([
+        400,
+        ["Cookie 值里有不允许的字符，检查是不是多复制了分号、空格或引号"],
+      ])
+    }
+    const empty = await t.http.post("/api/eh/credential").set(auth).send({ ipbMemberId: "", ipbPassHash: "abc" })
+    expect([empty.status, empty.body.message]).toEqual([400, ["ipb_member_id 和 ipb_pass_hash 都不能为空"]])
     expect(t.outbound.requests.length).toBe(before)
   })
 

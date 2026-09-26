@@ -3,7 +3,6 @@ import { computed } from "vue"
 
 import { bindCredential, fetchCredentialStatus, unbindCredential } from "@/features/eh/api"
 import { ehKeys, invalidateEhContent } from "@/features/eh/queries"
-import type { CredentialStatus } from "@server/eh/credential.service"
 
 /**
  * e 站账号的绑定状态，以及绑定与解绑。
@@ -19,7 +18,7 @@ export function useEhCredential() {
   const change = useMutation({
     /* 在途的读取带回来的是换绑之前的状态，不能让它落在新状态后面。 */
     onMutate: () => queryCache.cancelQueries({ key: ehKeys.credential, exact: true }),
-    mutation: (request: () => Promise<CredentialStatus>) => request(),
+    mutation: (request: () => ReturnType<typeof fetchCredentialStatus>) => request(),
     /* 新状态直接用接口回的；能看到的内容变了，受凭据影响的一并作废重读。 */
     onSuccess: (next) => {
       queryCache.setQueryData(ehKeys.credential, next)

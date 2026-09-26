@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import type { GalleryDetail } from "@/features/eh/api"
 import GalleryCommentList from "@/features/eh/components/GalleryCommentList.vue"
 import GalleryCover from "@/features/eh/components/GalleryCover.vue"
 import GalleryMeta from "@/features/eh/components/GalleryMeta.vue"
@@ -21,7 +22,6 @@ import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
 import { useRefreshOnActivated } from "@/shared/composables/useRefreshOnActivated"
 import { formatDateTime, formatFileSize } from "@/shared/lib/format"
-import type { GalleryDetail } from "@server/eh/gallery-catalog"
 
 /* 返回列表的按钮在顶栏（见路由的 meta.back），滚到评论区也点得到，页面里不再放一份。 */
 const props = withDefaults(defineProps<{ gid: number; token: string; source?: GallerySource }>(), { source: "search" })

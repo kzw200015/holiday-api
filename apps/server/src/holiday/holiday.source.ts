@@ -1,6 +1,6 @@
-import { isCalendarDate } from "@myapi/shared/holiday"
 import { z } from "zod"
 
+import { isCalendarDate } from "@server/holiday/calendar-date"
 import type { HolidayDetail } from "@server/holiday/holiday.service"
 import { outbound } from "@server/outbound"
 

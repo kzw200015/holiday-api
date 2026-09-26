@@ -55,10 +55,25 @@ describe("注册与登录", () => {
     }
   })
 
-  it("入参不合格时回共享 schema 的中文文案，不带字段路径", async () => {
+  it("入参不合格时回中文文案，不带字段路径", async () => {
     const response = await t.http.post("/api/auth/register").send({ username: "ab", password: "短" })
     expect(response.status).toBe(400)
     expect(response.body.message).toEqual(["用户名只能是 3 到 32 位的字母、数字、下划线或连字符", "密码至少 8 位"])
+    const login = await t.http.post("/api/auth/login").send({ username: "ab" })
+    expect([login.status, login.body.message]).toEqual([400, ["请填写用户名和密码"]])
+  })
+
+  it("密码长度按码点数：3 个汉字不够 8 位，8 个表情符号够", async () => {
+    const cases: [string, string, string[] | undefined][] = [
+      ["emoji-8", "😀".repeat(8), undefined],
+      ["emoji-128", "😀".repeat(128), undefined],
+      ["hanzi-7", "密码密码密码密", ["密码至少 8 位"]],
+      ["ascii-129", "a".repeat(129), ["密码最长 128 位"]],
+    ]
+    for (const [username, password, message] of cases) {
+      const response = await t.http.post("/api/auth/register").send({ username, password })
+      expect([response.status, response.body.message]).toEqual(message ? [400, message] : [200, undefined])
+    }
   })
 
   it("登录不套注册的规则：不合规的输入只是对不上账号", async () => {

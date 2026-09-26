@@ -1,9 +1,8 @@
 import { useQuery } from "@pinia/colada"
 import { computed, toValue, type MaybeRefOrGetter } from "vue"
 
-import { fetchGalleryPreviews } from "@/features/eh/api"
+import { fetchGalleryPreviews, type GalleryPreview } from "@/features/eh/api"
 import { ehKeys } from "@/features/eh/queries"
-import type { GalleryPreview } from "@server/eh/gallery.service"
 
 /** 详情页的一片：第几片、含哪几页。 */
 interface PreviewSlice {

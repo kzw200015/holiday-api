@@ -34,7 +34,7 @@ export interface GalleryTag extends TagRef {
 }
 
 /** 标签译名的同步状态 */
-export interface TagTranslationStatus {
+interface TagTranslationStatus {
   /** 从未同步过时为 null */
   lastSync: {
     /** 上游 EhTagTranslation 数据库的提交 sha */

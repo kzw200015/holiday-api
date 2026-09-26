@@ -10,8 +10,6 @@ import type * as EhApi from "@/features/eh/api"
 import { clearReadingHistory, fetchReadingHistory, removeReadingHistory } from "@/features/eh/api"
 import GalleryHistoryView from "@/features/eh/views/GalleryHistoryView.vue"
 import { installQueries } from "@/shared/api/queries"
-import type { CursorPage } from "@server/eh/cursor-page"
-import type { ReadingHistoryItem } from "@server/eh/reading.service"
 import { deferred, galleryCard, present, settle } from "./support"
 
 /* 触底加载靠滚动位置触发，happy-dom 不做布局，所以把入口接出来手动调用。 */
@@ -47,7 +45,7 @@ let router: ReturnType<typeof createRouter>
 let host: HTMLDivElement
 const loadHistory = vi.mocked(fetchReadingHistory)
 
-function page(gid: number, nextCursor: string | null): CursorPage<ReadingHistoryItem> {
+function page(gid: number, nextCursor: string | null): Awaited<ReturnType<typeof EhApi.fetchReadingHistory>> {
   return {
     items: [{ gid, token: `token${gid}`, page: gid, readAt: "2026-09-05T00:00:00Z", gallery: galleryCard(gid) }],
     nextCursor,

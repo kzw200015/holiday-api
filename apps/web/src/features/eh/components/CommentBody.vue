@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { CommentSegment } from "@server/eh/upstream/parse"
+import type { GalleryComment } from "@/features/eh/api"
 
-defineProps<{ segments: CommentSegment[] }>()
+defineProps<{ segments: GalleryComment["segments"] }>()
 </script>
 
 <template>

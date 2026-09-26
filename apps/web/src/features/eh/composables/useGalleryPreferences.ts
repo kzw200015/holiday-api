@@ -1,10 +1,9 @@
 import { DEFAULT_GALLERY_PREFERENCES, GALLERY_CATEGORIES } from "@myapi/shared/eh"
 import { computed } from "vue"
 
-import { fetchGalleryPreferences, patchGalleryPreferences } from "@/features/eh/api"
+import { fetchGalleryPreferences, patchGalleryPreferences, type GalleryPreferences } from "@/features/eh/api"
 import { ehKeys, useEhWrites } from "@/features/eh/queries"
 import { useOptimisticData } from "@/shared/api/optimistic"
-import type { GalleryPreferences } from "@server/eh/preferences.service"
 
 type PreferencesPatch = Parameters<typeof patchGalleryPreferences>[0]
 

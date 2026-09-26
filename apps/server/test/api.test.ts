@@ -88,7 +88,7 @@ describe("鉴权边界", () => {
     expect(response.body).toMatchObject({ statusCode: 400, error: "Bad Request" })
   })
 
-  it("路径上的数字不是正整数、超出范围都回 400，文案与共享 schema 一致", async () => {
+  it("路径上的数字不是正整数、超出范围都回 400，文案与请求体里的同一项一致", async () => {
     for (const gid of ["abc", "1.5", "0", "-1", "0x10", "9223372036854775808", "9999999999999999"]) {
       const response = await t.http.delete(`/api/eh/history/${gid}`).set(auth)
       expect(response.status, gid).toBe(400)

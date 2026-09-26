@@ -5,7 +5,6 @@ import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, patchGalleryPreferences } from "@/features/eh/api"
 import { useGalleryPreferences } from "@/features/eh/composables/useGalleryPreferences"
-import type { GalleryPreferences } from "@server/eh/preferences.service"
 import { composableTests, deferred, settleFakeTimers } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
@@ -104,7 +103,7 @@ describe("账号浏览偏好", () => {
 
   /* 换账号那一刻作废：旧账号还没回来的读取，不能落到新账号头上。 */
   it("换账号后旧账号在途的读取作废，新页面读新账号的那份", async () => {
-    const loading = deferred<GalleryPreferences>()
+    const loading = deferred<EhApi.GalleryPreferences>()
     vi.mocked(fetchGalleryPreferences).mockReturnValueOnce(loading.promise)
     const before = mount()
     await settleFakeTimers()

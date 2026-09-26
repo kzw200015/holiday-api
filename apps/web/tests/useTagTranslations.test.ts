@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type * as EhApi from "@/features/eh/api"
 import { fetchTagTranslationStatus, syncTagTranslations } from "@/features/eh/api"
 import { useTagTranslations } from "@/features/eh/composables/useTagTranslations"
-import type { TagTranslationStatus } from "@server/eh/tag-translation.service"
 import { composableTests, deferred, settleFakeTimers } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
@@ -16,7 +15,7 @@ vi.mock("@/features/eh/api", async (original) => ({
 const t = composableTests()
 const mount = () => t.mount(useTagTranslations)
 
-const synced = (sha: string): TagTranslationStatus => ({
+const synced = (sha: string): Awaited<ReturnType<typeof EhApi.fetchTagTranslationStatus>> => ({
   lastSync: { sha, count: 44299, syncedAt: "2026-09-24T16:00:00.000Z" },
 })
 
@@ -35,7 +34,7 @@ describe("标签译名同步", () => {
     await settleFakeTimers()
     expect(translations.status.value).toEqual({ lastSync: null })
 
-    const pending = deferred<TagTranslationStatus>()
+    const pending = deferred<Awaited<ReturnType<typeof EhApi.fetchTagTranslationStatus>>>()
     vi.mocked(syncTagTranslations).mockReturnValue(pending.promise)
     const done = translations.sync()
     expect(translations.syncing.value).toBe(true)
@@ -57,7 +56,7 @@ describe("标签译名同步", () => {
     expect(translations.status.value).toEqual(synced("old"))
     expect(translations.syncing.value).toBe(false)
 
-    const pending = deferred<TagTranslationStatus>()
+    const pending = deferred<Awaited<ReturnType<typeof EhApi.fetchTagTranslationStatus>>>()
     vi.mocked(syncTagTranslations).mockReturnValue(pending.promise)
     const retry = translations.sync()
     await settleFakeTimers()

@@ -10,11 +10,11 @@ feature 内按角色分文件：`api.ts` 只管 HTTP 调用，经 `shared/api/ht
 
 ## 对后端的依赖
 
-前端对后端只有类型依赖：`import type { App } from "@server/app"`，组件 props、测试数据要用具名的响应类型时，直接 `import type` 后端定义它的那个文件（如 `@server/eh/gallery-catalog` 的 `GalleryCard`）。`@server/*` 别名只在 tsconfig 的 `paths` 里，不进 `package.json`；`elysia` 是开发依赖，版本与后端一致。按值引用后端会把后端代码连同 drizzle 打进前端，lint 挡住了（只允许 `import type`，也不许写成 `import { type X }`：开着 `verbatimModuleSyntax`，它编译后会留下一句副作用导入）。两端都要执行的规则放 `@myapi/shared`。
+前后端之间只有接口这一处。前端对后端唯一的依赖是 `shared/api/httpClient.ts` 里的 `import type { App } from "@server/app"`，交给 Eden 推断每条接口；别处一律不引 `@server/`，lint 挡住了（`httpClient.ts` 也只许 `import type`，不许写成 `import { type X }`：开着 `verbatimModuleSyntax`，它编译后会留下一句副作用导入，按值引用会把后端代码连同 drizzle 打进前端）。`@server/*` 别名只在 tsconfig 的 `paths` 里，不进 `package.json`；`elysia` 是开发依赖，版本与后端一致。
 
-来自后端接口的数据，类型一路从后端推导：调接口时由 Eden 推断；要具名的，`import type` 后端定义它的那个文件（如读回来的偏好是 `@server/eh/preferences.service` 的 `GalleryPreferences`），从它再派生（如 `GalleryFilters`）；要提交给后端的，取那次调用的参数类型（见下）。`@myapi/shared` 只用来执行两端共用的规则（列出分类与评分的选项、提交前预校验、按同一条规则当场改本地数据），不拿它给后端来的数据标类型。
+接口收什么、回什么都定义在后端，前端的出入参类型一律从 `api.ts` 的调用推导：入参取 `Parameters<typeof api.eh.credential.post>[0]`，出参取 `Awaited<ReturnType<typeof fetchGalleryDetail>>`，要里面的一部分就接着取下标（`["items"][number]`）。几处都要用的在 `api.ts` 里起个名字（如 `GalleryCard`、`GalleryPreferences`、`GallerySearch`），组件、组合式函数与测试从那里 `import type`；只一处用的就在用的地方就地推（如 `useEhCredential` 取 `ReturnType<typeof fetchCredentialStatus>`、`CommentBody` 取 `GalleryComment["segments"]`）。前端自己的本地类型能从这些派生的就派生（如 `GalleryFilters` 是 `GalleryPreferences` 的两项），派生不出来的才自己写（如 `AuthAction`）。取类型不算调接口，哪一层都可以 `import type` `api.ts`。`@myapi/shared` 只用来执行两端共用的规则（列出分类与评分的选项、提交前预校验、按同一条规则当场改本地数据），不从它拿类型。
 
-Eden 按后端 schema 的输出类型推断请求要传什么：带默认值的字段也要给全（如搜索条件、e 站 Cookie）。`api.ts` 里带请求体的函数，参数类型取自那次调用，写 `Parameters<typeof api.eh.credential.post>[0]`，不另从 schema 推一份；组合式函数再要这个类型就取 `api.ts` 的函数（`Parameters<typeof bindCredential>[0]`）。
+Eden 按后端 schema 的输出类型推断请求要传什么：带默认值的字段也要给全（如搜索条件、e 站 Cookie）。
 
 ## 组件与界面
 

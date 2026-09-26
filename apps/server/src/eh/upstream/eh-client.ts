@@ -1,5 +1,4 @@
-import type { gallerySearchSchema } from "@myapi/shared/eh"
-import type { z } from "zod"
+import type { GalleryCategory, GalleryMinRating } from "@myapi/shared/eh"
 
 import { ANONYMOUS, cookieHeader, SITES, type EhAccess, type EhCredential } from "@server/eh/upstream/access"
 import { categoryFilter } from "@server/eh/upstream/categories"
@@ -28,6 +27,16 @@ import {
 } from "@server/eh/upstream/parse"
 import { Logger } from "@server/logger"
 import { outbound } from "@server/outbound"
+
+/** 一次搜索的条件，校验见搜索路由上的 schema。 */
+export interface GallerySearch {
+  keyword: string
+  categories: GalleryCategory[]
+  /** null 表示不限 */
+  minRating: GalleryMinRating | null
+  /** 空串表示第一页 */
+  cursor: string
+}
 
 /** 拆好的标签原文（female:big breasts 拆成 female 与 big breasts），还没套译名。 */
 export interface TagRef {
@@ -110,7 +119,7 @@ const logger = new Logger(import.meta.url)
 
 export async function search(
   access: EhAccess,
-  { keyword, categories, minRating, cursor }: z.output<typeof gallerySearchSchema>,
+  { keyword, categories, minRating, cursor }: GallerySearch,
 ): Promise<GalleryList> {
   /* 表单编码（空格编成 +），与 e 站自己的搜索表单一致 */
   const query = new URLSearchParams()

@@ -1,7 +1,5 @@
-import type { credentialsSchema, loginSchema } from "@myapi/shared/auth"
 import { SQL } from "bun"
 import { eq } from "drizzle-orm"
-import type { z } from "zod"
 
 import { users } from "@server/auth/auth.tables"
 import { hashPassword, verifyPassword } from "@server/auth/passwords"
@@ -16,15 +14,21 @@ import { Logger } from "@server/logger"
 const logger = new Logger(import.meta.url)
 
 /** 当前登录的本站账号 */
-export interface CurrentUser {
+interface CurrentUser {
   id: number
   username: string
 }
 
 /** 登录与注册的返回：令牌加用户本身 */
-export interface Authenticated {
+interface Authenticated {
   token: string
   user: CurrentUser
+}
+
+/** 注册与登录交来的用户名和密码，规则见路由上的 schema */
+interface Credentials {
+  username: string
+  password: string
 }
 
 /** 登录页要先知道的站点设置 */
@@ -40,7 +44,7 @@ const UNIQUE_VIOLATION = "23505"
 export const registrationOpen = env.ALLOW_REGISTRATION
 
 /** 注册成功即登录。 */
-export async function register({ username, password }: z.output<typeof credentialsSchema>): Promise<Authenticated> {
+export async function register({ username, password }: Credentials): Promise<Authenticated> {
   if (!registrationOpen) {
     throw badRequest("本站已关闭注册")
   }
@@ -67,7 +71,7 @@ export async function register({ username, password }: z.output<typeof credentia
 }
 
 /** 用户不存在与密码不对回同一句话，耗时也一样，不泄露哪些用户名存在。用户名大小写敏感。 */
-export async function login({ username, password }: z.output<typeof loginSchema>): Promise<Authenticated> {
+export async function login({ username, password }: Credentials): Promise<Authenticated> {
   const [user] = await database.select().from(users).where(eq(users.username, username))
   if (!(await verifyPassword(password, user?.passwordHash ?? null)) || !user) {
     throw badRequest("用户名或密码错误")

@@ -9,7 +9,6 @@ import { fetchReadingProgress, saveProgress } from "@/features/eh/api"
 import { useGalleryProgress } from "@/features/eh/composables/useGalleryProgress"
 import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
 import { ehKeys } from "@/features/eh/queries"
-import type { ReadingProgress } from "@server/eh/reading.service"
 import { composableTests, deferred } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
@@ -157,7 +156,7 @@ describe("阅读进度上报", () => {
 describe("重读进度与本地上报", () => {
   it("重读在途时翻了页，响应回来仍是刚翻到的那页；之后的重读照常用服务端的", async () => {
     const { api, reading } = await mountReader()
-    const refetch = deferred<ReadingProgress>()
+    const refetch = deferred<Awaited<ReturnType<typeof EhApi.fetchReadingProgress>>>()
     vi.mocked(fetchReadingProgress).mockReturnValueOnce(refetch.promise)
     void reading.reload()
     await vi.advanceTimersByTimeAsync(0)

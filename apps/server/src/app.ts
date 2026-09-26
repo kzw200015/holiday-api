@@ -19,7 +19,7 @@ export const app = new Elysia()
   .use(requestLog)
   /*
    * 所有失败都回成 `{statusCode, message, error}`。可预期的失败自己带着状态码与文案；入参不合格时 message 是
-   * 共享 schema 里的那组中文文案，不带字段路径（文案本身已经说清了是哪一项），前端直接展示；未预料的异常回 500，原文只进日志。
+   * 路由 schema 里的那组中文文案，不带字段路径（文案本身已经说清了是哪一项），前端直接展示；未预料的异常回 500，原文只进日志。
    */
   .onError(({ code, error, set }) => {
     let failure: HttpError

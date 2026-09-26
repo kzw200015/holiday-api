@@ -12,8 +12,6 @@ import { ehKeys } from "@/features/eh/queries"
 import { keepFirstPage } from "@/shared/api/queries"
 import { useInfiniteLoad } from "@/shared/composables/useInfiniteLoad"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
-import type { CursorPage } from "@server/eh/cursor-page"
-import type { GalleryCard } from "@server/eh/gallery-catalog"
 
 /** 草稿、已提交条件与分页在同一个页面作用域内协调。 */
 export function useGallerySearch() {
@@ -36,7 +34,7 @@ export function useGallerySearch() {
       key: ehKeys.search(criteria.keyword, criteria.categories, criteria.minRating),
       query: ({ pageParam, signal }) => searchGalleries({ ...criteria, cursor: pageParam }, signal),
       initialPageParam: "",
-      getNextPageParam: (last: CursorPage<GalleryCard>) => last.nextCursor,
+      getNextPageParam: (last: Awaited<ReturnType<typeof searchGalleries>>) => last.nextCursor,
     }
   })
 

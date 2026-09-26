@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
 
-import type { GalleryPreview } from "@server/eh/gallery.service"
+import type { GalleryPreview } from "@/features/eh/api"
 
 /*
  * 一页预览图，高度固定、宽度按原图比例。e 站给的可能是一片拼成的一张图，统一按「从图上 (offsetX, offsetY) 处裁出

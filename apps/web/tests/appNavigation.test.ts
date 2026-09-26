@@ -37,8 +37,6 @@ import { invalidateEhContent } from "@/features/eh/queries"
 import type * as HolidayApi from "@/features/holiday/api"
 import { fetchHolidayDetail } from "@/features/holiday/api"
 import { installQueries } from "@/shared/api/queries"
-import type { GalleryDetail } from "@server/eh/gallery-catalog"
-import type { GalleryPreferences } from "@server/eh/preferences.service"
 import { byText, deferred, present, query } from "./support"
 
 vi.mock("@/features/auth/api", () => ({ authenticate: vi.fn(), fetchAuthOptions: vi.fn(), fetchCurrentUser: vi.fn() }))
@@ -70,7 +68,7 @@ vi.mock("@/features/eh/api", async (original) => ({
   clearSearchHistory: vi.fn(),
 }))
 
-const gallery: GalleryDetail = {
+const gallery: EhApi.GalleryDetail = {
   gid: 1,
   token: "aaaaaaaaaa",
   title: "测试图集",
@@ -171,7 +169,7 @@ beforeEach(async () => {
   vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
   vi.mocked(fetchTagTranslationStatus).mockResolvedValue({ lastSync: null })
   vi.mocked(fetchHolidayDetail).mockImplementation(async (date) => ({ date, name: "", isOffDay: false }))
-  let preferences: GalleryPreferences = { categories: [], minRating: null, readerInterval: 5 }
+  let preferences: EhApi.GalleryPreferences = { categories: [], minRating: null, readerInterval: 5 }
   let history: string[] = []
   vi.mocked(fetchGalleryPreferences).mockImplementation(async () => structuredClone(preferences))
   /* 像服务端一样：偏好只改带来的字段，搜索历史一次记或删一个词。 */

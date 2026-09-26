@@ -9,8 +9,6 @@ import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryPreferences, searchGalleries } from "@/features/eh/api"
 import GalleryListView from "@/features/eh/views/GalleryListView.vue"
 import { installQueries } from "@/shared/api/queries"
-import type { CursorPage } from "@server/eh/cursor-page"
-import type { GalleryCard } from "@server/eh/gallery-catalog"
 import { byText, deferred, galleryCard, present, query, settle } from "./support"
 
 const scroll = vi.hoisted(() => ({
@@ -134,7 +132,7 @@ describe("图库列表分页", () => {
 
   it("切换条件立即请求新结果，取消并忽略旧响应", async () => {
     await mountList()
-    const old = deferred<CursorPage<GalleryCard>>()
+    const old = deferred<Awaited<ReturnType<typeof EhApi.searchGalleries>>>()
     search.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ items: [galleryCard(2)], nextCursor: null })
     await submit()
     await submit("new")
@@ -148,8 +146,8 @@ describe("图库列表分页", () => {
 
   it("旧请求失败不影响新请求的加载状态", async () => {
     await mountList()
-    const old = deferred<CursorPage<GalleryCard>>()
-    const current = deferred<CursorPage<GalleryCard>>()
+    const old = deferred<Awaited<ReturnType<typeof EhApi.searchGalleries>>>()
+    const current = deferred<Awaited<ReturnType<typeof EhApi.searchGalleries>>>()
     search.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise)
     await submit()
     await submit("new")
@@ -188,7 +186,7 @@ describe("图库列表分页", () => {
 
   it("同一页加载中再次触底不会重复请求", async () => {
     await mountList()
-    const pending = deferred<CursorPage<GalleryCard>>()
+    const pending = deferred<Awaited<ReturnType<typeof EhApi.searchGalleries>>>()
     search.mockReturnValue(pending.promise)
     await submit()
     expect(scroll.canLoad()).toBe(false)
@@ -201,7 +199,7 @@ describe("图库列表分页", () => {
 
   it("销毁后迟到的响应不能恢复列表", async () => {
     await mountList()
-    const pending = deferred<CursorPage<GalleryCard>>()
+    const pending = deferred<Awaited<ReturnType<typeof EhApi.searchGalleries>>>()
     search.mockReturnValueOnce(pending.promise)
     await submit()
     present(app, "应用").unmount()

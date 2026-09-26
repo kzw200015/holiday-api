@@ -1,6 +1,4 @@
-import type { readingProgressSchema } from "@myapi/shared/eh"
 import { and, desc, eq, sql } from "drizzle-orm"
-import type { z } from "zod"
 
 import { database } from "@server/database/connection"
 import type { CursorPage } from "@server/eh/cursor-page"
@@ -8,7 +6,7 @@ import { ehReadingProgress } from "@server/eh/eh.tables"
 import * as galleryCatalog from "@server/eh/gallery-catalog"
 import type { GalleryCard } from "@server/eh/gallery-catalog"
 import { encodeHistoryCursor, type HistoryCursor } from "@server/eh/history-cursor"
-import { refKey } from "@server/eh/upstream/gallery-ref"
+import { refKey, type GalleryRef } from "@server/eh/upstream/gallery-ref"
 
 const PAGE_SIZE = 25
 
@@ -18,7 +16,7 @@ export interface ReadingProgress {
   page: number | null
 }
 
-export interface ReadingHistoryItem {
+interface ReadingHistoryItem {
   gid: number
   token: string
   page: number
@@ -28,6 +26,13 @@ export interface ReadingHistoryItem {
   gallery: GalleryCard | null
 }
 
+/** 一次阅读进度上报。writer 是上报方（前端的一次页面加载）的标识，seq 是它的第几次上报 */
+interface ProgressReport extends GalleryRef {
+  page: number
+  writer: string
+  seq: number
+}
+
 /*
  * 阅读进度与阅读历史：它们是同一张表，删一条阅读历史，对应的阅读进度也就没了。
  */
@@ -35,7 +40,7 @@ export interface ReadingHistoryItem {
  * 记下读到第几页。同一个图集只留一条，重复上报就覆盖；同一上报方的序号不比库里的新，就是迟到的旧上报，不写。
  * 冲突的那行会先被锁住，条件按它的最新版本判断，两次上报同时到也不会让旧的写进去。
  */
-export async function save(userId: number, { gid, token, page, writer, seq }: z.output<typeof readingProgressSchema>) {
+export async function save(userId: number, { gid, token, page, writer, seq }: ProgressReport) {
   await database
     .insert(ehReadingProgress)
     .values({ userId, gid, token, page, writer, seq })
