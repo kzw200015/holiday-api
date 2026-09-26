@@ -1,4 +1,5 @@
-import { Elysia } from "elysia"
+import { Hono } from "hono"
+import { HTTPException } from "hono/http-exception"
 
 import { authRoutes } from "@server/auth/auth.routes"
 import { ehRoutes } from "@server/eh/eh.routes"
@@ -13,32 +14,41 @@ const logger = new Logger(import.meta.url)
 
 /**
  * 整个应用：接口一律挂在 /api 下，各领域的路由只写领域内的路径；其余路径是前端的静态文件。
- * 前端从这里的 App 类型推断每条接口的入参与响应（Eden），所以路由的写法就是接口契约。
+ * 前端从这里的 App 类型推断每条接口的入参与响应（hono/client），所以路由的写法就是接口契约。
+ * 路由要一路链式写下来：拆成几条语句的话，App 类型里就没有后面挂上的那些接口了。
  */
-export const app = new Elysia()
-  .use(requestLog)
+export const app = new Hono()
+  .use("/api/*", requestLog)
+  .route(
+    "/api",
+    new Hono()
+      .route("/auth", authRoutes)
+      .route("/eh", ehRoutes)
+      .route("/holiday", holidayRoutes)
+      .route("/health", healthRoutes),
+  )
+  .route("/", staticFiles)
   /*
-   * 所有失败都回成 `{statusCode, message, error}`。可预期的失败自己带着状态码与文案；入参不合格时 message 是
-   * 路由 schema 里的那组中文文案，不带字段路径（文案本身已经说清了是哪一项），前端直接展示；未预料的异常回 500，原文只进日志。
+   * 所有失败都回成 `{statusCode, message, error}`。可预期的失败自己带着状态码与文案（入参不合格见 validate.ts）；
+   * 未预料的异常回 500，原文只进日志。
    */
-  .onError(({ code, error, set }) => {
+  .onError((error, c) => {
     let failure: HttpError
     if (error instanceof HttpError) {
       failure = error
-    } else if (code === "VALIDATION") {
-      failure = badRequest([...new Set(error.all.map((issue) => issue.message))])
-    } else if (code === "PARSE") {
+    } else if (error instanceof HTTPException && error.status === 400) {
+      /* Hono 自己抛的 400 只有请求体解析不了这一种：本站的请求体只收 JSON */
       failure = badRequest("请求体不是合法的 JSON")
-    } else if (code === "NOT_FOUND") {
-      failure = notFound("这个地址不存在")
     } else {
       logger.error("未预料的异常", error)
       failure = new HttpError(500, "服务器出错了")
     }
-    set.status = failure.status
-    return failure.body
+    return c.json(failure.body, failure.status)
   })
-  .use(new Elysia({ prefix: "/api" }).use(authRoutes).use(ehRoutes).use(holidayRoutes).use(healthRoutes))
-  .use(staticFiles)
+  /* /api 下写错的路径、方法不对的请求，以及找不到的静态文件，拿到的都是 JSON 的 404 而不是一个页面 */
+  .notFound((c) => {
+    const failure = notFound("这个地址不存在")
+    return c.json(failure.body, failure.status)
+  })
 
 export type App = typeof app

@@ -99,7 +99,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
   vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], minRating: null, readerInterval: 5 })
-  vi.mocked(patchGalleryPreferences).mockResolvedValue(null)
+  vi.mocked(patchGalleryPreferences).mockResolvedValue(undefined)
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
 })
 afterEach(() => {
@@ -224,7 +224,7 @@ describe("阅读器自动翻页控件", () => {
 
   /* 改几次就提交几次；同一类写入依次发出，让它们按操作顺序到达，后到的旧值盖不掉新的。 */
   it("连续调整逐次提交，前一次没回来就排队等着", async () => {
-    const inflight = deferred<null>()
+    const inflight = deferred<undefined>()
     vi.mocked(patchGalleryPreferences).mockReturnValueOnce(inflight.promise)
     const { host } = await createReader()
     const increase = query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]')
@@ -236,7 +236,7 @@ describe("阅读器自动翻页控件", () => {
     /* 第一次还没回来，第二次排在后面。 */
     expect(patchGalleryPreferences).toHaveBeenCalledTimes(1)
     expect(intervalText(host)).toBe("7 秒")
-    inflight.resolve(null)
+    inflight.resolve(undefined)
     await vi.advanceTimersByTimeAsync(0)
     expect(patchGalleryPreferences).toHaveBeenLastCalledWith({ readerInterval: 7 })
     /* 前一次的响应回来时本地已经是 7 了，不能把它写回 6。 */

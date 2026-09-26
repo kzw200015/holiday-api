@@ -6,15 +6,15 @@
 
 `src/` 分三块：`app/` 是应用装配（路由、全局布局、导航目录）；`features/` 下每块业务自成一体（`auth`、`eh`、`holiday`，与后端领域模块对应）；`shared/` 放与业务无关的通用能力（HTTP 客户端、读取与写入排队的工具、通用组件与组合式函数、`lib/` 下的格式化与错误处理小工具）。`src/components/ui/` 与 `src/lib/utils.ts` 是 shadcn-vue 生成的源码，保持原样：已排除在 Prettier 与 oxlint 之外，清理代码或用 IDE 格式化时也别碰。静态资源在 `public/`，测试在 `tests/`。
 
-feature 内按角色分文件：`api.ts` 只管 HTTP 调用，经 `shared/api/httpClient.ts` 的 `api`（Eden 客户端）调后端，路径、入参与响应的类型都从后端的 `App` 推断（见 ADR-0007），不手写；`labels.ts` 一类放展示用的中文词汇，`queries.ts` 放这个 feature 的缓存 key 与写入通道，`composables/` 把数据和交互包成页面能直接用的形状，`components/` 与 `views/` 是界面。依赖只有一个方向：`views` → `composables` → `api`/`queries` → `shared/`，页面不直接调接口，`shared/` 不反向引用 `features/` 或 `app/`（`@myapi/shared` 是独立的包，哪一层都可以引用）。多个 feature 拼到一个界面上只在 `app/` 层发生（如设置页同时用 `auth` 与 `eh`）；feature 之间唯一允许的引用是依赖 `auth` 的会话状态，因为换账号要让各自的缓存与在途请求作废。
+feature 内按角色分文件：`api.ts` 只管 HTTP 调用，经 `shared/api/httpClient.ts` 的 `api`（`hono/client` 的客户端）调后端，路径、入参与响应的类型都从后端的 `App` 推断（见 ADR-0007、ADR-0008），不手写；`labels.ts` 一类放展示用的中文词汇，`queries.ts` 放这个 feature 的缓存 key 与写入通道，`composables/` 把数据和交互包成页面能直接用的形状，`components/` 与 `views/` 是界面。依赖只有一个方向：`views` → `composables` → `api`/`queries` → `shared/`，页面不直接调接口，`shared/` 不反向引用 `features/` 或 `app/`（`@myapi/shared` 是独立的包，哪一层都可以引用）。多个 feature 拼到一个界面上只在 `app/` 层发生（如设置页同时用 `auth` 与 `eh`）；feature 之间唯一允许的引用是依赖 `auth` 的会话状态，因为换账号要让各自的缓存与在途请求作废。
 
 ## 对后端的依赖
 
-前后端之间只有接口这一处。前端对后端唯一的依赖是 `shared/api/httpClient.ts` 里的 `import type { App } from "@server/app"`，交给 Eden 推断每条接口；别处一律不引 `@server/`，lint 挡住了（`httpClient.ts` 也只许 `import type`，不许写成 `import { type X }`：开着 `verbatimModuleSyntax`，它编译后会留下一句副作用导入，按值引用会把后端代码连同 drizzle 打进前端）。`@server/*` 别名只在 tsconfig 的 `paths` 里，不进 `package.json`；`elysia` 是开发依赖，版本与后端一致。
+前后端之间只有接口这一处。前端对后端唯一的依赖是 `shared/api/httpClient.ts` 里的 `import type { App } from "@server/app"`，交给 `hono/client` 推断每条接口；别处一律不引 `@server/`，lint 挡住了（`httpClient.ts` 也只许 `import type`，不许写成 `import { type X }`：开着 `verbatimModuleSyntax`，它编译后会留下一句副作用导入，按值引用会把后端代码连同 drizzle 打进前端）。`@server/*` 别名只在 tsconfig 的 `paths` 里，不进 `package.json`；`hono` 是前端的依赖（`hono/client` 要打进前端），版本与后端一致。
 
-接口收什么、回什么都定义在后端，前端的出入参类型一律从 `api.ts` 的调用推导：入参取 `Parameters<typeof api.eh.credential.post>[0]`，出参取 `Awaited<ReturnType<typeof fetchGalleryDetail>>`，要里面的一部分就接着取下标（`["items"][number]`）。几处都要用的在 `api.ts` 里起个名字（如 `GalleryCard`、`GalleryPreferences`、`GallerySearch`），组件、组合式函数与测试从那里 `import type`；只一处用的就在用的地方就地推（如 `useEhCredential` 取 `ReturnType<typeof fetchCredentialStatus>`、`CommentBody` 取 `GalleryComment["segments"]`）。前端自己的本地类型能从这些派生的就派生（如 `GalleryFilters` 是 `GalleryPreferences` 的两项），派生不出来的才自己写（如 `AuthAction`）。取类型不算调接口，哪一层都可以 `import type` `api.ts`。`@myapi/shared` 只用来执行两端共用的规则（列出分类与评分的选项、提交前预校验、按同一条规则当场改本地数据），不从它拿类型。
+接口收什么、回什么都定义在后端，前端的出入参类型一律从 `api.ts` 的调用推导：入参取 `InferRequestType<typeof api.eh.credential.$post>["json"]`（查询串取 `["query"]`），出参取 `Awaited<ReturnType<typeof fetchGalleryDetail>>`，要里面的一部分就接着取下标（`["items"][number]`）。几处都要用的在 `api.ts` 里起个名字（如 `GalleryCard`、`GalleryPreferences`、`GallerySearch`），组件、组合式函数与测试从那里 `import type`；只一处用的就在用的地方就地推（如 `useEhCredential` 取 `ReturnType<typeof fetchCredentialStatus>`、`CommentBody` 取 `GalleryComment["segments"]`）。前端自己的本地类型能从这些派生的就派生（如 `GalleryFilters` 是 `GalleryPreferences` 的两项），派生不出来的才自己写（如 `AuthAction`）。取类型不算调接口，哪一层都可以 `import type` `api.ts`。`@myapi/shared` 只用来执行两端共用的规则（列出分类与评分的选项、提交前预校验、按同一条规则当场改本地数据），不从它拿类型。
 
-Eden 按后端 schema 的输出类型推断请求要传什么：带默认值的字段也要给全（如搜索条件、e 站 Cookie）。
+推断出的入参是后端 schema 的输入：带默认值的字段可以不传（如搜索条件、e 站 Cookie 的 `igneous`），路径参数是字符串（调用处写 `String(gid)`）。前端自己要一份给全了的（如搜索条件同时是缓存 key）就在 `api.ts` 起名时套上 `Required<…>`（如 `GallerySearch`）。
 
 ## 组件与界面
 
@@ -36,4 +36,4 @@ KeepAlive 只为保留界面状态（输入草稿、滚动位置、已翻的页�
 
 ## 测试
 
-测试在 `tests/`，替身是 mock 掉 `api.ts` 或全局的 `fetch`（Eden 按 `fetch(地址, 选项)` 调用）；happy-dom 不做布局，靠滚动位置或可见性触发的 `@vueuse/core` 函数（`useInfiniteScroll`、`useIntersectionObserver`）也 mock 掉，把回调接出来由测试手动触发；挂应用时和 `main.ts` 一样经 `installQueries` 装上查询库；只测组合式函数的用 `composableTests()`，它每个用例换一个 pinia，收尾前先等排着队的写入落地（否则它们会跨到下一个用例才发出）。`tests/support.ts` 放共用的测试工具：`deferred` 摆出「请求在途」「旧响应迟到」这类时序，`query`、`byText` 取测试要操作的元素、`present` 取测试依赖的值，找不到都当场失败并说清缺了什么。
+测试在 `tests/`，替身是 mock 掉 `api.ts` 或全局的 `fetch`（`hono/client` 按 `fetch(地址, 选项)` 调用，调用方没给 signal 时选项里就没有 signal）；happy-dom 不做布局，靠滚动位置或可见性触发的 `@vueuse/core` 函数（`useInfiniteScroll`、`useIntersectionObserver`）也 mock 掉，把回调接出来由测试手动触发；挂应用时和 `main.ts` 一样经 `installQueries` 装上查询库；只测组合式函数的用 `composableTests()`，它每个用例换一个 pinia，收尾前先等排着队的写入落地（否则它们会跨到下一个用例才发出）。`tests/support.ts` 放共用的测试工具：`deferred` 摆出「请求在途」「旧响应迟到」这类时序，`query`、`byText` 取测试要操作的元素、`present` 取测试依赖的值，找不到都当场失败并说清缺了什么。

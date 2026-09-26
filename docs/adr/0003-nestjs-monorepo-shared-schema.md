@@ -4,7 +4,7 @@
 
 几处取舍：
 
-- **NestJS 12 而不是 11**：12 自带 `StandardSchemaValidationPipe`，控制器参数上直接挂 zod schema；11 要借第三方的 `nestjs-zod`，它只声明支持到 Nest 11。（后端框架已由 ADR-0007 换成 Elysia。）
+- **NestJS 12 而不是 11**：12 自带 `StandardSchemaValidationPipe`，控制器参数上直接挂 zod schema；11 要借第三方的 `nestjs-zod`，它只声明支持到 Nest 11。（后端框架已由 ADR-0007 换成 Elysia，ADR-0008 起是 Hono。）
 - **zod 而不是 class-validator**：class-validator 的规则写在类的装饰器上，前端没法原样复用；zod schema 是普通的值，两端都能 import，中文文案也写在 schema 里。
 - **共享包编译成标准的工作区包，而不是源码直连加路径别名**。2026-03 做过一次 monorepo，共享代码靠 tsconfig paths 与 vite alias 直接引用源码，每种工具（tsc、Vite、Vitest、Nest 的构建）都要各配一遍别名，配漏一处就是运行时找不到模块，后来退回了。这次共享包用 `tsc` 编译到 `dist`、经 `exports` 暴露，两端都当普通依赖解析，不需要任何别名；代价是改了共享包要先构建，开发时由 `pnpm dev` 一直 watch。（已由 ADR-0004 推翻：`exports` 直接指向源码后各工具都不用配别名，共享包不再编译。）
 - **Drizzle 管表结构**：表结构从人工执行 SQL 改为 drizzle-kit 生成迁移、服务启动时自动执行。基线迁移写成幂等的，已有的库只登记不改动。

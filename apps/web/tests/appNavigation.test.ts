@@ -146,7 +146,7 @@ beforeEach(async () => {
   vi.mocked(fetchGalleryPreviews).mockResolvedValue([])
   vi.mocked(saveProgress).mockImplementation(async (gid, _token, page) => {
     progresses.set(gid, page)
-    return null
+    return undefined
   })
   /* 阅读历史同样照服务端的样子：删掉或清空之后读回来就没有这条了。 */
   vi.mocked(fetchReadingHistory).mockImplementation(async () => {
@@ -158,13 +158,13 @@ beforeEach(async () => {
   })
   vi.mocked(removeReadingHistory).mockImplementation(async (gid) => {
     progresses.set(gid, null)
-    return null
+    return undefined
   })
   vi.mocked(clearReadingHistory).mockImplementation(async () => {
     for (const gid of [gallery.gid, 2]) {
       progresses.set(gid, null)
     }
-    return null
+    return undefined
   })
   vi.mocked(fetchCredentialStatus).mockResolvedValue({ bound: false, memberId: "", hasExAccess: false })
   vi.mocked(fetchTagTranslationStatus).mockResolvedValue({ lastSync: null })
@@ -175,20 +175,20 @@ beforeEach(async () => {
   /* 像服务端一样：偏好只改带来的字段，搜索历史一次记或删一个词。 */
   vi.mocked(patchGalleryPreferences).mockImplementation(async (patch) => {
     preferences = { ...preferences, ...structuredClone(patch) }
-    return null
+    return undefined
   })
   vi.mocked(fetchSearchHistory).mockImplementation(async () => [...history])
   vi.mocked(addSearchKeyword).mockImplementation(async (keyword) => {
     history = recordSearchKeyword(history, keyword)
-    return null
+    return undefined
   })
   vi.mocked(removeSearchKeyword).mockImplementation(async (keyword) => {
     history = history.filter((entry) => entry !== keyword)
-    return null
+    return undefined
   })
   vi.mocked(clearSearchHistory).mockImplementation(async () => {
     history = []
-    return null
+    return undefined
   })
   pinia = createPinia()
   const auth = useAuthStore(pinia)
@@ -265,7 +265,7 @@ describe("阅读历史与二级导航", () => {
     }))
     const record = async (_gid: number, _token: string, page: number) => {
       saved = page
-      return null
+      return undefined
     }
     let finish: (() => void) | undefined
     vi.mocked(saveProgress)

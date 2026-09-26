@@ -98,8 +98,8 @@ async function click(text: string) {
 beforeEach(() => {
   vi.clearAllMocks()
   loadHistory.mockReset().mockResolvedValue(page(1, null))
-  vi.mocked(removeReadingHistory).mockResolvedValue(null)
-  vi.mocked(clearReadingHistory).mockResolvedValue(null)
+  vi.mocked(removeReadingHistory).mockResolvedValue(undefined)
+  vi.mocked(clearReadingHistory).mockResolvedValue(undefined)
   vi.spyOn(window, "scrollTo").mockImplementation(() => {})
 })
 afterEach(() => {
@@ -159,7 +159,7 @@ describe("阅读历史分页", () => {
   it("删除还没回来时不续取下一页", async () => {
     loadHistory.mockResolvedValueOnce(page(1, "cursor-2")).mockResolvedValueOnce(page(2, null))
     await mountHistory()
-    const removal = deferred<null>()
+    const removal = deferred<undefined>()
     vi.mocked(removeReadingHistory).mockReturnValueOnce(removal.promise)
     await click("删除")
     expect(scroll.canLoad()).toBe(false)
@@ -167,7 +167,7 @@ describe("阅读历史分页", () => {
     await settle()
     expect(loadHistory).toHaveBeenCalledTimes(1)
 
-    removal.resolve(null)
+    removal.resolve(undefined)
     await settle()
     expect(titles()).toEqual([])
     scroll.load()
@@ -178,7 +178,7 @@ describe("阅读历史分页", () => {
   /* 删除还没落地就去读，读回来的还带着正要删掉的那条：回来时照样重读，只是等删除落地再发。 */
   it("删除在途时回到页面，等删除落地再重读，读回来的不带删掉的那条", async () => {
     await mountHistory()
-    const removal = deferred<null>()
+    const removal = deferred<undefined>()
     vi.mocked(removeReadingHistory).mockReturnValueOnce(removal.promise)
     await click("删除")
     await router.push("/away")
@@ -188,7 +188,7 @@ describe("阅读历史分页", () => {
     await settle()
     expect(loadHistory).toHaveBeenCalledTimes(1)
 
-    removal.resolve(null)
+    removal.resolve(undefined)
     await settle()
     expect(loadHistory).toHaveBeenCalledTimes(2)
     expect(titles()).toEqual(["图集 2"])

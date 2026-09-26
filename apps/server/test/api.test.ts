@@ -1,3 +1,4 @@
+import { inspectRoutes } from "hono/dev"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { register, startApp, type TestApp } from "./support/app"
@@ -37,10 +38,13 @@ afterAll(async () => {
 describe("鉴权边界", () => {
   /**
    * 按整张路由表扫，每条都不带令牌实际请求一次：不回 401 的恰好是这几条。逐条列路径的话，新加的接口没人记得补进来；
-   * 反过来，图片接口要是被误改成要登录，<img> 就全打不开了。看的是响应而不是哪组路由 use 了鉴权插件，鉴权怎么改都照样锁得住。
+   * 反过来，图片接口要是被误改成要登录，<img> 就全打不开了。看的是响应而不是哪条路由挂了鉴权中间件，鉴权怎么改都照样锁得住。
    */
   it("公开接口恰好是这几条，其余不带令牌一律 401", async () => {
-    const routes = t.app.routes.map(({ method, path }) => ({ method: method.toLowerCase(), path }))
+    /* 路由表里一条路由上的中间件、处理函数各占一项，只取处理函数：一条路由正好一项。前端的静态文件由 serveStatic 这个中间件提供，不在其中 */
+    const routes = inspectRoutes(t.app)
+      .filter(({ isMiddleware }) => !isMiddleware)
+      .map(({ method, path }) => ({ method: method.toLowerCase(), path }))
     /* 扫整张路由表，不只扫 /api 下的：漏写前缀的接口同样要被锁住 */
     const open: string[] = []
     for (const { method, path } of routes) {
@@ -61,9 +65,6 @@ describe("鉴权边界", () => {
         "GET /api/eh/thumbnail",
         "GET /api/health/live",
         "GET /api/health/ready",
-        /* 前端的静态文件 */
-        "GET /",
-        "GET /*",
       ]),
     )
     expect(routes.length - open.length).toBeGreaterThan(10)
@@ -120,8 +121,8 @@ describe("响应体的 JSON 形状", () => {
     })
   })
 
-  it("只回成败的接口回空体", async () => {
-    const response = await t.http.patch("/api/eh/preferences").set(auth).send({ readerInterval: 5 }).expect(200)
+  it("只回成败的接口回 204 空体", async () => {
+    const response = await t.http.patch("/api/eh/preferences").set(auth).send({ readerInterval: 5 }).expect(204)
     expect(response.text).toBe("")
   })
 

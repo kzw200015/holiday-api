@@ -40,7 +40,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
   vi.mocked(fetchReadingProgress).mockResolvedValue({ page: 3 })
-  vi.mocked(saveProgress).mockResolvedValue(null)
+  vi.mocked(saveProgress).mockResolvedValue(undefined)
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -64,7 +64,7 @@ describe("阅读进度上报", () => {
 
   /* 乱序到达由服务端按上报序号挡住。要是等前一次回来，页面卸载时补发的那次就发不出去了：前一次回来时页面已经没了。 */
   it("前一次还没回来，页面收起时那次也当场发出", async () => {
-    const first = deferred<null>()
+    const first = deferred<undefined>()
     vi.mocked(saveProgress).mockReturnValueOnce(first.promise)
     const { api } = await mountReader()
     api.report(5)
@@ -75,7 +75,7 @@ describe("阅读进度上报", () => {
     window.dispatchEvent(new Event("pagehide"))
     /* 不推进时间：卸载中的页面等不到前一次的响应。 */
     expect(saveProgress).toHaveBeenLastCalledWith(1, "aaaaaaaaaa", 9)
-    first.resolve(null)
+    first.resolve(undefined)
   })
 
   it("flush 把合并窗口里那次立刻发出去", async () => {
@@ -174,7 +174,7 @@ describe("重读进度与本地上报", () => {
   /* 刚退出阅读就去读，上报还在路上：读回来的会是上报之前的页码。 */
   it("有上报在途时，读进度等它落地再发", async () => {
     const { api, reading } = await mountReader()
-    const saving = deferred<null>()
+    const saving = deferred<undefined>()
     vi.mocked(saveProgress).mockReturnValueOnce(saving.promise)
     api.report(30)
     api.flush()
@@ -182,7 +182,7 @@ describe("重读进度与本地上报", () => {
     void reading.reload()
     await vi.advanceTimersByTimeAsync(0)
     expect(fetchReadingProgress).not.toHaveBeenCalled()
-    saving.resolve(null)
+    saving.resolve(undefined)
     await vi.advanceTimersByTimeAsync(0)
     expect(fetchReadingProgress).toHaveBeenCalledTimes(1)
     expect(reading.progress.value).toBe(30)

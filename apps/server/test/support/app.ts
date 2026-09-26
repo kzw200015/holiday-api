@@ -1,6 +1,7 @@
 import request from "supertest"
 import type TestAgent from "supertest/lib/agent.js"
 
+import type { app } from "@server/app"
 import type { startServer } from "@server/server"
 import { FakeOutbound, withHolidays } from "./outbound"
 import { present } from "./present"
@@ -8,6 +9,7 @@ import { present } from "./present"
 export const SECRET_KEY = "test-secret-test-secret-test-secret"
 
 export interface TestApp extends Awaited<ReturnType<typeof startServer>> {
+  app: typeof app
   http: TestAgent
   outbound: FakeOutbound
 }
@@ -39,11 +41,11 @@ export async function startApp(
   const { replaceOutbound } = await import("@server/outbound")
   replaceOutbound(outbound.fetch)
   const server = await import("@server/server")
-  const started = await server.startServer()
   /* 只听 127.0.0.1 的随机端口，按同一个地址发请求：听 :: 而连 127.0.0.1 的话，macOS 上别的进程能单独占住同一端口的 127.0.0.1 */
-  started.app.listen({ port: 0, hostname: "127.0.0.1" })
-  const port = present(started.app.server?.port, "应用监听的端口")
-  return { ...started, http: request(`http://127.0.0.1:${port}`), outbound }
+  const started = await server.startServer({ port: 0, hostname: "127.0.0.1" })
+  const port = present(started.server.port, "应用监听的端口")
+  const { app } = await import("@server/app")
+  return { ...started, app, http: request(`http://127.0.0.1:${port}`), outbound }
 }
 
 /** 注册一个新账号，交回它的令牌与带上令牌的请求头。 */

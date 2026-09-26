@@ -1,8 +1,9 @@
-import { Elysia } from "elysia"
+import { Hono } from "hono"
 import { z } from "zod"
 
 import { signedIn } from "@server/auth/session"
 import * as credentialService from "@server/eh/credential.service"
+import { validate } from "@server/validate"
 
 const COOKIE_CHARS = "Cookie 值里有不允许的字符，检查是不是多复制了分号、空格或引号"
 
@@ -14,19 +15,24 @@ const cookieValue = z
 const REQUIRED_COOKIES = "ipb_member_id 和 ipb_pass_hash 都不能为空"
 
 /** e 站凭据的绑定状态、绑定与解绑。都由服务端给出结果状态，前端直接用。 */
-export const credentialRoutes = new Elysia({ prefix: "/credential" })
-  .use(signedIn)
-  .get("/", ({ userId }) => credentialService.status(userId))
+export const credentialRoutes = new Hono()
+  .get("/", signedIn, async (c) => c.json(await credentialService.status(c.get("userId"))))
   /*
    * 绑定用户从浏览器复制出来的三个 Cookie。让人手动粘贴而不是代填账号密码：
    * 论坛的登录接口挂在 Cloudflare 盾后面，服务端直接 POST 会被 challenge 拦掉
    */
-  .post("/", ({ userId, body }) => credentialService.bind(userId, body), {
-    body: z.object({
-      ipbMemberId: cookieValue.min(1, REQUIRED_COOKIES),
-      ipbPassHash: cookieValue.min(1, REQUIRED_COOKIES),
-      /* 里站专用，留空则只能看表站 */
-      igneous: cookieValue.default(""),
-    }),
-  })
-  .delete("/", ({ userId }) => credentialService.unbind(userId))
+  .post(
+    "/",
+    signedIn,
+    validate(
+      "json",
+      z.object({
+        ipbMemberId: cookieValue.min(1, REQUIRED_COOKIES),
+        ipbPassHash: cookieValue.min(1, REQUIRED_COOKIES),
+        /* 里站专用，留空则只能看表站 */
+        igneous: cookieValue.default(""),
+      }),
+    ),
+    async (c) => c.json(await credentialService.bind(c.get("userId"), c.req.valid("json"))),
+  )
+  .delete("/", signedIn, async (c) => c.json(await credentialService.unbind(c.get("userId"))))

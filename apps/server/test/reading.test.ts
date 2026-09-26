@@ -26,7 +26,7 @@ describe("阅读进度", () => {
   it("同一上报方迟到的旧进度不算数，别的上报方照到达顺序覆盖", async () => {
     const { auth } = await user()
     const report = (page: number, writer: string, seq: number) =>
-      t.http.post("/api/eh/progress").set(auth).send({ gid: 1, token: TOKEN, page, writer, seq }).expect(200)
+      t.http.post("/api/eh/progress").set(auth).send({ gid: 1, token: TOKEN, page, writer, seq }).expect(204)
     const progress = async () => (await t.http.get("/api/eh/progress/1").set(auth).expect(200)).body.page
 
     expect(await progress()).toBeNull()
@@ -83,7 +83,7 @@ describe("阅读历史", () => {
       .post("/api/eh/progress")
       .set(other.auth)
       .send({ gid: 99, token: TOKEN, page: 1, writer: "w", seq: 1 })
-      .expect(200)
+      .expect(204)
 
     const seen: number[] = []
     let cursor = ""
@@ -143,12 +143,12 @@ describe("阅读历史", () => {
     for (const gid of [5, 6, 7]) {
       await t.http.post("/api/eh/progress").set(auth).send({ gid, token: TOKEN, page: 2, writer: "w", seq: 1 })
     }
-    await t.http.delete("/api/eh/history/6").set(auth).expect(200)
+    await t.http.delete("/api/eh/history/6").set(auth).expect(204)
     expect((await t.http.get("/api/eh/progress/6").set(auth)).body).toEqual({ page: null })
     const gids = (await t.http.get("/api/eh/history").set(auth)).body.items.map((item: { gid: number }) => item.gid)
     expect(gids).toEqual([7, 5])
 
-    await t.http.delete("/api/eh/history").set(auth).expect(200)
+    await t.http.delete("/api/eh/history").set(auth).expect(204)
     expect((await t.http.get("/api/eh/history").set(auth)).body).toEqual({ items: [], nextCursor: null })
   })
 })

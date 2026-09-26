@@ -1,4 +1,4 @@
-import { treaty, type Treaty } from "@elysia/eden"
+import { DetailedError, hc, parseResponse, type ClientResponse } from "hono/client"
 
 import type { App } from "@server/app"
 
@@ -54,44 +54,36 @@ export function onUnauthorized(handler: () => void) {
 }
 
 /**
- * 后端接口：路径、入参与响应都从后端的 App 类型推断（Eden），不再手写。只经 request 调用，由它统一处理失败。
+ * 后端接口：路径、入参与响应都从后端的 App 类型推断（hono/client），不再手写。只经 request 调用，由它统一处理失败。
+ * 入参是后端 schema 的输入：带默认值的字段可以不传，路径参数是字符串。
  *
- * parseDate 要关掉：它默认把 "2026-01-01" 这样像日期的字符串转成 Date，推断出的类型却仍是 string。
  * 请求头在发起调用的当场取（同步），令牌换了之后发出的请求自然带新令牌。
  */
-export const api = treaty<App>(location.origin, {
-  parseDate: false,
-  headers: () => (token ? { authorization: `Bearer ${token}` } : undefined),
+export const api = hc<App>(location.origin, {
+  headers: (): Record<string, string> => (token ? { authorization: `Bearer ${token}` } : {}),
 }).api
-
-/*
- * Eden 的调用结果，只看成功时的数据类型。Eden 的类型里 response 一定有，但出网本身失败（断网、中止、超时）时
- * 它其实是 undefined，error.value 是原本抛出的那个错误，request 照这个运行时的事实处理。
- */
-type Result<T> = Treaty.TreatyResponse<{ 200: T }>
 
 /**
  * HTTP 边界：交出接口的数据，失败一律变成带中文说明的 Error。
  *
- * 要在发起调用的同一处当场套上，如 `request(api.eh.preferences.get())`：这时的令牌就是这次请求带出去的那个，
+ * 要在发起调用的同一处当场套上，如 `request(api.eh.preferences.$get())`：这时的令牌就是这次请求带出去的那个，
  * 旧会话的迟到 401 不会清掉刚登录的新会话。取消请求原样抛出，交给查询库识别。
- * 只回成败的接口（以及「没登录」时的「我是谁」）回的是空体，统一交出 null。
+ * 响应体由 parseResponse 按推断出的类型读出：只回成败的接口回 204，交出 undefined。
  */
-export async function request<T>(pending: Promise<Result<T>>): Promise<T> {
+export async function request<T extends ClientResponse<unknown>>(pending: Promise<T>) {
   const sentWith = token
-  const result = await pending
-  if (!result.error) {
-    return (result.data === "" ? null : result.data) as T
+  try {
+    return await parseResponse(pending)
+  } catch (error) {
+    if (!(error instanceof DetailedError)) {
+      throw offline(error)
+    }
+    if (error.statusCode === 401 && token && sentWith === token) {
+      setToken("")
+      handleUnauthorized?.()
+    }
+    throw new Error(describeFailure(error.statusCode, error.detail?.data), { cause: error })
   }
-  const { status, value } = result.error
-  if (!result.response) {
-    throw offline(value)
-  }
-  if (status === 401 && token && sentWith === token) {
-    setToken("")
-    handleUnauthorized?.()
-  }
-  throw new Error(describeFailure(status, value))
 }
 
 /* 请求没发出去或中途断了。取消原样交回；超时与断网换成能直接显示的说明 */
@@ -107,21 +99,24 @@ function offline(error: unknown) {
  * 失败时给界面看的那句话。有本站响应体就用它的 message（一组文案时连成一句）；
  * 没有的（反向代理返回的空体或 HTML）只说状态码。
  */
-function describeFailure(status: unknown, value: unknown) {
-  const message = typeof value === "object" && value !== null && "message" in value ? value.message : undefined
-  const text = Array.isArray(message) ? message.join("；") : message
-  if (typeof text === "string" && text) {
-    return text
+function describeFailure(status: unknown, body: unknown) {
+  const message = typeof body === "object" && body !== null && "message" in body ? body.message : undefined
+  const joined = Array.isArray(message) ? message.join("；") : message
+  if (typeof joined === "string" && joined) {
+    return joined
   }
   return `服务器返回了 HTTP ${String(status)}`
 }
 
 /**
  * 带时限的 request：到点就中止，这一次算没存上（报「请求超时」）。send 要把给它的 signal 交给这次调用，
- * 如 `requestWithin(ms, (signal) => api.eh.history.delete(undefined, { fetch: { signal } }))`。
+ * 如 `requestWithin(ms, (signal) => api.eh.history.$delete(undefined, { init: { signal } }))`。
  * 不用 AbortSignal.timeout：它的计时器不经页面的 setTimeout，测试里的假时钟推不动它。
  */
-export async function requestWithin<T>(ms: number, send: (signal: AbortSignal) => Promise<Result<T>>): Promise<T> {
+export async function requestWithin<T extends ClientResponse<unknown>>(
+  ms: number,
+  send: (signal: AbortSignal) => Promise<T>,
+) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(new DOMException("请求超时", "TimeoutError")), ms)
   try {

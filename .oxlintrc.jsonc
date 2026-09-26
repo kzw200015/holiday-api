@@ -38,7 +38,7 @@
         ]
       }
     },
-    // 前端与后端之间只有接口这一处：httpClient.ts 引 App 的类型交给 Eden 推断，其余地方的出入参类型一律从 features/*/api.ts 的调用推导，不直接引后端。
+    // 前端与后端之间只有接口这一处：httpClient.ts 引 App 的类型交给 hono/client 推断，其余地方的出入参类型一律从 features/*/api.ts 的调用推导，不直接引后端。
     // 全是类型的导入要写成 import type：前端开着 verbatimModuleSyntax，import { type X } 编译后会留下 import "…"，整个模块照样打进来
     {
       "files": ["apps/web/**/*.ts", "apps/web/**/*.vue"],
@@ -57,7 +57,7 @@
         ]
       }
     },
-    // 唯一的例外：Eden 要后端的 App 类型。按值引用会把后端代码连同 drizzle 打进前端，所以只许 import type
+    // 唯一的例外：hono/client 要后端的 App 类型。按值引用会把后端代码连同 drizzle 打进前端，所以只许 import type
     {
       "files": ["apps/web/src/shared/api/httpClient.ts"],
       "rules": {

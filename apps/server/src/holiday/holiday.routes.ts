@@ -1,8 +1,9 @@
-import { Elysia } from "elysia"
+import { Hono } from "hono"
 import { z } from "zod"
 
 import { isCalendarDate } from "@server/holiday/calendar-date"
 import * as holidayService from "@server/holiday/holiday.service"
+import { validate } from "@server/validate"
 
 const DATE_RULE = "日期格式错误，应为 YYYY-MM-DD"
 
@@ -15,10 +16,12 @@ const holidayQuery = z.object({
 })
 
 /** 这两条有外部调用方，不要求登录。 */
-export const holidayRoutes = new Elysia({ prefix: "/holiday" })
-  /* 只回这天是不是休息日，响应体就是一个 JSON 布尔值：直接返回布尔值会被当成纯文本发出，外部调用方按 JSON 解析 */
-  .get("/is-holiday", async ({ query }) => Response.json((await holidayService.query(query.date)).isOffDay), {
-    query: holidayQuery,
-  })
+export const holidayRoutes = new Hono()
+  /* 只回这天是不是休息日，响应体就是一个 JSON 布尔值 */
+  .get("/is-holiday", validate("query", holidayQuery), async (c) =>
+    c.json((await holidayService.query(c.req.valid("query").date)).isOffDay),
+  )
   /* 是不是休息日，外加对应的节假日名称 */
-  .get("/detail", ({ query }) => holidayService.query(query.date), { query: holidayQuery })
+  .get("/detail", validate("query", holidayQuery), async (c) =>
+    c.json(await holidayService.query(c.req.valid("query").date)),
+  )

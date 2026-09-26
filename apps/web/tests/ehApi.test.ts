@@ -14,7 +14,7 @@ import { hanging, present } from "./support"
 /* 与 api.ts 里的 SAVE_TIMEOUT 对齐。 */
 const SAVE_TIMEOUT = 10_000
 
-/* Eden 按 fetch(地址, 选项) 调用 */
+/* hono/client 按 fetch(地址, 选项) 调用 */
 const fetch = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(hanging)
 
 beforeEach(() => {

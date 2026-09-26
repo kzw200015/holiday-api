@@ -20,7 +20,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.resetAllMocks()
   vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], minRating: null, readerInterval: 8 })
-  vi.mocked(patchGalleryPreferences).mockResolvedValue(null)
+  vi.mocked(patchGalleryPreferences).mockResolvedValue(undefined)
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -45,7 +45,7 @@ describe("账号浏览偏好", () => {
     const list = mount()
     const reader = mount()
     await settleFakeTimers()
-    const first = deferred<null>()
+    const first = deferred<undefined>()
     vi.mocked(patchGalleryPreferences).mockReturnValueOnce(first.promise)
     reader.interval.value = 12
     expect(list.interval.value).toBe(12)
@@ -54,7 +54,7 @@ describe("账号浏览偏好", () => {
     await settleFakeTimers()
     /* 前一次没回来，后一次不发：同一字段先后两次改动乱序到达就会旧盖新。 */
     expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ readerInterval: 12 })
-    first.resolve(null)
+    first.resolve(undefined)
     await settleFakeTimers()
     expect(patchGalleryPreferences).toHaveBeenLastCalledWith({ categories: ["cosplay", "misc"], minRating: 4 })
   })
@@ -74,7 +74,7 @@ describe("账号浏览偏好", () => {
   it("有保存在途时，重读等它落地再发", async () => {
     const preferences = mount()
     await settleFakeTimers()
-    const saving = deferred<null>()
+    const saving = deferred<undefined>()
     vi.mocked(patchGalleryPreferences).mockReturnValueOnce(saving.promise)
     preferences.interval.value = 15
     await settleFakeTimers()
@@ -82,7 +82,7 @@ describe("账号浏览偏好", () => {
     await settleFakeTimers()
     expect(fetchGalleryPreferences).toHaveBeenCalledTimes(1)
     vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: ["manga"], minRating: null, readerInterval: 15 })
-    saving.resolve(null)
+    saving.resolve(undefined)
     await settleFakeTimers()
     expect(fetchGalleryPreferences).toHaveBeenCalledTimes(2)
     expect(preferences.interval.value).toBe(15)
@@ -135,7 +135,7 @@ describe("账号浏览偏好", () => {
 
   /* 排队中的保存要等前一次回来才发，那时令牌已经是新账号的了，发出去就写到了新账号上。 */
   it("换账号后旧账号排队中的保存不再发出", async () => {
-    const saving = deferred<null>()
+    const saving = deferred<undefined>()
     vi.mocked(patchGalleryPreferences).mockReturnValueOnce(saving.promise)
     const preferences = mount()
     await settleFakeTimers()
@@ -145,7 +145,7 @@ describe("账号浏览偏好", () => {
     expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ readerInterval: 6 })
 
     useAuthStore(t.pinia).logout()
-    saving.resolve(null)
+    saving.resolve(undefined)
     await settleFakeTimers()
     expect(patchGalleryPreferences).toHaveBeenCalledTimes(1)
   })

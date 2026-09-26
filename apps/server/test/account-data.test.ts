@@ -130,7 +130,7 @@ describe("偏好与搜索历史", () => {
       preferences: (await t.http.get("/api/eh/preferences").set(auth).expect(200)).body,
       history: (await t.http.get("/api/eh/search-history").set(auth).expect(200)).body,
     })
-    const record = (keyword: string) => t.http.post("/api/eh/search-history").set(auth).send({ keyword }).expect(200)
+    const record = (keyword: string) => t.http.post("/api/eh/search-history").set(auth).send({ keyword }).expect(204)
     /* 尚无这一行时先记搜索历史，偏好落表上的默认值 */
     await record("\u001c a")
     await record("b")
@@ -143,9 +143,9 @@ describe("偏好与搜索历史", () => {
       .patch("/api/eh/preferences")
       .set(auth)
       .send({ categories: ["manga", "doujinshi", "manga"] })
-      .expect(200)
-    await t.http.patch("/api/eh/preferences").set(auth).send({ readerInterval: 9 }).expect(200)
-    await t.http.patch("/api/eh/preferences").set(auth).send({ minRating: 4 }).expect(200)
+      .expect(204)
+    await t.http.patch("/api/eh/preferences").set(auth).send({ readerInterval: 9 }).expect(204)
+    await t.http.patch("/api/eh/preferences").set(auth).send({ minRating: 4 }).expect(204)
     /* 再记一遍已有的词，它挪到最前而不是多一条 */
     await record("\u001c a")
     expect(await read()).toEqual({
@@ -155,12 +155,12 @@ describe("偏好与搜索历史", () => {
 
     /* 要删的词在查询串里，`..` 这类放进路径会被规范化掉的写法照样删得掉 */
     await record("..")
-    await t.http.delete("/api/eh/search-history/entry").query({ keyword: ".." }).set(auth).expect(200)
-    await t.http.delete("/api/eh/search-history/entry").query({ keyword: "b" }).set(auth).expect(200)
+    await t.http.delete("/api/eh/search-history/entry").query({ keyword: ".." }).set(auth).expect(204)
+    await t.http.delete("/api/eh/search-history/entry").query({ keyword: "b" }).set(auth).expect(204)
     expect((await read()).history).toEqual(["\u001c a"])
-    await t.http.delete("/api/eh/search-history").set(auth).expect(200)
+    await t.http.delete("/api/eh/search-history").set(auth).expect(204)
     /* 最低评分改回不限 */
-    await t.http.patch("/api/eh/preferences").set(auth).send({ minRating: null }).expect(200)
+    await t.http.patch("/api/eh/preferences").set(auth).send({ minRating: null }).expect(204)
     expect(await read()).toEqual({
       preferences: { categories: ["doujinshi", "manga"], minRating: null, readerInterval: 9 },
       history: [],
@@ -174,7 +174,7 @@ describe("偏好与搜索历史", () => {
     const history = (await t.http.get("/api/eh/search-history").set(auth).expect(200)).body as string[]
     expect(history).toHaveLength(10)
     expect(new Set(history).size).toBe(10)
-    await t.http.post("/api/eh/search-history").set(auth).send({ keyword: "最新" }).expect(200)
+    await t.http.post("/api/eh/search-history").set(auth).send({ keyword: "最新" }).expect(204)
     expect((await t.http.get("/api/eh/search-history").set(auth).expect(200)).body[0]).toBe("最新")
   })
 

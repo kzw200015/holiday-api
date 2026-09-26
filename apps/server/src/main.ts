@@ -4,8 +4,7 @@ import { startServer } from "@server/server"
 
 const logger = new Logger(import.meta.url)
 
-const server = await startServer()
-server.app.listen(env.PORT)
+const server = await startServer({ port: env.PORT })
 logger.log(`已开始监听 ${env.PORT} 端口`)
 
 /* 容器停止时收到 SIGTERM：不再接新请求，等在途的请求处理完、关掉连接池再退出 */

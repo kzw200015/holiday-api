@@ -2,6 +2,9 @@
   "extends": "@vue/tsconfig/tsconfig.dom.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    // @vue/tsconfig 给的是 ES2022。升到 ES2023：类型检查会读到后端源码，后端要用 toSorted 这类方法；
+    // Vite 默认的目标浏览器里只有 Firefox 114 还差这几个数组方法（115 起有）
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["vite/client", "vite-plugin-pwa/vue"],
     "paths": {
       "@/*": ["./src/*"],

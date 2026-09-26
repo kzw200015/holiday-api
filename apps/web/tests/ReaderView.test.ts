@@ -17,7 +17,7 @@ vi.mock("@/features/eh/api", async (importOriginal) => ({
   saveProgress: vi.fn().mockResolvedValue(undefined),
   fetchPageImageUrl: vi.fn(async (_gid: number, _token: string, page: number) => ({ url: `/image/${page}?signed` })),
   fetchGalleryPreferences: vi.fn().mockResolvedValue({ categories: [], minRating: null, readerInterval: 5 }),
-  patchGalleryPreferences: vi.fn().mockResolvedValue(null),
+  patchGalleryPreferences: vi.fn().mockResolvedValue(undefined),
 }))
 
 let pinia: ReturnType<typeof createPinia>

@@ -40,8 +40,7 @@ export async function patchPreferences(
   { categories, minRating, readerInterval }: Partial<GalleryPreferences>,
 ) {
   const value = {
-    /* oxlint-disable-next-line unicorn/no-array-sort -- 排的是刚展开的副本。前端的类型检查也会读到这里，它的 lib 是 ES2022，没有 toSorted */
-    ...(categories && { categories: [...new Set(categories)].sort() }),
+    ...(categories && { categories: [...new Set(categories)].toSorted() }),
     ...(minRating !== undefined && { minRating }),
     ...(readerInterval !== undefined && { readerInterval }),
   }
