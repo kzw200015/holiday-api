@@ -1,6 +1,6 @@
 import { Elysia } from "elysia"
 
-import type { ImageService } from "@server/eh/image.service"
+import * as imageService from "@server/eh/image.service"
 import { galleryImageQuery, galleryPageParams, thumbnailQuery } from "@server/eh/params"
 import type { ImageStream } from "@server/eh/upstream/eh-client"
 import { imageBroken } from "@server/eh/upstream/failures"
@@ -15,22 +15,18 @@ const logger = new Logger("ImageRoutes")
  * 两条图片接口。<img> 发的请求带不了 Authorization 头，所以它们不要求登录，改由地址里的签名认人——
  * 每条都自己校验签名。响应体是图片流，边读边转发，不把整张图读进内存。
  */
-export function imageRoutes(imageService: ImageService) {
-  return (
-    new Elysia()
-      /* 大图，地址形如 .../pages/3/image?uid=&e=&s=，由 image-url 接口逐页签发 */
-      .get(
-        "/galleries/:gid/:token/pages/:page/image",
-        async ({ params: { gid, token, page }, query: { uid, e, s } }) =>
-          forward(await imageService.openGalleryImage(uid, { gid, token }, page, { e, s })),
-        { params: galleryPageParams, query: galleryImageQuery },
-      )
-      /* 缩略图，地址形如 /thumbnail?u=&e=&s=，只接受本服务签发过的地址 */
-      .get("/thumbnail", async ({ query: { u, e, s } }) => forward(await imageService.openThumbnail(u, { e, s })), {
-        query: thumbnailQuery,
-      })
+export const imageRoutes = new Elysia()
+  /* 大图，地址形如 .../pages/3/image?uid=&e=&s=，由 image-url 接口逐页签发 */
+  .get(
+    "/galleries/:gid/:token/pages/:page/image",
+    async ({ params: { gid, token, page }, query: { uid, e, s } }) =>
+      forward(await imageService.openGalleryImage(uid, { gid, token }, page, { e, s })),
+    { params: galleryPageParams, query: galleryImageQuery },
   )
-}
+  /* 缩略图，地址形如 /thumbnail?u=&e=&s=，只接受本服务签发过的地址 */
+  .get("/thumbnail", async ({ query: { u, e, s } }) => forward(await imageService.openThumbnail(u, { e, s })), {
+    query: thumbnailQuery,
+  })
 
 /**
  * 把上游的图片流转发出去。先等到第一段数据再发响应头：一个字节都没传就断了的，还能改回普通的 502，

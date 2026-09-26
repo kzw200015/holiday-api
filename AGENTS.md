@@ -14,7 +14,7 @@ Bun 的版本写在根目录 `package.json` 的 `packageManager` 与 `Dockerfile
 
 各包与领域模块的约定写在各自目录下的 `AGENTS.md` 里。本文件只放全仓通用的部分；动手改某处之前，从包到领域逐级读完对应的 `AGENTS.md`：
 
-- `apps/server/AGENTS.md`：后端结构与装配、Elysia 的用法（配置、入参、响应、鉴权、数据、出网、缓存）、后端测试、本地配置。
+- `apps/server/AGENTS.md`：后端结构与模块组织、Elysia 的用法（配置、入参、响应、鉴权、数据、出网、缓存）、后端测试、本地配置。
 - `apps/server/src/eh/AGENTS.md`：与 e 站打交道的协议层、上游失败与文案、图片代理、图集元数据与凭据的读取。
 - `apps/web/AGENTS.md`：前端结构与分层、对后端的依赖、组件与界面规范、数据层通则（读取、作废、写入）、前端测试。
 - `apps/web/src/features/eh/AGENTS.md`：本站账号数据、图集详情、阅读进度与阅读历史、换绑 e 站账号时的作废。

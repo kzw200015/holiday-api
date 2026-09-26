@@ -2,7 +2,7 @@ import { createServer, type RequestListener, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 
-import { createOutbound } from "@server/outbound"
+import { createOutbound } from "@server/outbound-fetch"
 
 /*
  * 真实的出网实现对着本机的 HTTP 服务：主接缝把出网整个换掉了，这几条网络语义只能在这里验证。

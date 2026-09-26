@@ -2,7 +2,7 @@ import { utf8Length } from "@myapi/shared/text"
 import { z } from "zod"
 
 /*
- * 全部配置都来自环境变量，启动时校验一次，缺了或写错进程直接拒绝启动。本地开发写在 apps/server/.env 里
+ * 全部配置都来自环境变量，在本模块被导入时校验一次，缺了或写错进程直接拒绝启动。本地开发写在 apps/server/.env 里
  * （已被 Git 忽略；Bun 启动时就会把当前目录的 .env 读进环境变量），部署时由容器环境给出。清单见 .env.example。
  */
 
@@ -62,10 +62,10 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8000),
 })
 
-export type Env = z.output<typeof envSchema>
+type Env = z.output<typeof envSchema>
 
-/** 启动时校验环境变量：失败时把每一项的问题列出来。 */
-export function validateEnv(env: Record<string, unknown>): Env {
+/** 校验环境变量：失败时把每一项的问题列出来。 */
+function validateEnv(env: Record<string, unknown>): Env {
   const result = envSchema.safeParse(env)
   if (!result.success) {
     const problems = result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
@@ -73,3 +73,6 @@ export function validateEnv(env: Record<string, unknown>): Env {
   }
   return result.data
 }
+
+/** 校验过的配置。用到它的模块在顶层取成常量，所以环境变量要在导入应用之前就备齐（测试也一样）。 */
+export const env = validateEnv(process.env)

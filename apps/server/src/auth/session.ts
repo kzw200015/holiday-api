@@ -1,6 +1,6 @@
 import { Elysia } from "elysia"
 
-import type { Tokens } from "@server/auth/tokens"
+import * as tokens from "@server/auth/tokens"
 import { unauthorized } from "@server/http-error"
 
 /*
@@ -15,19 +15,15 @@ import { unauthorized } from "@server/http-error"
  */
 
 /** 要求登录：上下文里的 userId 一定有值，没登录回 401。 */
-export function signedIn(tokens: Tokens) {
-  return new Elysia().derive({ as: "scoped" }, async ({ headers }) => {
-    const userId = await tokens.identify(headers.authorization)
-    if (userId === null) {
-      throw unauthorized("请先登录")
-    }
-    return { userId }
-  })
-}
+export const signedIn = new Elysia().derive({ as: "scoped" }, async ({ headers }) => {
+  const userId = await tokens.identify(headers.authorization)
+  if (userId === null) {
+    throw unauthorized("请先登录")
+  }
+  return { userId }
+})
 
 /** 公开接口上认出登录者（「我是谁」要用）：没登录或令牌无效时 userId 是 null。 */
-export function maybeSignedIn(tokens: Tokens) {
-  return new Elysia().derive({ as: "scoped" }, async ({ headers }) => ({
-    userId: await tokens.identify(headers.authorization),
-  }))
-}
+export const maybeSignedIn = new Elysia().derive({ as: "scoped" }, async ({ headers }) => ({
+  userId: await tokens.identify(headers.authorization),
+}))

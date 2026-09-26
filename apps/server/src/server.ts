@@ -1,11 +1,8 @@
 import type { Cron } from "croner"
 
-import { createApp, type App } from "@server/app"
-import type { Env } from "@server/config"
-import { connectDatabase } from "@server/database/connection"
-import { HolidayService } from "@server/holiday/holiday.service"
-import { HolidaySource } from "@server/holiday/holiday.source"
-import { createOutbound, type Outbound } from "@server/outbound"
+import { app, type App } from "@server/app"
+import { closeDatabase, migrateDatabase } from "@server/database/connection"
+import * as holidayService from "@server/holiday/holiday.service"
 
 export interface Server {
   app: App
@@ -16,22 +13,12 @@ export interface Server {
 }
 
 /**
- * 按启动顺序装配整个服务，交回还没开始监听的应用：先连库并执行迁移，再刷新节假日数据，最后才建应用、开定时任务。
- * 哪一步失败都把已经打开的连接池关掉再原样抛出。出网默认是真实的，测试换成回放内存响应的替身。
+ * 按启动顺序把服务准备好，交回还没开始监听的应用：先执行迁移，再刷新节假日数据，最后开定时任务。
+ * 哪一步失败都原样抛出，进程随之退出；连接池不在这里关，测试里同一份应用失败后还要再启动一次。
  */
-export async function startServer(
-  env: Env,
-  outbound: Outbound = createOutbound(env.EH_USER_AGENT, env.EH_REQUEST_TIMEOUT),
-): Promise<Server> {
-  const database = await connectDatabase(env.DATABASE_URL)
-  const holidayService = new HolidayService(database, new HolidaySource(outbound))
-  try {
-    await holidayService.refreshOnStartup()
-  } catch (error) {
-    await database.$client.close()
-    throw error
-  }
-  const app = createApp({ env, database, outbound, holidayService })
+export async function startServer(): Promise<Server> {
+  await migrateDatabase()
+  await holidayService.refreshOnStartup()
   const holidayRefresh = holidayService.scheduleDailyRefresh()
   return {
     app,
@@ -39,7 +26,7 @@ export async function startServer(
     async close() {
       holidayRefresh.stop()
       await app.stop()
-      await database.$client.close()
+      await closeDatabase()
     },
   }
 }

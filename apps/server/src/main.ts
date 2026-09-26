@@ -1,11 +1,10 @@
-import { validateEnv } from "@server/config"
+import { env } from "@server/config"
 import { Logger } from "@server/logger"
 import { startServer } from "@server/server"
 
 const logger = new Logger("Main")
 
-const env = validateEnv(process.env)
-const server = await startServer(env)
+const server = await startServer()
 server.app.listen(env.PORT)
 logger.log(`已开始监听 ${env.PORT} 端口`)
 

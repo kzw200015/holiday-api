@@ -1,4 +1,4 @@
-import type { Outbound, OutboundInit } from "@server/outbound"
+import type { Outbound, OutboundInit } from "@server/outbound-fetch"
 import { present } from "./present"
 
 /** 发往外部网站的一次请求，按发出的顺序记下来。 */
