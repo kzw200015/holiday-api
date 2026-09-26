@@ -1,6 +1,6 @@
 import { app } from "@server/app"
 import { closeDatabase, migrateDatabase } from "@server/database/connection"
-import * as holidayService from "@server/holiday/holiday.service"
+import * as holidayService from "@server/holiday/holiday-service"
 
 /**
  * 按启动顺序把服务准备好并开始监听，交回监听中的服务器、每日刷新节假日数据的定时任务，

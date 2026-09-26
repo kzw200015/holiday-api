@@ -4,7 +4,7 @@ import { z } from "zod"
 import { signedIn } from "@server/auth/session"
 import { historyCursorSchema } from "@server/eh/history-cursor"
 import { gidParam, gidSchema, pageSchema, positiveInt32 } from "@server/eh/params"
-import * as readingService from "@server/eh/reading.service"
+import * as readingService from "@server/eh/reading-service"
 import { galleryTokenSchema } from "@server/eh/upstream/gallery-ref"
 import { validate } from "@server/validate"
 

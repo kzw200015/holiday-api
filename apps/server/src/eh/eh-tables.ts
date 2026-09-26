@@ -13,7 +13,7 @@ import {
   type PgColumn,
 } from "drizzle-orm/pg-core"
 
-import { users } from "@server/auth/auth.tables"
+import { users } from "@server/auth/auth-tables"
 import { id, timestamps, userId } from "@server/database/columns"
 
 /* 外键沿用建库时 PostgreSQL 起的名字（表_列_fkey），迁移里才对得上现有的库。 */

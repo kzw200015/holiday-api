@@ -4,7 +4,7 @@ import { Hono } from "hono"
 import { z } from "zod"
 
 import { signedIn } from "@server/auth/session"
-import * as galleryService from "@server/eh/gallery.service"
+import * as galleryService from "@server/eh/gallery-service"
 import { categorySchema, galleryPageParams, galleryParams, minRatingSchema } from "@server/eh/params"
 import { numeric } from "@server/numeric"
 import { validate } from "@server/validate"

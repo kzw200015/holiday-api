@@ -2,7 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm"
 
 import { database } from "@server/database/connection"
 import type { CursorPage } from "@server/eh/cursor-page"
-import { ehReadingProgress } from "@server/eh/eh.tables"
+import { ehReadingProgress } from "@server/eh/eh-tables"
 import * as galleryCatalog from "@server/eh/gallery-catalog"
 import { encodeHistoryCursor, type HistoryCursor } from "@server/eh/history-cursor"
 import { refKey, type GalleryRef } from "@server/eh/upstream/gallery-ref"

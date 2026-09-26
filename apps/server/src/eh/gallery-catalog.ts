@@ -1,7 +1,7 @@
 import { LRUCache } from "lru-cache"
 
 import * as attachmentUrls from "@server/eh/attachment-urls"
-import * as tagTranslationService from "@server/eh/tag-translation.service"
+import * as tagTranslationService from "@server/eh/tag-translation-service"
 import * as ehClient from "@server/eh/upstream/eh-client"
 import { refKey, type GalleryRef } from "@server/eh/upstream/gallery-ref"
 
@@ -15,7 +15,7 @@ export interface GalleryCard extends Omit<
   tags: tagTranslationService.GalleryTag[]
 }
 
-/** 详情接口的返回：比卡片多出几个字段，与卡片的字段平铺在一起。阅读进度另有接口，见 reading.service.ts 的 ReadingProgress */
+/** 详情接口的返回：比卡片多出几个字段，与卡片的字段平铺在一起。阅读进度另有接口，见 reading-service.ts 的 ReadingProgress */
 export type GalleryDetail = GalleryCard & Pick<ehClient.GalleryMetadata, "fileSize" | "torrentCount" | "expunged">
 
 interface Waiting {

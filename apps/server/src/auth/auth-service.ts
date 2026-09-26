@@ -1,7 +1,7 @@
 import { SQL } from "bun"
 import { eq } from "drizzle-orm"
 
-import { users } from "@server/auth/auth.tables"
+import { users } from "@server/auth/auth-tables"
 import { hashPassword, verifyPassword } from "@server/auth/passwords"
 import * as tokens from "@server/auth/tokens"
 import { env } from "@server/config"

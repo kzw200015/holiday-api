@@ -2,8 +2,8 @@ import { Cron } from "croner"
 import { eq, like } from "drizzle-orm"
 
 import { database } from "@server/database/connection"
-import * as holidaySource from "@server/holiday/holiday.source"
-import { holidayDays } from "@server/holiday/holiday.tables"
+import * as holidaySource from "@server/holiday/holiday-source"
+import { holidayDays } from "@server/holiday/holiday-tables"
 import { Logger } from "@server/logger"
 
 /* 休息日查询：节假日安排里有的按安排，没有的按周末判断；以及安排数据的定期刷新。 */

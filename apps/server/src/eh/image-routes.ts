@@ -1,7 +1,7 @@
 import { Hono } from "hono"
 import { z } from "zod"
 
-import * as imageService from "@server/eh/image.service"
+import * as imageService from "@server/eh/image-service"
 import { galleryPageParams } from "@server/eh/params"
 import type { ImageStream } from "@server/eh/upstream/eh-client"
 import { imageBroken } from "@server/eh/upstream/failures"

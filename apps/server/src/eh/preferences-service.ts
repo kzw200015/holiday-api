@@ -7,7 +7,7 @@ import {
 import { eq, sql } from "drizzle-orm"
 
 import { database } from "@server/database/connection"
-import { ehPreferences } from "@server/eh/eh.tables"
+import { ehPreferences } from "@server/eh/eh-tables"
 
 /*
  * 浏览偏好与搜索历史，存在同一行。写入都与到达顺序无关（见 ADR-0006）：偏好只改带来的字段，

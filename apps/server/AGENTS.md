@@ -6,11 +6,11 @@
 
 代码在 `src/`，顶层按领域分模块：`auth`、`eh`、`holiday`，与前端的 feature 一一对应；另有 `health/`（Kubernetes 的探针：`live` 不碰任何依赖，`ready` 查一次数据库）。基础设施各是一个文件或目录：`config.ts`（环境变量）、`numeric.ts`（从字符串认数字）、`validate.ts`（按 zod schema 校验入参）、`database/`（连接池与启动时迁移 `connection.ts`、建表共用的列 `columns.ts`）、`outbound.ts` 与 `outbound-fetch.ts`（出网：进程里用的那一份与测试的替换口、真实的实现）、`signing.ts`（从主密钥派生子密钥）、`http-error.ts`（可预期的失败）、`logger.ts`（日志）、`request-log.ts`（`/api` 下每个请求结束时记一行方法、路径、状态码与耗时）、`static-files.ts`（前端的静态文件）。迁移文件在 `drizzle/`，测试在 `test/`。镜像里前端产物放在 `client/`，由本服务一并提供静态文件。
 
-没有依赖注入，也不装配对象图：模块本身就是单例。基础设施在被导入时按配置建好——`config.ts` 导出校验过的 `env`，`database/connection.ts` 导出整个进程共用的 `database`，`outbound.ts` 导出 `outbound`，`signing.ts` 导出两把子密钥——用到的模块直接 import。服务是一组导出函数的模块，进程内的缓存与状态是模块顶层的常量或变量；调用方用命名空间导入（`import * as galleryService from "@server/eh/gallery.service"`），调用处写 `galleryService.search(…)`，一眼看得出是哪个模块的。路由是模块级的 Hono 实例（`*.routes.ts`），只写本组内的路径，前缀由挂它的一方给：`eh` 的几组由 `eh.routes.ts` 汇总，`app.ts` 把各领域挂到 `/api` 下，并导出前端据以推断接口的 `App` 类型。路由一路链式写下来，拆成几条语句的话 `App` 类型里就没有后面那些接口了。`server.ts` 按顺序执行迁移、刷新节假日数据、开定时任务，最后用 `Bun.serve` 开始监听；`main.ts` 给它端口、收到 SIGTERM 时关停。
+没有依赖注入，也不装配对象图：模块本身就是单例。基础设施在被导入时按配置建好——`config.ts` 导出校验过的 `env`，`database/connection.ts` 导出整个进程共用的 `database`，`outbound.ts` 导出 `outbound`，`signing.ts` 导出两把子密钥——用到的模块直接 import。服务是一组导出函数的模块，进程内的缓存与状态是模块顶层的常量或变量；调用方用命名空间导入（`import * as galleryService from "@server/eh/gallery-service"`），调用处写 `galleryService.search(…)`，一眼看得出是哪个模块的。路由是模块级的 Hono 实例（`*-routes.ts`），只写本组内的路径，前缀由挂它的一方给：`eh` 的几组由 `eh-routes.ts` 汇总，`app.ts` 把各领域挂到 `/api` 下，并导出前端据以推断接口的 `App` 类型。路由一路链式写下来，拆成几条语句的话 `App` 类型里就没有后面那些接口了。`server.ts` 按顺序执行迁移、刷新节假日数据、开定时任务，最后用 `Bun.serve` 开始监听；`main.ts` 给它端口、收到 SIGTERM 时关停。
 
 模块顶层只放声明、建缓存，外加上面那几样基础设施，不在导入时调用别的模块的函数，初始化顺序就不成问题；模块之间的环由 lint 的 `import/no-cycle` 挡住。函数名可以短（`search`、`detail`），局部变量别与它重名（lint 的 `no-shadow` 会报，重名还会在运行时撞上「初始化之前访问」）。类只留给会有多个实例或要靠 `instanceof` 认的东西：`Logger`、`HttpError` 及其子类。要在测试里单独替换某个服务时，只把那个模块改成「工厂函数 + 默认实例」（`createXxx(deps)` 加上 `export const xxx = createXxx()`）：业务代码照旧引默认实例，测试调工厂传替身；不用 `vi.mock`。
 
-表结构按领域写在各自模块的 `*.tables.ts` 里（`auth.tables.ts`、`eh.tables.ts`、`holiday.tables.ts`），改了之后，在本目录跑 `bunx drizzle-kit generate` 生成迁移（要连一个库做对比时给 `DATABASE_URL`）。
+表结构按领域写在各自模块的 `*-tables.ts` 里（`auth-tables.ts`、`eh-tables.ts`、`holiday-tables.ts`），改了之后，在本目录跑 `bunx drizzle-kit generate` 生成迁移（要连一个库做对比时给 `DATABASE_URL`）。
 
 ## 代码风格
 
@@ -18,7 +18,7 @@
 
 前端经 `hono/client` 从 `App` 类型推断接口，它的类型检查按前端的配置读到这里所有被 `App` 追到的源码，所以这些代码要在前端的配置下也过得去：不写构造器参数属性（本包的 tsconfig 也开着 `erasableSyntaxOnly`），不用 ES2023 之后才有的内置方法（前端的 `lib` 到 ES2023）。
 
-能用 Bun 原生 API 的地方用它：密码哈希 `Bun.password`，哈希与 HMAC `Bun.CryptoHasher`，数据库 `Bun.sql`，读文件 `Bun.file`。日志一律经 `logger.ts` 的 `Logger`，不直接写 `console`：每个模块在顶层建一个 `new Logger(import.meta.url)`，来源名由它算成这个模块在 `src/` 下的路径（与 `@server/` 的 import 路径一致、不带扩展名，如 `holiday/holiday.service`），不手写，日志里一眼对得上是哪个文件。
+能用 Bun 原生 API 的地方用它：密码哈希 `Bun.password`，哈希与 HMAC `Bun.CryptoHasher`，数据库 `Bun.sql`，读文件 `Bun.file`。日志一律经 `logger.ts` 的 `Logger`，不直接写 `console`：每个模块在顶层建一个 `new Logger(import.meta.url)`，来源名由它算成这个模块在 `src/` 下的路径（与 `@server/` 的 import 路径一致、不带扩展名，如 `holiday/holiday-service`），不手写，日志里一眼对得上是哪个文件。
 
 ## 约定
 
@@ -30,9 +30,9 @@
 
 鉴权不用 Passport（见 ADR-0001、ADR-0007）：`auth/tokens.ts` 用 `jose` 签发与校验 `Authorization: Bearer` 令牌，`auth/session.ts` 的两个中间件把当前本站账号 id 放进上下文，处理函数用 `c.get("userId")` 取：要登录的路由挂 `signedIn`，没登录回 401；公开接口上要认出登录者的挂 `maybeSignedIn`，没登录时是 `null`。中间件逐条写在路由上、排在 `validate` 之前，没登录的请求先拿到 401；不在一组路由上 `use`：`use` 按路径前缀挂，eh 下要登录的路由与公开的图片接口共用前缀。公开接口的清单由接口测试按整张路由表锁住，新加的路由漏了 `signedIn` 会让那条测试失败。
 
-数据访问用 Drizzle（`drizzle-orm/bun-sql`，连接是 Bun 自带的 `SQL`，第一次查询就把连接池开满，默认 10 个），表结构写在各领域的 `*.tables.ts`，服务直接从那里引用表，连接直接引 `database`；不用 Drizzle 的关系查询，所以连接上不挂表结构，`database/` 也就不必认识各领域的表。时间列只存到毫秒（`timestamp(3)`），取出来是 `Date`：阅读历史的游标要把阅读时间原样交回数据库比较，库里存着微秒的话经 `Date` 一截就会漏行，upsert 的冲突分支自己写 `` updatedAt: sql`now()` ``。服务启动时先由迁移器执行 `drizzle/` 下没执行过的迁移，再开始监听；基线迁移是幂等的，对着已有的库只登记不改动。
+数据访问用 Drizzle（`drizzle-orm/bun-sql`，连接是 Bun 自带的 `SQL`，第一次查询就把连接池开满，默认 10 个），表结构写在各领域的 `*-tables.ts`，服务直接从那里引用表，连接直接引 `database`；不用 Drizzle 的关系查询，所以连接上不挂表结构，`database/` 也就不必认识各领域的表。时间列只存到毫秒（`timestamp(3)`），取出来是 `Date`：阅读历史的游标要把阅读时间原样交回数据库比较，库里存着微秒的话经 `Date` 一截就会漏行，upsert 的冲突分支自己写 `` updatedAt: sql`now()` ``。服务启动时先由迁移器执行 `drizzle/` 下没执行过的迁移，再开始监听；基线迁移是幂等的，对着已有的库只登记不改动。
 
-出网只有一个出口：`outbound.ts` 的 `outbound`（形状就是 fetch，底下是 Bun 的 fetch，类型与真实实现在 `outbound-fetch.ts`），不跟随重定向，等响应头与两次数据之间各有超时（由它自己计；连接阶段约 10 秒的超时靠 Bun 的默认行为，见 `outbound-fetch.ts`），所有出网请求共用同一个 User-Agent 与超时配置；访问 e 站、图床、节假日数据源都经它，测试也只在这里替换（`outbound.ts` 的 `replaceOutbound`）。`outbound-fetch.ts` 不读配置，次接缝的测试直接用它。一个请求里要同时等两件互不依赖的事时用 `Promise.all`。进程内缓存用 `lru-cache`：同一个 key 的并发加载靠它的 `fetch()`（一定有值的用 `forceFetch()`）只跑一次、失败不进缓存，不另加锁。定时任务用 `croner`（节假日数据每日刷新，见 `holiday.service.ts`），关停时停掉。
+出网只有一个出口：`outbound.ts` 的 `outbound`（形状就是 fetch，底下是 Bun 的 fetch，类型与真实实现在 `outbound-fetch.ts`），不跟随重定向，等响应头与两次数据之间各有超时（由它自己计；连接阶段约 10 秒的超时靠 Bun 的默认行为，见 `outbound-fetch.ts`），所有出网请求共用同一个 User-Agent 与超时配置；访问 e 站、图床、节假日数据源都经它，测试也只在这里替换（`outbound.ts` 的 `replaceOutbound`）。`outbound-fetch.ts` 不读配置，次接缝的测试直接用它。一个请求里要同时等两件互不依赖的事时用 `Promise.all`。进程内缓存用 `lru-cache`：同一个 key 的并发加载靠它的 `fetch()`（一定有值的用 `forceFetch()`）只跑一次、失败不进缓存，不另加锁。定时任务用 `croner`（节假日数据每日刷新，见 `holiday-service.ts`），关停时停掉。
 
 ## 测试
 

@@ -2,7 +2,7 @@ import { Hono } from "hono"
 import { z } from "zod"
 
 import { isCalendarDate } from "@server/holiday/calendar-date"
-import * as holidayService from "@server/holiday/holiday.service"
+import * as holidayService from "@server/holiday/holiday-service"
 import { validate } from "@server/validate"
 
 const DATE_RULE = "日期格式错误，应为 YYYY-MM-DD"

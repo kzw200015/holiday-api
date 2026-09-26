@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { isCalendarDate } from "@server/holiday/calendar-date"
-import type { HolidayDetail } from "@server/holiday/holiday.service"
+import type { HolidayDetail } from "@server/holiday/holiday-service"
 import { outbound } from "@server/outbound"
 
 /* 节假日安排的数据源：GitHub 上的 holiday-cn 仓库，一年一个 JSON 文件。 */

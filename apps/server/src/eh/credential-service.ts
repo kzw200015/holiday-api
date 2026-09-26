@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm"
 
 import { database } from "@server/database/connection"
-import { ehCredentials } from "@server/eh/eh.tables"
+import { ehCredentials } from "@server/eh/eh-tables"
 import { accessOf, ANONYMOUS, type EhAccess, type EhCredential } from "@server/eh/upstream/access"
 import * as ehClient from "@server/eh/upstream/eh-client"
 import { Logger } from "@server/logger"

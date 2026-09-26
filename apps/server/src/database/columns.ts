@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm"
 import { bigint, timestamp } from "drizzle-orm/pg-core"
 
 /*
- * 各领域建表共用的列。表结构写在各自领域的 `*.tables.ts` 里，改了之后在 apps/server 下跑
+ * 各领域建表共用的列。表结构写在各自领域的 `*-tables.ts` 里，改了之后在 apps/server 下跑
  * `bunx drizzle-kit generate` 生成迁移，服务启动时自动执行。
  *
  * 约定：id 用 identity；业务上的唯一性用唯一索引表达，它同时是各自 upsert 的冲突目标。

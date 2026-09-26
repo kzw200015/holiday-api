@@ -1,5 +1,5 @@
 import * as attachmentUrls from "@server/eh/attachment-urls"
-import * as credentialService from "@server/eh/credential.service"
+import * as credentialService from "@server/eh/credential-service"
 import * as imageLocator from "@server/eh/image-locator"
 import * as ehClient from "@server/eh/upstream/eh-client"
 import { ImageNodeFailure } from "@server/eh/upstream/failures"

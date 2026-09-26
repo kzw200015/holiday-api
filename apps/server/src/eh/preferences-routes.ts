@@ -4,7 +4,7 @@ import { z } from "zod"
 
 import { signedIn } from "@server/auth/session"
 import { categorySchema, minRatingSchema } from "@server/eh/params"
-import * as preferencesService from "@server/eh/preferences.service"
+import * as preferencesService from "@server/eh/preferences-service"
 import { validate } from "@server/validate"
 
 /* 记一个词、删一个词：记的是请求体，删的是查询串 */

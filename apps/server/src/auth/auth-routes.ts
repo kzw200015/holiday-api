@@ -1,7 +1,7 @@
 import { Hono } from "hono"
 import { z } from "zod"
 
-import * as authService from "@server/auth/auth.service"
+import * as authService from "@server/auth/auth-service"
 import { maybeSignedIn } from "@server/auth/session"
 import { validate } from "@server/validate"
 

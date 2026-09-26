@@ -2,7 +2,7 @@ import { Hono } from "hono"
 import { z } from "zod"
 
 import { signedIn } from "@server/auth/session"
-import * as credentialService from "@server/eh/credential.service"
+import * as credentialService from "@server/eh/credential-service"
 import { validate } from "@server/validate"
 
 const COOKIE_CHARS = "Cookie 值里有不允许的字符，检查是不是多复制了分号、空格或引号"

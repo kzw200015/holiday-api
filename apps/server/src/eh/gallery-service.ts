@@ -1,5 +1,5 @@
 import * as attachmentUrls from "@server/eh/attachment-urls"
-import * as credentialService from "@server/eh/credential.service"
+import * as credentialService from "@server/eh/credential-service"
 import type { CursorPage } from "@server/eh/cursor-page"
 import * as galleryCatalog from "@server/eh/gallery-catalog"
 import * as imageLocator from "@server/eh/image-locator"

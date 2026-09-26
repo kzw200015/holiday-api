@@ -2,8 +2,8 @@ import { desc, sql } from "drizzle-orm"
 import { LRUCache } from "lru-cache"
 
 import { database } from "@server/database/connection"
-import { ehTagTranslations, ehTagTranslationSyncs } from "@server/eh/eh.tables"
-import * as tagTranslationSource from "@server/eh/tag-translation.source"
+import { ehTagTranslations, ehTagTranslationSyncs } from "@server/eh/eh-tables"
+import * as tagTranslationSource from "@server/eh/tag-translation-source"
 import type { TagRef } from "@server/eh/upstream/eh-client"
 import { Logger } from "@server/logger"
 
