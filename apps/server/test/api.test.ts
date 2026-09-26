@@ -69,6 +69,8 @@ describe("鉴权边界", () => {
         "GET /api/auth/me",
         "GET /api/eh/galleries/:gid/:token/pages/:page/image",
         "GET /api/eh/thumbnail",
+        "GET /api/health/live",
+        "GET /api/health/ready",
       ]),
     )
     expect(routes.length - open.length).toBeGreaterThan(10)

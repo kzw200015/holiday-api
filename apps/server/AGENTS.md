@@ -4,7 +4,7 @@
 
 ## 结构
 
-代码在 `src/`，顶层按领域分模块：`auth`、`eh`、`holiday`，与前端的 feature 一一对应；另有基础模块 `config.ts`（环境变量）、`numeric.ts`（从字符串认数字）、`database/`（连接池、建表共用的列 `columns.ts`、启动时迁移）、`outbound/`（出网）、`signing/`（从主密钥派生子密钥）、`request-log.ts`（`/api` 下每个请求结束时记一行方法、路径、状态码与耗时）。迁移文件在 `drizzle/`，测试在 `test/`。镜像里前端产物放在 `client/`，由本服务一并提供静态文件。
+代码在 `src/`，顶层按领域分模块：`auth`、`eh`、`holiday`，与前端的 feature 一一对应；另有基础模块 `config.ts`（环境变量）、`numeric.ts`（从字符串认数字）、`database/`（连接池、建表共用的列 `columns.ts`、启动时迁移）、`outbound/`（出网）、`signing/`（从主密钥派生子密钥）、`request-log.ts`（`/api` 下每个请求结束时记一行方法、路径、状态码与耗时）、`health/`（Kubernetes 的探针：`live` 不碰任何依赖，`ready` 查一次数据库）。迁移文件在 `drizzle/`，测试在 `test/`。镜像里前端产物放在 `client/`，由本服务一并提供静态文件。
 
 基础模块只有每个领域都用的做成全局（`ConfigModule`、`DatabaseModule`），由 `AppModule` 导入一次；只有部分领域用的（`OutboundModule`、`SigningModule`）由用到的领域模块自己 `imports`，模块声明上就看得出哪些领域出网、哪些用派生密钥。
 

@@ -14,6 +14,7 @@ import { AuthModule } from "@/auth/auth.module"
 import { validateEnv } from "@/config"
 import { DatabaseModule } from "@/database/database.module"
 import { EhModule } from "@/eh/eh.module"
+import { HealthModule } from "@/health/health.module"
 import { HolidayModule } from "@/holiday/holiday.module"
 import { requestLog } from "@/request-log"
 
@@ -30,8 +31,9 @@ import { requestLog } from "@/request-log"
     AuthModule,
     EhModule,
     HolidayModule,
+    HealthModule,
     /* 接口一律挂在 /api 下，控制器只写领域内的路径，漏写前缀的控制器不会挂到根路径上和前端静态文件抢地址。 */
-    RouterModule.register([{ path: "api", children: [AuthModule, EhModule, HolidayModule] }]),
+    RouterModule.register([{ path: "api", children: [AuthModule, EhModule, HolidayModule, HealthModule] }]),
   ],
   providers: [
     {
