@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto"
+
 import { env } from "@server/config"
 import type { GalleryRef } from "@server/eh/upstream/gallery-ref"
 import { forbidden } from "@server/http-error"
@@ -62,7 +64,10 @@ function verify(subject: string, { e, s }: Signature): boolean {
   if (!isDecimal(e) || Number(e) <= Date.now()) {
     return false
   }
-  return constantTimeEqual(s, digest(subject, Number(e)))
+  const actual = Buffer.from(s)
+  const expected = Buffer.from(digest(subject, Number(e)))
+  /* 比较耗时与哪一位对不上无关，免得靠响应快慢一位位试出签名。timingSafeEqual 要求等长，签名长度固定，不是秘密 */
+  return actual.length === expected.length && timingSafeEqual(actual, expected)
 }
 
 function digest(subject: string, expiresAt: number): string {
@@ -76,16 +81,4 @@ function digest(subject: string, expiresAt: number): string {
 /** 大图通行证签的是「谁能看哪个图集的哪一页」：改地址上的页码，签名就对不上。 */
 function imageSubject(userId: number, ref: GalleryRef, page: number) {
   return `${userId}:${ref.gid}:${ref.token}:${page}`
-}
-
-/* 逐个字符比完再下结论，耗时与哪一位对不上无关，免得靠响应快慢一位位试出签名。Bun 没有原生的 timingSafeEqual */
-function constantTimeEqual(actual: string, expected: string): boolean {
-  if (actual.length !== expected.length) {
-    return false
-  }
-  let difference = 0
-  for (let index = 0; index < expected.length; index += 1) {
-    difference |= actual.charCodeAt(index) ^ expected.charCodeAt(index)
-  }
-  return difference === 0
 }
