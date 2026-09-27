@@ -22,6 +22,13 @@ watch(
     broken.value = false
   },
 )
+/*
+ * 带偏移的（拼图）不懒加载：图没到手时 <img> 是 0×0，平移后落在外框裁剪区之外，Safari 据此认定它不可见、永远不取，
+ * 一片里就只有偏移为 0 的第一格出图。拼图各格共用少数几张图，而且这一片滚到附近才拿得到预览数据，不懒加载也多取不了几张。
+ */
+const loading = computed(() =>
+  props.preview && (props.preview.offsetX > 0 || props.preview.offsetY > 0) ? "eager" : "lazy",
+)
 const scale = computed(() => (props.preview ? HEIGHT / props.preview.height : 1))
 const width = computed(() => (props.preview ? Math.round(props.preview.width * scale.value) : PLACEHOLDER_WIDTH))
 </script>
@@ -36,7 +43,7 @@ const width = computed(() => (props.preview ? Math.round(props.preview.width * s
       v-if="preview && !broken"
       alt=""
       class="absolute top-0 left-0 max-w-none origin-top-left"
-      loading="lazy"
+      :loading="loading"
       :src="preview.url"
       :style="{ transform: `scale(${scale}) translate(${-preview.offsetX}px, ${-preview.offsetY}px)` }"
       @error="broken = true"
