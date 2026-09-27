@@ -20,7 +20,7 @@ export const ehKeys = {
   searchHistory: ["eh", "search-history"],
   searches: SEARCH,
   /* 搜索的缓存 key 就是提交给搜索接口的那组条件 */
-  search: (keyword: string, categories: GallerySearch["categories"], minRating: GallerySearch["minRating"]) => [
+  search: ({ keyword, categories, minRating }: Omit<GallerySearch, "cursor">) => [
     ...SEARCH,
     keyword,
     categories,

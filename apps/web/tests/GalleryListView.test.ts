@@ -1,4 +1,5 @@
 /* @vitest-environment happy-dom */
+import { useQueryCache } from "@pinia/colada"
 import type * as VueUse from "@vueuse/core"
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -6,7 +7,9 @@ import { createApp, h, KeepAlive, nextTick } from "vue"
 import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
 import type * as EhApi from "@/features/eh/api"
-import { fetchGalleryPreferences, searchGalleries } from "@/features/eh/api"
+import { addSearchKeyword, fetchGalleryPreferences, searchGalleries } from "@/features/eh/api"
+import { useGallerySearchStore } from "@/features/eh/composables/useGallerySearchStore"
+import { ehKeys } from "@/features/eh/queries"
 import GalleryListView from "@/features/eh/views/GalleryListView.vue"
 import { installQueries } from "@/shared/api/queries"
 import { byText, deferred, galleryCard, present, query, settle } from "./support"
@@ -50,16 +53,16 @@ let host: HTMLDivElement
 const search = vi.mocked(searchGalleries)
 const criteria = { keyword: "language:chinese", categories: ["manga"], minRating: null }
 
-async function mountList() {
+async function mountList(start = "/eh") {
   router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: "/eh", component: GalleryListView },
+      { path: "/eh", name: "gallery-list", component: GalleryListView },
       { path: "/away", component: { render: () => h("div", "其他页面") } },
       { path: "/eh/g/:gid/:token", name: "gallery-detail", component: { render: () => h("div") } },
     ],
   })
-  await router.push("/eh")
+  await router.push(start)
   await router.isReady()
   host = document.createElement("div")
   document.body.append(host)
@@ -78,6 +81,8 @@ async function mountList() {
   pinia = createPinia()
   app.use(pinia)
   installQueries(app)
+  /* EhLayout 会先等偏好读到再创建页面，这里照做：页面拿到的分类是确定的。 */
+  useQueryCache(pinia).setQueryData(ehKeys.preferences, await fetchGalleryPreferences())
   app.mount(host)
   await settle()
   search.mockClear()
@@ -224,5 +229,84 @@ describe("图库列表分页", () => {
     expect(search).toHaveBeenCalledExactlyOnceWith({ ...criteria, cursor: "" }, expect.any(AbortSignal))
     expect(host.textContent).toContain("图集 3")
     expect(host.textContent).not.toContain("图集 2")
+  })
+
+  /* 偏好可能在别处改过后重读，或保存失败被按了回去：之后的搜索照面板上显示的那组搜，不沿用上次提交的。 */
+  it("偏好重读后，再按搜索与详情页发起的搜索都用偏好里的筛选条件", async () => {
+    await mountList()
+    await submit("cat")
+    const preferences = { categories: ["doujinshi"], minRating: 3, readerInterval: 5 }
+    useQueryCache(pinia).setQueryData(ehKeys.preferences, preferences)
+    await submit("cat")
+    expect(search).toHaveBeenLastCalledWith(
+      { keyword: "cat", categories: ["doujinshi"], minRating: 3, cursor: "" },
+      expect.any(AbortSignal),
+    )
+    useQueryCache(pinia).setQueryData(ehKeys.preferences, { ...preferences, categories: ["manga"] })
+    useGallerySearchStore(pinia).submit({ keyword: "dog" })
+    await settle()
+    expect(search).toHaveBeenLastCalledWith(
+      { keyword: "dog", categories: ["manga"], minRating: 3, cursor: "" },
+      expect.any(AbortSignal),
+    )
+  })
+})
+
+describe("从详情页发起的搜索", () => {
+  /* 详情页点标签、上传者时做的就是这两步 */
+  async function searchFromDetail(keyword: string) {
+    useGallerySearchStore(pinia).submit({ keyword })
+    await router.push("/eh")
+    await settle()
+  }
+
+  /* 搜索页第一次创建时条件已经定了：先按空关键词搜一次再取消，白白多抓一次上游。 */
+  it("搜索页还没创建时，首次查询就按这个词搜，只搜一次，不记历史", async () => {
+    await mountList("/eh/g/1/token1")
+    await searchFromDetail('female:"big breasts$"')
+    expect(search).toHaveBeenCalledExactlyOnceWith(
+      { keyword: 'female:"big breasts$"', categories: ["manga"], minRating: null, cursor: "" },
+      expect.any(AbortSignal),
+    )
+    expect(query(host, "input").value).toBe('female:"big breasts$"')
+    expect(addSearchKeyword).not.toHaveBeenCalled()
+  })
+
+  it("搜索页被留着时，提交当场就搜，回来显示新结果；之后正常往返不再搜", async () => {
+    await mountList()
+    search.mockResolvedValueOnce({ items: [galleryCard(1)], nextCursor: null })
+    await submit("cat")
+    await router.push("/eh/g/1/token1")
+    await settle()
+    search.mockResolvedValueOnce({ items: [galleryCard(2)], nextCursor: null })
+    useGallerySearchStore(pinia).submit({ keyword: 'uploader:"some one"' })
+    await settle()
+    /* 还在详情页，搜索已经发出 */
+    expect(search).toHaveBeenLastCalledWith(
+      { keyword: 'uploader:"some one"', categories: ["manga"], minRating: null, cursor: "" },
+      expect.any(AbortSignal),
+    )
+    await router.push("/eh")
+    await settle()
+    expect(query(host, "input").value).toBe('uploader:"some one"')
+    expect(host.textContent).toContain("图集 2")
+    expect(host.textContent).not.toContain("图集 1")
+    expect(search).toHaveBeenCalledTimes(2)
+
+    await router.push("/eh/g/1/token1")
+    await settle()
+    await router.push("/eh")
+    await settle()
+    expect(search).toHaveBeenCalledTimes(2)
+  })
+
+  it("详情页再按同一个词搜，也重读第一页", async () => {
+    await mountList()
+    await submit("cat")
+    await router.push("/eh/g/1/token1")
+    await settle()
+    await searchFromDetail("cat")
+    expect(search).toHaveBeenCalledTimes(2)
+    expect(search).toHaveBeenLastCalledWith({ ...criteria, keyword: "cat", cursor: "" }, expect.any(AbortSignal))
   })
 })

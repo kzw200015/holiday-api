@@ -94,9 +94,7 @@ export function useReadingHistory() {
         /* 本地先清空当场生效，再重读一次：「后面还有没有」是随页算的，只有重读才会跟着变成没有。 */
         updatePages(() => ({ pages: [{ items: [], nextCursor: null }], pageParams: [""] }))
         void history.refetch()
-        if (active.value) {
-          void resetScroll()
-        }
+        void resetScroll()
       },
     })
   }
@@ -104,16 +102,14 @@ export function useReadingHistory() {
   /* 读和写都会改动列表，谁在跑都不该再接第二个操作。 */
   const busy = computed(() => history.isLoading.value || change.isLoading.value)
   /* 忙着的时候不续取；续取失败后也不自己往下取，等用户点重试。页面被缓存起来时不再滚动，但已发出的删除仍要跑完。 */
-  const active = useInfiniteLoad(
+  useInfiniteLoad(
     () => void loadMore(),
     () => history.hasNextPage.value && !busy.value && !history.error.value,
   )
 
   async function refresh() {
     await history.refetch()
-    if (active.value) {
-      void resetScroll()
-    }
+    void resetScroll()
   }
 
   useRefreshOnActivated(() => history.refresh())

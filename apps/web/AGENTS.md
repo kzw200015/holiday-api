@@ -26,7 +26,7 @@ shadcn 组件先用它自带的 variant、size 和子组件（按钮拼一组用
 
 ## 数据层
 
-服务端数据统一交给 Pinia Colada（见 ADR-0006），读写只写在 feature 的 `composables/` 里，页面拿到的是包好的 `loading`、`errorMessage` 与数据。数据按 query key 缓存在查询库里，不活在组件里，也不另设 store；key 集中写在 feature 的 `queries.ts`。全局配置在 `shared/api/queries.ts`：数据一律当场就算过期，挂载、换参数都重读一次，在读时复用那次请求；不自动重试，也不在窗口聚焦或网络重连时重读，失败交给用户点重试。列表一律触底加载、用 `useInfiniteQuery`，不做上一页下一页。查询函数用的参数要是这条缓存自己的（`useQuery(() => ({ key, query }))` 在同一个闭包里取值），不能读查询发出那一刻的外部状态。调接口一律套上 `request(api.…)`（有时限的写入用 `requestWithin`），它把失败一律变成带中文说明的 `Error`、令牌失效时退出登录、取消原样抛出；`catch` 到的值经 `shared/lib/errors.ts` 的 `toError` 统一后再取文案。
+服务端数据统一交给 Pinia Colada（见 ADR-0006），读写只写在 feature 的 `composables/` 里，页面拿到的是包好的 `loading`、`errorMessage` 与数据。数据按 query key 缓存在查询库里，不活在组件里，也不另设 store 存一份；几个页面要改同一份客户端状态时（如搜索条件，见 `features/eh/AGENTS.md`）才放进 feature 自己的 Pinia store。key 集中写在 feature 的 `queries.ts`。全局配置在 `shared/api/queries.ts`：数据一律当场就算过期，挂载、换参数都重读一次，在读时复用那次请求；不自动重试，也不在窗口聚焦或网络重连时重读，失败交给用户点重试。列表一律触底加载、用 `useInfiniteQuery`，不做上一页下一页。查询函数用的参数要是这条缓存自己的（`useQuery(() => ({ key, query }))` 在同一个闭包里取值），不能读查询发出那一刻的外部状态。调接口一律套上 `request(api.…)`（有时限的写入用 `requestWithin`），它把失败一律变成带中文说明的 `Error`、令牌失效时退出登录、取消原样抛出；`catch` 到的值经 `shared/lib/errors.ts` 的 `toError` 统一后再取文案。
 
 KeepAlive 只为保留界面状态（输入草稿、滚动位置、已翻的页）而缓存页面。查询库不管 KeepAlive：被留着的页面回来时不会重新挂载，要「每次回来都重读」的在 `shared/composables/useRefreshOnActivated` 里交上组合式函数的 `reload`。各组合式函数只暴露这一个重读入口，底层是查询的 `refresh()`：数据当场就算过期，所以它总会重读，只是在读时复用那次请求，首次挂载触发它也不会多读，重试按钮、刷新按钮用的也是它。
 

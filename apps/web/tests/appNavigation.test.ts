@@ -833,6 +833,44 @@ describe("页面缓存与失效范围", () => {
     expect(searchGalleries).toHaveBeenCalledTimes(2)
   })
 
+  it("详情页点上传者回到留着的搜索页按它搜，浏览器后退回到详情", async () => {
+    const input = host.querySelector("input")
+    /* 离开时搜索页滚到了这里；按新词搜要回到顶部，而不是恢复这个位置 */
+    window.scrollTo({ top: 500 })
+    await router.push({ name: "gallery-detail", params: { gid: 1, token: gallery.token } })
+    await settle()
+    query<HTMLButtonElement>(host, 'button[title="搜索上传者 作者"]').click()
+    await settle()
+    expect(router.currentRoute.value.fullPath).toBe("/eh")
+    expect(host.querySelector("input")).toBe(input)
+    expect(input?.value).toBe('uploader:"作者"')
+    expect(searchGalleries).toHaveBeenLastCalledWith(
+      { keyword: 'uploader:"作者"', categories: [], minRating: null, cursor: "" },
+      expect.any(AbortSignal),
+    )
+    expect(searchGalleries).toHaveBeenCalledTimes(2)
+    expect(window.scrollY).toBe(0)
+    router.back()
+    await settle()
+    expect(router.currentRoute.value.name).toBe("gallery-detail")
+  })
+
+  it("换本站账号后搜索回到还没搜过的样子，不带上一个账号的词", async () => {
+    await enterKeyword("cat")
+    await click("搜索")
+    const auth = useAuthStore()
+    auth.logout()
+    await router.replace("/login")
+    await settle()
+    auth.user = { id: 2, username: "second" }
+    await visit("/eh")
+    expect(host.querySelector("input")?.value).toBe("")
+    expect(searchGalleries).toHaveBeenLastCalledWith(
+      { keyword: "", categories: [], minRating: null, cursor: "" },
+      expect.any(AbortSignal),
+    )
+  })
+
   it("搜索不产生路由历史，提交新条件回到顶部", async () => {
     const position = router.options.history.state.position
     window.scrollTo({ top: 800 })

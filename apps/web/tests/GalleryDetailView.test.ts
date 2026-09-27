@@ -7,6 +7,7 @@ import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 
 import type * as EhApi from "@/features/eh/api"
 import { fetchGalleryComments, fetchGalleryDetail, fetchGalleryPreviews, fetchReadingProgress } from "@/features/eh/api"
+import { useGallerySearchStore } from "@/features/eh/composables/useGallerySearchStore"
 import { gallerySource } from "@/features/eh/navigation"
 import GalleryDetailView from "@/features/eh/views/GalleryDetailView.vue"
 import { installQueries } from "@/shared/api/queries"
@@ -87,8 +88,9 @@ async function mountDetail({
   progress = null as number | null,
   comments = [] as EhApi.GalleryComment[],
   source = "",
+  tags = [] as EhApi.GalleryDetail["tags"],
 } = {}) {
-  vi.mocked(fetchGalleryDetail).mockResolvedValue(detail(fileCount))
+  vi.mocked(fetchGalleryDetail).mockResolvedValue({ ...detail(fileCount), tags })
   vi.mocked(fetchReadingProgress).mockResolvedValue({ page: progress })
   vi.mocked(fetchGalleryComments).mockResolvedValue({ comments, hiddenCount: 0 })
   loadPreviews.mockImplementation(async (_gid, _token, slice) => sliceOf(slice, fileCount))
@@ -107,6 +109,7 @@ async function mountDetail({
       },
       { path: "/eh/g/:gid/:token/comments", name: "gallery-comments", component: { render: () => h("div") } },
       { path: "/eh/read/:gid/:token/:page?", name: "reader", component: { render: () => h("div") } },
+      { path: "/eh", name: "gallery-list", component: { render: () => h("div") } },
     ],
   })
   await router.push(`/eh/g/${GID}/${TOKEN}${source}`)
@@ -232,5 +235,25 @@ describe("评论", () => {
     await mountDetail({ comments: [1, 2, 3, 4, 5].map(comment) })
     expect(shown()).toHaveLength(5)
     expect(host.textContent).not.toContain("查看全部")
+  })
+})
+
+describe("标签与上传者", () => {
+  const tags = [
+    { namespace: "female", namespaceName: "女性", value: "big breasts", name: "巨乳" },
+    { namespace: "temp", namespaceName: "临时", value: "foo", name: "foo" },
+  ]
+
+  /* 标签按 e 站自己点标签时的写法精确匹配，临时标签不带命名空间 */
+  it.each([
+    ["搜索标签 female:big breasts", 'female:"big breasts$"'],
+    ["搜索标签 temp:foo", '"foo$"'],
+    ["搜索上传者 tester", 'uploader:"tester"'],
+  ])("点「%s」就按 %s 搜，去搜索页", async (label, keyword) => {
+    await mountDetail({ tags })
+    query<HTMLButtonElement>(host, `button[title="${label}"]`).click()
+    await settle()
+    expect(router.currentRoute.value.name).toBe("gallery-list")
+    expect(useGallerySearchStore(pinia).submitted?.keyword).toBe(keyword)
   })
 })

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { BookOpenIcon } from "@lucide/vue"
 import { computed } from "vue"
-import { RouterLink } from "vue-router"
+import { RouterLink, useRouter } from "vue-router"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,7 +16,13 @@ import GalleryTag from "@/features/eh/components/GalleryTag.vue"
 import { useGallery } from "@/features/eh/composables/useGallery"
 import { useGalleryComments } from "@/features/eh/composables/useGalleryComments"
 import { useGalleryProgress } from "@/features/eh/composables/useGalleryProgress"
-import { galleryCommentsLocation, readerLocation, type GallerySource } from "@/features/eh/navigation"
+import { tagKeyword, uploaderKeyword, useGallerySearchStore } from "@/features/eh/composables/useGallerySearchStore"
+import {
+  galleryCommentsLocation,
+  galleryListLocation,
+  readerLocation,
+  type GallerySource,
+} from "@/features/eh/navigation"
 import EmptyState from "@/shared/components/EmptyState.vue"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
@@ -47,6 +53,14 @@ const {
   () => props.gid,
   () => props.token,
 )
+/* 点标签、上传者就去搜索页按它搜：提交当场开始，搜索页回来时显示的就是它。 */
+const searchStore = useGallerySearchStore()
+const router = useRouter()
+/* 从阅读历史进来的也去搜索页，不回来源列表 */
+function searchFor(keyword: string) {
+  searchStore.submit({ keyword })
+  void router.push(galleryListLocation("search"))
+}
 /* 按命名空间分组，组的顺序就是命名空间第一次出现的顺序。 */
 const groupedTags = computed(() => {
   const groups = new Map<string, { namespaceName: string; tags: GalleryDetail["tags"] }>()
@@ -96,7 +110,16 @@ const groupedTags = computed(() => {
           </div>
           <dl class="text-muted-foreground grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
             <dt>上传者</dt>
-            <dd class="text-foreground truncate">{{ gallery.uploader }}</dd>
+            <dd>
+              <GalleryTag
+                as="button"
+                type="button"
+                :title="`搜索上传者 ${gallery.uploader}`"
+                @click="searchFor(uploaderKeyword(gallery.uploader))"
+              >
+                {{ gallery.uploader }}
+              </GalleryTag>
+            </dd>
             <dt>发布时间</dt>
             <dd class="text-foreground">{{ formatDateTime(gallery.postedAt) }}</dd>
             <dt>页数</dt>
@@ -134,7 +157,14 @@ const groupedTags = computed(() => {
                 <span v-if="group.namespaceName !== namespace" class="text-muted-foreground">{{ namespace }}</span>
               </span>
               <div class="flex flex-wrap gap-1">
-                <GalleryTag v-for="tag in group.tags" :key="tag.value">
+                <GalleryTag
+                  v-for="tag in group.tags"
+                  :key="tag.value"
+                  as="button"
+                  type="button"
+                  :title="`搜索标签 ${namespace}:${tag.value}`"
+                  @click="searchFor(tagKeyword(tag))"
+                >
                   {{ tag.name }}
                   <span v-if="tag.name !== tag.value" class="text-muted-foreground">{{ tag.value }}</span>
                 </GalleryTag>
