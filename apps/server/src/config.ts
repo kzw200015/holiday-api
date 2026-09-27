@@ -6,21 +6,18 @@ import { z } from "zod"
  * （已被 Git 忽略；Bun 启动时就会把当前目录的 .env 读进环境变量），部署时由容器环境给出。清单见 .env.example。
  */
 
-const DURATION_UNITS = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 } as const
-
-type DurationUnit = keyof typeof DURATION_UNITS
-
-const isDurationUnit = (unit: string | undefined): unit is DurationUnit =>
-  unit !== undefined && Object.hasOwn(DURATION_UNITS, unit)
+/** 每个单位合多少毫秒 */
+const DURATION_UNITS: Record<string, number> = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }
 
 /** 时长写成 30d、24h、30s、500ms 这样的「整数 + 单位」，解析成毫秒。 */
 const duration = z.string().transform((text, ctx) => {
   const [, amount, unit] = /^(\d+)(ms|s|m|h|d)$/.exec(text) ?? []
-  if (amount === undefined || !isDurationUnit(unit)) {
+  const factor = unit === undefined ? undefined : DURATION_UNITS[unit]
+  if (amount === undefined || factor === undefined) {
     ctx.addIssue({ code: "custom", message: "时长要写成整数加单位，如 30d、24h、30s、500ms" })
     return z.NEVER
   }
-  return Number(amount) * DURATION_UNITS[unit]
+  return Number(amount) * factor
 })
 
 const envSchema = z.object({
