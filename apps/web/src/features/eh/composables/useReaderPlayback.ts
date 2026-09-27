@@ -57,28 +57,20 @@ export function useReaderPlayback(
   }
 
   /* 翻不动就停下，不记「等会儿接着翻」：读到最后一页、切去别的标签页，都要重新点开始。 */
-  watch(
-    canStart,
-    (allowed) => {
-      if (!allowed) {
-        stop()
-      }
-    },
-    { flush: "sync" },
-  )
+  watch(canStart, (allowed) => {
+    if (!allowed) {
+      stop()
+    }
+  })
 
   /* 手动换页不重计时；拖动暂停，松开后等待完整间隔。 */
-  watch(
-    [autoPaging, () => toValue(interacting)],
-    () => {
-      if (autoPaging.value && !toValue(interacting)) {
-        resume()
-      } else {
-        pause()
-      }
-    },
-    { flush: "sync" },
-  )
+  watch([autoPaging, () => toValue(interacting)], () => {
+    if (autoPaging.value && !toValue(interacting)) {
+      resume()
+    } else {
+      pause()
+    }
+  })
 
   keepScreenOn(autoPaging)
 
