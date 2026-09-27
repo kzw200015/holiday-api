@@ -237,17 +237,18 @@ export async function showImage(
  */
 export async function verifyCredential(credential: EhCredential): Promise<boolean> {
   const cookie = cookieHeader(credential)
-  const [home, ex] = await Promise.allSettled([read(HOME_URL, cookie), read(`${SITES.ex.page}/`, cookie)])
-  if (home.status === "rejected") {
-    throw home.reason
-  }
-  if (home.value.status !== 200) {
+  const [home, ex] = await Promise.all([
+    read(HOME_URL, cookie),
+    /* 里站那一探连不上就当没有权限：表站已经证明凭据是好的 */
+    read(`${SITES.ex.page}/`, cookie).catch(() => null),
+  ])
+  if (home.status !== 200) {
     throw credentialRejected()
   }
   /* 200 也可能是封禁页：那时 Cookie 本身没问题，报成「Cookie 用不了」会误导 */
-  assertUsable(home.value)
-  /* 里站在账号没权限时回 200 加空 body（俗称 sad panda）；那一探连不上就当没有权限，表站已经证明凭据是好的 */
-  return ex.status === "fulfilled" && ex.value.status === 200 && ex.value.body.trim() !== ""
+  assertUsable(home)
+  /* 里站在账号没权限时回 200 加空 body（俗称 sad panda） */
+  return ex !== null && ex.status === 200 && ex.body.trim() !== ""
 }
 
 /**
