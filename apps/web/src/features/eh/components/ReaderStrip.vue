@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { clamp, useResizeObserver, useTimeoutFn } from "@vueuse/core"
-import { computed, nextTick, onScopeDispose, ref, shallowRef, watch } from "vue"
+import { computed, nextTick, onMounted, onScopeDispose, ref, shallowRef, watch } from "vue"
 
 import ReaderPage from "@/features/eh/components/ReaderPage.vue"
 import { createReaderLayout } from "@/features/eh/readerLayout"
@@ -180,7 +180,8 @@ useResizeObserver(viewport, ([entry]) => {
   width.value = Math.max(1, entry.contentRect.width)
   void jump(page.value)
 })
-void jump(page.value)
+/* 挂上视口后先跳到当前页 */
+onMounted(() => void jump(page.value))
 /* 自己滚出来的页码回流时位置已经对上，只有外部跳页才需要搬动视口。 */
 watch(page, (nextPage) => {
   if (
