@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQueryCache } from "@pinia/colada"
-import { computed, reactive, ref, shallowRef } from "vue"
+import { computed, ref, shallowRef } from "vue"
 
 import { searchGalleries, type GallerySearchPage } from "@/features/eh/api"
 import {
@@ -17,14 +17,14 @@ import { usePageScroll } from "@/shared/composables/usePageScroll"
 export function useGallerySearch() {
   const queryCache = useQueryCache()
   const keyword = ref("")
-  const preferences = reactive(useGalleryPreferences())
-  const history = reactive(useSearchHistory())
+  const preferences = useGalleryPreferences()
+  const history = useSearchHistory()
   const resetScroll = usePageScroll()
   /*
    * 已提交的条件：关键词已去两端空白，筛选条件已规整（分类去重排序）。
    * 偏好进页面前就备齐了，首次条件当场定得下来，不必先挂一个「还不能查」的状态等它。
    */
-  const submitted = shallowRef({ keyword: "", ...normalizeFilters(preferences.filters) })
+  const submitted = shallowRef({ keyword: "", ...normalizeFilters(preferences.filters.value) })
   const key = () => ehKeys.search(submitted.value.keyword, submitted.value.categories, submitted.value.minRating)
 
   /* 每组条件一条缓存，查询函数用的是这组条件自己，而不是查询发出时 submitted 的值。 */
@@ -39,7 +39,7 @@ export function useGallerySearch() {
   })
 
   /* 筛选条件由调用方给：刚应用的那组直接传进来，不指望它此刻已经落进偏好。 */
-  function submit(filters: GalleryFilters = preferences.filters) {
+  function submit(filters: GalleryFilters = preferences.filters.value) {
     keyword.value = keyword.value.trim()
     /* 旧条件还在途的那次不必等了：上游一页要好几秒，换了条件它的结果也不再显示。 */
     queryCache.cancelQueries({ key: ehKeys.searches })
@@ -72,8 +72,10 @@ export function useGallerySearch() {
     loading: search.isLoading,
     errorMessage: computed(() => search.error.value?.message ?? ""),
     hasMore: search.hasNextPage,
-    preferences,
-    history,
+    filters: preferences.filters,
+    history: history.entries,
+    removeHistory: history.remove,
+    clearHistory: history.clear,
     submit: () => submit(),
     applyFilters,
     selectHistory,

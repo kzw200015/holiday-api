@@ -12,11 +12,13 @@ const {
   loading,
   errorMessage,
   hasMore,
-  preferences,
+  filters,
   history,
   submit,
   applyFilters,
   selectHistory,
+  removeHistory,
+  clearHistory,
   retry,
 } = useGallerySearch()
 </script>
@@ -25,13 +27,13 @@ const {
   <div class="page-content flex flex-col gap-4">
     <GallerySearchForm
       v-model:keyword="keyword"
-      :filters="preferences.filters"
-      :history="history.entries"
+      :filters="filters"
+      :history="history"
       @submit="submit"
       @apply-filters="applyFilters"
       @select-history="selectHistory"
-      @remove-history="history.remove"
-      @clear-history="history.clear"
+      @remove-history="removeHistory"
+      @clear-history="clearHistory"
     />
     <div class="flex flex-col gap-3">
       <GalleryRow v-for="item in items" :key="`${item.gid}-${item.token}`" :item="item" />
