@@ -98,16 +98,12 @@ function keepScreenOn(active: Ref<boolean>) {
     lock = undefined
   }
 
-  watch(
-    active,
-    (on) => {
-      if (!on) {
-        release()
-      } else if ("wakeLock" in navigator) {
-        lock = navigator.wakeLock.request("screen").catch(() => undefined)
-      }
-    },
-    { flush: "sync" },
-  )
+  watch(active, (on) => {
+    if (!on) {
+      release()
+    } else if ("wakeLock" in navigator) {
+      lock = navigator.wakeLock.request("screen").catch(() => undefined)
+    }
+  })
   onScopeDispose(release)
 }
