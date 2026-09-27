@@ -55,18 +55,20 @@ export async function register({ username, password }: Credentials): Promise<Aut
   }
   const passwordHash = await hashPassword(password)
   /* 判重交给唯一索引而不是先查再插：先查再插在两个并发请求之间是有窗口的 */
-  let user: CurrentUser | undefined
-  try {
-    ;[user] = await database
-      .insert(users)
-      .values({ username, passwordHash })
-      .returning({ id: users.id, username: users.username })
-  } catch (error) {
-    if (error instanceof Error && error.cause instanceof SQL.PostgresError && error.cause.errno === UNIQUE_VIOLATION) {
-      throw badRequest("用户名已被占用")
-    }
-    throw error
-  }
+  const [user] = await database
+    .insert(users)
+    .values({ username, passwordHash })
+    .returning({ id: users.id, username: users.username })
+    .catch((error: unknown) => {
+      if (
+        error instanceof Error &&
+        error.cause instanceof SQL.PostgresError &&
+        error.cause.errno === UNIQUE_VIOLATION
+      ) {
+        throw badRequest("用户名已被占用")
+      }
+      throw error
+    })
   /* 插入一行本该回一行，没回说明数据库那边出了意料之外的事，按服务器错误处理 */
   if (!user) {
     throw new Error("插入账号后没有拿到新建的那一行")
