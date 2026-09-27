@@ -45,12 +45,15 @@ export async function locate(access: EhAccess, ref: GalleryRef, page: number): P
   const gallery = galleryKey(access, ref)
   const pageToken = await pageTokenOf(access, ref, page)
   const showKey = showKeys.get(gallery)
-  let image = showKey ? await ehClient.showImage(access, ref, page, pageToken, showKey) : null
-  if (showKey && !image) {
+  if (showKey) {
+    const image = await ehClient.showImage(access, ref, page, pageToken, showKey)
+    if (image) {
+      return remember(gallery, image)
+    }
+    /* showkey 失效了，忘掉它，改抓图片页 */
     showKeys.delete(gallery)
   }
-  image ??= await ehClient.fetchImagePage(access, ref, page, pageToken)
-  return remember(gallery, image)
+  return remember(gallery, await ehClient.fetchImagePage(access, ref, page, pageToken))
 }
 
 /**
