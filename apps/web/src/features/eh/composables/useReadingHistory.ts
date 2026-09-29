@@ -7,6 +7,7 @@ import {
   removeReadingHistory,
   type ReadingHistoryPage,
 } from "@/features/eh/api"
+import { useForgetProgress } from "@/features/eh/composables/useReadingProgress"
 import { ehKeys, useEhWrites } from "@/features/eh/queries"
 import { useInfiniteLoad } from "@/shared/composables/useInfiniteLoad"
 import { usePageScroll } from "@/shared/composables/usePageScroll"
@@ -31,17 +32,18 @@ export function useReadingHistory() {
   const queryCache = useQueryCache()
   const writes = useEhWrites()
   const resetScroll = usePageScroll()
+  const progress = useForgetProgress()
 
+  /*
+   * 先等已经发出的写入落地：每条记录都带着读到第几页，刚退出阅读时读回来的会是上报之前的页码；
+   * 删除还在跑时读回来的也还带着正要删掉的那条。
+   */
+  const readPage = writes.after(({ pageParam, signal }: { pageParam: string; signal: AbortSignal }) =>
+    fetchReadingHistory(pageParam, signal),
+  )
   const history = useInfiniteQuery({
     key: ehKeys.history,
-    /*
-     * 先等已经发出的写入落地：每条记录都带着读到第几页，刚退出阅读时读回来的会是上报之前的页码；
-     * 删除还在跑时读回来的也还带着正要删掉的那条。
-     */
-    query: async ({ pageParam, signal }) => {
-      await writes.settled()
-      return fetchReadingHistory(pageParam, signal)
-    },
+    query: readPage,
     initialPageParam: "",
     getNextPageParam: (last) => last.nextCursor,
   })
@@ -74,9 +76,7 @@ export function useReadingHistory() {
     change.mutate({
       send: () => removeReadingHistory(item.gid),
       apply: () => {
-        /* 在途的读取带回的是删除之前的页码，先取消，否则重进详情又冒出一个服务端已经没有的「继续阅读」。 */
-        queryCache.cancelQueries({ key: ehKeys.progress(item.gid), exact: true })
-        queryCache.setQueryData(ehKeys.progress(item.gid), null)
+        progress.forget(item.gid)
         updatePages((data) => ({
           ...data,
           pages: data.pages.map((page) => ({ ...page, items: page.items.filter((entry) => entry.gid !== item.gid) })),
@@ -89,8 +89,7 @@ export function useReadingHistory() {
     change.mutate({
       send: clearReadingHistory,
       apply: () => {
-        queryCache.cancelQueries({ key: ehKeys.progresses })
-        queryCache.setQueriesData({ key: ehKeys.progresses }, () => null)
+        progress.forgetAll()
         /* 本地先清空当场生效，再重读一次：「后面还有没有」是随页算的，只有重读才会跟着变成没有。 */
         updatePages(() => ({ pages: [{ items: [], nextCursor: null }], pageParams: [""] }))
         void history.refetch()

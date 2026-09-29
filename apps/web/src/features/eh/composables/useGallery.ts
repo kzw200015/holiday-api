@@ -5,7 +5,7 @@ import { fetchGalleryDetail } from "@/features/eh/api"
 import { ehKeys } from "@/features/eh/queries"
 
 /**
- * 一本图集的元数据。详情页和阅读器读的是同一份；读到第几页另有 useGalleryProgress，大图地址逐页另签（usePageImageUrl）。
+ * 一本图集的元数据。详情页和阅读器读的是同一份；读到第几页另有 useReadingProgress，大图地址逐页另签（usePageImageUrl）。
  * 手上有旧的一份时重读失败，旧的照常用，只提示一下。
  */
 export function useGallery(gid: MaybeRefOrGetter<number>, token: MaybeRefOrGetter<string>) {

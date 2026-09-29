@@ -17,13 +17,7 @@ interface OptimisticChange<T> {
  */
 export function useOptimisticData<T>(key: EntryKey, fetch: (signal: AbortSignal) => Promise<T>, writes: Writes) {
   const queryCache = useQueryCache()
-  const query = useQuery({
-    key,
-    query: async ({ signal }) => {
-      await writes.settled()
-      return fetch(signal)
-    },
-  })
+  const query = useQuery({ key, query: writes.after(({ signal }: { signal: AbortSignal }) => fetch(signal)) })
   const change = useMutation({
     onMutate: ({ apply }: OptimisticChange<T>) => {
       const current = queryCache.getQueryData<T>(key)

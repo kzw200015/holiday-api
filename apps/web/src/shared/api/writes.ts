@@ -33,9 +33,21 @@ export function createWrites(scope: () => unknown = () => undefined) {
     return track(write)
   }
 
+  /**
+   * 把一次读取包成「先等已经发出的写入落地再读」，读这组数据一律经它：读回来的是服务端那一刻的样子，
+   * 写入还没到就读，会把本地刚改好的那份按回去。等的是调用那一刻已经发出的全部写入。
+   */
+  function after<C, T>(read: (context: C) => Promise<T>) {
+    return async (context: C): Promise<T> => {
+      await settled
+      return read(context)
+    }
+  }
+
   return {
     track,
     serial,
+    after,
     /** 此刻已经发出（含排着队）的写入全部落地，成败都算。 */
     settled: () => settled,
   }

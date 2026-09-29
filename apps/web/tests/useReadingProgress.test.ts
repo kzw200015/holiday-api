@@ -1,14 +1,11 @@
 /* @vitest-environment happy-dom */
-import { useQueryCache } from "@pinia/colada"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { nextTick } from "vue"
 
 import { useAuthStore } from "@/features/auth/store"
 import type * as EhApi from "@/features/eh/api"
 import { fetchReadingProgress, saveProgress } from "@/features/eh/api"
-import { useGalleryProgress } from "@/features/eh/composables/useGalleryProgress"
-import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
-import { ehKeys } from "@/features/eh/queries"
+import { useGalleryProgress, useReadingProgress } from "@/features/eh/composables/useReadingProgress"
 import { composableTests, deferred } from "./support"
 
 vi.mock("@/features/eh/api", async (original) => ({
@@ -21,10 +18,6 @@ vi.mock("@/features/eh/api", async (original) => ({
 const SAVE_DELAY = 1200
 
 const t = composableTests()
-
-function progressOf(gid: number) {
-  return useQueryCache(t.pinia).getQueryData(ehKeys.progress(gid))
-}
 
 /* 阅读器上报进度，旁边再挂一个读这本进度的（详情页那份），用来看两边怎么交错。 */
 async function mountReader() {
@@ -56,7 +49,7 @@ describe("阅读进度上报", () => {
     expect(reading.progress.value).toBe(5)
     api.report(6)
     api.report(7)
-    expect(progressOf(1)).toBe(7)
+    expect(reading.progress.value).toBe(7)
     expect(saveProgress).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(SAVE_DELAY)
     expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "aaaaaaaaaa", 7)
@@ -92,11 +85,11 @@ describe("阅读进度上报", () => {
 
   it("存不上不回退，本地仍是用户读到的那一页", async () => {
     vi.mocked(saveProgress).mockRejectedValue(new Error("断网"))
-    const { api } = await mountReader()
+    const { api, reading } = await mountReader()
     api.report(20)
     await vi.advanceTimersByTimeAsync(SAVE_DELAY)
     await nextTick()
-    expect(progressOf(1)).toBe(20)
+    expect(reading.progress.value).toBe(20)
   })
 
   /* 一秒一页的自动翻页比合并窗口还短：窗口从第一次上报起算，不能被后面的翻页一直往后推。 */

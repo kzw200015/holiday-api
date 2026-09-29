@@ -15,8 +15,8 @@ import GalleryPreviews from "@/features/eh/components/GalleryPreviews.vue"
 import GalleryTag from "@/features/eh/components/GalleryTag.vue"
 import { useGallery } from "@/features/eh/composables/useGallery"
 import { useGalleryComments } from "@/features/eh/composables/useGalleryComments"
-import { useGalleryProgress } from "@/features/eh/composables/useGalleryProgress"
 import { tagKeyword, uploaderKeyword, useGallerySearchStore } from "@/features/eh/composables/useGallerySearchStore"
+import { useGalleryProgress } from "@/features/eh/composables/useReadingProgress"
 import {
   galleryCommentsLocation,
   galleryListLocation,
