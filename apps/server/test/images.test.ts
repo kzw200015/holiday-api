@@ -211,10 +211,11 @@ describe("图片流", () => {
   })
 
   /**
-   * 上游在图片传到一半时断了：头还没发出去就改回普通的 502；已经发出去了就不能照常收尾——
-   * 否则浏览器会把半张图当成完整的缓存 30 天——只能直接断开连接。
+   * 上游在图片传到一半时断了：一个字节都没传就断的，头还没发出去，换源重试之后仍然这样就改回普通的 502；
+   * 已经发出去了就不能照常收尾——否则浏览器会把半张图当成完整的缓存 30 天——只能直接断开连接。
    */
-  it("一个字节都没传就断了：回 502，不带图片的缓存头", async () => {
+  it("一个字节都没传就断了：换源之后还是这样就回 502，不带图片的缓存头", async () => {
+    const since = t.outbound.requests.length
     const response = await openWith(() =>
       image(
         new ReadableStream({
@@ -225,8 +226,9 @@ describe("图片流", () => {
         "image/jpeg",
       ),
     )
-    expect([response.status, response.body.message]).toEqual([502, "图片传到一半，e 站那边断了"])
+    expect([response.status, response.body.message]).toEqual([502, "图床节点取不到这张图"])
     expect(response.headers["cache-control"]).toBeUndefined()
+    expect(t.outbound.requests.slice(since).filter((request) => request.url.host === "ehgt.org")).toHaveLength(2)
   })
 
   it("传了一截才断：连接被直接断开，不当成完整的图片收尾", async () => {
@@ -424,6 +426,78 @@ describe("大图定位", () => {
     }
   })
 
+  it("回了响应头却一个字节都没传就断了，或者回的是空的，同样换源重试一次", async () => {
+    const failures = [
+      () =>
+        image(
+          new ReadableStream({
+            pull(controller) {
+              controller.error(new Error("Connection reset"))
+            },
+          }),
+        ),
+      () => image(""),
+    ]
+    for (const failure of failures) {
+      const ref = nextRef()
+      const r = await reader((request) => {
+        if (request.url.pathname.startsWith("/s/")) {
+          return request.url.searchParams.get("nl") === "this-page"
+            ? html(`<img id="img" src="https://ehgt.org/${ref.gid}/replaced.webp">`)
+            : html(`<img id="img" src="https://ehgt.org/${ref.gid}/failed.webp" onerror="nl('this-page')">`)
+        }
+        return gallery(5, 20)(request)
+      })
+      const respond = t.outbound.respond
+      t.outbound.respond = (request) => (request.url.pathname.endsWith("/failed.webp") ? failure() : respond(request))
+      const since = t.outbound.requests.length
+      const response = await t.http.get(await r.url(ref, 2)).expect(200)
+      expect(response.headers["cache-control"]).toContain("immutable")
+      expect(
+        t.outbound.requests
+          .slice(since)
+          .filter((request) => request.url.host === "ehgt.org")
+          .map((request) => request.url.pathname),
+      ).toEqual([`/${ref.gid}/failed.webp`, `/${ref.gid}/replaced.webp`])
+    }
+  })
+
+  it("showpage 接口没给这一页的 nl：先抓一次图片页拿到它，再带着它换源", async () => {
+    const ref = nextRef()
+    const r = await reader((request) => {
+      if (request.url.host === "api.e-hentai.org") {
+        return json({ i3: `<img id="img" src="https://ehgt.org/${ref.gid}/failed.webp">` })
+      }
+      if (request.url.pathname.startsWith("/s/")) {
+        return request.url.searchParams.get("nl") === "this-page"
+          ? html(`<img id="img" src="https://ehgt.org/${ref.gid}/replaced.webp">`)
+          : html(
+              `<script>var showkey="key-1";</script>` +
+                `<img id="img" src="https://ehgt.org/${ref.gid}/failed.webp" onerror="nl('this-page')">`,
+            )
+      }
+      return gallery(5, 20)(request)
+    })
+    const respond = t.outbound.respond
+    t.outbound.respond = (request) =>
+      request.url.pathname.endsWith("/failed.webp") ? image("", "text/html", 403) : respond(request)
+    /* 第 1 页抓的是图片页，顺带拿到 showkey；第 2 页就走 showpage 接口 */
+    await t.http.get(await r.url(ref, 1)).expect(200)
+    const since = t.outbound.requests.length
+    await t.http.get(await r.url(ref, 2)).expect(200)
+    expect(
+      t.outbound.requests
+        .slice(since)
+        .map((request) => `${request.url.host}${request.url.pathname}${request.url.search}`),
+    ).toEqual([
+      "api.e-hentai.org/api.php",
+      `ehgt.org/${ref.gid}/failed.webp`,
+      `e-hentai.org/s/0000000002/${ref.gid}-2`,
+      `e-hentai.org/s/0000000002/${ref.gid}-2?nl=this-page`,
+      `ehgt.org/${ref.gid}/replaced.webp`,
+    ])
+  })
+
   it("换源之后还是取不到时回 502，文案里不带上游的状态码与地址", async () => {
     const ref = nextRef()
     const r = await reader((request) =>
@@ -441,18 +515,20 @@ describe("大图定位", () => {
     expect(t.outbound.requests.slice(since).filter((request) => request.url.host === "ehgt.org")).toHaveLength(2)
   })
 
-  it("缩略图所在的图床节点取不到时回 502，不换源", async () => {
-    const r = await reader(() => html(""))
-    const ref = nextRef()
-    const thumbnail = (await t.http.get(`/api/eh/galleries/${ref.gid}/${ref.token}`).set(r.auth).expect(200)).body
-      .thumbnail
-    const respond = t.outbound.respond
-    t.outbound.respond = (request) =>
-      request.url.host === "ehgt.org" ? Promise.reject(new TypeError("fetch failed")) : respond(request)
-    const since = t.outbound.requests.length
-    const response = await t.http.get(thumbnail)
-    expect([response.status, response.body.message]).toEqual([502, "图床节点取不到这张图"])
-    expect(t.outbound.requests.length).toBe(since + 1)
+  it("缩略图所在的图床节点取不到、或者回的是空的时回 502，不换源", async () => {
+    for (const failure of [() => Promise.reject(new TypeError("fetch failed")), () => image("")]) {
+      const r = await reader(() => html(""))
+      const ref = nextRef()
+      const thumbnail = (await t.http.get(`/api/eh/galleries/${ref.gid}/${ref.token}`).set(r.auth).expect(200)).body
+        .thumbnail
+      const respond = t.outbound.respond
+      t.outbound.respond = (request) => (request.url.host === "ehgt.org" ? failure() : respond(request))
+      const since = t.outbound.requests.length
+      const response = await t.http.get(thumbnail)
+      expect([response.status, response.body.message]).toEqual([502, "图床节点取不到这张图"])
+      expect(response.headers["cache-control"]).toBeUndefined()
+      expect(t.outbound.requests.length).toBe(since + 1)
+    }
   })
 
   it("页面按身份隔离：换了凭据就不共用别人抓到的页", async () => {

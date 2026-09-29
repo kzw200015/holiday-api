@@ -2,14 +2,15 @@ import * as attachmentUrls from "@server/eh/attachment-urls"
 import * as credentialService from "@server/eh/credential-service"
 import * as imageLocator from "@server/eh/image-locator"
 import * as ehClient from "@server/eh/upstream/eh-client"
-import { imageBroken, ImageNodeFailure } from "@server/eh/upstream/failures"
+import { imageBroken, ImageNodeFailure, imageNodeFailure } from "@server/eh/upstream/failures"
 import type { GalleryRef } from "@server/eh/upstream/gallery-ref"
 import { Logger } from "@server/logger"
 
 /*
  * 图片代理：签名校验通过才取图，交回可以直接转发的图片流。
  *
- * 交回之前先等到第一段数据：一个字节都没传就断了的，还能改回普通的 502，不带图片的响应头（尤其是 30 天的缓存头）。
+ * 交回之前先等到第一段数据：一个字节都没传就断了的（回了响应头才断、或者干脆是空的），和连不上一样算图床节点失败，
+ * 大图还能换源重试，缩略图与重试后仍失败的回普通的 502，不带图片的响应头（尤其是 30 天的缓存头）。
  * 已经开始发图之后再断，就只能让这个流出错、由 Bun 直接断开连接——照常收尾的话浏览器会把半张图当成完整的缓存下来。
  * 浏览器中途放弃（阅读器里快速翻页时成批发生）时取消上游，别在服务端把整张图白下完。
  */
@@ -46,19 +47,18 @@ export async function openThumbnail(
   return started(await ehClient.openImage(attachmentUrls.checkThumbnail(encoded, signature)))
 }
 
-/** 等到第一段数据再交回；之后上游断了，交回的流随之出错。 */
+/** 等到第一段数据再交回，一段都没有就是图床节点失败；之后上游断了，交回的流随之出错。 */
 async function started(image: ehClient.ImageStream): Promise<ehClient.ImageStream> {
   const reader = image.body.getReader()
   const first = await reader.read().catch((error: unknown) => {
-    throw imageBroken(image.source, error)
+    throw imageNodeFailure(image.source, error)
   })
+  if (first.done) {
+    throw imageNodeFailure(image.source, "响应体是空的")
+  }
   const body = new ReadableStream<Uint8Array>({
     start(controller) {
-      if (first.done) {
-        controller.close()
-      } else {
-        controller.enqueue(first.value)
-      }
+      controller.enqueue(first.value)
     },
     async pull(controller) {
       try {

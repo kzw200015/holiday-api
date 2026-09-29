@@ -61,7 +61,8 @@ export const unreachable = (url: string, cause: unknown) =>
   unavailableAt("请求 e 站失败，可能是网络不通或超时", url, cause)
 
 /**
- * 图床节点取图失败：回了错误状态码，或者根本连不上——节点下线多半是后一种。
+ * 图床节点取图失败：回了错误状态码，或者根本连不上——节点下线多半是后一种；回了响应头却一个字节都没传就断了、
+ * 或者回的是空的，也算。
  * 大图遇到它可以换一台节点重试一次；缩略图和重试后仍失败的，就按上游故障报告。
  */
 export class ImageNodeFailure extends HttpError {
