@@ -1,2 +1,0 @@
-ALTER TABLE "eh_preferences" ADD COLUMN "min_rating" integer;--> statement-breakpoint
-ALTER TABLE "eh_preferences" ADD CONSTRAINT "eh_preferences_min_rating_check" CHECK ("eh_preferences"."min_rating" BETWEEN 2 AND 5);

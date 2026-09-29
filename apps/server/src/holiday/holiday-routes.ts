@@ -15,7 +15,7 @@ const holidayQuery = z.object({
     .optional(),
 })
 
-/** 这两条有外部调用方，不要求登录。 */
+/** 这两条是公开接口，有外部调用方。 */
 export const holidayRoutes = new Hono()
   /* 只回这天是不是休息日，响应体就是一个 JSON 布尔值 */
   .get("/is-holiday", validate("query", holidayQuery), async (c) =>

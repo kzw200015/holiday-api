@@ -3,9 +3,9 @@ import { expect, it } from "vitest"
 import { startApp } from "./support/app"
 import { createDatabase } from "./support/database"
 
-/* 拿到一个令牌就能离线猜主密钥，短密钥猜得出来，所以太短时进程拒绝启动。 */
-it("主密钥不足 32 字节时拒绝启动", async () => {
-  await expect(startApp(await createDatabase(), { env: { SECRET_KEY: "too-short" } })).rejects.toThrow(
-    "SECRET_KEY 至少要 32 字节",
+/* 配置写错时进程拒绝启动，并说清是哪一项、该怎么写，而不是带着错的配置跑起来。 */
+it("时长写错时拒绝启动", async () => {
+  await expect(startApp(await createDatabase(), { env: { EH_REQUEST_TIMEOUT: "30" } })).rejects.toThrow(
+    "EH_REQUEST_TIMEOUT: 时长要写成整数加单位",
   )
 })

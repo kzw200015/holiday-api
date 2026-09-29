@@ -4,16 +4,13 @@
   "type": "module",
   "packageManager": "bun@1.4.2",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/*"
   ],
   "trustedDependencies": [
-    "esbuild",
-    "vue-demi"
+    "esbuild"
   ],
   "scripts": {
     "dev": "bun --filter '*' --parallel dev",
-    "build": "bun --filter '*' build",
     "typecheck": "bun --filter '*' typecheck",
     "test": "bun --filter '*' test",
     "lint": "oxlint",

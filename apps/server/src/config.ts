@@ -1,4 +1,3 @@
-import { utf8Length } from "@myapi/shared/text"
 import { z } from "zod"
 
 /*
@@ -23,24 +22,8 @@ const duration = z.string().transform((text, ctx) => {
 const envSchema = z.object({
   DATABASE_URL: z.string({ error: "缺少 DATABASE_URL，形如 postgres://用户:口令@主机:5432/库名" }).min(1),
   /**
-   * 主密钥，登录令牌与图片地址的签名密钥都由它派生，只由 signing.ts 读取。
-   *
-   * 故意没有默认值：数据库口令泄露只影响这一个库，签名密钥泄露则意味着任何人都能伪造任意账号的令牌。
-   * 太短时拒绝启动：拿到一个令牌就能离线猜密钥，短密钥猜得出来。
-   */
-  SECRET_KEY: z
-    .string({ error: "缺少 SECRET_KEY，用 `openssl rand -hex 32` 生成一个再启动" })
-    .refine((key) => utf8Length(key) >= 32, "SECRET_KEY 至少要 32 字节，用 `openssl rand -hex 32` 生成一个再启动"),
-  /**
-   * 是否开放注册，默认关闭。公网部署时任何人注册即可借这台机器代理 e 站流量，而且 e 站凭据是明文入库的，
-   * 账号越少、越都是自己人，这个取舍才成立。建第一个账号：临时打开、注册完再关回去重启。
-   */
-  ALLOW_REGISTRATION: z.stringbool().default(false),
-  /** 登录令牌有效期。令牌无状态，服务端不存已签发的令牌，所以没法提前作废。 */
-  TOKEN_TTL: duration.prefault("30d"),
-  /**
-   * 出网请求（e 站、图床、节假日数据源）一律带的 User-Agent。默认的 UA 在 e 站这样明确禁止自动化抓取的站点上等于举手，
-   * 必须换成真实浏览器的。名字带 EH_ 是沿用下来的，改名要动已有部署的环境变量。
+   * 出网请求（节假日数据源）一律带的 User-Agent，默认是一个真实桌面浏览器的：默认的 UA 容易被当成爬虫拦下。
+   * 名字带 EH_ 是沿用下来的，改名要动已有部署的环境变量；超时的 EH_REQUEST_TIMEOUT 同理。
    */
   EH_USER_AGENT: z
     .string()
@@ -48,14 +31,9 @@ const envSchema = z.object({
     .default(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
     ),
-  /** 单次出网请求的超时，同样对所有出网请求生效：等响应头最多这么久，之后按「多久没收到一个字节」算，不限整张图传多久。 */
+  /** 单次出网请求的超时：等响应头最多这么久，之后按「多久没收到一个字节」算，不限整个响应传多久。 */
   EH_REQUEST_TIMEOUT: duration.prefault("30s"),
-  /**
-   * 签名图片地址的有效期。这类地址给 <img> 用，带不了 Authorization 头，只能靠签名认身份；
-   * 一旦被转发出去，有效期内谁都能打开，所以别设太长。过期表现为图片裂开，重进详情页就会拿到新签的地址。
-   */
-  ATTACHMENT_TTL: duration.prefault("24h"),
-  /** 前端开发代理与 Dockerfile 的 EXPOSE 都指向 8000 */
+  /** Dockerfile 的 EXPOSE 指向 8000 */
   PORT: z.coerce.number().int().min(1).max(65535).default(8000),
 })
 

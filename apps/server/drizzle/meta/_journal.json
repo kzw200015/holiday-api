@@ -5,50 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1790183786950,
+      "when": 1790653016170,
       "tag": "0000_baseline",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1790183810820,
-      "tag": "0001_timestamp_defaults",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1790185286582,
-      "tag": "0002_normalize_constraint_names",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1790216150600,
-      "tag": "0003_timestamp_millisecond_precision",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1790217031911,
-      "tag": "0004_split_credential_columns",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1790265484152,
-      "tag": "0005_tag_translations",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1790327220374,
-      "tag": "0006_gallery_min_rating",
       "breakpoints": true
     }
   ]

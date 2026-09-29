@@ -1,12 +1,11 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc", "import", "promise", "vitest", "vue"],
+  "plugins": ["typescript", "unicorn", "oxc", "import", "promise", "vitest"],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
     "perf": "warn"
   },
-  "ignorePatterns": ["apps/web/src/components/ui"],
   "rules": {
     "curly": ["error", "all"],
     "eqeqeq": ["error", "always"],
@@ -25,52 +24,14 @@
   "overrides": [
     // 测试里顺序发请求是有意的（后一次依赖前一次的结果）；vitest 的 expect 可以带第二个参数作说明
     {
-      "files": ["**/tests/**/*.ts", "**/test/**/*.ts"],
+      "files": ["**/test/**/*.ts"],
       "rules": {
-        "vitest/require-mock-type-parameters": "off",
         "unicorn/consistent-function-scoping": "off",
         "eslint/no-await-in-loop": "off",
         "vitest/valid-expect": [
           "error",
           {
             "maxArgs": 2
-          }
-        ]
-      }
-    },
-    // 前端与后端之间只有接口这一处：httpClient.ts 引 App 的类型交给 hono/client 推断，其余地方的出入参类型一律从 features/*/api.ts 的调用推导，不直接引后端。
-    // 全是类型的导入要写成 import type：前端开着 verbatimModuleSyntax，import { type X } 编译后会留下 import "…"，整个模块照样打进来
-    {
-      "files": ["apps/web/**/*.ts", "apps/web/**/*.vue"],
-      "rules": {
-        "typescript/no-import-type-side-effects": "error",
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": ["@server/**"],
-                "message": "前端不直接引后端：出入参类型从 api.ts 的调用推导；两端都要执行的规则放 @myapi/shared"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    // 唯一的例外：hono/client 要后端的 App 类型。按值引用会把后端代码连同 drizzle 打进前端，所以只许 import type
-    {
-      "files": ["apps/web/src/shared/api/httpClient.ts"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": ["@server/**"],
-                "allowTypeImports": true,
-                "message": "这里只能 import type 后端的 App"
-              }
-            ]
           }
         ]
       }

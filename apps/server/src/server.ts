@@ -12,8 +12,7 @@ export async function startServer(listen: { port: number; hostname?: string }) {
   await migrateDatabase()
   await holidayService.refreshOnStartup()
   const holidayRefresh = holidayService.scheduleDailyRefresh()
-  /* Bun 默认 10 秒没有收发就断开连接，手动同步标签译名这类要等十几秒的请求会被掐断 */
-  const server = Bun.serve({ ...listen, fetch: app.fetch, idleTimeout: 30 })
+  const server = Bun.serve({ ...listen, fetch: app.fetch })
   return {
     server,
     holidayRefresh,
