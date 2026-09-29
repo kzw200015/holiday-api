@@ -14,7 +14,7 @@ export interface ReaderPlaybackState {
   intervalFailed: boolean
 }
 
-/** 一次阅读的自动翻页与间隔；控件只展示状态并发出操作。 */
+/** 一次阅读的自动翻页与间隔。只由 useReaderSession 使用，页面与控件经它操作。 */
 export function useReaderPlayback(
   page: Ref<number>,
   total: MaybeRefOrGetter<number>,

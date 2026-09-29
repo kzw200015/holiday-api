@@ -1,13 +1,12 @@
 /* @vitest-environment happy-dom */
 import { createPinia, disposePinia } from "pinia"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { computed, createApp, h, nextTick, reactive } from "vue"
-import { createMemoryHistory, createRouter, RouterView } from "vue-router"
+import { createApp, h, nextTick, ref } from "vue"
 
 import type * as EhApi from "@/features/eh/api"
-import { fetchGalleryPreferences, patchGalleryPreferences } from "@/features/eh/api"
+import { fetchGalleryPreferences, patchGalleryPreferences, saveProgress } from "@/features/eh/api"
 import ReaderControls from "@/features/eh/components/ReaderControls.vue"
-import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
+import { useReaderSession, type ReaderSession } from "@/features/eh/composables/useReaderSession"
 import { installQueries } from "@/shared/api/queries"
 import { deferred, present, query } from "./support"
 
@@ -15,64 +14,27 @@ vi.mock("@/features/eh/api", async (original) => ({
   ...(await original<typeof EhApi>()),
   fetchGalleryPreferences: vi.fn(),
   patchGalleryPreferences: vi.fn(),
+  saveProgress: vi.fn(),
 }))
 
 const cleanups: (() => void)[] = []
 
-async function createReader(position: { page?: number; total?: number } = {}) {
-  const state = reactive({
-    page: 1,
-    total: 10,
-    dragging: false,
-    seeking: false,
-    visible: true,
-    ...position,
-  })
-  const change = vi.fn((page: number) => {
-    state.page = page
-  })
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [
-      {
-        path: "/reader",
-        component: {
-          setup() {
-            const playback = useReaderPlayback(
-              computed({ get: () => state.page, set: change }),
-              () => state.total,
-              () => state.dragging || state.seeking,
-            )
-            return () =>
-              h(ReaderControls, {
-                page: state.page,
-                total: state.total,
-                seeking: state.seeking,
-                visible: state.visible,
-                playback: playback.state,
-                /* 全屏由阅读器管，行为测在 ReaderView 的测试里 */
-                canFullscreen: false,
-                fullscreen: false,
-                onToggleAutoPaging: playback.toggle,
-                onSetInterval: playback.changeInterval,
-                onReloadInterval: playback.reloadInterval,
-                "onUpdate:page": change,
-                "onUpdate:seeking": (value: boolean) => {
-                  state.seeking = value
-                },
-              })
-          },
-        },
-      },
-      { path: "/away", component: { render: () => h("div") } },
-    ],
-  })
-  await router.push("/reader")
-  await router.isReady()
+/*
+ * 操作栏接在一次真实的阅读上：翻页、自动翻页的节奏由会话自己的测试管（useReaderSession.test.ts），
+ * 这里看的是按钮与进度条怎么显示、点了之后会话收到了什么。pages 是页数，null 表示详情还没到。
+ */
+async function createReader({ page = 1, pages = 10 as number | null } = {}) {
+  const known = ref(pages ?? undefined)
+  let session: ReaderSession | undefined
   const host = document.createElement("div")
   document.body.append(host)
-  const app = createApp({ render: () => h(RouterView) })
-  app.use(router)
+  const app = createApp({
+    setup() {
+      const created = useReaderSession({ gid: 1, token: "token", page, pages: known })
+      session = created
+      return () => h(ReaderControls, { session: created, visible: true, canFullscreen: false, fullscreen: false })
+    },
+  })
   /* 每个阅读器一份自己的账号数据，和各自打开一个新页面一样。 */
   const pinia = createPinia()
   app.use(pinia)
@@ -84,7 +46,7 @@ async function createReader(position: { page?: number; total?: number } = {}) {
     host.remove()
   })
   await vi.advanceTimersByTimeAsync(1)
-  return { state, change, host, router }
+  return { session: present(session, "阅读会话"), known, host }
 }
 
 function autoButton(host: HTMLElement) {
@@ -100,88 +62,64 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], minRating: null, readerInterval: 5 })
   vi.mocked(patchGalleryPreferences).mockResolvedValue(undefined)
+  vi.mocked(saveProgress).mockResolvedValue(undefined)
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
 })
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) {
     cleanup()
   }
-  /* happy-dom 本来没有屏幕常亮，用例里装上的替身在这里拆掉。 */
-  Reflect.deleteProperty(navigator, "wakeLock")
   vi.restoreAllMocks()
   vi.useRealTimers()
 })
 
-describe("阅读器自动翻页控件", () => {
-  it("默认关闭，开始后等待完整间隔，手动换页不改变节奏，暂停后不再前进", async () => {
-    const { state, change, host } = await createReader()
-    await vi.advanceTimersByTimeAsync(10000)
-    expect(change).not.toHaveBeenCalled()
-    expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
-    autoButton(host).click()
-    await vi.advanceTimersByTimeAsync(3000)
-    state.page = 4
-    await vi.advanceTimersByTimeAsync(1999)
-    expect(change).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(1)
-    expect(change).toHaveBeenLastCalledWith(5)
-    await vi.advanceTimersByTimeAsync(5000)
-    expect(change).toHaveBeenLastCalledWith(6)
-    autoButton(host).click()
-    await vi.advanceTimersByTimeAsync(10000)
-    expect(change).toHaveBeenCalledTimes(2)
-  })
-
-  it("图片拖动期间修改间隔不会恢复计时，结束后等待完整的新间隔", async () => {
-    const { state, change, host } = await createReader()
-    autoButton(host).click()
-    await vi.advanceTimersByTimeAsync(4000)
-    state.dragging = true
-    await nextTick()
-    query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]').click()
-    await vi.advanceTimersByTimeAsync(10000)
-    expect(autoButton(host).getAttribute("aria-pressed")).toBe("true")
-    expect(change).not.toHaveBeenCalled()
-    state.page = 3
-    state.dragging = false
-    await vi.advanceTimersByTimeAsync(5999)
-    expect(change).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(1)
-    expect(change).toHaveBeenCalledExactlyOnceWith(4)
-  })
-
+describe("阅读器操作栏", () => {
   it.each(["pointerup", "pointercancel", "lostpointercapture"])(
-    "进度条按住期间暂停，%s 后恢复完整间隔",
+    "进度条按住期间会话处于拖动进度中、自动翻页暂停，%s 后恢复完整间隔",
     async (endEvent) => {
-      const { state, change, host } = await createReader()
+      const { session, host } = await createReader()
       const input = query(host, "input")
       input.setPointerCapture = vi.fn()
       autoButton(host).click()
       await vi.advanceTimersByTimeAsync(4000)
       input.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1 }))
       await vi.advanceTimersByTimeAsync(10000)
-      expect(state.seeking).toBe(true)
-      expect(change).not.toHaveBeenCalled()
+      expect(session.seeking).toBe(true)
+      expect(session.page).toBe(1)
       input.dispatchEvent(new PointerEvent(endEvent, { pointerId: 1 }))
       await vi.advanceTimersByTimeAsync(4999)
-      expect(state.seeking).toBe(false)
-      expect(change).not.toHaveBeenCalled()
+      expect(session.seeking).toBe(false)
+      expect(session.page).toBe(1)
       await vi.advanceTimersByTimeAsync(1)
-      expect(change).toHaveBeenCalledExactlyOnceWith(2)
+      expect(session.page).toBe(2)
     },
   )
 
+  it("上一页、下一页按钮翻页，到头就不能再点", async () => {
+    const { session, host } = await createReader({ pages: 2 })
+    const previous = query<HTMLButtonElement>(host, '[aria-label="上一页"]')
+    const next = query<HTMLButtonElement>(host, '[aria-label="下一页"]')
+    expect(previous.disabled).toBe(true)
+    next.click()
+    await nextTick()
+    expect(session.page).toBe(2)
+    expect(next.disabled).toBe(true)
+    previous.click()
+    await nextTick()
+    expect(session.page).toBe(1)
+  })
+
   it("修改间隔立即重新计时，间隔会存下来但开启状态不会", async () => {
-    const { change, host } = await createReader()
+    const { session, host } = await createReader()
     autoButton(host).click()
     await vi.advanceTimersByTimeAsync(4000)
     query<HTMLButtonElement>(host, '[aria-label="增加自动翻页间隔"]').click()
     await nextTick()
     expect(intervalText(host)).toBe("6 秒")
     await vi.advanceTimersByTimeAsync(5999)
-    expect(change).not.toHaveBeenCalled()
+    expect(session.page).toBe(1)
     await vi.advanceTimersByTimeAsync(1)
-    expect(change).toHaveBeenCalledTimes(1)
+    expect(session.page).toBe(2)
     expect(patchGalleryPreferences).toHaveBeenCalledExactlyOnceWith({ readerInterval: 6 })
     /* 重开一个阅读器：间隔按存下来的那份显示，自动翻页不跟着恢复。 */
     vi.mocked(fetchGalleryPreferences).mockResolvedValue({ categories: [], minRating: null, readerInterval: 6 })
@@ -192,7 +130,7 @@ describe("阅读器自动翻页控件", () => {
     await nextTick()
     expect(intervalText(host)).toBe("5 秒")
     await vi.advanceTimersByTimeAsync(5000)
-    expect(change).toHaveBeenCalledTimes(2)
+    expect(session.page).toBe(3)
   })
 
   it.each([
@@ -286,9 +224,9 @@ describe("阅读器自动翻页控件", () => {
   })
 
   it("页数到达后创建滑块，保留从 URL 恢复的页码", async () => {
-    const { state, host } = await createReader({ page: 3, total: 0 })
+    const { known, host } = await createReader({ page: 3, pages: null })
     expect(host.querySelector('input[type="range"]')).toBeNull()
-    state.total = 12
+    known.value = 12
     await nextTick()
     const slider = query<HTMLInputElement>(host, 'input[type="range"]')
     expect(slider.max).toBe("12")
@@ -296,132 +234,14 @@ describe("阅读器自动翻页控件", () => {
     expect(slider.getAttribute("aria-valuetext")).toBe("第 3 页，共 12 页")
   })
 
-  it("没有页数或已到末页不能启动，到达末页立即停止且不循环", async () => {
-    const { state, change, host } = await createReader()
-    state.total = 0
+  it("没有页数或已到末页时开始按钮不能点", async () => {
+    const { known, host } = await createReader({ pages: null })
+    expect(autoButton(host).disabled).toBe(true)
+    known.value = 1
     await nextTick()
     expect(autoButton(host).disabled).toBe(true)
-    autoButton(host).click()
-    expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
-    state.total = 2
+    known.value = 2
     await nextTick()
-    autoButton(host).click()
-    await vi.advanceTimersByTimeAsync(5000)
-    expect(state.page).toBe(2)
-    expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
-    expect(autoButton(host).disabled).toBe(true)
-    autoButton(host).click()
-    await vi.advanceTimersByTimeAsync(10000)
-    expect(change).toHaveBeenCalledTimes(1)
-  })
-
-  it("切入后台就停下，回到前台不自己转起来", async () => {
-    const { change, host } = await createReader()
-    autoButton(host).click()
-    await nextTick()
-    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
-    document.dispatchEvent(new Event("visibilitychange"))
-    await nextTick()
-    expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
-    await vi.advanceTimersByTimeAsync(10000)
-    expect(change).not.toHaveBeenCalled()
-    /* 回到前台只是重新可以开始，要再点一次才继续翻。 */
-    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
-    document.dispatchEvent(new Event("visibilitychange"))
-    await nextTick()
-    expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
-    await vi.advanceTimersByTimeAsync(10000)
-    expect(change).not.toHaveBeenCalled()
-    autoButton(host).click()
-    await vi.advanceTimersByTimeAsync(5000)
-    expect(change).toHaveBeenCalledWith(2)
-  })
-
-  it("离开路由后停止自动翻页", async () => {
-    const { change, host, router } = await createReader()
-    autoButton(host).click()
-    await nextTick()
-    await router.push("/away")
-    await vi.advanceTimersByTimeAsync(10000)
-    expect(change).not.toHaveBeenCalled()
-    expect(host.querySelector("button")).toBeNull()
-  })
-})
-
-/* 阅读器只用得到锁的 release。 */
-interface Lock {
-  release: () => Promise<void>
-}
-
-/* 屏幕常亮的替身：记下每次申请拿到的锁，看它们有没有被放开。 */
-function stubWakeLock(request?: () => Promise<Lock>) {
-  const locks: { release: ReturnType<typeof vi.fn> }[] = []
-  const wakeLock = {
-    request: vi.fn(
-      request ??
-        (async () => {
-          const lock = { release: vi.fn(async () => {}) }
-          locks.push(lock)
-          return lock
-        }),
-    ),
-  }
-  Object.defineProperty(navigator, "wakeLock", { value: wakeLock, configurable: true })
-  return { wakeLock, locks, held: () => locks.filter((lock) => lock.release.mock.calls.length === 0).length }
-}
-
-describe("自动翻页时屏幕常亮", () => {
-  it("开着时屏幕常亮，暂停、翻到末页、卸载都放开", async () => {
-    const { wakeLock, locks, held } = stubWakeLock()
-    const { state, host } = await createReader({ total: 3 })
-    expect(wakeLock.request).not.toHaveBeenCalled()
-    autoButton(host).click()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(wakeLock.request).toHaveBeenCalledExactlyOnceWith("screen")
-    expect(held()).toBe(1)
-    autoButton(host).click()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(held()).toBe(0)
-    /* 自己翻到末页停下时同样放开。 */
-    autoButton(host).click()
-    await vi.advanceTimersByTimeAsync(10000)
-    expect(state.page).toBe(3)
-    expect(held()).toBe(0)
-    state.page = 1
-    await nextTick()
-    autoButton(host).click()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(held()).toBe(1)
-    present(cleanups.pop(), "卸载回调")()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(held()).toBe(0)
-    expect(locks).toHaveLength(3)
-  })
-
-  it("还没拿到锁就暂停了，拿到后当场放开", async () => {
-    const granted = deferred<Lock>()
-    const release = vi.fn(async () => {})
-    const { wakeLock } = stubWakeLock(() => granted.promise)
-    const { host } = await createReader()
-    autoButton(host).click()
-    await nextTick()
-    expect(wakeLock.request).toHaveBeenCalledOnce()
-    autoButton(host).click()
-    await nextTick()
-    granted.resolve({ release })
-    await vi.advanceTimersByTimeAsync(0)
-    expect(release).toHaveBeenCalledOnce()
-  })
-
-  it("拿不到常亮也照常自动翻页", async () => {
-    stubWakeLock(() => Promise.reject(new Error("省电模式")))
-    const { change, host } = await createReader()
-    autoButton(host).click()
-    await vi.advanceTimersByTimeAsync(5000)
-    expect(change).toHaveBeenCalledExactlyOnceWith(2)
-    /* 放开一把没拿到的锁也不出错。 */
-    autoButton(host).click()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(autoButton(host).getAttribute("aria-pressed")).toBe("false")
+    expect(autoButton(host).disabled).toBe(false)
   })
 })

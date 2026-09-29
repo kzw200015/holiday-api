@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { clamp, useEventListener, useFullscreen, useTimeoutFn } from "@vueuse/core"
-import { computed, onScopeDispose, ref, watch } from "vue"
+import { useEventListener, useFullscreen, useTimeoutFn } from "@vueuse/core"
+import { onScopeDispose, ref, watch } from "vue"
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter, type RouteLocationNormalized } from "vue-router"
 
 import { Button } from "@/components/ui/button"
@@ -8,8 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import ReaderControls from "@/features/eh/components/ReaderControls.vue"
 import ReaderStrip from "@/features/eh/components/ReaderStrip.vue"
 import { useGallery } from "@/features/eh/composables/useGallery"
-import { useReaderPlayback } from "@/features/eh/composables/useReaderPlayback"
-import { useReadingProgress } from "@/features/eh/composables/useReadingProgress"
+import { useReaderSession } from "@/features/eh/composables/useReaderSession"
 import { galleryDetailLocation, readerInstanceKey, readerLocation, type GallerySource } from "@/features/eh/navigation"
 import ErrorAlert from "@/shared/components/ErrorAlert.vue"
 import { useGoBack } from "@/shared/composables/useGoBack"
@@ -43,29 +42,20 @@ const { gallery, loaded, loading, errorMessage } = useGallery(
   () => props.gid,
   () => props.token,
 )
-const { report: reportProgress, flush: flushProgress } = useReadingProgress(props.gid, props.token)
-const totalPages = computed(() => gallery.value?.fileCount ?? 0)
-
-/* 详情到手前页数未知，只保证不小于 1，越界的部分等页数到了再收回来；到手之后按实际页数夹住，没有页面的就停在 1。 */
-function withinPages(target: number) {
-  return loaded.value ? clamp(target, 1, Math.max(1, totalPages.value)) : Math.max(1, target)
-}
-
-/**
- * 当前页码的真源在这里，地址栏是它的投影。
+/*
+ * 这次阅读本身（页码、自动翻页、进度上报）在 useReaderSession 里，这里只把地址栏、键盘、点击接进去。
  *
- * 反过来（地址栏当真源）意味着翻一页要穿过一次路由导航才能生效，而滚动是每帧都在发生的事：
- * 拖动进度条会先跳回旧值再被纠正，滚动时还会连发好几次同样的 replace。地址栏只需要在
- * 停下来之后对得上，好让刷新和分享落在同一页，所以这里只把页码节流写回去。
- *
- * 缓存里有详情时页数一开始就知道，手改地址留下的越界页码当场收回，免得先被上报出去。
+ * 地址栏是页码的投影而不是真源：反过来的话翻一页要穿过一次路由导航才能生效，而滚动是每帧都在发生的事，
+ * 拖动进度条会先跳回旧值再被纠正，滚动时还会连发好几次同样的 replace。地址栏只需要在停下来之后对得上，
+ * 好让刷新和分享落在同一页，所以这里只把页码节流写回去。缓存里有详情时页数一开始就知道，手改地址留下的越界页码当场收回。
  */
-const current = ref(withinPages(props.page))
-const page = computed({ get: () => current.value, set: goTo })
-const seeking = ref(false)
-const dragging = ref(false)
+const session = useReaderSession({
+  gid: props.gid,
+  token: props.token,
+  page: props.page,
+  pages: () => (loaded.value ? (gallery.value?.fileCount ?? 0) : undefined),
+})
 const controlsVisible = ref(true)
-const playback = useReaderPlayback(page, totalPages, () => seeking.value || dragging.value)
 /* 全屏连浏览器的地址栏、标签栏也收起来，离开阅读器时退出。 */
 const fullscreen = useFullscreen(undefined, { autoExit: true })
 
@@ -74,14 +64,10 @@ function toggleFullscreen() {
   fullscreen.toggle().catch(() => {})
 }
 
-function goTo(next: number) {
-  current.value = withinPages(next)
-}
-
 /* 用 replace 让浏览器后退直接离开阅读，而非逐页回退。 */
 function syncUrl() {
-  if (current.value !== props.page) {
-    void router.replace(readerLocation(props, current.value, props.source))
+  if (session.page !== props.page) {
+    void router.replace(readerLocation(props, session.page, props.source))
   }
 }
 
@@ -93,7 +79,7 @@ const { start: scheduleUrlSync, stop: cancelUrlSync } = useTimeoutFn(syncUrl, UR
 let leavingTo: RouteLocationNormalized | undefined
 /* immediate：开头就收回过的越界页码同样要写回地址栏。 */
 watch(
-  current,
+  () => session.page,
   () => {
     if (!leavingTo) {
       scheduleUrlSync()
@@ -102,12 +88,10 @@ watch(
   { immediate: true },
 )
 
-/* 这个实例要走了：自动翻页停下，还没发出的那次进度补上，否则最后翻的几页就丢了。 */
 function leave(to: RouteLocationNormalized) {
   leavingTo = to
   cancelUrlSync()
-  playback.stop()
-  flushProgress()
+  session.leave()
 }
 onBeforeRouteLeave(leave)
 /* 手改地址换图集不算离开路由，但 App.vue 马上要按同一个 key 重建这个实例，同样当作离开。 */
@@ -130,26 +114,19 @@ onScopeDispose(
 watch(
   () => props.page,
   (next) => {
-    if (next !== current.value) {
-      goTo(next)
+    if (next !== session.page) {
+      session.page = next
     }
   },
 )
 
-/* 页数到手（或重取后变了）时把手改地址留下的越界页码收回来。 */
-watch([loaded, totalPages], () => {
-  if (loaded.value) {
-    goTo(current.value)
-  }
-})
-
 /* 点阅读区左右各三分之一翻页，中间切换操作栏。阅读器铺满整个窗口，所以按窗口宽度分。还没有页面可翻时只切换操作栏。 */
 function onTap(event: MouseEvent) {
   const third = window.innerWidth / 3
-  if (!totalPages.value || (event.clientX >= third && event.clientX <= third * 2)) {
+  if (!session.total || (event.clientX >= third && event.clientX <= third * 2)) {
     controlsVisible.value = !controlsVisible.value
   } else {
-    goTo(page.value + (event.clientX < third ? -1 : 1))
+    session.page += event.clientX < third ? -1 : 1
   }
 }
 
@@ -157,17 +134,6 @@ function exit() {
   /* 退出一律回详情页；从阅读历史来的，详情页那边的「返回列表」会继续把人送回历史。 */
   returnTo(galleryDetailLocation(props, props.source))
 }
-
-/* 详情到达且页数已知后才报告位置。 */
-watch(
-  [() => loaded.value && totalPages.value > 0, page],
-  ([ready, at]) => {
-    if (ready) {
-      reportProgress(at)
-    }
-  },
-  { immediate: true },
-)
 
 useEventListener(window, "keydown", (event: KeyboardEvent) => {
   /* 带修饰键的留给浏览器：Alt+←、⌘+← 是后退。 */
@@ -186,10 +152,10 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
   const step = PAGE_STEPS[event.key]
   if (step) {
     event.preventDefault()
-    goTo(page.value + step)
+    session.page += step
   } else if (event.key === "Home" || event.key === "End") {
     event.preventDefault()
-    goTo(event.key === "Home" ? 1 : totalPages.value)
+    session.page = event.key === "Home" ? 1 : session.total
   } else if (event.key === "Escape") {
     event.preventDefault()
     exit()
@@ -207,34 +173,20 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
         </ErrorAlert>
       </div>
     </div>
-    <div v-else-if="loaded && !totalPages" class="flex flex-1 flex-col items-center justify-center gap-3 p-4">
+    <div v-else-if="loaded && !session.total" class="flex flex-1 flex-col items-center justify-center gap-3 p-4">
       <p role="status" class="text-sm text-white/80">这个图集没有可以阅读的页面。</p>
       <Button size="sm" variant="outline" @click="exit">返回</Button>
     </div>
     <div v-else class="relative flex min-h-0 flex-1 overflow-hidden">
-      <ReaderStrip
-        v-if="totalPages"
-        v-model:page="page"
-        v-model:dragging="dragging"
-        :total="totalPages"
-        :gid="gid"
-        :token="token"
-        :seeking="seeking"
-      />
+      <ReaderStrip v-if="session.total" :session="session" :gid="gid" :token="token" />
       <Skeleton v-if="loading" class="absolute inset-x-1/4 inset-y-8 rounded-lg" />
     </div>
     <ReaderControls
-      v-model:page="page"
-      v-model:seeking="seeking"
+      :session="session"
       :title="gallery?.title"
       :visible="controlsVisible"
-      :total="totalPages"
-      :playback="playback.state"
       :can-fullscreen="fullscreen.isSupported.value"
       :fullscreen="fullscreen.isFullscreen.value"
-      @toggle-auto-paging="playback.toggle"
-      @set-interval="playback.changeInterval"
-      @reload-interval="playback.reloadInterval"
       @toggle-fullscreen="toggleFullscreen"
       @exit="exit"
     />

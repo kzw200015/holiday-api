@@ -3,6 +3,7 @@ import { clamp, useResizeObserver, useTimeoutFn } from "@vueuse/core"
 import { computed, nextTick, onMounted, onScopeDispose, ref, shallowRef, watch } from "vue"
 
 import ReaderPage from "@/features/eh/components/ReaderPage.vue"
+import type { ReaderSession } from "@/features/eh/composables/useReaderSession"
 import { createReaderLayout } from "@/features/eh/readerLayout"
 
 const LOAD_DELAY = 200
@@ -13,12 +14,15 @@ const PRELOAD_BEHIND = 1
  * ratios 不跟着清，页宽因此保持原样，卸载不会让布局跳动，滑回去时也还在原来的位置。 */
 const KEEP_PAGES = 12
 
-/* 父级在页数已知且非零时挂载；换图集时整个阅读器重建，这里不会中途换一本。 */
-const props = withDefaults(defineProps<{ gid: number; token: string; total: number; seeking?: boolean }>(), {
-  seeking: false,
-})
-const page = defineModel<number>("page", { required: true })
-const dragging = defineModel<boolean>("dragging", { default: false })
+/*
+ * 父级在页数已知且非零时挂载；换图集时整个阅读器重建，这里不会中途换一本。
+ * 页码与拖动状态直接读写这次阅读（见 useReaderSession）：滚到哪页就改它的页码，拖着图片时它的自动翻页暂停。
+ */
+const props = defineProps<{
+  gid: number
+  token: string
+  session: Pick<ReaderSession, "page" | "total" | "seeking" | "dragging">
+}>()
 const viewport = shallowRef<HTMLElement>()
 const height = ref(1)
 const width = ref(1)
@@ -31,7 +35,7 @@ let pointer: { id: number; x: number; y: number; left: number } | undefined
 let dragged = false
 let scrollTarget: number | undefined
 let pendingAnchor: { page: number; relative: number } | undefined
-const layout = computed(() => createReaderLayout(props.total, width.value, height.value, ratios.value))
+const layout = computed(() => createReaderLayout(props.session.total, width.value, height.value, ratios.value))
 
 function loadVisible() {
   if (!viewport.value) {
@@ -48,7 +52,7 @@ function loadVisible() {
   /* 补充可见页，以及往后几页、往前一页。 */
   for (
     let pageNumber = Math.max(1, first - PRELOAD_BEHIND);
-    pageNumber <= Math.min(props.total, last + PRELOAD_AHEAD);
+    pageNumber <= Math.min(props.session.total, last + PRELOAD_AHEAD);
     pageNumber++
   ) {
     kept.add(pageNumber)
@@ -60,7 +64,7 @@ const { start, stop: cancelLoad } = useTimeoutFn(loadVisible, LOAD_DELAY, { imme
 
 function scheduleLoad() {
   cancelLoad()
-  if (dragging.value || props.seeking || scrollTarget !== undefined || !viewport.value) {
+  if (props.session.dragging || props.session.seeking || scrollTarget !== undefined || !viewport.value) {
     return
   }
   start()
@@ -91,8 +95,8 @@ function onScroll() {
     scrollTarget = undefined
   }
   const nextPage = layout.value.pageAtScroll(viewport.value.scrollLeft)
-  if (nextPage !== page.value) {
-    page.value = nextPage
+  if (nextPage !== props.session.page) {
+    props.session.page = nextPage
   }
   scheduleLoad()
 }
@@ -111,7 +115,7 @@ function onPointerDown(event: PointerEvent) {
     return
   }
   interruptScroll()
-  dragging.value = true
+  props.session.dragging = true
   /* 触屏保留浏览器原生惯性滚动，鼠标才需要自行搬动 scrollLeft。 */
   if (event.pointerType === "mouse" && viewport.value) {
     pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, left: viewport.value.scrollLeft }
@@ -138,7 +142,7 @@ function onClick(event: MouseEvent) {
 
 function onPointerEnd() {
   pointer = undefined
-  dragging.value = false
+  props.session.dragging = false
 }
 
 function onWheel(event: WheelEvent) {
@@ -156,7 +160,10 @@ async function onImageRatio(pageNumber: number, ratio: number) {
     return
   }
   /* 占位宽度换成真实比例时，维持当前页在视口中的相对位置；同一批到达的图片只锚定一次。 */
-  pendingAnchor ??= { page: page.value, relative: viewport.value.scrollLeft - layout.value.offsetOf(page.value) }
+  pendingAnchor ??= {
+    page: props.session.page,
+    relative: viewport.value.scrollLeft - layout.value.offsetOf(props.session.page),
+  }
   ratios.value[pageNumber] = ratio
   await nextTick()
   if (!viewport.value || !pendingAnchor) {
@@ -165,7 +172,7 @@ async function onImageRatio(pageNumber: number, ratio: number) {
   const { page: anchor, relative } = pendingAnchor
   pendingAnchor = undefined
   if (scrollTarget !== undefined) {
-    await jump(page.value, "smooth")
+    await jump(props.session.page, "smooth")
     return
   }
   viewport.value.scrollLeft = clamp(layout.value.offsetOf(anchor) + relative, 0, layout.value.maxScroll)
@@ -178,20 +185,23 @@ useResizeObserver(viewport, ([entry]) => {
   }
   height.value = Math.max(1, entry.contentRect.height)
   width.value = Math.max(1, entry.contentRect.width)
-  void jump(page.value)
+  void jump(props.session.page)
 })
 /* 挂上视口后先跳到当前页 */
-onMounted(() => void jump(page.value))
+onMounted(() => void jump(props.session.page))
 /* 自己滚出来的页码回流时位置已经对上，只有外部跳页才需要搬动视口。 */
-watch(page, (nextPage) => {
-  if (
-    viewport.value &&
-    (scrollTarget !== undefined || nextPage !== layout.value.pageAtScroll(viewport.value.scrollLeft))
-  ) {
-    void jump(nextPage, props.seeking ? "instant" : "smooth")
-  }
-})
-watch([() => props.seeking, dragging], scheduleLoad)
+watch(
+  () => props.session.page,
+  (nextPage) => {
+    if (
+      viewport.value &&
+      (scrollTarget !== undefined || nextPage !== layout.value.pageAtScroll(viewport.value.scrollLeft))
+    ) {
+      void jump(nextPage, props.session.seeking ? "instant" : "smooth")
+    }
+  },
+)
+watch([() => props.session.seeking, () => props.session.dragging], scheduleLoad)
 /* 作用域结束后丢掉视口引用，等待中的跳转与图片回调据此放弃后续动作。 */
 onScopeDispose(() => {
   viewport.value = undefined
@@ -203,7 +213,7 @@ onScopeDispose(() => {
     ref="viewport"
     aria-label="横向阅读区域"
     class="no-scrollbar flex min-h-0 min-w-0 flex-1 touch-pan-x select-none overflow-x-auto overflow-y-hidden overscroll-x-contain"
-    :class="dragging ? 'cursor-grabbing' : 'cursor-grab'"
+    :class="session.dragging ? 'cursor-grabbing' : 'cursor-grab'"
     style="overflow-anchor: none"
     @scroll="onScroll"
     @click="onClick"
@@ -215,7 +225,7 @@ onScopeDispose(() => {
     @lostpointercapture="onPointerEnd"
   >
     <div
-      v-for="pageNumber in total"
+      v-for="pageNumber in session.total"
       :key="pageNumber"
       class="relative h-full shrink-0"
       :style="{ width: `${layout.widthOf(pageNumber)}px` }"

@@ -138,22 +138,6 @@ function controlsState() {
 }
 
 describe("阅读进度保存", () => {
-  it("连续翻页只保存最后一页；卸载时把还没发出的那次补上", async () => {
-    await router.replace("/1/token/2")
-    await vi.advanceTimersByTimeAsync(500)
-    expect(saveProgress).not.toHaveBeenCalled()
-    await router.replace("/1/token/3")
-    await vi.advanceTimersByTimeAsync(1200)
-    expect(saveProgress).toHaveBeenCalledExactlyOnceWith(1, "token", 3)
-    /* 正常离开走的是路由，那条路径会补提交；不经路由直接卸载的，卸载时兜底补一次。 */
-    await router.replace("/1/token/4")
-    present(app, "应用").unmount()
-    app = undefined
-    await vi.advanceTimersByTimeAsync(1200)
-    expect(saveProgress).toHaveBeenCalledTimes(2)
-    expect(saveProgress).toHaveBeenLastCalledWith(1, "token", 4)
-  })
-
   /* 地址是外部输入：缓存里有详情时页数一开始就知道，越界页码当场收回，不能先把它上报出去。 */
   it("详情已在缓存里时，越界页码当场收回，只上报收回后的页", async () => {
     await router.replace("/2/other/1")

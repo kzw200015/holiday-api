@@ -14,30 +14,30 @@ import { READER_INTERVAL_MAX, READER_INTERVAL_MIN } from "@myapi/shared/eh"
 import { computed } from "vue"
 
 import { Button } from "@/components/ui/button"
-import type { ReaderPlaybackState } from "@/features/eh/composables/useReaderPlayback"
+import type { ReaderSession } from "@/features/eh/composables/useReaderSession"
 
+/* 翻页、按住进度条、自动翻页都直接交给这次阅读（见 useReaderSession）；退出与全屏归阅读器页面管，照常发事件。 */
 const props = defineProps<{
+  session: Pick<
+    ReaderSession,
+    "page" | "total" | "seeking" | "playback" | "toggleAutoPaging" | "changeInterval" | "reloadInterval"
+  >
   title?: string
   visible: boolean
-  total: number
-  playback: ReaderPlaybackState
   /* 浏览器支不支持页面全屏（iPhone 上的 Safari 不支持，那里不给按钮），以及眼下是不是全屏。 */
   canFullscreen: boolean
   fullscreen: boolean
 }>()
 const emit = defineEmits<{
   exit: []
-  toggleAutoPaging: []
-  setInterval: [seconds: number]
-  reloadInterval: []
   toggleFullscreen: []
 }>()
-const page = defineModel<number>("page", { required: true })
-const seeking = defineModel<boolean>("seeking", { required: true })
-const progressPercent = computed(() => (props.total > 1 ? ((page.value - 1) / (props.total - 1)) * 100 : 0))
+const progressPercent = computed(() =>
+  props.session.total > 1 ? ((props.session.page - 1) / (props.session.total - 1)) * 100 : 0,
+)
 
 function startSeeking(event: PointerEvent) {
-  seeking.value = true
+  props.session.seeking = true
   const input = event.currentTarget as HTMLInputElement
   input.setPointerCapture(event.pointerId)
 }
@@ -65,42 +65,42 @@ const chromeButton = {
     <p class="min-w-0 flex-1 truncate text-sm text-white/90">{{ title ?? "加载中…" }}</p>
     <div class="flex shrink-0 items-center gap-1">
       <Button
-        :aria-label="playback.autoPaging ? '暂停自动翻页' : '开始自动翻页'"
-        :aria-pressed="playback.autoPaging"
+        :aria-label="session.playback.autoPaging ? '暂停自动翻页' : '开始自动翻页'"
+        :aria-pressed="session.playback.autoPaging"
         v-bind="chromeButton"
-        :disabled="!playback.canStart"
-        @click="emit('toggleAutoPaging')"
+        :disabled="!session.playback.canStart"
+        @click="session.toggleAutoPaging()"
       >
-        <PauseIcon v-if="playback.autoPaging" />
+        <PauseIcon v-if="session.playback.autoPaging" />
         <PlayIcon v-else />
       </Button>
       <Button
         aria-label="减少自动翻页间隔"
         v-bind="chromeButton"
-        :disabled="!playback.intervalReady || playback.interval <= READER_INTERVAL_MIN"
-        @click="emit('setInterval', playback.interval - 1)"
+        :disabled="!session.playback.intervalReady || session.playback.interval <= READER_INTERVAL_MIN"
+        @click="session.changeInterval(session.playback.interval - 1)"
       >
         <MinusIcon />
       </Button>
       <!-- 偏好没读到时调了也存不上，所以不给调；读失败了就在秒数的位置给个重试。 -->
       <Button
-        v-if="playback.intervalFailed"
+        v-if="session.playback.intervalFailed"
         aria-label="自动翻页间隔没读到，重试"
         title="自动翻页间隔没读到，点此重试"
         v-bind="chromeButton"
         size="sm"
-        @click="emit('reloadInterval')"
+        @click="session.reloadInterval()"
       >
         重试
       </Button>
       <output v-else aria-label="自动翻页间隔" class="min-w-10 text-center text-sm text-white/90 tabular-nums">
-        {{ playback.intervalReady ? `${playback.interval} 秒` : "…" }}
+        {{ session.playback.intervalReady ? `${session.playback.interval} 秒` : "…" }}
       </output>
       <Button
         aria-label="增加自动翻页间隔"
         v-bind="chromeButton"
-        :disabled="!playback.intervalReady || playback.interval >= READER_INTERVAL_MAX"
-        @click="emit('setInterval', playback.interval + 1)"
+        :disabled="!session.playback.intervalReady || session.playback.interval >= READER_INTERVAL_MAX"
+        @click="session.changeInterval(session.playback.interval + 1)"
       >
         <PlusIcon />
       </Button>
@@ -121,30 +121,40 @@ const chromeButton = {
     :class="visible ? 'opacity-100' : 'pointer-events-none opacity-0'"
     @click.stop
   >
-    <Button aria-label="上一页" v-bind="chromeButton" :disabled="!total || page <= 1" @click="page -= 1">
+    <Button
+      aria-label="上一页"
+      v-bind="chromeButton"
+      :disabled="!session.total || session.page <= 1"
+      @click="session.page -= 1"
+    >
       <ChevronLeftIcon />
     </Button>
-    <span class="min-w-6 text-center text-sm text-white/90 tabular-nums">{{ page }}</span>
+    <span class="min-w-6 text-center text-sm text-white/90 tabular-nums">{{ session.page }}</span>
     <input
-      v-if="total > 0"
-      v-model.number="page"
+      v-if="session.total > 0"
+      v-model.number="session.page"
       type="range"
       min="1"
-      :max="total"
+      :max="session.total"
       step="1"
       aria-label="阅读进度"
-      :aria-valuetext="`第 ${page} 页，共 ${total} 页`"
+      :aria-valuetext="`第 ${session.page} 页，共 ${session.total} 页`"
       class="reader-progress h-8 min-w-0 flex-1 cursor-pointer"
       :style="{ '--reader-progress': `${progressPercent}%` }"
       @pointerdown="startSeeking"
-      @pointerup="seeking = false"
-      @pointercancel="seeking = false"
-      @lostpointercapture="seeking = false"
+      @pointerup="session.seeking = false"
+      @pointercancel="session.seeking = false"
+      @lostpointercapture="session.seeking = false"
     />
     <!-- 页数未知时不创建原生滑块，避免浏览器先按 1–1 把恢复页码夹到首页。 -->
     <div v-else aria-hidden="true" class="h-8 min-w-0 flex-1" />
-    <span class="text-sm text-white/90 tabular-nums">{{ total || "…" }}</span>
-    <Button aria-label="下一页" v-bind="chromeButton" :disabled="!total || page >= total" @click="page += 1">
+    <span class="text-sm text-white/90 tabular-nums">{{ session.total || "…" }}</span>
+    <Button
+      aria-label="下一页"
+      v-bind="chromeButton"
+      :disabled="!session.total || session.page >= session.total"
+      @click="session.page += 1"
+    >
       <ChevronRightIcon />
     </Button>
   </div>

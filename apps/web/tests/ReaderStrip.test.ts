@@ -37,16 +37,40 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+/*
+ * 图片条读写的那几项阅读状态。props 是外部改的入口（翻页、按住进度条），图片条自己改的经 session 的 setter，
+ * 记进 change 与 draggingChange，看得出是它改的。
+ */
 async function setup(page = 1) {
-  const props = reactive({ page, gid: 1, token: "token", total: 100, seeking: false, dragging: false })
+  const props = reactive({ page, total: 100, seeking: false, dragging: false })
   const change = vi.fn((next: number) => {
     props.page = next
   })
   const draggingChange = vi.fn((value: boolean) => {
     props.dragging = value
   })
+  const session = {
+    get page() {
+      return props.page
+    },
+    set page(next: number) {
+      change(next)
+    },
+    get total() {
+      return props.total
+    },
+    get seeking() {
+      return props.seeking
+    },
+    get dragging() {
+      return props.dragging
+    },
+    set dragging(value: boolean) {
+      draggingChange(value)
+    },
+  }
   app = createApp({
-    render: () => h(ReaderStrip, { ...props, "onUpdate:page": change, "onUpdate:dragging": draggingChange }),
+    render: () => h(ReaderStrip, { gid: 1, token: "token", session }),
   })
   app.use(createPinia())
   installQueries(app)
