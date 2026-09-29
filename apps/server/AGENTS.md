@@ -26,7 +26,7 @@
 
 响应：成功时 `c.json(数据)`，回 200。失败抛 `http-error.ts` 的 `HttpError`（常用的有 `badRequest`、`notFound` 这类工厂函数），由 `app.ts` 的 `onError` 统一回成 `{statusCode, message, error}`，`message` 是给调用方看的中文；入参校验失败回 400，`message` 是一组去重的文案（由 `validate.ts` 抛出）；不存在的路径与不对的方法由 `notFound` 回 404。未预料的异常回 500，原文只进日志。
 
-数据访问用 Drizzle（`drizzle-orm/bun-sql`，连接是 Bun 自带的 `SQL`，第一次查询就把连接池开满，默认 10 个），表结构写在各领域的 `*-tables.ts`，服务直接从那里引用表，连接直接引 `database`；不用 Drizzle 的关系查询，所以连接上不挂表结构，`database/` 也就不必认识各领域的表。时间列只存到毫秒（`timestamp(3)`），取出来是 `Date`。服务启动时先由迁移器执行 `drizzle/` 下没执行过的迁移，再开始监听；基线迁移是幂等的，对着已有的库只登记不改动。
+数据访问用 Drizzle（`drizzle-orm/bun-sql`，连接是 Bun 自带的 `SQL`，第一次查询就把连接池开满，默认 10 个），表结构写在各领域的 `*-tables.ts`，服务直接从那里引用表，连接直接引 `database`；不用 Drizzle 的关系查询，所以连接上不挂表结构，`database/` 也就不必认识各领域的表。时间列只存到毫秒（`timestamp(3)`），取出来是 `Date`。服务启动时先由迁移器执行 `drizzle/` 下没执行过的迁移，再开始监听；基线迁移是幂等的，对着已有的库只登记不改动。Drizzle 用的是 1.0 的 RC（`drizzle-orm` 与 `drizzle-kit` 版本写死、一起升）：迁移按目录一个一个放（`时间戳_名字/migration.sql` 加 `snapshot.json`），迁移器按目录名登记，库里没登记的都会补上，不看时间先后；0.x 按时间戳只跑比最后一条更晚的，会跳过。
 
 出网只有一个出口：`outbound.ts` 的 `outbound`（只发 GET，底下是 Bun 的 fetch，类型与真实实现在 `outbound-fetch.ts`），不跟随重定向，等响应头与两次数据之间各有超时（由它自己计；连接阶段约 10 秒的超时靠 Bun 的默认行为，见 `outbound-fetch.ts`），所有出网请求共用同一个 User-Agent 与超时配置；访问节假日数据源经它，测试也只在这里替换（`outbound.ts` 的 `replaceOutbound`）。`outbound-fetch.ts` 不读配置，次接缝的测试直接用它。一个请求里要同时等两件互不依赖的事时用 `Promise.all`。定时任务用 `croner`（节假日数据每日刷新，见 `holiday-service.ts`），关停时停掉。
 
