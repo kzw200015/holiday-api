@@ -59,7 +59,6 @@ async fn dates_are_checked_against_the_calendar() {
         "2025-02-29",
         "2026-1-4",
         "2026-13-01",
-        "20260101",
     ] {
         for path in ["/api/holiday/detail", "/api/holiday/is-holiday"] {
             let reply = app.get(&format!("{path}?date={date}")).await;
@@ -69,6 +68,20 @@ async fn dates_are_checked_against_the_calendar() {
                 json!({"statusCode": 400, "message": ["日期格式错误，应为 YYYY-MM-DD"], "error": "Bad Request"})
             );
         }
+    }
+    app.close().await;
+}
+
+#[tokio::test]
+async fn other_iso_8601_forms_of_a_date_are_accepted() {
+    let app = TestApp::start().await;
+    // 日期按 jiff 的 ISO 8601 规则解析：紧凑写法、带时刻的写法都认，时刻部分不看
+    for date in ["20260104", "2026-01-04T10:30"] {
+        assert_eq!(
+            detail(&app, date).await,
+            json!({"date": "2026-01-04", "isOffDay": false, "name": "元旦"}),
+            "{date}"
+        );
     }
     app.close().await;
 }

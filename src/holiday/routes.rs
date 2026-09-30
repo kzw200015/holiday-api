@@ -6,7 +6,7 @@ use jiff::civil::Date;
 use serde::Deserialize;
 use sqlx::PgPool;
 
-use super::{HolidayDay, china_date, parse_calendar_date, query};
+use super::{HolidayDay, china_date, query};
 use crate::error::ApiError;
 use crate::extract::AppQuery;
 
@@ -43,11 +43,12 @@ struct DateParams {
     date: Option<String>,
 }
 
-/// 要查的是哪一天：`date` 省略或空串表示北京时间的今天，否则须是真实存在的 YYYY-MM-DD。
+/// 要查的是哪一天：`date` 省略或空串表示北京时间的今天，否则按 jiff 的 ISO 8601 规则解析，且这一天须真实存在。
 fn requested_date(params: &DateParams) -> Result<Date, ApiError> {
     match params.date.as_deref() {
         None | Some("") => Ok(china_date(Timestamp::now())),
-        Some(text) => parse_calendar_date(text)
-            .ok_or_else(|| ApiError::BadRequest(vec![DATE_RULE.to_owned()])),
+        Some(text) => text
+            .parse()
+            .map_err(|_| ApiError::BadRequest(vec![DATE_RULE.to_owned()])),
     }
 }
