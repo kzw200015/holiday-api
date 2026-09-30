@@ -1,7 +1,6 @@
-use jiff::Timestamp;
 use jiff::civil::date;
 use jiff_sqlx::ToSqlx;
-use myapi::holiday::{china_date, query};
+use myapi::holiday::{china_today, query};
 
 use crate::support::{Database, holiday_source, try_start, unreachable_url};
 
@@ -19,7 +18,7 @@ async fn unreachable_source_blocks_startup_only_without_this_years_data() {
         .expect("没有今年的安排时应当拒绝启动");
     assert!(format!("{error:#}").contains("拉取"), "{error:#}");
 
-    let new_year = china_date(Timestamp::now()).first_of_year();
+    let new_year = china_today().first_of_year();
     sqlx::query("INSERT INTO holiday_days (date, is_off_day, name) VALUES ($1, true, '元旦')")
         .bind(new_year.to_sqlx())
         .execute(&pool)

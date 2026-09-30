@@ -9,7 +9,7 @@ use sqlx::PgPool;
 use tokio::task::JoinSet;
 
 use super::source::HolidaySource;
-use super::{CHINA, china_date, store};
+use super::{CHINA, china_date, china_today, store};
 
 /// 每日刷新的时刻（北京时间）：数据源一年只更新几次（次年安排公布、临时调休），每天拉一次足够。
 const DAILY_AT: Time = Time::constant(4, 30, 0, 0);
@@ -24,7 +24,7 @@ pub async fn on_startup(
     source: &HolidaySource,
     background: &mut JoinSet<()>,
 ) -> anyhow::Result<()> {
-    let year = china_date(Timestamp::now()).year();
+    let year = china_today().year();
     if !store::has_year(pool, year).await? {
         return upcoming_years(pool, source).await;
     }
@@ -60,8 +60,8 @@ pub async fn daily(pool: PgPool, source: HolidaySource) {
 }
 
 /// 刷新当年和次年。年份每次重新算，跨年后自然带上新的次年；两年互不依赖所以并行，任一失败即整体失败。
-pub async fn upcoming_years(pool: &PgPool, source: &HolidaySource) -> anyhow::Result<()> {
-    let year = china_date(Timestamp::now()).year();
+async fn upcoming_years(pool: &PgPool, source: &HolidaySource) -> anyhow::Result<()> {
+    let year = china_today().year();
     tokio::try_join!(
         one_year(pool, source, year),
         one_year(pool, source, year + 1)

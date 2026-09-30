@@ -27,11 +27,7 @@ async fn wrong_method_gets_json_405_with_allow() {
         reply.json(),
         json!({"statusCode": 405, "message": "不支持这个请求方法", "error": "Method Not Allowed"})
     );
-    let allow = reply
-        .headers
-        .get(ALLOW)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default();
+    let allow = reply.header(ALLOW).unwrap_or_default();
     assert!(allow.contains("GET"), "Allow: {allow}");
     app.close().await;
 }

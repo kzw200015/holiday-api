@@ -31,7 +31,7 @@ pub fn router(pool: PgPool) -> Router {
         .with_state(pool)
 }
 
-/// 处理请求时 panic：记下 panic 的内容，回统一的 500 失败体，而不是直接断开连接。
+/// 处理请求时 panic：带上 panic 的内容回统一的 500 失败体，而不是直接断开连接。
 #[expect(
     clippy::needless_pass_by_value,
     reason = "签名由 CatchPanicLayer 规定，只能按值收下 panic 的内容"
@@ -42,8 +42,7 @@ fn on_panic(panic: Box<dyn Any + Send + 'static>) -> Response {
         .map(String::as_str)
         .or_else(|| panic.downcast_ref::<&str>().copied())
         .unwrap_or("（panic 的内容不是字符串）");
-    tracing::error!("处理请求时 panic：{detail}");
-    ApiError::Internal.into_response()
+    ApiError::Internal(anyhow::anyhow!("处理请求时 panic：{detail}")).into_response()
 }
 
 #[cfg(test)]

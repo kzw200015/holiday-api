@@ -9,17 +9,17 @@ use jiff::Timestamp;
 use jiff::civil::{Date, Weekday};
 use jiff::tz::{self, TimeZone};
 pub(crate) use routes::routes;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sqlx::PgPool;
 
 /// 节假日安排是中国的：「今天」「今年」一律按北京时间算，不跟着服务器的时区走（容器默认是 UTC）。
 static CHINA: TimeZone = tz::get!("Asia/Shanghai");
 
-/// 某一天是不是休息日。节假日安排里的一行也是它。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow)]
+/// 某一天是不是休息日。节假日安排里的一行也是它，`detail` 接口的响应体也是它。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct HolidayDay {
-    /// 日期：输出是 YYYY-MM-DD，读入按 jiff 的 ISO 8601 规则
+    /// 日期，输出是 YYYY-MM-DD
     #[sqlx(try_from = "jiff_sqlx::Date")]
     pub date: Date,
     /// 是否为休息日
@@ -44,6 +44,11 @@ pub async fn query(pool: &PgPool, date: Date) -> sqlx::Result<HolidayDay> {
 /// 某一时刻在北京是哪一天。
 pub fn china_date(at: Timestamp) -> Date {
     CHINA.to_datetime(at).date()
+}
+
+/// 北京时间的今天。
+pub fn china_today() -> Date {
+    china_date(Timestamp::now())
 }
 
 #[cfg(test)]

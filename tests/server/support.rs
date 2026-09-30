@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use axum::Router;
-use axum::http::header::CONTENT_TYPE;
+use axum::http::header::{CONTENT_TYPE, HeaderName};
 use axum::http::{StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use myapi::holiday::refresh;
@@ -45,7 +45,7 @@ impl Database {
         }
     }
 
-    pub fn url(&self) -> String {
+    fn url(&self) -> String {
         format!("{}/myapi", self.server)
     }
 
@@ -78,24 +78,18 @@ type Respond = dyn Fn(&str) -> Response + Send + Sync;
 /// 请求照样走完真实的出网客户端（拼地址、认状态码、校验数据）。
 pub struct FakeSource {
     url: String,
-    respond: Arc<Mutex<Arc<Respond>>>,
+    respond: Arc<Mutex<Box<Respond>>>,
 }
 
 impl FakeSource {
     pub async fn start() -> Self {
-        let respond: Arc<Mutex<Arc<Respond>>> = Arc::new(Mutex::new(Arc::new(holiday_cn)));
+        let respond: Arc<Mutex<Box<Respond>>> = Arc::new(Mutex::new(Box::new(holiday_cn)));
         let current = Arc::clone(&respond);
         let app = Router::new().fallback(async move |uri: Uri| {
-            let respond = Arc::clone(&current.lock().unwrap_or_else(PoisonError::into_inner));
+            let respond = current.lock().unwrap_or_else(PoisonError::into_inner);
             respond(uri.path())
         });
-        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-            .await
-            .expect("假数据源应当监听得上");
-        let url = format!(
-            "http://{}",
-            listener.local_addr().expect("假数据源应当有地址")
-        );
+        let (listener, url) = listen_locally().await;
         tokio::spawn(async move { axum::serve(listener, app).await });
         Self { url, respond }
     }
@@ -106,7 +100,7 @@ impl FakeSource {
 
     /// 换掉回放的响应。
     pub fn respond(&self, respond: impl Fn(&str) -> Response + Send + Sync + 'static) {
-        *self.respond.lock().unwrap_or_else(PoisonError::into_inner) = Arc::new(respond);
+        *self.respond.lock().unwrap_or_else(PoisonError::into_inner) = Box::new(respond);
     }
 }
 
@@ -130,21 +124,33 @@ pub fn plain_json(value: &Value) -> Response {
         .into_response()
 }
 
-/// 出网客户端指向这个地址时连不上：端口刚释放，没有人在听。
-pub async fn unreachable_url() -> String {
+/// 听本机的一个随机端口，连同它的地址（`http://127.0.0.1:端口`）一起交出去。
+pub async fn listen_locally() -> (TcpListener, String) {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
         .await
-        .expect("应当拿得到一个空闲端口");
-    format!("http://{}", listener.local_addr().expect("应当有地址"))
+        .expect("应当监听得上本机的随机端口");
+    let url = format!(
+        "http://{}",
+        listener.local_addr().expect("监听中的端口应当有地址")
+    );
+    (listener, url)
+}
+
+/// 出网客户端指向这个地址时连不上：端口拿到后随即释放，没有人在听。
+pub async fn unreachable_url() -> String {
+    listen_locally().await.1
+}
+
+/// 测试用的出网客户端：绕开开发机上配的代理，请求直接到本机的测试服务。
+pub fn outbound_client(timeout: Duration) -> reqwest::Client {
+    outbound::builder("test-agent", timeout)
+        .no_proxy()
+        .build()
+        .expect("出网客户端应当建得出来")
 }
 
 pub fn holiday_source(base_url: &str) -> HolidaySource {
-    // 绕开开发机上配的代理，请求直接到本机的假数据源
-    let client = outbound::builder("test-agent", Duration::from_secs(5))
-        .no_proxy()
-        .build()
-        .expect("出网客户端应当建得出来");
-    HolidaySource::new(client, base_url)
+    HolidaySource::new(outbound_client(Duration::from_secs(5)), base_url)
 }
 
 /// 启动一份应用：照常执行迁移与启动时的节假日刷新，听 127.0.0.1 的随机端口。
@@ -166,11 +172,16 @@ pub struct TestApp {
 /// 接口的一次响应。
 pub struct Reply {
     pub status: StatusCode,
-    pub headers: reqwest::header::HeaderMap,
+    headers: reqwest::header::HeaderMap,
     pub text: String,
 }
 
 impl Reply {
+    /// 响应头的值；没有这个头或值不是可见的 ASCII 时为 `None`。
+    pub fn header(&self, name: HeaderName) -> Option<&str> {
+        self.headers.get(name).and_then(|value| value.to_str().ok())
+    }
+
     pub fn json(&self) -> Value {
         serde_json::from_str(&self.text).expect("响应体应当是 JSON")
     }

@@ -1,8 +1,7 @@
 use axum::http::StatusCode;
 use axum::http::header::CONTENT_TYPE;
 use axum::response::IntoResponse;
-use jiff::Timestamp;
-use myapi::holiday::{china_date, refresh};
+use myapi::holiday::{china_today, refresh};
 use serde_json::{Value, json};
 
 use crate::support::{TestApp, holiday_cn, plain_json};
@@ -26,11 +25,7 @@ async fn is_holiday_answers_a_bare_json_boolean() {
             .get(&format!("/api/holiday/is-holiday?date={date}"))
             .await;
         assert_eq!(reply.status, StatusCode::OK);
-        let content_type = reply
-            .headers
-            .get(CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok());
-        assert_eq!(content_type, Some("application/json"));
+        assert_eq!(reply.header(CONTENT_TYPE), Some("application/json"));
         assert_eq!(reply.json(), json!(expected), "{date}");
     }
     app.close().await;
@@ -115,7 +110,7 @@ async fn malformed_query_strings_are_rejected() {
 #[tokio::test]
 async fn missing_date_means_today_in_china() {
     let app = TestApp::start().await;
-    let today = china_date(Timestamp::now()).to_string();
+    let today = china_today().to_string();
     let reply = app.get("/api/holiday/detail").await;
     assert_eq!(reply.status, StatusCode::OK, "{}", reply.text);
     assert_eq!(reply.json()["date"], json!(today));

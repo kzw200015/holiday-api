@@ -5,25 +5,30 @@ use serde::Serialize;
 
 /// 回给调用方的失败，一律回成 `{statusCode, message, error}`。
 ///
-/// `message` 是给调用方看的中文，不放上游原话、地址这类细节（查询参数解析不了时例外，见 `AppQuery`）；
-/// 未预料的异常原文只进日志。
+/// 每个变体的 `Display` 就是给调用方看的 `message`：中文，不放上游原话、地址这类细节
+/// （查询参数解析不了时例外，见 `AppQuery`）。5xx 带着的原因只在 [`IntoResponse`] 里记进日志。
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
-    /// 入参不合格，带一组去重的文案
-    // TODO: 400 多到在性能分析里看得见时，改成 Vec<Cow<'static, str>>，固定文案不必再 to_owned
-    #[error("{}", .0.join("；"))]
-    BadRequest(Vec<String>),
+    /// 入参不合格
+    #[error("{0}")]
+    BadRequest(String),
     #[error("这个地址不存在")]
     NotFound,
     #[error("不支持这个请求方法")]
     MethodNotAllowed,
-    #[error("{0}")]
-    ServiceUnavailable(&'static str),
-    #[error(transparent)]
-    Database(#[from] sqlx::Error),
-    /// 未预料的异常（如处理请求时 panic），原文已在出事的地方记进日志
+    /// 数据库连不上
+    #[error("数据库连不上")]
+    DatabaseUnavailable(sqlx::Error),
+    /// 未预料的异常：数据库出错、处理请求时 panic 等
     #[error("服务器出错了")]
-    Internal,
+    Internal(anyhow::Error),
+}
+
+/// 处理函数里查库用 `?` 即可：没料到的数据库错误都算内部异常。
+impl From<sqlx::Error> for ApiError {
+    fn from(error: sqlx::Error) -> Self {
+        Self::Internal(error.into())
+    }
 }
 
 #[derive(Serialize)]
@@ -35,7 +40,7 @@ struct ErrorBody {
     error: &'static str,
 }
 
-/// 入参不合格时是一组文案，其余是一句话。
+/// 入参不合格时是只有一条文案的数组（沿用旧实现的形状），其余是一句话。
 #[derive(Serialize)]
 #[serde(untagged)]
 enum Message {
@@ -49,21 +54,28 @@ impl ApiError {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
-            Self::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
-            Self::Database(_) | Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::DatabaseUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+            Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+
+    /// 5xx 的原因记进日志；4xx 是调用方的问题，请求日志里的状态码就够了。
+    /// 逐个列出变体：加了新变体，编译器会要求在这里决定记不记。
+    fn log(&self) {
+        match self {
+            Self::DatabaseUnavailable(error) => tracing::warn!("数据库连不上：{error}"),
+            Self::Internal(error) => tracing::error!("未预料的异常：{error:#}"),
+            Self::BadRequest(_) | Self::NotFound | Self::MethodNotAllowed => {}
         }
     }
 }
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
+        self.log();
         let status = self.status();
         let message = match self {
-            Self::BadRequest(messages) => Message::Many(messages),
-            Self::Database(error) => {
-                tracing::error!("未预料的异常：{error}");
-                Message::One("服务器出错了".to_owned())
-            }
+            Self::BadRequest(message) => Message::Many(vec![message]),
             other => Message::One(other.to_string()),
         };
         let body = ErrorBody {

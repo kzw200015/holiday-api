@@ -1,24 +1,21 @@
 //! 真实的出网客户端对着本机的 TCP 服务：主接缝的测试只在数据源一层换响应，这几条网络语义只能在这里验证。
 
-use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use axum::http::StatusCode;
-use myapi::outbound;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpStream;
 use tokio::time::sleep;
+
+use crate::support::{listen_locally, outbound_client};
 
 /// 起一个本机的 TCP 服务，每个连接先读完请求头，把它交给 `handle` 自己写响应。
 async fn serve<F>(handle: impl Fn(Vec<String>, TcpStream) -> F + Send + 'static) -> String
 where
     F: Future<Output = ()> + Send + 'static,
 {
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-        .await
-        .expect("应当监听得上");
-    let url = format!("http://{}", listener.local_addr().expect("应当有地址"));
+    let (listener, url) = listen_locally().await;
     tokio::spawn(async move {
         while let Ok((stream, _)) = listener.accept().await {
             let mut reader = BufReader::new(stream);
@@ -34,14 +31,6 @@ where
         }
     });
     url
-}
-
-/// 出网客户端；绕开开发机上配的代理，请求直接到本机的测试服务。
-fn client(timeout: Duration) -> reqwest::Client {
-    outbound::builder("test-agent", timeout)
-        .no_proxy()
-        .build()
-        .expect("客户端应当建得出来")
 }
 
 async fn write(stream: &mut TcpStream, bytes: &str) {
@@ -69,7 +58,7 @@ async fn redirects_are_not_followed_and_user_agent_is_sent() {
     })
     .await;
 
-    let client = client(Duration::from_secs(1));
+    let client = outbound_client(Duration::from_secs(1));
     let response = client
         .get(format!("{url}/data"))
         .send()
@@ -99,7 +88,7 @@ async fn timeout_counts_idle_time_not_total_time() {
     })
     .await;
 
-    let client = client(Duration::from_millis(300));
+    let client = outbound_client(Duration::from_millis(300));
     let response = client.get(&url).send().await.expect("应当拿到响应");
     assert_eq!(
         response
@@ -122,7 +111,7 @@ async fn stalled_body_times_out() {
     })
     .await;
 
-    let client = client(Duration::from_millis(200));
+    let client = outbound_client(Duration::from_millis(200));
     let response = client.get(&url).send().await.expect("应当拿到响应头");
     let error = response
         .bytes()
@@ -140,7 +129,7 @@ async fn missing_headers_time_out() {
     })
     .await;
 
-    let client = client(Duration::from_millis(200));
+    let client = outbound_client(Duration::from_millis(200));
     let error = client
         .get(&url)
         .send()
@@ -162,7 +151,7 @@ async fn truncated_body_is_an_error() {
     })
     .await;
 
-    let client = client(Duration::from_secs(1));
+    let client = outbound_client(Duration::from_secs(1));
     let response = client.get(&url).send().await.expect("应当拿到响应头");
     assert!(
         response.bytes().await.is_err(),

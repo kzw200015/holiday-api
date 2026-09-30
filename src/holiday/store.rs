@@ -17,10 +17,11 @@ pub async fn find(pool: &PgPool, date: Date) -> sqlx::Result<Option<HolidayDay>>
         .await
 }
 
-/// 库里有没有这一年的安排。
+/// 库里有没有这一年的安排。按年份写成日期范围，走得上 `date` 主键的索引。
 pub async fn has_year(pool: &PgPool, year: i16) -> sqlx::Result<bool> {
     sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM holiday_days WHERE EXTRACT(YEAR FROM date) = $1)",
+        "SELECT EXISTS (SELECT 1 FROM holiday_days \
+         WHERE date >= make_date($1, 1, 1) AND date < make_date($1 + 1, 1, 1))",
     )
     .bind(i32::from(year))
     .fetch_one(pool)
@@ -30,10 +31,13 @@ pub async fn has_year(pool: &PgPool, year: i16) -> sqlx::Result<bool> {
 /// 以「先删后插」替换一整年。删和插在一个事务里：中途出错即回滚，不会留下「旧的没了、新的也没进来」的空年份。
 pub async fn replace_year(pool: &PgPool, year: i16, days: &[HolidayDay]) -> sqlx::Result<()> {
     let mut transaction = pool.begin().await?;
-    sqlx::query("DELETE FROM holiday_days WHERE EXTRACT(YEAR FROM date) = $1")
-        .bind(i32::from(year))
-        .execute(&mut *transaction)
-        .await?;
+    sqlx::query(
+        "DELETE FROM holiday_days \
+         WHERE date >= make_date($1, 1, 1) AND date < make_date($1 + 1, 1, 1)",
+    )
+    .bind(i32::from(year))
+    .execute(&mut *transaction)
+    .await?;
     sqlx::query(
         "INSERT INTO holiday_days (date, is_off_day, name) \
          SELECT * FROM UNNEST($1::date[], $2::boolean[], $3::text[])",

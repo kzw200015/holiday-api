@@ -1,12 +1,11 @@
 use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
-use jiff::Timestamp;
 use jiff::civil::Date;
 use serde::Deserialize;
 use sqlx::PgPool;
 
-use super::{HolidayDay, china_date, query};
+use super::{HolidayDay, china_today, query};
 use crate::error::ApiError;
 use crate::extract::AppQuery;
 
@@ -23,26 +22,21 @@ async fn is_holiday(
     State(pool): State<PgPool>,
     AppQuery(params): AppQuery<DateParams>,
 ) -> Result<Json<bool>, ApiError> {
-    Ok(Json(query(&pool, params.date_or_today()).await?.is_off_day))
+    let date = params.date.unwrap_or_else(china_today);
+    Ok(Json(query(&pool, date).await?.is_off_day))
 }
 
 async fn detail(
     State(pool): State<PgPool>,
     AppQuery(params): AppQuery<DateParams>,
 ) -> Result<Json<HolidayDay>, ApiError> {
-    Ok(Json(query(&pool, params.date_or_today()).await?))
+    let date = params.date.unwrap_or_else(china_today);
+    Ok(Json(query(&pool, date).await?))
 }
 
 /// 两条接口共用的查询参数。
 #[derive(Deserialize)]
 struct DateParams {
-    /// 按 jiff 的 ISO 8601 规则解析，这一天须真实存在；空串也算写错
+    /// 要查的是哪一天，省略表示北京时间的今天。按 jiff 的 ISO 8601 规则解析，这一天须真实存在；空串也算写错
     date: Option<Date>,
-}
-
-impl DateParams {
-    /// 要查的是哪一天：省略 `date` 表示北京时间的今天。
-    fn date_or_today(&self) -> Date {
-        self.date.unwrap_or_else(|| china_date(Timestamp::now()))
-    }
 }

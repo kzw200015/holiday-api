@@ -1,5 +1,6 @@
 //! 节假日安排的数据源：GitHub 上的 holiday-cn 仓库，一年一个 JSON 文件。
 
+use jiff::civil::Date;
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 
@@ -33,9 +34,31 @@ pub enum SourceError {
     },
 }
 
+/// holiday-cn 一年的文件：`{"days": [...]}`，其余字段用不上。
+///
+/// 按数据源的格式单独定义，不直接反序列化成 [`HolidayDay`]：数据源的格式变了只改这里，接口的响应体不跟着变。
 #[derive(Deserialize)]
 struct Payload {
-    days: Vec<HolidayDay>,
+    days: Vec<SourceDay>,
+}
+
+/// 数据源里的一天；日期按 jiff 的 ISO 8601 规则解析。
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SourceDay {
+    date: Date,
+    is_off_day: bool,
+    name: String,
+}
+
+impl From<SourceDay> for HolidayDay {
+    fn from(day: SourceDay) -> Self {
+        Self {
+            date: day.date,
+            is_off_day: day.is_off_day,
+            name: day.name,
+        }
+    }
 }
 
 impl HolidaySource {
@@ -68,6 +91,6 @@ impl HolidaySource {
         let body = response.bytes().await.map_err(request_failed)?;
         let payload: Payload =
             serde_json::from_slice(&body).map_err(|source| SourceError::Format { year, source })?;
-        Ok(payload.days)
+        Ok(payload.days.into_iter().map(HolidayDay::from).collect())
     }
 }

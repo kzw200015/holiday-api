@@ -9,7 +9,7 @@ const DEFAULT_OUTBOUND_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_PORT: u16 = 8000;
 
 /// 校验过的配置。
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Config {
     /// PostgreSQL 连接串
     pub database_url: String,
@@ -32,7 +32,7 @@ impl Config {
     }
 
     /// 按名字取环境变量的值来校验，空串当作没配。
-    pub fn from_lookup(lookup: impl Fn(&str) -> Option<String>) -> Result<Self, ConfigError> {
+    fn from_lookup(lookup: impl Fn(&str) -> Option<String>) -> Result<Self, ConfigError> {
         let var = |name: &str| lookup(name).filter(|value| !value.is_empty());
         let mut problems = Vec::new();
 

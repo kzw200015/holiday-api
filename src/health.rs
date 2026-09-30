@@ -24,9 +24,6 @@ async fn ready(State(pool): State<PgPool>) -> Result<StatusCode, ApiError> {
     sqlx::query("SELECT 1")
         .execute(&pool)
         .await
-        .map_err(|error| {
-            tracing::warn!("数据库连不上：{error}");
-            ApiError::ServiceUnavailable("数据库连不上")
-        })?;
+        .map_err(ApiError::DatabaseUnavailable)?;
     Ok(StatusCode::OK)
 }
