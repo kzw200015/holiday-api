@@ -74,6 +74,22 @@ async fn dates_are_checked_against_the_calendar() {
 }
 
 #[tokio::test]
+async fn malformed_query_strings_are_rejected() {
+    let app = TestApp::start().await;
+    for path in ["/api/holiday/detail", "/api/holiday/is-holiday"] {
+        let reply = app
+            .get(&format!("{path}?date=2026-01-01&date=2026-01-02"))
+            .await;
+        assert_eq!(reply.status, StatusCode::BAD_REQUEST, "{path}");
+        assert_eq!(
+            reply.json(),
+            json!({"statusCode": 400, "message": ["查询参数格式错误"], "error": "Bad Request"})
+        );
+    }
+    app.close().await;
+}
+
+#[tokio::test]
 async fn missing_or_empty_date_means_today_in_china() {
     let app = TestApp::start().await;
     let today = china_date(Timestamp::now()).to_string();

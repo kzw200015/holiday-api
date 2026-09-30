@@ -1,5 +1,4 @@
-use axum::extract::{FromRequestParts, Query, State};
-use axum::http::request::Parts;
+use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
 use jiff::Timestamp;
@@ -9,6 +8,7 @@ use sqlx::PgPool;
 
 use super::{HolidayDay, china_date, parse_calendar_date, query};
 use crate::error::ApiError;
+use crate::extract::AppQuery;
 
 const DATE_RULE: &str = "日期格式错误，应为 YYYY-MM-DD";
 
@@ -23,39 +23,31 @@ pub fn routes() -> Router<PgPool> {
 
 async fn is_holiday(
     State(pool): State<PgPool>,
-    RequestedDate(date): RequestedDate,
+    AppQuery(params): AppQuery<DateParams>,
 ) -> Result<Json<bool>, ApiError> {
+    let date = requested_date(&params)?;
     Ok(Json(query(&pool, date).await?.is_off_day))
 }
 
 async fn detail(
     State(pool): State<PgPool>,
-    RequestedDate(date): RequestedDate,
+    AppQuery(params): AppQuery<DateParams>,
 ) -> Result<Json<HolidayDay>, ApiError> {
+    let date = requested_date(&params)?;
     Ok(Json(query(&pool, date).await?))
 }
 
-/// 两条接口共用的查询参数 `date`：省略或空串表示北京时间的今天。
-struct RequestedDate(Date);
-
+/// 两条接口共用的查询参数。
 #[derive(Deserialize)]
 struct DateParams {
     date: Option<String>,
 }
 
-// TODO: 出现第二个要读查询参数的接口时，抽出通用的查询参数提取器（失败统一回 ApiError），这里改为建在它上面；
-// 这类提取器多了，可改用 axum 的 #[derive(FromRequestParts)] 或 axum-extra 的 WithRejection 少写样板
-impl<S: Send + Sync> FromRequestParts<S> for RequestedDate {
-    type Rejection = ApiError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let bad_date = || ApiError::BadRequest(vec![DATE_RULE.to_owned()]);
-        let Query(params) = Query::<DateParams>::from_request_parts(parts, state)
-            .await
-            .map_err(|_| bad_date())?;
-        match params.date.as_deref() {
-            None | Some("") => Ok(Self(china_date(Timestamp::now()))),
-            Some(text) => parse_calendar_date(text).map(Self).ok_or_else(bad_date),
-        }
+/// 要查的是哪一天：`date` 省略或空串表示北京时间的今天，否则须是真实存在的 YYYY-MM-DD。
+fn requested_date(params: &DateParams) -> Result<Date, ApiError> {
+    match params.date.as_deref() {
+        None | Some("") => Ok(china_date(Timestamp::now())),
+        Some(text) => parse_calendar_date(text)
+            .ok_or_else(|| ApiError::BadRequest(vec![DATE_RULE.to_owned()])),
     }
 }

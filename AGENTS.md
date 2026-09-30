@@ -31,11 +31,11 @@ Rust 的版本写在 `rust-toolchain.toml` 与 `Dockerfile` 的 `rust` 镜像标
 
 ## 模块与约定
 
-顶层按领域分模块，目前只有 `holiday`（节假日查询）；`health` 是 Kubernetes 的探针（`live` 不碰任何依赖，`ready` 查一次数据库）。基础设施各占一个文件：`config.rs`（环境变量）、`error.rs`（失败的响应）、`outbound.rs`（出网客户端）、`app.rs`（路由表）、`server.rs`（启动顺序与关停）。
+顶层按领域分模块，目前只有 `holiday`（节假日查询）；`health` 是 Kubernetes 的探针（`live` 不碰任何依赖，`ready` 查一次数据库）。基础设施各占一个文件：`config.rs`（环境变量）、`error.rs`（失败的响应）、`extract.rs`（失败时回 `ApiError` 的提取器）、`outbound.rs`（出网客户端）、`app.rs`（路由表）、`server.rs`（启动顺序与关停）。
 
 - **状态显式传递**，不用全局单例：连接池经 axum 的 `State` 传给处理函数，其余依赖作为参数传进去。需要在测试里替换的东西（如节假日数据源的地址）做成构造参数，不引 mock 库。
 - **配置**全来自环境变量，由 `Config::from_env` 在启动时校验一次，每一项的问题都列出来，缺了或写错进程拒绝启动。清单与默认值见 `.env.example`；用到的模块从 `Config` 取，不直接读环境变量。
-- **接口**统一挂在 `/api` 下（`app.rs`），各领域的路由只写领域内的路径。节假日的两条接口有外部调用方，路径与响应体就是对外的契约，改之前想清楚。入参在提取器里解析、校验（如 `holiday/routes.rs` 的 `RequestedDate`），处理函数拿到的已经是领域类型；路由只做入参转换，业务在领域模块里。
+- **接口**统一挂在 `/api` 下（`app.rs`），各领域的路由只写领域内的路径。节假日的两条接口有外部调用方，路径与响应体就是对外的契约，改之前想清楚。入参分两步：先用 `extract.rs` 的提取器（如查询参数用 `AppQuery`，不用 axum 自带的 `Query`）拆成字段，格式不对统一回 400；再由路由里的小函数按业务的规矩转成领域类型（如 `holiday/routes.rs` 的 `requested_date`）。路由只做入参转换，业务在领域模块里。
 - **响应**：成功时回 `Json(数据)`。失败时返回 `error.rs` 的 `ApiError`，统一回成 `{statusCode, message, error}`，`message` 是给调用方看的中文，入参不合格时是一组文案。写错的路径回 404，方法不对回 405（带 `Allow` 头）。未预料的异常回 500，原文只进日志；处理请求时的 panic 也一样，由 `app.rs` 的 `CatchPanicLayer` 接住。
 - **错误类型**：领域里能区分的失败用 `thiserror` 定义（如 `SourceError`），编排与启动流程用 `anyhow` 加上下文；记日志时用 `{error:#}` 带出整条原因链。
 - **数据**用 sqlx 的运行时查询（`query_as` + `FromRow`），SQL 写在各领域的 `store.rs` 里，靠集成测试兜着。日期列是原生的 `date`，经 `jiff-sqlx` 与 `jiff::civil::Date` 互转。改表结构就在 `migrations/` 下加一个 `NNNN_描述.sql`，已经执行过的迁移不改。
