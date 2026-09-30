@@ -7,6 +7,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY migrations migrations
 COPY src src
 # cargo 的下载与编译缓存挂成构建缓存，改代码不必从头编依赖
+# TODO: 到没有持久构建缓存的环境（如 CI）里构建、每次都从头编依赖时，引入 cargo-chef 把依赖单独编成一层
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
     cargo build --release --locked && cp target/release/myapi /myapi

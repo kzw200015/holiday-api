@@ -1,5 +1,8 @@
 //! 节假日安排在库里的读写：`holiday_days` 一天一行。
 
+// TODO: SQL 多了、复杂了，集成测试兜着越来越费劲时，改用 sqlx::query! 宏在编译期对照库检查
+// （要装 sqlx-cli 并提交 .sqlx/ 离线缓存）；这推翻 ADR-0001 的取舍，改之前先更新 ADR
+
 use jiff::civil::Date;
 use jiff_sqlx::ToSqlx;
 use sqlx::PgPool;

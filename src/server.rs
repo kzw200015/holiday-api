@@ -68,6 +68,7 @@ impl Server {
         self.background.shutdown().await;
         // 接收方已经没了说明服务早就停了，下面照样取它的结果
         self.stop.send(()).ok();
+        // TODO: 出现耗时很长的接口或长连接时，给等在途请求这一步设个上限（tokio::time::timeout），免得一个卡住的请求拖住关停
         self.serving.await?.context("服务异常退出")
     }
 }

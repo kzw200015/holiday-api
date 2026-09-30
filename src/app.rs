@@ -14,6 +14,7 @@ pub fn router(pool: PgPool) -> Router {
     Router::new()
         .nest("/api/holiday", holiday::routes())
         .nest("/api/health", health::routes())
+        // TODO: 用上 Json、Path 等更多提取器后，加一层中间件兜底：把漏网的 axum 纯文本 4xx 改写成统一的失败体
         .fallback(async || ApiError::NotFound)
         .method_not_allowed_fallback(async || ApiError::MethodNotAllowed)
         .layer(

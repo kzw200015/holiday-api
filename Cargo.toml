@@ -1,3 +1,4 @@
+# TODO: 要拆出第二个服务或共享库时，改成 cargo workspace
 [package]
 name = "myapi"
 version = "0.1.0"

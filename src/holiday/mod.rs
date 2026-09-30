@@ -58,6 +58,7 @@ fn parse_calendar_date(text: &str) -> Option<Date> {
     if shaped { text.parse().ok() } else { None }
 }
 
+// TODO: 要解析的数据多了，或想让类型不对时直说「期望 YYYY-MM-DD」，改成自己的 Visitor 调 deserialize_str，省掉这次 String 分配
 fn calendar_date<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Date, D::Error> {
     let text = String::deserialize(deserializer)?;
     parse_calendar_date(&text)

@@ -9,6 +9,7 @@ use serde::Serialize;
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
     /// 入参不合格，带一组去重的文案
+    // TODO: 400 多到在性能分析里看得见时，改成 Vec<Cow<'static, str>>，固定文案不必再 to_owned
     #[error("{}", .0.join("；"))]
     BadRequest(Vec<String>),
     #[error("这个地址不存在")]

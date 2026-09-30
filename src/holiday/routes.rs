@@ -43,6 +43,8 @@ struct DateParams {
     date: Option<String>,
 }
 
+// TODO: 出现第二个要读查询参数的接口时，抽出通用的查询参数提取器（失败统一回 ApiError），这里改为建在它上面；
+// 这类提取器多了，可改用 axum 的 #[derive(FromRequestParts)] 或 axum-extra 的 WithRejection 少写样板
 impl<S: Send + Sync> FromRequestParts<S> for RequestedDate {
     type Rejection = ApiError;
 
