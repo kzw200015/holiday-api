@@ -5,7 +5,7 @@
 MyAPI 提供节假日查询，是一个纯 API 服务，用 Rust 写成（axum + sqlx + PostgreSQL，见 ADR-0001）。领域术语见 `CONTEXT.md`，架构决策见 `docs/adr/`，辅助工作流见 `docs/agents/`。仓库根目录就是唯一的 crate `myapi`：
 
 - `src/`：`main.rs` 只做组装（读配置、建连接池与出网客户端、启动、等信号关停），其余都在库里（`lib.rs`），集成测试经库启动整份应用。
-- `migrations/`：sqlx 的迁移，编进二进制，启动时自动执行。
+- `migrations/`：sqlx 的迁移，编进二进制，启动时自动执行。`build.rs` 让 Cargo 盯着这个目录，只新增迁移文件也会重新编译。
 - `tests/server/`：集成测试，编成一个测试二进制；单元测试就近写在各模块的 `#[cfg(test)] mod tests` 里。
 
 Rust 的版本写在 `rust-toolchain.toml` 与 `Dockerfile` 的 `rust` 镜像标签里，升级时两处一起改。

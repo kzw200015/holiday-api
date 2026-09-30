@@ -3,7 +3,7 @@
 FROM rust:1.98-alpine AS build
 
 WORKDIR /src
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock build.rs ./
 COPY migrations migrations
 COPY src src
 # cargo 的下载与编译缓存挂成构建缓存，改代码不必从头编依赖
