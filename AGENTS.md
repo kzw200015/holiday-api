@@ -25,7 +25,7 @@ Rust 的版本写在 `rust-toolchain.toml` 与 `Dockerfile` 的 `rust` 镜像标
 
 遵循 `.editorconfig`：UTF-8、LF、文件末尾换行。注释、文档注释、日志与给调用方看的文案一律用简体中文；标识符（含测试函数名）用英文，按 Rust 的命名惯例。
 
-格式交给 `rustfmt` 的默认配置，不手工调整。clippy 开着 `pedantic`，只 allow 了几条写给库的使用者看的规则；个别地方确实不适用时就近 `#[allow]` 并注明原因。文件名就是模块名，用 snake_case。
+格式交给 `rustfmt` 的默认配置，不手工调整。clippy 开着 `pedantic`，只 allow 了几条写给库的使用者看的规则；个别地方确实不适用时就近 `#[expect(…, reason = "…")]` 并注明原因：哪天不再触发，编译器会提醒删掉它。文件名就是模块名，用 snake_case。
 
 取不到的值显式处理：产品代码里不写 `unwrap()`、`expect()`，也不用 `as` 截断数值去冒充「一定装得下」，按业务给出合理的结果或返回错误。测试里用 `expect("…")` 当场失败，并在文案里说清缺了什么。
 
@@ -36,7 +36,7 @@ Rust 的版本写在 `rust-toolchain.toml` 与 `Dockerfile` 的 `rust` 镜像标
 - **状态显式传递**，不用全局单例：连接池经 axum 的 `State` 传给处理函数，其余依赖作为参数传进去。需要在测试里替换的东西（如节假日数据源的地址）做成构造参数，不引 mock 库。
 - **配置**全来自环境变量，由 `Config::from_env` 在启动时校验一次，每一项的问题都列出来，缺了或写错进程拒绝启动。清单与默认值见 `.env.example`；用到的模块从 `Config` 取，不直接读环境变量。
 - **接口**统一挂在 `/api` 下（`app.rs`），各领域的路由只写领域内的路径。节假日的两条接口有外部调用方，路径与响应体就是对外的契约，改之前想清楚。入参在提取器里解析、校验（如 `holiday/routes.rs` 的 `RequestedDate`），处理函数拿到的已经是领域类型；路由只做入参转换，业务在领域模块里。
-- **响应**：成功时回 `Json(数据)`。失败时返回 `error.rs` 的 `ApiError`，统一回成 `{statusCode, message, error}`，`message` 是给调用方看的中文，入参不合格时是一组文案。写错的路径回 404，方法不对回 405（带 `Allow` 头）。未预料的异常回 500，原文只进日志。
+- **响应**：成功时回 `Json(数据)`。失败时返回 `error.rs` 的 `ApiError`，统一回成 `{statusCode, message, error}`，`message` 是给调用方看的中文，入参不合格时是一组文案。写错的路径回 404，方法不对回 405（带 `Allow` 头）。未预料的异常回 500，原文只进日志；处理请求时的 panic 也一样，由 `app.rs` 的 `CatchPanicLayer` 接住。
 - **错误类型**：领域里能区分的失败用 `thiserror` 定义（如 `SourceError`），编排与启动流程用 `anyhow` 加上下文；记日志时用 `{error:#}` 带出整条原因链。
 - **数据**用 sqlx 的运行时查询（`query_as` + `FromRow`），SQL 写在各领域的 `store.rs` 里，靠集成测试兜着。日期列是原生的 `date`，经 `jiff-sqlx` 与 `jiff::civil::Date` 互转。改表结构就在 `migrations/` 下加一个 `NNNN_描述.sql`，已经执行过的迁移不改。
 - **时间**用 jiff。节假日安排是中国的：「今天」「今年」一律按北京时间算（`holiday::china_date`），时区在编译期嵌入，不依赖服务器时区与 tzdata。

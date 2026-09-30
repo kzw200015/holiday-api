@@ -20,6 +20,9 @@ pub enum ApiError {
     ServiceUnavailable(&'static str),
     #[error(transparent)]
     Database(#[from] sqlx::Error),
+    /// 未预料的异常（如处理请求时 panic），原文已在出事的地方记进日志
+    #[error("服务器出错了")]
+    Internal,
 }
 
 #[derive(Serialize)]
@@ -46,7 +49,7 @@ impl ApiError {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
             Self::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
-            Self::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Database(_) | Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

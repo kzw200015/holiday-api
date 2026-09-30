@@ -18,13 +18,15 @@ serde_json = "1.0.151"
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "postgres", "macros", "migrate"] }
 thiserror = "2.0.21"
 tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread", "net", "signal", "time", "sync"] }
-tower-http = { version = "0.7.1", features = ["trace"] }
+tower-http = { version = "0.7.1", features = ["catch-panic", "trace"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [dev-dependencies]
 testcontainers-modules = { version = "0.15.0", default-features = false, features = ["postgres", "aws-lc-rs"] }
 tokio = { version = "1.53.1", features = ["io-util"] }
+# 单元测试里不起端口，直接用 oneshot 把一个请求送进 Router
+tower = { version = "0.5.3", features = ["util"] }
 
 [lints.rust]
 unsafe_code = "forbid"
