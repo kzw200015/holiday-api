@@ -5,7 +5,8 @@ use serde::Serialize;
 
 /// 回给调用方的失败，一律回成 `{statusCode, message, error}`。
 ///
-/// `message` 是给调用方看的中文，不放上游原话、地址这类细节；未预料的异常原文只进日志。
+/// `message` 是给调用方看的中文，不放上游原话、地址这类细节（查询参数解析不了时例外，见 `AppQuery`）；
+/// 未预料的异常原文只进日志。
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
     /// 入参不合格，带一组去重的文案

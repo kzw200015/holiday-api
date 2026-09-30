@@ -6,11 +6,10 @@ use serde::de::DeserializeOwned;
 
 use crate::error::ApiError;
 
-const QUERY_RULE: &str = "查询参数格式错误";
-
-/// 查询参数，按 `T` 的字段反序列化。格式不对（如同一个参数传了两次）回 400。
+/// 查询参数，按 `T` 的字段反序列化，字段可以直接是领域类型（如 `Option<Date>`）。
+/// 解析不了（参数重复、值的格式不对等）回 400。
 ///
-/// 这一步只管把查询串拆成字段，字段里的值合不合业务的规矩由各接口自己再查。
+/// 失败时的文案原样用 axum 给的英文原话，是「`message` 用中文」这条约定的例外。
 pub struct AppQuery<T>(pub T);
 
 impl<S, T> FromRequestParts<S> for AppQuery<T>
@@ -23,7 +22,7 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let Query(value) = Query::<T>::from_request_parts(parts, state)
             .await
-            .map_err(|_| ApiError::BadRequest(vec![QUERY_RULE.to_owned()]))?;
+            .map_err(|rejection| ApiError::BadRequest(vec![rejection.body_text()]))?;
         Ok(Self(value))
     }
 }
