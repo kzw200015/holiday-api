@@ -6,6 +6,7 @@ use anyhow::Context;
 use jiff::Timestamp;
 use jiff::civil::Time;
 use sqlx::PgPool;
+use tokio::task::JoinSet;
 
 use super::source::HolidaySource;
 use super::{CHINA, china_date, store};
@@ -15,15 +16,20 @@ const DAILY_AT: Time = Time::constant(4, 30, 0, 0);
 
 /// 启动时拉当年和次年，在开始监听端口之前调用。
 ///
-/// 库里已经有今年的安排就放到后台去拉，不拖慢启动，拉不到只记日志——数据源在 GitHub 上，偶尔又慢又连不上，
-/// 不该因此起不来。连今年的都没有才等它拉完，拉不到就拒绝启动，免得接口带着空表一直按周末规则回错误答案。
-pub async fn on_startup(pool: &PgPool, source: &HolidaySource) -> anyhow::Result<()> {
+/// 库里已经有今年的安排就放到后台去拉（任务放进 `background`，关停时随之取消），不拖慢启动，拉不到只记日志——
+/// 数据源在 GitHub 上，偶尔又慢又连不上，不该因此起不来。连今年的都没有才等它拉完，拉不到就拒绝启动，
+/// 免得接口带着空表一直按周末规则回错误答案。
+pub async fn on_startup(
+    pool: &PgPool,
+    source: &HolidaySource,
+    background: &mut JoinSet<()>,
+) -> anyhow::Result<()> {
     let year = china_date(Timestamp::now()).year();
     if !store::has_year(pool, year).await? {
         return upcoming_years(pool, source).await;
     }
     let (pool, source) = (pool.clone(), source.clone());
-    tokio::spawn(async move {
+    background.spawn(async move {
         if let Err(error) = upcoming_years(&pool, &source).await {
             tracing::error!("启动时刷新节假日数据失败，先用库里已有的数据：{error:#}");
         }
