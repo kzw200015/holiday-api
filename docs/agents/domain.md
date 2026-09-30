@@ -18,10 +18,8 @@
 /
 ├── CONTEXT.md
 ├── docs/adr/
-│   ├── 0003-xxx.md
-│   └── 0004-xxx.md
-└── apps/
-    └── server/
+│   └── 0001-xxx.md
+└── src/
 ```
 
 ## 使用术语表中的词汇

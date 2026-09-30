@@ -1,8 +1,0 @@
-bun.lock
-# 文档是手写的中文散文，不交给 Prettier 重排
-*.md
-.claude
-.codex
-# drizzle-kit 生成的迁移与快照
-apps/server/drizzle
-.mcp.json
