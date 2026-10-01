@@ -18,7 +18,8 @@ pub fn router(pool: PgPool) -> Router {
     Router::new()
         .nest("/api/holiday", holiday::routes())
         .nest("/api/health", health::routes())
-        // TODO: 用上 Json、Path 等更多提取器后，加一层中间件兜底：把漏网的 axum 纯文本 4xx 改写成统一的失败体
+        // TODO: 用上 extract.rs 没包的 axum 提取器（Form、Multipart 等）时，要么照样包一层，要么加一层中间件兜底：
+        // 把漏网的 axum 纯文本 4xx 改写成统一的失败体
         .fallback(async || ApiError::NotFound)
         .method_not_allowed_fallback(async || ApiError::MethodNotAllowed)
         // 在请求日志的里层：panic 转成的 500 照常记进请求日志
