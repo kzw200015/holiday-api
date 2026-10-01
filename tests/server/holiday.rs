@@ -51,8 +51,8 @@ async fn unparsable_dates_get_the_400_body() {
     let body = reply.json();
     assert_eq!(body["statusCode"], 400);
     assert_eq!(body["error"], "Bad Request");
-    // 文案是 axum 与 jiff 的原话，随它们的版本变，只认是一条文案的数组
-    assert_eq!(body["message"].as_array().map(Vec::len), Some(1), "{body}");
+    // 文案是 axum 与 jiff 的原话，随它们的版本变，只认是一句话
+    assert!(body["message"].is_string(), "{body}");
     app.close().await;
 }
 

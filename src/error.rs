@@ -35,17 +35,9 @@ impl From<sqlx::Error> for ApiError {
 #[serde(rename_all = "camelCase")]
 struct ErrorBody {
     status_code: u16,
-    message: Message,
+    message: String,
     /// 状态码的标准短语，如 Bad Request
     error: &'static str,
-}
-
-/// 入参不合格时是只有一条文案的数组（沿用旧实现的形状），其余是一句话。
-#[derive(Serialize)]
-#[serde(untagged)]
-enum Message {
-    One(String),
-    Many(Vec<String>),
 }
 
 impl ApiError {
@@ -74,13 +66,9 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         self.log();
         let status = self.status();
-        let message = match self {
-            Self::Rejected { message, .. } => Message::Many(vec![message]),
-            other => Message::One(other.to_string()),
-        };
         let body = ErrorBody {
             status_code: status.as_u16(),
-            message,
+            message: self.to_string(),
             error: status.canonical_reason().unwrap_or_default(),
         };
         (status, Json(body)).into_response()
