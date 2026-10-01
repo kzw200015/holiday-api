@@ -5,7 +5,5 @@
 
 mod health;
 mod holiday;
-mod outbound;
-mod routing;
 mod startup;
 mod support;

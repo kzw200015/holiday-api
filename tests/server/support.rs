@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use axum::Router;
-use axum::http::header::{CONTENT_TYPE, HeaderName};
+use axum::http::header::CONTENT_TYPE;
 use axum::http::{StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use myapi::holiday::refresh;
@@ -125,7 +125,7 @@ pub fn plain_json(value: &Value) -> Response {
 }
 
 /// 听本机的一个随机端口，连同它的地址（`http://127.0.0.1:端口`）一起交出去。
-pub async fn listen_locally() -> (TcpListener, String) {
+async fn listen_locally() -> (TcpListener, String) {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
         .await
         .expect("应当监听得上本机的随机端口");
@@ -141,16 +141,13 @@ pub async fn unreachable_url() -> String {
     listen_locally().await.1
 }
 
-/// 测试用的出网客户端：绕开开发机上配的代理，请求直接到本机的测试服务。
-pub fn outbound_client(timeout: Duration) -> reqwest::Client {
-    outbound::builder("test-agent", timeout)
+/// 指向 `base_url` 的节假日数据源：出网客户端绕开开发机上配的代理，请求直接到本机的测试服务。
+pub fn holiday_source(base_url: &str) -> HolidaySource {
+    let client = outbound::builder("test-agent", Duration::from_secs(5))
         .no_proxy()
         .build()
-        .expect("出网客户端应当建得出来")
-}
-
-pub fn holiday_source(base_url: &str) -> HolidaySource {
-    HolidaySource::new(outbound_client(Duration::from_secs(5)), base_url)
+        .expect("出网客户端应当建得出来");
+    HolidaySource::new(client, base_url)
 }
 
 /// 启动一份应用：照常执行迁移与启动时的节假日刷新，听 127.0.0.1 的随机端口。
@@ -172,16 +169,10 @@ pub struct TestApp {
 /// 接口的一次响应。
 pub struct Reply {
     pub status: StatusCode,
-    headers: reqwest::header::HeaderMap,
     pub text: String,
 }
 
 impl Reply {
-    /// 响应头的值；没有这个头或值不是可见的 ASCII 时为 `None`。
-    pub fn header(&self, name: HeaderName) -> Option<&str> {
-        self.headers.get(name).and_then(|value| value.to_str().ok())
-    }
-
     pub fn json(&self) -> Value {
         serde_json::from_str(&self.text).expect("响应体应当是 JSON")
     }
@@ -220,21 +211,11 @@ impl TestApp {
             .await
     }
 
-    pub async fn post(&self, path: &str) -> Reply {
-        self.send(self.http.post(format!("{}{path}", self.base_url)))
-            .await
-    }
-
     async fn send(&self, request: reqwest::RequestBuilder) -> Reply {
         let response = request.send().await.expect("请求应当发得出去");
         let status = response.status();
-        let headers = response.headers().clone();
         let text = response.text().await.expect("响应体应当读得完");
-        Reply {
-            status,
-            headers,
-            text,
-        }
+        Reply { status, text }
     }
 
     pub async fn close(self) {

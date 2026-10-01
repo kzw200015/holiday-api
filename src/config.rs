@@ -100,15 +100,6 @@ mod tests {
     }
 
     #[test]
-    fn defaults_apply_when_only_database_url_is_set() {
-        let config =
-            config(&[("DATABASE_URL", "postgres://localhost/myapi")]).expect("配置应当合格");
-        assert_eq!(config.outbound_timeout, Duration::from_secs(30));
-        assert_eq!(config.outbound_user_agent, DEFAULT_USER_AGENT);
-        assert_eq!(config.port, 8000);
-    }
-
-    #[test]
     fn durations_are_integer_plus_unit() {
         assert_eq!(parse_duration("500ms"), Some(Duration::from_millis(500)));
         assert_eq!(parse_duration("30s"), Some(Duration::from_secs(30)));

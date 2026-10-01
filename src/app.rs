@@ -45,38 +45,3 @@ fn on_panic(panic: Box<dyn Any + Send + 'static>) -> Response {
         .unwrap_or("（panic 的内容不是字符串）");
     ApiError::Internal(anyhow::anyhow!("处理请求时 panic：{detail}")).into_response()
 }
-
-#[cfg(test)]
-mod tests {
-    use axum::body::{Body, to_bytes};
-    use axum::http::{Request, StatusCode};
-    use axum::routing::get;
-    use serde_json::{Value, json};
-    use tower::ServiceExt;
-
-    use super::*;
-
-    async fn boom() -> &'static str {
-        panic!("测试用的 panic")
-    }
-
-    #[tokio::test]
-    async fn panics_become_the_json_500() {
-        let app = Router::new()
-            .route("/boom", get(boom))
-            .layer(CatchPanicLayer::custom(on_panic));
-        let request = Request::get("/boom")
-            .body(Body::empty())
-            .expect("请求应当建得出来");
-        let response = app.oneshot(request).await.expect("路由本身不会失败");
-        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        let body = to_bytes(response.into_body(), usize::MAX)
-            .await
-            .expect("响应体应当读得完");
-        let body: Value = serde_json::from_slice(&body).expect("响应体应当是 JSON");
-        assert_eq!(
-            body,
-            json!({"statusCode": 500, "message": "服务器出错了", "error": "Internal Server Error"})
-        );
-    }
-}

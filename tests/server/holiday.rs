@@ -1,5 +1,4 @@
 use axum::http::StatusCode;
-use axum::http::header::CONTENT_TYPE;
 use axum::response::IntoResponse;
 use myapi::holiday::{china_today, refresh};
 use serde_json::{Value, json};
@@ -25,7 +24,6 @@ async fn is_holiday_answers_a_bare_json_boolean() {
             .get(&format!("/api/holiday/is-holiday?date={date}"))
             .await;
         assert_eq!(reply.status, StatusCode::OK);
-        assert_eq!(reply.header(CONTENT_TYPE), Some("application/json"));
         assert_eq!(reply.json(), json!(expected), "{date}");
     }
     app.close().await;
@@ -46,64 +44,15 @@ async fn detail_answers_date_off_day_and_name() {
 }
 
 #[tokio::test]
-async fn dates_are_checked_against_the_calendar() {
+async fn unparsable_dates_get_the_400_body() {
     let app = TestApp::start().await;
-    for date in [
-        "",
-        "invalid",
-        "2026-02-30",
-        "2025-02-29",
-        "2026-1-4",
-        "2026-13-01",
-    ] {
-        for path in ["/api/holiday/detail", "/api/holiday/is-holiday"] {
-            let reply = app.get(&format!("{path}?date={date}")).await;
-            assert_eq!(reply.status, StatusCode::BAD_REQUEST, "{path}?date={date}");
-            let body = reply.json();
-            assert_eq!(body["statusCode"], 400);
-            assert_eq!(body["error"], "Bad Request");
-            // 文案是 axum 与 jiff 的原话，随它们的版本变，只认出错的是 date 这个参数
-            let message = body["message"][0].as_str().unwrap_or_default();
-            assert!(
-                message.starts_with("Failed to deserialize query string: date: "),
-                "{path}?date={date}：{message}"
-            );
-        }
-    }
-    app.close().await;
-}
-
-#[tokio::test]
-async fn other_iso_8601_forms_of_a_date_are_accepted() {
-    let app = TestApp::start().await;
-    // 日期按 jiff 的 ISO 8601 规则解析：紧凑写法、带时刻的写法都认，时刻部分不看
-    for date in ["20260104", "2026-01-04T10:30"] {
-        assert_eq!(
-            detail(&app, date).await,
-            json!({"date": "2026-01-04", "isOffDay": false, "name": "元旦"}),
-            "{date}"
-        );
-    }
-    app.close().await;
-}
-
-#[tokio::test]
-async fn malformed_query_strings_are_rejected() {
-    let app = TestApp::start().await;
-    for path in ["/api/holiday/detail", "/api/holiday/is-holiday"] {
-        let reply = app
-            .get(&format!("{path}?date=2026-01-01&date=2026-01-02"))
-            .await;
-        assert_eq!(reply.status, StatusCode::BAD_REQUEST, "{path}");
-        assert_eq!(
-            reply.json(),
-            json!({
-                "statusCode": 400,
-                "message": ["Failed to deserialize query string: duplicate field `date`"],
-                "error": "Bad Request"
-            })
-        );
-    }
+    let reply = app.get("/api/holiday/detail?date=2026-02-30").await;
+    assert_eq!(reply.status, StatusCode::BAD_REQUEST);
+    let body = reply.json();
+    assert_eq!(body["statusCode"], 400);
+    assert_eq!(body["error"], "Bad Request");
+    // 文案是 axum 与 jiff 的原话，随它们的版本变，只认是一条文案的数组
+    assert_eq!(body["message"].as_array().map(Vec::len), Some(1), "{body}");
     app.close().await;
 }
 

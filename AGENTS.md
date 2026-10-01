@@ -46,9 +46,7 @@ Rust 的版本写在 `rust-toolchain.toml` 与 `Dockerfile` 的 `rust` 镜像标
 
 ## 测试
 
-重点验证可观察行为：接口的响应、库里的最终状态、启动与定时刷新。集成测试的主接缝是 HTTP 边界：`tests/server/support.rs` 的 `TestApp` 起一份完整的应用，听 127.0.0.1 的随机端口，每个测试独占一个 PostgreSQL 18 容器，测完随即删掉；唯一的替换点是节假日数据源，换成本机的假数据源 `FakeSource`，按请求路径回放内存里的响应，默认回放 `holiday_cn`（只有 2026 年）。数据用固定的 2026 年，不随当前日期变；刷新直接调 `holiday::refresh::one_year`，不等到 4:30。
-
-次接缝是 `tests/server/outbound.rs`：真实的出网客户端对着本机的 TCP 服务，验证重定向、超时与断流这些主接缝测不到的网络语义。测试里的 HTTP 客户端一律 `.no_proxy()`，不受开发机代理的影响。
+重点验证可观察行为：接口的响应、库里的最终状态、启动与定时刷新。只测自己的逻辑：框架与库自身的行为（axum 的路由与提取、jiff 的解析、reqwest 的超时等）不测，复述常量、声明或一行配置的测试也不写。集成测试的接缝是 HTTP 边界：`tests/server/support.rs` 的 `TestApp` 起一份完整的应用，听 127.0.0.1 的随机端口，每个测试独占一个 PostgreSQL 18 容器，测完随即删掉；唯一的替换点是节假日数据源，换成本机的假数据源 `FakeSource`，按请求路径回放内存里的响应，默认回放 `holiday_cn`（只有 2026 年）。数据用固定的 2026 年，不随当前日期变；刷新直接调 `holiday::refresh::one_year`，不等到 4:30。测试里的 HTTP 客户端一律 `.no_proxy()`，不受开发机代理的影响。
 
 提交前运行 `cargo test`，并通过 `cargo clippy --all-targets -- -D warnings` 与 `cargo fmt --check`。
 

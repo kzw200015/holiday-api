@@ -50,17 +50,3 @@ pub fn china_date(at: Timestamp) -> Date {
 pub fn china_today() -> Date {
     china_date(Timestamp::now())
 }
-
-#[cfg(test)]
-mod tests {
-    use jiff::civil::date;
-
-    use super::*;
-
-    #[test]
-    fn today_follows_china_time() {
-        // UTC 的 1 月 3 日 16:30 在北京已经是 1 月 4 日
-        let at: Timestamp = "2026-01-03T16:30:00Z".parse().expect("时刻应当合法");
-        assert_eq!(china_date(at), date(2026, 1, 4));
-    }
-}

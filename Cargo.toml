@@ -24,7 +24,6 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [dev-dependencies]
 testcontainers-modules = { version = "0.15.0", default-features = false, features = ["postgres", "aws-lc-rs"] }
-tokio = { version = "1.53.1", features = ["io-util"] }
 # 单元测试里不起端口，直接用 oneshot 把一个请求送进 Router
 tower = { version = "0.5.3", features = ["util"] }
 
