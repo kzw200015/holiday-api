@@ -1,0 +1,66 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "cc8e3fa2-7dd2-44e4-8e45-f15df4072319",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "ddl": [
+    {
+      "isRlsEnabled": false,
+      "name": "holiday_days",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "date",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_days"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "is_off_day",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_days"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_days"
+    },
+    {
+      "columns": [
+        "date"
+      ],
+      "nameExplicit": false,
+      "name": "holiday_days_pkey",
+      "schema": "public",
+      "table": "holiday_days",
+      "entityType": "pks"
+    }
+  ],
+  "renames": []
+}

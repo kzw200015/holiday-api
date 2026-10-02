@@ -8,16 +8,11 @@
 *.sw?
 
 node_modules/
-dist/
-# TypeScript 增量编译的缓存
-*.tsbuildinfo
 *.log
 .ace-tool/
 
 ### 本地配置：只跟踪示例文件，真实密钥不入库 ###
-# Vite 的本地环境变量文件（.env.local、.env.*.local）
-*.local
-# 后端的本地配置（apps/server/.env），示例见同目录的 .env.example
+# 本地配置（根目录的 .env），示例见 .env.example
 .env
 
 ### 个人说明：只给自己看的 Claude Code 项目说明，与 AGENTS.md 一起加载 ###
