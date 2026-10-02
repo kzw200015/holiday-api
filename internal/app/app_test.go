@@ -80,7 +80,7 @@ func testMain(m *testing.M) int {
 		return 1
 	}
 	// 测试直接调的刷新器经同一份组装建出，和 shared 里的一样
-	parts, cleanup, err := initApp(ctx, baseConfig)
+	parts, cleanup, err := initAppWith(ctx, baseConfig)
 	if err != nil {
 		log.Printf("组装失败: %v", err)
 		return 1
@@ -117,12 +117,20 @@ type runningApp struct {
 	stop func() error
 }
 
-// startApp 按 cfg 跑一份应用，听一个空闲端口，等它开始监听；启动失败时返回 [run] 的错误。
+// startApp 按 cfg 组装并跑一份应用，听一个空闲端口，等它开始监听；组装或启动失败时返回那个错误。
 func startApp(cfg config.Config) (*runningApp, error) {
 	cfg.Port = freePort()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- run(ctx, cfg) }()
+	go func() {
+		a, cleanup, err := initAppWith(ctx, cfg)
+		if err != nil {
+			done <- err
+			return
+		}
+		defer cleanup()
+		done <- a.run(ctx)
+	}()
 	a := &runningApp{url: fmt.Sprintf("http://127.0.0.1:%d", cfg.Port), stop: func() error { cancel(); return <-done }}
 
 	for deadline := time.Now().Add(time.Minute); time.Now().Before(deadline); {

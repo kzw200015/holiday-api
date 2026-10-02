@@ -8,6 +8,7 @@ package app
 
 import (
 	"context"
+	"github.com/google/wire"
 	"github.com/kzw200015/myapi/internal/config"
 	"github.com/kzw200015/myapi/internal/database"
 	"github.com/kzw200015/myapi/internal/holiday"
@@ -17,10 +18,34 @@ import (
 
 // Injectors from wire.go:
 
-// initApp 构造服务的全部部件；返回的 cleanup 按构造的逆序释放资源。
-//
-// 改了这里或构造函数的参数后重新生成 wire_gen.go：go tool wire ./internal/app。
-func initApp(ctx context.Context, cfg config.Config) (*app, func(), error) {
+// initApp 构造服务的全部部件，配置从环境变量读；返回的 cleanup 按构造的逆序释放资源。
+func initApp(ctx context.Context) (*app, func(), error) {
+	configConfig, err := config.Load()
+	if err != nil {
+		return nil, nil, err
+	}
+	client := outbound.NewClient(configConfig)
+	source := holiday.NewSource(client, configConfig)
+	pool, cleanup, err := database.NewPool(ctx, configConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	store := holiday.NewStore(pool)
+	refresher := holiday.NewRefresher(source, store)
+	service := holiday.NewService(store)
+	echo := web.NewServer(pool, service)
+	appApp := &app{
+		cfg:       configConfig,
+		refresher: refresher,
+		server:    echo,
+	}
+	return appApp, func() {
+		cleanup()
+	}, nil
+}
+
+// initAppWith 和 [initApp] 一样，只是配置由调用方给：测试用它换掉库与数据源的地址。
+func initAppWith(ctx context.Context, cfg config.Config) (*app, func(), error) {
 	client := outbound.NewClient(cfg)
 	source := holiday.NewSource(client, cfg)
 	pool, cleanup, err := database.NewPool(ctx, cfg)
@@ -32,6 +57,7 @@ func initApp(ctx context.Context, cfg config.Config) (*app, func(), error) {
 	service := holiday.NewService(store)
 	echo := web.NewServer(pool, service)
 	appApp := &app{
+		cfg:       cfg,
 		refresher: refresher,
 		server:    echo,
 	}
@@ -39,3 +65,8 @@ func initApp(ctx context.Context, cfg config.Config) (*app, func(), error) {
 		cleanup()
 	}, nil
 }
+
+// wire.go:
+
+// parts 是配置之外的全部构造函数，生产与测试的 injector 共用。
+var parts = wire.NewSet(database.NewPool, outbound.NewClient, holiday.NewStore, holiday.NewService, holiday.NewSource, holiday.NewRefresher, web.NewServer, wire.Struct(new(app), "*"))
