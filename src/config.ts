@@ -35,12 +35,11 @@ const envSchema = z.object({
 
 type Env = z.output<typeof envSchema>
 
-/** 校验环境变量：失败时把每一项的问题列出来。 */
+/** 校验环境变量：失败时由 zod 把每一项的问题连同变量名列出来。 */
 function validateEnv(env: Record<string, unknown>): Env {
   const result = envSchema.safeParse(env)
   if (!result.success) {
-    const problems = result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-    throw new Error(`环境变量有误：\n${problems.join("\n")}`)
+    throw new Error(`环境变量有误：\n${z.prettifyError(result.error)}`)
   }
   return result.data
 }
