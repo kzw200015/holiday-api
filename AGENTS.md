@@ -4,7 +4,7 @@
 
 MyAPI 提供节假日查询，是一个纯 API 服务：Hono + Drizzle + PostgreSQL，由 Bun 直接运行 TypeScript 源码，没有构建步骤（见 ADR-0001）。架构照 eh-pwa 的后端，仓库根目录就是唯一的包。领域术语见 `CONTEXT.md`，架构决策见 `docs/adr/`，辅助工作流见 `docs/agents/`。
 
-代码在 `src/`，顶层按领域分模块，目前只有 `holiday`（节假日查询），另有 `health/`（Kubernetes 的探针：`live` 不碰任何依赖，`ready` 查一次数据库）。基础设施各是一个文件：`config.ts`（环境变量）、`database.ts`（连接池与启动时迁移）、`outbound.ts`（出网与测试的替换口）、`validate.ts`（按 zod schema 校验入参）、`http-error.ts`（可预期的失败）、`logger.ts`（日志，底下是 pino）。`app.ts` 把各领域挂到 `/api` 下，`server.ts` 按启动顺序把服务准备好并监听，`main.ts` 给它端口、收到 SIGTERM 时关停。迁移文件在 `drizzle/`，测试在 `test/`。
+代码在 `src/`，顶层按领域分模块，目前只有 `holiday`（节假日查询），另有 `health/`（Kubernetes 的探针：`live` 不碰任何依赖，`ready` 查一次数据库）。基础设施各是一个文件：`config.ts`（环境变量）、`database.ts`（连接池与启动时迁移）、`outbound.ts`（出网与测试的替换口）、`validate.ts`（按 zod schema 校验入参）、`logger.ts`（日志，底下是 pino）。`app.ts` 把各领域挂到 `/api` 下，`server.ts` 按启动顺序把服务准备好并监听，`main.ts` 给它端口、收到 SIGTERM 时关停。迁移文件在 `drizzle/`，测试在 `test/`。
 
 Bun 的版本写在 `package.json` 的 `packageManager` 与 `Dockerfile` 的 `oven/bun` 镜像标签里，升级时两处一起改。
 
@@ -38,7 +38,7 @@ Bun 的版本写在 `package.json` 的 `packageManager` 与 `Dockerfile` 的 `ov
 
 - **配置**全来自环境变量，由 `config.ts` 用 zod 在模块被导入时校验一次，缺了或写错进程拒绝启动；清单与默认值见 `.env.example`，用到的模块从 `env` 里取，不直接读 `process.env`。约定大于配置：Hono、Bun 默认能用的一律不写配置。
 - **接口**统一挂在 `/api` 下。节假日的两条接口由自己的其他程序调用，路径与成功时的响应体改了要同步改调用方。入参经 `validate.ts` 的 `validate("query", schema)` 挂在路由上，处理函数用 `c.req.valid(…)` 取；schema 就近定义在路由所在的文件。路由只做入参转换，业务在服务里；服务标注返回类型；类型只有一个源头，其余派生（如 `holiday-tables.ts` 的 `HolidayDetail` 就是表的一行）。查询串的怪癖在 schema 里消化掉（如空串的 `date` 转成省略），不漏进服务。
-- **响应**：成功时 `c.json(数据)`。失败抛 `http-error.ts` 的 `HttpError`（经 `badRequest` 这类工厂函数），由 `app.ts` 的 `onError` 统一回成 `{code, message}`，`code` 与 HTTP 状态码相同，`message` 是一句中文；入参不合格回 400，`message` 是 schema 里的文案；不存在的路径与不对的方法由 `notFound` 回 404。未预料的异常回 500 与「服务器出错了」，原文只进日志。
+- **响应**：成功时 `c.json(数据)`。失败直接抛 Hono 的 `HTTPException`（`new HTTPException(503, { message: "…" })`），由 `app.ts` 的 `onError` 统一回成 `{code, message}`，`code` 与 HTTP 状态码相同，`message` 是一句中文，不放上游原话、地址这类细节；Hono 自己抛的 `HTTPException` 同样原样透传它的文案；入参不合格回 400，`message` 是 schema 里的文案；不存在的路径与不对的方法由 `notFound` 回 404。未预料的异常回 500 与「服务器出错了」，原文只进日志。
 - **数据**用 Drizzle（`drizzle-orm/bun-sql`，连接是 Bun 自带的 `SQL`，第一次查询就把连接池开满，默认 10 个）。表结构写在各领域的 `*-tables.ts`，服务直接引用表与 `database`；不用关系查询。改了表结构就在根目录跑 `bunx drizzle-kit generate` 生成迁移，服务启动时先执行 `drizzle/` 下没执行过的迁移再监听。Drizzle 用的是 1.0 的 RC（`drizzle-orm` 与 `drizzle-kit` 版本写死、一起升）。日期列按 `YYYY-MM-DD` 的字符串进出（`date({ mode: "string" })`）。
 - **时间**：节假日安排是中国的，「今天」「今年」一律按北京时间算（`Asia/Shanghai`），不依赖服务器时区。
 - **出网**只有一个出口：`outbound.ts` 的 `outbound`（只收地址的 fetch，底下是 Bun 的 fetch），不跟随重定向，等响应头与两次数据之间各有 `OUTBOUND_TIMEOUT` 的超时（Bun fetch 自带的空闲超时关掉），统一的 User-Agent；代理由 Bun 的 fetch 读 `HTTPS_PROXY`。测试只在这里替换（`replaceOutbound`）。

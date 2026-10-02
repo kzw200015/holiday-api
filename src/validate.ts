@@ -1,8 +1,7 @@
 import { zValidator } from "@hono/zod-validator"
 import type { ValidationTargets } from "hono"
+import { HTTPException } from "hono/http-exception"
 import type { z } from "zod"
-
-import { badRequest } from "@server/http-error"
 
 /**
  * 按 schema 校验一处入参（查询串、路径参数、请求体）。处理函数经 `c.req.valid(…)` 拿到的是 schema 的输出（默认值已填上、transform 过）。
@@ -13,7 +12,8 @@ import { badRequest } from "@server/http-error"
 export function validate<Target extends keyof ValidationTargets, T extends z.ZodType>(target: Target, schema: T) {
   return zValidator(target, schema, (result) => {
     if (!result.success) {
-      throw badRequest([...new Set(result.error.issues.map((issue) => issue.message))].join("；"))
+      const message = [...new Set(result.error.issues.map((issue) => issue.message))].join("；")
+      throw new HTTPException(400, { message })
     }
   })
 }

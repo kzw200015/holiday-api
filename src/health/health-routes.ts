@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm"
 import { Hono } from "hono"
+import { HTTPException } from "hono/http-exception"
 
 import { database } from "@server/database"
-import { serviceUnavailable } from "@server/http-error"
 import { createLogger } from "@server/logger"
 
 const logger = createLogger(import.meta.url)
@@ -27,7 +27,7 @@ export const healthRoutes = new Hono()
       await database.execute(sql`select 1`)
     } catch (error) {
       logger.warn(`数据库连不上：${String(error)}`)
-      throw serviceUnavailable("数据库连不上")
+      throw new HTTPException(503, { message: "数据库连不上" })
     }
     return c.body(null)
   })
