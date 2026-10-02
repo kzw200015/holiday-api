@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "myapi",
+      "name": "holiday-api",
       "dependencies": {
         "@hono/zod-validator": "^0.9.1",
         "croner": "^10.0.1",

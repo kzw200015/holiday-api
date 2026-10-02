@@ -2,7 +2,7 @@
 
 ## 项目结构
 
-MyAPI 提供节假日查询，是一个纯 API 服务：Hono + Drizzle + PostgreSQL，由 Bun 直接运行 TypeScript 源码，没有构建步骤（见 ADR-0001）。架构照 eh-pwa 的后端，仓库根目录就是唯一的包。领域术语见 `CONTEXT.md`，架构决策见 `docs/adr/`，辅助工作流见 `docs/agents/`。
+holiday-api 提供节假日查询，是一个纯 API 服务：Hono + Drizzle + PostgreSQL，由 Bun 直接运行 TypeScript 源码，没有构建步骤（见 ADR-0001）。架构照 eh-pwa 的后端，仓库根目录就是唯一的包。领域术语见 `CONTEXT.md`，架构决策见 `docs/adr/`，辅助工作流见 `docs/agents/`。
 
 代码在 `src/`，顶层按领域分模块，目前只有 `holiday`（节假日查询），另有 `health/`（Kubernetes 的探针：`live` 不碰任何依赖，`ready` 查一次数据库）。基础设施各是一个文件：`config.ts`（环境变量）、`database.ts`（连接池与启动时迁移）、`outbound.ts`（出网与测试的替换口）、`validate.ts`（按 zod schema 校验入参）、`logger.ts`（日志，底下是 pino）。`app.ts` 把各领域挂到 `/api` 下，`server.ts` 按启动顺序把服务准备好并监听，`main.ts` 给它端口、收到 SIGTERM 时关停。迁移文件在 `drizzle/`，测试在 `test/`。
 
@@ -18,7 +18,7 @@ Bun 的版本写在 `package.json` 的 `packageManager` 与 `Dockerfile` 的 `ov
 - `bun run test`：Vitest 跑在 Bun 下。测试用 Testcontainers 起 PostgreSQL，需要本机 Docker。只跑一个文件：`bun --bun vitest run test/holiday.test.ts`。
 - `bun run lint` / `bun run lint:fix`（oxlint）、`bun run format` / `bun run format:check`（Prettier）。
 - `bunx drizzle-kit generate`：改了 `*-tables.ts` 后生成迁移。
-- `docker build -t myapi .`：打部署用的镜像。CI 只有 `.github/workflows/docker.yml` 一个：main 上有新提交时推 `latest`，打 `v*` 标签时推对应版本号，PR 上只构建不推送；测试与检查不在 CI 里跑，提交前本地跑。
+- `docker build -t holiday-api .`：打部署用的镜像。CI 只有 `.github/workflows/docker.yml` 一个：main 上有新提交时推 `latest`，打 `v*` 标签时推对应版本号，PR 上只构建不推送；测试与检查不在 CI 里跑，提交前本地跑。
 
 ## 代码风格
 

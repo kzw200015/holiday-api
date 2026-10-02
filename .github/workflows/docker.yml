@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE: kzw200015/myapi
+  IMAGE: kzw200015/holiday-api
 
 jobs:
   build:
