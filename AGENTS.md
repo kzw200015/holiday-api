@@ -43,7 +43,7 @@ Bun 的版本写在 `package.json` 的 `packageManager` 与 `Dockerfile` 的 `ov
 - **时间**：节假日安排是中国的，「今天」「今年」一律按北京时间算（`Asia/Shanghai`），不依赖服务器时区。
 - **出网**只有一个出口：`outbound.ts` 的 `outbound`（只收地址的 fetch，底下是 Bun 的 fetch），不跟随重定向，等响应头与两次数据之间各有 `OUTBOUND_TIMEOUT` 的超时（Bun fetch 自带的空闲超时关掉），统一的 User-Agent；代理由 Bun 的 fetch 读 `HTTPS_PROXY`。测试只在这里替换（`replaceOutbound`）。
 - **刷新**：启动时一次（库里没有今年的安排就当场拉完、拉不到拒绝启动；有就放到后台），之后由 croner 每天北京时间 4:30 一次。同一时刻的几次刷新合成一次；关停时停止监听与 `stopRefreshing`（停下定时任务、等进行中的那次做完）同时进行，都结束后再关连接池。
-- **日志**一律经 `logger.ts` 的 `createLogger(import.meta.url)` 拿到的 pino logger（每行一个 JSON 写到标准输出，级别由 `LOG_LEVEL` 定），按 pino 的原生写法调用，异常写成 `error(err, "说明")`，不直接写 `console`。`/api` 下的请求日志由 `app.ts` 挂上 Hono 自带的 `hono/logger`，转进 pino。
+- **日志**一律经 `logger.ts` 的 `createLogger(import.meta.url)` 拿到的 pino logger（每行一个 JSON 写到标准输出，级别由 `LOG_LEVEL` 定），按 pino 的原生写法调用，异常写成 `error(err, "说明")`，不直接写 `console`。`/api` 下的请求日志由 `app.ts` 挂上 Hono 自带的 `hono/logger`，转进 pino 并去掉着色符。
 - **探针**是 `/api/health/live` 与 `/api/health/ready`。迁移与启动时的刷新都做完才开始监听。
 
 ## 测试

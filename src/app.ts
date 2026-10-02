@@ -1,3 +1,4 @@
+import { stripVTControlCharacters } from "node:util"
 import { Hono } from "hono"
 import { HTTPException } from "hono/http-exception"
 import { logger as requestLogger } from "hono/logger"
@@ -10,10 +11,10 @@ const logger = createLogger(import.meta.url)
 
 /** 整个应用：接口一律挂在 /api 下，各领域的路由只写领域内的路径。 */
 export const app = new Hono()
-  /* Hono 自带的请求日志，转进 pino */
+  /* Hono 自带的请求日志，转进 pino；它不看是不是终端、只认 NO_COLOR，给状态码加的着色符在这里去掉 */
   .use(
     "/api/*",
-    requestLogger((line) => logger.info(line)),
+    requestLogger((line) => logger.info(stripVTControlCharacters(line))),
   )
   .route("/api", new Hono().route("/holiday", holidayRoutes).route("/health", healthRoutes))
   /*
