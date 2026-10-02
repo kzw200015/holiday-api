@@ -1,0 +1,15 @@
+# sqlc 按迁移里的表结构与各领域的 queries.sql 生成查库代码：go tool sqlc generate。生成的代码提交进仓库，不手改
+version: "2"
+sql:
+  - engine: postgresql
+    schema: migrations
+    queries: internal/holiday/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/holiday/db
+        sql_package: pgx/v5
+        overrides:
+          # 日期在领域里是 time.Time（UTC 零点），不用 pgtype.Date
+          - db_type: date
+            go_type: time.Time

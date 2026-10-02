@@ -1,4 +1,0 @@
-# Rust 版本只在这里钉一处；Dockerfile 的 rust 镜像标签与它一起升
-[toolchain]
-channel = "1.98"
-components = ["rustfmt", "clippy"]

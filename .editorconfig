@@ -10,8 +10,8 @@ trim_trailing_whitespace = true
 [*.md]
 trim_trailing_whitespace = false
 
-[*.rs]
-indent_size = 4
+[{*.go,go.mod}]
+indent_style = tab
 
 [*.{sql,json,yml,yaml}]
 indent_size = 2

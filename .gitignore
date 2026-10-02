@@ -7,7 +7,8 @@
 .DS_Store
 *.sw?
 
-/target/
+# go build 编出的可执行文件
+/myapi
 *.log
 .ace-tool/
 

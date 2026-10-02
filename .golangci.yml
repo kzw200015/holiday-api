@@ -1,0 +1,20 @@
+# golangci-lint v2：golangci-lint run 检查，golangci-lint fmt 格式化
+version: "2"
+
+linters:
+  # errcheck、govet、ineffassign、staticcheck、unused
+  default: standard
+  exclusions:
+    presets:
+      # 不追究 defer x.Close() 这类惯常写法的返回值
+      - std-error-handling
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      # 本仓库的包单独排在最后一组
+      local-prefixes:
+        - github.com/kzw200015/myapi
