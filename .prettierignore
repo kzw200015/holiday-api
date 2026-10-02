@@ -5,4 +5,3 @@ bun.lock
 .codex
 # drizzle-kit 生成的迁移与快照
 drizzle
-.mcp.json
